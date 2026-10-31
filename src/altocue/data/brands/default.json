@@ -1,0 +1,7 @@
+{
+  "name": "Altocue",
+  "font": { "family": "Geist", "file": "Geist-Variable.ttf" },
+  "colors": { "ink": "#f3f7fa", "soft": "#a3b1bd", "accent": "#b5f4d9", "panel": "#080d13", "surface": "#111b24" },
+  "caption": { "style": "clean", "size": 70, "max_words": 4, "combine_ms": 700, "uppercase": false },
+  "logo": null
+}

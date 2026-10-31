@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "altocue",
+  "version": "0.1.0",
+  "description": "Edit raw footage into finished video from your coding agent.",
+  "homepage": "https://github.com/StratosHouse/altocue",
+  "repository": "https://github.com/StratosHouse/altocue",
+  "license": "MIT"
+}

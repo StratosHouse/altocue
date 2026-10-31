@@ -1,0 +1,46 @@
+[project]
+name = "altocue"
+version = "0.1.0"
+description = "Edit raw footage into finished video from your coding agent."
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "numpy>=2.0",
+    "pillow>=11",
+    "opencv-python-headless>=4.10",
+    "parakeet-mlx>=0.5.3,<0.6; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "faster-whisper>=1.2.1,<2; sys_platform != 'darwin' or platform_machine != 'arm64'",
+]
+
+[project.optional-dependencies]
+mlx-whisper = ["mlx-whisper>=0.4.3,<0.5; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+faster-whisper = ["faster-whisper>=1.2.1,<2"]
+
+[project.scripts]
+altocue = "altocue.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.8", "pyright>=1.1"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/altocue"]
+exclude = ["src/altocue/data/renderer/node_modules"]
+
+[tool.ruff]
+line-length = 170
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/altocue/motion/html.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: needs real models or real footage", "network: needs a provider key"]
+addopts = "-m 'not slow and not network'"

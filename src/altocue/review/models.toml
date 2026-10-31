@@ -1,0 +1,29 @@
+# Model ids and prices live here, so they can change without a release.
+# Check them against the sources before relying on a price.
+checked = "2026-10-30"
+
+[gemini]
+model = "gemini-3.8-flash"
+escalate = "gemini-4-argon"
+endpoint = "https://generativelanguage.googleapis.com"
+media_resolution = "high"
+tokens_per_frame = 280
+audio_tokens_per_second = 32
+prompt_tokens = 6000
+answer_tokens = 2000
+price_input_per_million = 0.75
+price_output_per_million = 3.75
+price_note = "Doubles on 2027-01-01."
+sources = [
+  "https://ai.google.dev/gemini-api/docs/models",
+  "https://ai.google.dev/gemini-api/docs/pricing",
+  "https://ai.google.dev/gemini-api/docs/video-understanding",
+  "https://ai.google.dev/gemini-api/docs/media-resolution",
+  "https://ai.google.dev/gemini-api/docs/files",
+  "https://ai.google.dev/gemini-api/docs/structured-output",
+  "https://ai.google.dev/gemini-api/docs/interactions",
+  "https://ai.google.dev/gemini-api/terms",
+]
+
+[codex]
+model = ""  # empty uses the Codex default
