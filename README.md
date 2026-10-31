@@ -122,7 +122,7 @@ Altocue is free. Hosted providers are optional, off by default, and billed by th
 | Transcription | Parakeet on Apple Silicon, faster-whisper elsewhere | ElevenLabs Scribe |
 | Noise removal | DeepFilterNet or ffmpeg | |
 | Graphics | HyperFrames or the built-in basic renderer | |
-| B-roll | Your own clips | Pexels and Pixabay with a free key |
+| B-roll | Your own clips | Pixabay with a free key, or Pexels if you already hold one (Pexels has paused new keys) |
 | Generation | | fal.ai, Higgsfield |
 | Review | A fresh agent with the review pack | Gemini, Codex |
 

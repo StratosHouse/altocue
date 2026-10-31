@@ -1,8 +1,8 @@
 ---
 name: altocue-broll
-description: Finds the moments in an edit that want B-roll and fills them from the user's own clips, free stock from Pexels or Pixabay, or generated shots. Use when the user wants cutaways or overlays on a talking head, wants to hide a jump cut, or says a stretch of a reel feels static.
+description: Finds the moments in an edit that want B-roll and fills them from the user's own clips, free stock from Pixabay or Pexels, or generated shots. Use when the user wants cutaways or overlays on a talking head, wants to hide a jump cut, or says a stretch of a reel feels static.
 license: MIT
-compatibility: Requires the altocue CLI. PEXELS_API_KEY or PIXABAY_API_KEY for stock. Both keys are free.
+compatibility: Requires the altocue CLI. PIXABAY_API_KEY or PEXELS_API_KEY for stock. Both are free, and Pexels has paused new keys.
 ---
 
 # Altocue B-roll
@@ -28,8 +28,9 @@ B-roll covers the picture while the voice keeps playing. Use it to show what is 
 3. Rewrite the search words. The `query` in `work/broll/spots.json` is a draft picked by word length. Change it to something a camera could film: `hands typing on a laptop`, never `pauses reads word`.
 4. Search stock if the user's clips fall short:
    ```bash
-   altocue broll --search pexels
+   altocue broll --search pixabay
    ```
+   Use `--search pexels` only if the user already has a Pexels key. Pexels has paused new ones.
 5. Open `work/broll/sheet.jpg`. Every option is labelled, such as `b1 c2`.
 6. Pick. Each spot takes one option, a generated shot, any file, or a skip:
    ```bash

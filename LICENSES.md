@@ -43,7 +43,7 @@ Hosted providers are off until you turn them on. Each has its own terms, and you
 
 ## Stock B-roll
 
-Altocue ships no stock footage. With your own free key it can search [Pexels](https://www.pexels.com) and [Pixabay](https://pixabay.com), and you pick what comes down. Those clips stay under the [Pexels licence](https://www.pexels.com/license/) and the [Pixabay licence](https://pixabay.com/service/license-summary/). Both allow commercial use and editing without credit. Neither clears the people or brands in a clip, and neither allows selling a clip on its own. That part is yours to check.
+Altocue ships no stock footage. With your own free key it can search [Pixabay](https://pixabay.com) or [Pexels](https://www.pexels.com), and you pick what comes down. Pexels has paused new API keys, so start with Pixabay unless you already hold one. Those clips stay under the [Pexels licence](https://www.pexels.com/license/) and the [Pixabay licence](https://pixabay.com/service/license-summary/). Both allow commercial use and editing without credit. Neither clears the people or brands in a clip, and neither allows selling a clip on its own. That part is yours to check.
 
 ## Video you make
 

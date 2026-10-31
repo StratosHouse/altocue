@@ -164,8 +164,14 @@ def test_pixabay_caches_a_search_for_a_day(stock):
 
 def test_stock_needs_a_key_and_says_where_to_get_one(project, monkeypatch):
     monkeypatch.delenv("PEXELS_API_KEY", raising=False)
-    with pytest.raises(AltocueError, match="PEXELS_API_KEY"):
+    with pytest.raises(AltocueError, match="PEXELS_API_KEY") as caught:
         broll.search(project, [{"query": "x", "options": []}], "pexels")
+    assert "--search pixabay" in caught.value.fix
+
+    monkeypatch.delenv("PIXABAY_API_KEY", raising=False)
+    with pytest.raises(AltocueError, match="PIXABAY_API_KEY") as caught:
+        broll.search(project, [{"query": "x", "options": []}], "pixabay")
+    assert "https://pixabay.com/api" in caught.value.fix
 
 
 def spot_ready(project: Project, options: list[dict]) -> None:

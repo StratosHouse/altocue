@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Stock search leads with Pixabay, because Pexels has paused new API keys
+
 ## 0.1.0
 
 First release.

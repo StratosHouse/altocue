@@ -249,7 +249,8 @@ def search(project: Project, spots: list[dict[str, Any]], provider: str) -> None
     env, seek, home = {"pexels": ("PEXELS_API_KEY", pexels, "https://www.pexels.com"), "pixabay": ("PIXABAY_API_KEY", pixabay, "https://pixabay.com")}[provider]
     key = os.environ.get(env, "")
     if not key:
-        raise AltocueError(f"{env} is not set.", fix=f"Get a free key at {home}/api, then set {env}. Or use --library or generated shots.")
+        get = "Pexels has paused new keys, so use --search pixabay if you have none." if provider == "pexels" else f"Get a free key at {home}/api, then set {env}."
+        raise AltocueError(f"{env} is not set.", fix=f"{get} Or use --library or generated shots.")
     print(f"Searching {provider} ({home}). Only the search words are sent, never your footage.")
     for spot in spots:
         if spot["query"]:
@@ -477,6 +478,6 @@ def run(args: argparse.Namespace) -> int:
     if not any(spot["options"] for spot in spots) and folders:
         print("None of your clips matched. Clips match on file name, folder and a .txt note beside them. Any file works with b1=file:clip.mp4.")
     elif not any(spot["options"] for spot in spots):
-        print("No options yet. Add --library <folder>, --search pexels, or generate a shot and pick it with b1=shot:<id>.")
+        print("No options yet. Add --library <folder>, --search pixabay, or generate a shot and pick it with b1=shot:<id>.")
     return 0
 
