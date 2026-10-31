@@ -86,7 +86,11 @@ def _vision(images: list[Path]) -> list[dict[str, Any]]:
 
 def _tesseract_lines(image: Path, source: Path, size: tuple[int, int]) -> list[dict[str, Any]]:
     done = subprocess.run(
-        ["tesseract", str(image), "stdout", "--psm", TESSERACT_MODE, "tsv"], capture_output=True, text=True, errors="replace"
+        ["tesseract", str(image), "stdout", "--psm", TESSERACT_MODE, "tsv"],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        env={**os.environ, "OMP_THREAD_LIMIT": "1"},  # read_images runs one per core, and each would start a thread per core
     )
     width, height = size
     lines: dict[tuple[str, str, str], list[list[str]]] = {}

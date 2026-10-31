@@ -226,6 +226,18 @@ def test_reader_returns_text_and_a_top_left_box(tmp_path):
     assert 0.05 < hit["box"][1] < 0.15, hit
 
 
+def test_tesseract_runs_on_one_thread_because_we_already_run_one_per_core(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake(command, **kwargs):
+        seen.update(kwargs["env"])
+        return SimpleNamespace(stdout="")
+
+    monkeypatch.setattr(ocr.subprocess, "run", fake)
+    ocr._tesseract_lines(tmp_path / "frame.png", tmp_path / "frame.png", (100, 100))
+    assert seen["OMP_THREAD_LIMIT"] == "1"
+
+
 @pytest.mark.skipif(not shutil.which("tesseract"), reason="tesseract is not installed")
 def test_tesseract_reads_text_and_a_top_left_box_where_there_is_no_vision(tmp_path, monkeypatch):
     from canaries import text_plate
