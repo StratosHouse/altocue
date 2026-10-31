@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: https://github.com/StratosHouse/altocue/security/advisories/new
+    about: Report it privately. Please do not open a public issue.
+  - name: Website
+    url: https://www.stratosagency.ai/altocue
+    about: What Altocue is and how to install it.

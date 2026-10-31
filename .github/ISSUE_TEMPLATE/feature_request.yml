@@ -1,0 +1,17 @@
+name: Feature request
+description: Something Altocue should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: job
+    attributes:
+      label: What are you trying to make
+      description: The real video or job, not the feature you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: Where Altocue falls short
+    validations:
+      required: true

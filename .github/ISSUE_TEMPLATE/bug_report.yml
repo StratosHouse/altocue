@@ -1,0 +1,29 @@
+name: Bug report
+description: Something broke or gave a wrong result.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `altocue doctor`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: The error
+      description: Please remove names, keys and anything private first. Never attach footage you do not own.
+      render: text
+  - type: input
+    id: agent
+    attributes:
+      label: Which coding agent, if any
+      placeholder: Claude Code, Codex, none
