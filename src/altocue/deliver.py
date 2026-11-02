@@ -512,12 +512,24 @@ def run(args: argparse.Namespace) -> int:
     pictures = thumbnails.write(plate_or_final(project, final), shots_of(edl), folder / "thumbnails")
     print(f"Thumbnails: {len(pictures['candidates'])} candidates from {pictures['read']} frames. Compare them in {FOLDER}/thumbnails/{pictures['sheet']}")
 
-    versions = [make_version(project, platform, folder, seconds, args.loudness, args.renderer) for platform in wanted]
-    report = {"final_sha256": sha256(final), "subtitles": subs, "chapters": marks, "film": film, "thumbnails": pictures, "versions": versions}
+    digest = sha256(final)
+    made = [make_version(project, platform, folder, seconds, args.loudness, args.renderer) for platform in wanted]
+    versions = _earlier_versions(folder, digest, made) + made
+    report = {"final_sha256": digest, "subtitles": subs, "chapters": marks, "film": film, "thumbnails": pictures, "versions": versions}
     write_json(folder / "deliver.json", report)
     print(f"Saved {FOLDER}/deliver.json")
-    missed = film["loudness"]["passed"] is False or any(v.get("failed") or v.get("problem") or v["loudness"]["passed"] is False for v in versions)
+    missed = film["loudness"]["passed"] is False or any(v.get("failed") or v.get("problem") or v["loudness"]["passed"] is False for v in made)
     return 1 if missed else 0
+
+
+def _earlier_versions(folder: Path, digest: str, made: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Versions from an earlier run still stand, if they came from this same film."""
+    path = folder / "deliver.json"
+    earlier = json.loads(path.read_text()) if path.exists() else {}
+    if earlier.get("final_sha256") != digest:
+        return []
+    fresh = {entry["platform"] for entry in made}
+    return [entry for entry in earlier.get("versions", []) if entry["platform"] not in fresh]
 
 
 def _reading_line(reading: dict[str, Any]) -> str:

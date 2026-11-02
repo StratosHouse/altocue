@@ -359,6 +359,23 @@ def test_an_unknown_platform_stops_before_any_work(finished, capsys):
     assert not (finished.root / "deliver" / "deliver.json").exists()
 
 
+def test_a_later_run_keeps_the_versions_it_did_not_touch(finished, monkeypatch):
+    monkeypatch.setattr(deliver, "render_version", lambda version, renderer: finished.out / "render.mp4")
+    main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
+    main(["deliver", "-p", str(finished.root), "--for", "youtube", "--renderer", "basic"])
+    main(["deliver", "-p", str(finished.root)])
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert [v["platform"] for v in report["versions"]] == ["square", "youtube"]
+
+
+def test_a_new_film_drops_the_old_versions_from_the_report(finished, monkeypatch):
+    monkeypatch.setattr(deliver, "render_version", lambda version, renderer: finished.out / "render.mp4")
+    main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
+    master.master_file(finished.out / "render.mp4", finished.out / "final.mp4", -15.0)
+    main(["deliver", "-p", str(finished.root)])
+    assert json.loads((finished.root / "deliver" / "deliver.json").read_text())["versions"] == []
+
+
 def test_a_second_run_replaces_the_first(finished):
     main(["deliver", "-p", str(finished.root)])
     main(["deliver", "-p", str(finished.root)])

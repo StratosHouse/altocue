@@ -127,11 +127,13 @@ def layout(width: int, height: int, brand: Brand, zone: dict[str, float] | None 
     geo = geometry(width, height)
     if not zone:
         return geo
+    plain_area = width - 2 * geo["gutter"] - geo["rail"]
     left, right = math.ceil(round(zone["left"] * width, 6)), math.ceil(round((1 - zone["right"]) * width, 6))
     if geo["gutter"] < left:
         geo["gutter"] = left + ZONE_INSET
     if geo["gutter"] + geo["rail"] < right:
         geo["rail"] = right + ZONE_INSET - geo["gutter"]
+    geo["scale"] = round(geo["scale"] * min((width - 2 * geo["gutter"] - geo["rail"]) / plain_area, 1.0), 3)  # a title keeps its line breaks
     geo["top"] = max(geo["top"], math.ceil(round(zone["top"] * height, 6)))
     rise = max(geo["cap_y"] - math.floor(zone["bottom"] * height - CAPTION_LINES * caption_size(width, height, brand) * LINE_HEIGHT), 0)
     geo["cap_y"] -= rise

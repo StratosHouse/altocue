@@ -12,7 +12,7 @@ from PIL import Image, ImageFont
 from .. import ffmpeg, frame
 from ..brand import Brand
 from . import formats
-from .html import geometry, layout
+from .html import ZONE_INSET, geometry, layout
 
 FULL_SCREEN = {"title", "endcard", "composition"}
 FACE_MARGIN = 0.16  # share of a face kept clear on every side
@@ -110,6 +110,8 @@ def best_top(
     left, right = float(geo["gutter"]), float(width - geo["gutter"] - geo["rail"])
     tops = TALL_TOPS if height > width else WIDE_TOPS
     highest = zone["top"] * height if zone else 0.0
+    if zone:
+        tops = (tops[0], (highest + ZONE_INSET) / height, *tops[1:])
     scored = []
     for order, share in enumerate(tops):
         top = float(home) if share is None else height * share

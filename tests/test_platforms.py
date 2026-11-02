@@ -92,6 +92,22 @@ def test_text_moved_for_a_zone_sits_clear_of_its_edge(brand):
     assert moved["gutter"] >= zone["left"] * 1080 + 8  # a text reader's box runs a few pixels past the letters
 
 
+def test_a_narrower_zone_scales_graphics_so_a_title_keeps_its_line_breaks(brand):
+    plain = layout(1080, 1920, brand)
+    moved = layout(1080, 1920, brand, platforms.PLATFORMS["tiktok"].zone)
+    area = moved["scale"] / plain["scale"]
+    assert area == pytest.approx((1080 - 2 * moved["gutter"] - moved["rail"]) / (1080 - 2 * plain["gutter"] - plain["rail"]), abs=0.002)
+    assert layout(1080, 1920, brand, platforms.PLATFORMS["reels"].zone)["scale"] == plain["scale"]
+
+
+def test_a_graphic_can_sit_right_under_the_top_of_the_zone(brand):
+    zone = platforms.PLATFORMS["reels"].zone
+    geo = layout(1080, 1920, brand, zone)
+    face = [(300.0, 560.0, 480.0, 500.0)]
+    top = placement.best_top({"type": "hook"}, 230.0, face, (1080, 1920), geo["cap_y"], geo=geo, zone=zone)
+    assert top == pytest.approx(zone["top"] * 1920 + 12, abs=1)
+
+
 def test_a_narrower_zone_is_counted_when_guessing_a_graphics_height(brand, monkeypatch):
     widths = []
     monkeypatch.setattr(placement, "line_count", lambda text, size, width, brand: widths.append(width) or 1)
