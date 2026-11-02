@@ -330,7 +330,7 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
     """The same shape `altocue render` writes, so every later stage can read a film like any other project."""
     scenes = done["scenes"]
     total = done["total"]
-    items = [_place({**item, "fixed": item.get("fixed", item["type"] == "corner_stamp")}, size) for item in done["items"]]
+    items = [_place({**item, "fixed": item.get("fixed", item["type"] == "corner_stamp" or bool(item.get("carry")))}, size) for item in done["items"]]
     return {
         "width": size[0],
         "height": size[1],

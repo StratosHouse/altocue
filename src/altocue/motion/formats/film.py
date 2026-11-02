@@ -216,7 +216,7 @@ SILHOUETTE_CSS = """
 $ .stagefield{position:absolute;inset:0;overflow:hidden}
 $ .floor{position:absolute;left:0;right:0;top:72%;bottom:0;background:color-mix(in srgb,var(--accent) 16%,transparent)}
 $ .line{position:absolute;left:var(--gutter);right:var(--gutter);top:12%;margin:0;text-align:center;font-size:60u;font-weight:600;line-height:1.1;letter-spacing:-.025em;text-wrap:balance}
-$ .fig{position:absolute;left:50%;top:72%;width:0;height:0;color:var(--ink);--u:calc(13u);animation:safig var(--dur) linear both}
+$ .fig{position:absolute;left:50%;top:72%;width:0;height:0;color:var(--ink);--u:calc(19u);animation:safig var(--dur) linear both}
 $ .hips{position:absolute;left:0;top:calc(var(--u) * -11);width:0;height:0;animation:sabob .6s ease-in-out infinite alternate}
 $ .trunk{position:absolute;left:calc(var(--u) * -1.6);bottom:0;width:calc(var(--u) * 3.2);height:calc(var(--u) * 7.4);border-radius:calc(var(--u) * 1.6);background:currentColor;transform-origin:50% 100%;animation:salean 1.2s ease-in-out infinite alternate}
 $ .head{position:absolute;left:50%;top:calc(var(--u) * -3.2);width:calc(var(--u) * 2.9);height:calc(var(--u) * 2.9);margin-left:calc(var(--u) * -1.45);border-radius:50%;background:currentColor;transform-origin:50% 100%;animation:sahead 1.5s ease-in-out infinite alternate}

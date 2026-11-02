@@ -171,10 +171,19 @@ def _item(entry: dict[str, Any], scene: dict[str, Any], clock: Clock, aspect: st
         item["end"] = clock.frame(item["start"] + float(entry["duration"]))
     else:
         item["end"], item["hold"] = scene["end"], True
-    for key, value in entry.items():
-        if isinstance(value, list) and any(isinstance(row, dict) and "at" in row for row in value):
-            item[key] = [{**row, "at": clock.at(row["at"], scene)} if isinstance(row, dict) and "at" in row else row for row in value]
+    for key, value in item.items():
+        if isinstance(value, list):
+            item[key] = _timed_rows(value, scene, clock)
     return item
+
+
+def _timed_rows(value: Any, scene: dict[str, Any], clock: Clock) -> Any:
+    """A row's `at` follows the timeline like any other time, at any depth."""
+    if isinstance(value, list):
+        return [_timed_rows(row, scene, clock) for row in value]
+    if isinstance(value, dict):
+        return {key: clock.at(entry, scene) if key == "at" else _timed_rows(entry, scene, clock) for key, entry in value.items()}
+    return value
 
 
 def resolve(board: dict[str, Any], *, fps: int, aspect: str = "16:9", beats: list[float] | None = None, voice: dict[str, float] | None = None) -> dict[str, Any]:
@@ -280,6 +289,11 @@ def _check_scenes(board: dict[str, Any], record: dict[str, Any], approved: list[
         kind = link.get("type", "cut") if isinstance(link, dict) else link
         if kind not in (*CAMERA_LINKS, *WIPES):
             add("error", where, f'Unknown link "{kind}".', f"Use one of {', '.join((*CAMERA_LINKS, *WIPES))}.")
+        elif kind in WIPES:
+            try:
+                formats.check({**(link if isinstance(link, dict) else {}), "type": kind})
+            except AltocueError as error:
+                add("error", where, str(error.args[0]), error.fix or "")
         energy = scene.get("energy")
         if energy is not None and not (number(energy) and 0 <= energy <= 10):
             add("error", where, f"Energy is {energy}.", "Use a number from 0 to 10.")
@@ -332,8 +346,12 @@ def _check_timing(done: dict[str, Any], add: Any, reading: float = rules.READING
             continue
         try:
             formats.check(item)
+            if fmt:
+                fmt.draw({**item, "image": None, "src": None})  # a slot in the wrong shape fails here, not in the render
         except AltocueError as error:
             add("error", where, str(error.args[0]), error.fix or "Shorten the copy.")
+        except (KeyError, TypeError, ValueError, IndexError, AttributeError) as error:
+            add("error", where, f'{kind} cannot be drawn from what it was given: {error!r}.', f"See `altocue library show {kind}`.")
         scene = scenes[item["scene"]]
         seconds = item["end"] - item["start"]
         if item["start"] < scene["start"] - leads[item["scene"]] - frame:

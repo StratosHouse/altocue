@@ -164,7 +164,8 @@
                 "text": "08:16. Parcel moved to *shelf 41*, which does not exist on the plan.",
                 "source": "Invented log, page 3",
                 "start": 0.3,
-                "zone": "center"
+                "zone": "center",
+                "scale": 0.8
               }
             ]
           },

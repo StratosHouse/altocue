@@ -129,7 +129,7 @@
             "beat": "line",
             "seconds": "voice",
             "voice": "assets/voice/line3.wav",
-            "says": "Because the heavy things sit low, and the hull is wide.",
+            "says": "Because the heavy things sit low, and the hull is wide, so the whole ship is hard to tip.",
             "verb": "show",
             "energy": 6,
             "carry": "the wide hull",

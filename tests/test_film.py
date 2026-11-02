@@ -13,7 +13,7 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from altocue import brand as brands
-from altocue import cli, film, flash, score, storyboard, study
+from altocue import cli, ffmpeg, film, flash, score, storyboard, study
 from altocue.errors import AltocueError
 from altocue.motion import compositions, formats, hyperframes, scenes
 from altocue.motion.formats import kit, product
@@ -131,6 +131,23 @@ def test_row_times_follow_the_scene():
     made["scenes"][1]["items"] = [{"type": "stepped_list", "items": [{"text": "One", "at": 1.0}, {"text": "Two", "at": 2.0}], "duration": 4}]
     item = next(i for i in storyboard.resolve(made, fps=30)["items"] if i["type"] == "stepped_list")
     assert [row["at"] for row in item["items"]] == [5.0, 6.0]
+
+
+def test_a_time_deep_inside_a_row_follows_the_timeline():
+    made = board()
+    states = [{"value": "1", "at": 0}, {"value": "2", "at": {"scene": "payoff", "offset": 1}}]
+    made["scenes"][0]["items"] = [{"type": "state_gauge", "rows": [{"text": "Charge", "states": states}], "carry": True, "end": {"scene": "close", "offset": 0}}]
+    item = next(i for i in storyboard.resolve(made, fps=30)["items"] if i["type"] == "state_gauge")
+    assert [state["at"] for state in item["rows"][0]["states"]] == [0.0, 20.0]
+
+
+def test_a_take_with_no_picture_still_sets_its_scene(tmp_path):
+    made = film.example(film.load_type("explainer"))["storyboard"]
+    project = Project.create(tmp_path / "film")
+    take = project.root / made["scenes"][0]["voice"]
+    take.parent.mkdir(parents=True)
+    ffmpeg.write_wav(take, np.zeros(48000 * 2), 48000)
+    assert film.voice_lengths(project, made) == {made["scenes"][0]["id"]: pytest.approx(2.0)}
 
 
 def test_scene_cuts_can_land_on_beats():
@@ -302,6 +319,18 @@ def test_an_unknown_camera_or_link_is_an_error():
     made["scenes"][1]["link"] = {"type": "wobble"}
     found = errors(storyboard.check(brief(), made, film.load_type("launch")))
     assert any("spin" in text for text in found) and any("wobble" in text for text in found)
+
+
+def test_a_wipe_is_held_to_its_format_like_any_item():
+    made = board()
+    made["scenes"][0]["link"] = {"type": "torn_wipe", "why": "A tear."}
+    assert any('needs "text"' in text for text in errors(storyboard.check(brief(), made, film.load_type("launch"))))
+
+
+def test_a_slot_in_the_wrong_shape_fails_the_check_not_the_render():
+    made = board()
+    made["scenes"][1]["items"] = [{"type": "bar_build", "title": "Sample", "bars": [{"label": "Mon", "value": 2}], "start": 0, "duration": 4}]
+    assert any("cannot be drawn" in text or "needs" in text for text in errors(storyboard.check(brief(), made, film.load_type("launch"))))
 
 
 def test_example_copy_left_in_is_a_warning():

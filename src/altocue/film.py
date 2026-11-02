@@ -181,7 +181,7 @@ def voice_lengths(project: Project, board: dict[str, Any]) -> dict[str, float]:
     for scene in board.get("scenes", []):
         relative = scene.get("voice")
         if relative and (project.root / relative).is_file():
-            found[str(scene["id"])] = ffmpeg.probe_clip(project.root / relative).duration
+            found[str(scene["id"])] = float(ffmpeg.probe_json(project.root / relative)["format"]["duration"])
     return found
 
 

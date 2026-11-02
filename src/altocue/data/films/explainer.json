@@ -114,7 +114,8 @@
             "carry": "the question",
             "link": {
               "type": "torn_wipe",
-              "why": "A paper tear moves us to the evidence."
+              "why": "A paper tear moves us to the evidence.",
+              "text": "The *evidence*"
             },
             "items": [
               {
@@ -151,7 +152,8 @@
                 "text": "Starch hardens *fastest just above freezing.*",
                 "source": "Your source goes here",
                 "start": 0.2,
-                "zone": "center"
+                "zone": "center",
+                "scale": 0.8
               }
             ],
             "camera": {
@@ -184,22 +186,22 @@
               {
                 "type": "bar_build",
                 "title": "Days until stale, *sample test*",
+                "start": 0.1,
+                "zone": "center",
                 "bars": [
                   {
-                    "label": "Fridge",
+                    "text": "Fridge",
                     "value": 2
                   },
                   {
-                    "label": "Bread box",
+                    "text": "Box",
                     "value": 4
                   },
                   {
-                    "label": "Freezer",
+                    "text": "Frozen",
                     "value": 30
                   }
-                ],
-                "start": 0.1,
-                "zone": "center"
+                ]
               }
             ],
             "camera": {
