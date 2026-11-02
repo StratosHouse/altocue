@@ -36,9 +36,9 @@ def line_count(text: str, size: float, width: float, brand: Brand) -> int:
     return total
 
 
-def estimated_height(item: dict[str, Any], width: int, height: int, brand: Brand) -> float:
+def estimated_height(item: dict[str, Any], width: int, height: int, brand: Brand, zone: dict[str, float] | None = None) -> float:
     """A close guess at the graphic's height, in canvas pixels."""
-    geo = geometry(width, height)
+    geo = layout(width, height, brand, zone)
     scale, area = geo["scale"], width - 2 * geo["gutter"] - geo["rail"]
     kind = item["type"]
     fmt = formats.find(kind)
@@ -132,7 +132,7 @@ def place(
             placed.append(item)
             continue
         faces = faces_during(picture, item["start"], item["end"], size)
-        tall = estimated_height(item, size[0], size[1], brand)
+        tall = estimated_height(item, size[0], size[1], brand, zone)
         top = best_top(item, tall, faces, size, geo["cap_y"], geo=geo, zone=zone) if faces else None
         placed.append({**item, "y": round(top)} if top is not None else item)
     return placed

@@ -86,6 +86,21 @@ def test_a_wide_right_margin_widens_the_rail(brand):
     assert moved["gutter"] + moved["rail"] >= round((1 - zone["right"]) * 1080, 6)
 
 
+def test_text_moved_for_a_zone_sits_clear_of_its_edge(brand):
+    zone = platforms.PLATFORMS["tiktok"].zone
+    moved = layout(1080, 1920, brand, zone)
+    assert moved["gutter"] >= zone["left"] * 1080 + 8  # a text reader's box runs a few pixels past the letters
+
+
+def test_a_narrower_zone_is_counted_when_guessing_a_graphics_height(brand, monkeypatch):
+    widths = []
+    monkeypatch.setattr(placement, "line_count", lambda text, size, width, brand: widths.append(width) or 1)
+    item = {"type": "hook", "text": "Any words"}
+    placement.estimated_height(item, 1080, 1920, brand)
+    placement.estimated_height(item, 1080, 1920, brand, platforms.PLATFORMS["tiktok"].zone)
+    assert widths[1] < widths[0]
+
+
 def test_a_zone_the_layout_already_clears_changes_nothing(brand):
     assert layout(1920, 1080, brand, platforms.PLATFORMS["youtube"].zone) == layout(1920, 1080, brand)
 

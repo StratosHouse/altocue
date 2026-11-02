@@ -54,6 +54,7 @@ VERSION_GATES = (
     (("duration",), gates.gate_duration),
     (("safe_zone",), gates.gate_safe_zone),
     (("face_clear",), gates.gate_face_clear),
+    (("graphics_clear",), gates.gate_graphics_clear),
     (("format",), gates.gate_format),
 )
 
@@ -403,8 +404,9 @@ def open_version(project: Project, platform: Platform, target: dict[str, Any], *
     version.save_edl(edl)
     if reuse:
         shutil.copy(project.timeline_path, version.timeline_path)
-        if (project.work / "plate.mp4").exists():
-            (home / "plate.mp4").symlink_to(project.work / "plate.mp4")
+        for name in ("plate.mp4", "layers"):
+            if (project.work / name).exists():
+                (home / name).symlink_to(project.work / name)
     return version
 
 

@@ -251,6 +251,7 @@ def test_one_edit_becomes_a_file_per_platform_and_the_master_is_untouched(finish
     versions = {v["platform"]: v for v in json.loads((folder / "deliver.json").read_text())["versions"]}
     assert versions["youtube"]["size"] == [1920, 1080]
     assert "estimate" in versions["youtube"]["zone_source"].lower()
+    assert {"loudness", "true_peak", "duration", "safe_zone", "face_clear", "graphics_clear", "format"} <= {g["id"] for g in versions["square"]["gates"]}
     assert abs(versions["square"]["loudness"]["measured"]["integrated"] + 14) <= 0.5
 
 

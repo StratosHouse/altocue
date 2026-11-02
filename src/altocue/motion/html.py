@@ -12,6 +12,7 @@ from .formats import kit
 
 CAPTION_LINES = 2  # four words rarely wrap further, and a third line shows in the safe zone gate
 LINE_HEIGHT = 1.14
+ZONE_INSET = 12  # pixels. Text moved for a zone stops short of its edge, not on it
 
 CSS = """
 @font-face{font-family:"Brand";src:url("%(font)s");font-weight:100 900}
@@ -126,8 +127,11 @@ def layout(width: int, height: int, brand: Brand, zone: dict[str, float] | None 
     geo = geometry(width, height)
     if not zone:
         return geo
-    geo["gutter"] = max(geo["gutter"], math.ceil(round(zone["left"] * width, 6)))
-    geo["rail"] = max(geo["rail"], math.ceil(round((1 - zone["right"]) * width, 6)) - geo["gutter"])
+    left, right = math.ceil(round(zone["left"] * width, 6)), math.ceil(round((1 - zone["right"]) * width, 6))
+    if geo["gutter"] < left:
+        geo["gutter"] = left + ZONE_INSET
+    if geo["gutter"] + geo["rail"] < right:
+        geo["rail"] = right + ZONE_INSET - geo["gutter"]
     geo["top"] = max(geo["top"], math.ceil(round(zone["top"] * height, 6)))
     rise = max(geo["cap_y"] - math.floor(zone["bottom"] * height - CAPTION_LINES * caption_size(width, height, brand) * LINE_HEIGHT), 0)
     geo["cap_y"] -= rise
