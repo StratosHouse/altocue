@@ -13,7 +13,7 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from altocue import brand as brands
-from altocue import cli, ffmpeg, film, flash, score, storyboard, study
+from altocue import cli, film, flash, score, storyboard, study
 from altocue.errors import AltocueError
 from altocue.motion import compositions, formats, hyperframes, scenes
 from altocue.motion.formats import kit, product

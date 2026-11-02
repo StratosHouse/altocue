@@ -279,6 +279,8 @@ def levels(path: Path, *, rate: int = 16000) -> tuple[np.ndarray, int, int]:
 
 def planned_silences(path: Path, planned: list[dict[str, float]]) -> list[dict[str, Any]]:
     """A planned silence has to be quiet: at least 15 dB under the film's loud moments and under -30 dBFS."""
+    if not planned:
+        return []
     trace, hop, rate = levels(path)
     if not trace.size:
         return []

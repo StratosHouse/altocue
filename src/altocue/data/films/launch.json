@@ -240,7 +240,7 @@
                 "zone": "low",
                 "align": "center",
                 "start": 3.3,
-                "scale": 0.9,
+                "scale": 1.5,
                 "important": false,
                 "rows": [
                   {
@@ -354,7 +354,7 @@
                 "type": "word_slam",
                 "text": "{{product}} answers *first.*",
                 "start": -0.2,
-                "duration": 6.2,
+                "duration": 6.1,
                 "zone": "left",
                 "important": true
               },
