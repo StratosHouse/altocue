@@ -129,7 +129,7 @@ as_of = "2026-11-02"
 fixed_credits = 0
 cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
 fallback = "none"
-fallback_note = "A native format is planned on the v0.2 branch. Name it here once it exists."
+fallback_note = "Closest native format on the v0.2 branch is stepped_list, which ticks rows off as they are spoken, with no tiers. Set fallback to format:stepped_list once that is merged and confirmed."
 
 [[recipe]]
 id = "glass-graph"
@@ -151,7 +151,7 @@ as_of = "2026-11-02"
 fixed_credits = 0
 cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
 fallback = "none"
-fallback_note = "A native format is planned on the v0.2 branch. Name it here once it exists."
+fallback_note = "Closest native format on the v0.2 branch is chart_story, a line that builds with callouts. Set fallback to format:chart_story once that is merged and confirmed."
 
 [[recipe]]
 id = "captions"
@@ -195,7 +195,7 @@ as_of = "2026-11-02"
 fixed_credits = 0
 cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
 fallback = "none"
-fallback_note = "A native wipe format is planned on the v0.2 branch. Name it here once it exists."
+fallback_note = "No native format does this yet. The wipes and compares on the v0.2 branch are graphics, and this needs two versions of the picture."
 
 # Hosted workflows. Load each one by name. Three of these names look like slash
 # commands in the tool description and do not resolve: the server answers with its
