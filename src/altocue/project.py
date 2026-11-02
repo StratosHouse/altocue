@@ -42,6 +42,9 @@ remove_fillers = true
 [audio]
 denoise = true
 denoiser = "auto"       # auto, apple, deep-filter or afftdn
+level_phrases = true    # level phrase by phrase, so a quiet aside and a loud line sit together
+deess = "light"         # off, light, normal or strong
+breaths = 0             # dB to turn breaths down. They are never cut
 loudness = -14.0        # integrated LUFS
 true_peak = -1.5        # dBTP
 

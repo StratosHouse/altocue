@@ -180,6 +180,40 @@ def test_tone_chain_uses_stock_filters_only():
     assert not names & {"drawtext", "subtitles", "zscale"}
 
 
+def test_the_de_esser_can_be_set_or_left_out():
+    assert "deesser" not in clean.tone_filters(None, "off")
+    strengths = [next(part for part in clean.tone_filters(None, name).split(",") if part.startswith("deesser")) for name in ("light", "normal", "strong")]
+    assert len(set(strengths)) == 3
+
+
+def test_an_unknown_de_ess_strength_is_refused():
+    with pytest.raises(AltocueError) as caught:
+        clean.tone_filters(None, "extreme")
+    assert "strong" in caught.value.fix
+
+
+def sibilants(seconds: float, db: float, seed: int = 11) -> np.ndarray:
+    n = int(seconds * RATE)
+    freqs = np.fft.rfftfreq(n, 1 / RATE)
+    white = np.random.default_rng(seed).normal(0, 1, n)
+    hissed = np.fft.irfft(np.fft.rfft(white) * ((freqs > 5000) & (freqs < 9000)), n)
+    bursts = (np.arange(n) / RATE) % 0.8 < 0.15
+    return hissed / hissed.std() * 10 ** (db / 20) * bursts
+
+
+@pytest.mark.parametrize(("strength", "least"), [("light", 3.0), ("normal", 6.0), ("strong", 9.0)])
+def test_the_de_esser_takes_the_sibilants_down_and_more_when_asked(tmp_path, strength, least):
+    voice = speech(6, 0.1) + sibilants(6, -22)
+    path = ffmpeg.write_wav(tmp_path / "in.wav", voice, RATE)
+    outs = []
+    for name in ("off", strength):
+        out = tmp_path / f"{name}.wav"
+        chain = next(part for part in clean.tone_filters(None, name).split(",") if part.startswith("deesser")) if name != "off" else "anull"
+        ffmpeg.run(["-i", str(path), "-af", chain, "-c:a", "pcm_s16le", str(out)])
+        outs.append(ffmpeg.read_wav(out)[0])
+    assert band_db(outs[0], 5000, 9000) - band_db(outs[1], 5000, 9000) >= least
+
+
 def test_output_is_mono_48k_16_bit_and_the_exact_source_length(tmp_path):
     clip = source(tmp_path, speech(3) + hiss(3, -60), rate=44100, stereo=True)
     dest = tmp_path / "out.wav"
@@ -236,6 +270,52 @@ def test_clips_at_different_levels_end_up_together(tmp_path):
     loud = clean.clean_clip(source(tmp_path, speech(5, 0.5) + hiss(5, -60), "loud.mov"), tmp_path / "l.wav", deep_filter=None)
     assert abs(quiet["level_lufs"] - loud["level_lufs"]) < 1
     assert quiet["level_lufs"] == pytest.approx(clean.VOICE_LUFS, abs=1)
+
+
+def aside(tmp_path: Path) -> Clip:
+    from test_level import hush, line
+
+    takes = [hush(0.5)]
+    for index in range(10):
+        takes += [line(3, -18 if index % 2 else -32, seed=index), hush(0.6)]
+    voice = np.concatenate(takes)
+    return source(tmp_path, voice + np.random.default_rng(1).normal(0, 10 ** (-72 / 20), len(voice)), "aside.mov")
+
+
+def test_phrases_are_levelled_and_the_report_shows_the_range_fall(tmp_path):
+    report = clean.clean_clip(aside(tmp_path), tmp_path / "out.wav", deep_filter=None, denoise=False)
+    assert report["phrases"] >= 10 and report["most_boost_db"] > 3
+    assert report["range_after"] <= report["range_before"] - 5
+    assert report["level_lufs"] == pytest.approx(clean.VOICE_LUFS, abs=1)
+
+
+def test_phrase_levelling_can_be_turned_off(tmp_path):
+    clip = aside(tmp_path)
+    on = clean.clean_clip(clip, tmp_path / "on.wav", deep_filter=None, denoise=False)
+    off = clean.clean_clip(clip, tmp_path / "off.wav", deep_filter=None, denoise=False, phrases=False)
+    assert off["most_boost_db"] == 0 and off["range_after"] > on["range_after"] + 3
+
+
+def test_breaths_come_down_only_when_asked(tmp_path):
+    from test_level import breath, hush, line
+
+    voice = np.concatenate([hush(0.5), line(2, -24), hush(0.4), breath(), hush(0.4), line(2, -24, seed=2), hush(0.5)])
+    clip = source(tmp_path, voice)
+    spot = slice(int(2.95 * RATE), int(3.2 * RATE))
+    kept = clean.clean_clip(clip, tmp_path / "kept.wav", deep_filter=None, denoise=False)
+    down = clean.clean_clip(clip, tmp_path / "down.wav", deep_filter=None, denoise=False, breath_down_db=9.0)
+    assert kept["breaths"] == down["breaths"] == 1
+    a, b = ffmpeg.read_wav(tmp_path / "kept.wav")[0][spot], ffmpeg.read_wav(tmp_path / "down.wav")[0][spot]
+    assert 20 * np.log10(np.sqrt(np.mean(a**2)) / np.sqrt(np.mean(b**2))) >= 6
+
+
+def test_transcript_times_reach_the_breath_finder(tmp_path):
+    from test_level import breath, hush, line
+
+    voice = np.concatenate([hush(0.5), line(2, -24), hush(0.4), breath(), hush(0.4), line(2, -24, seed=2), hush(0.5)])
+    clip = source(tmp_path, voice)
+    report = clean.clean_clip(clip, tmp_path / "out.wav", deep_filter=None, denoise=False, words=[(0.5, 2.5), (2.9, 3.25), (3.65, 5.65)])
+    assert report["breaths"] == 0
 
 
 def test_clean_audio_skips_the_denoiser(tmp_path):
@@ -668,6 +748,21 @@ def test_a_failed_engine_reaches_the_report(project, monkeypatch, tmp_path):
     report = clean.clean_project(project)
     assert report["clips"]["noisy"]["engine"] == "afftdn"
     assert any("voice isolation" in note for note in report["clips"]["noisy"]["warnings"])
+
+
+@pytest.mark.parametrize(("old", "new"), [("deess = \"light\"", "deess = \"strong\""), ("breaths = 0", "breaths = 9"), ("level_phrases = true", "level_phrases = false")])
+def test_a_changed_sound_setting_redoes_the_sound(project, old, new):
+    clean.clean_project(project)
+    config = project.root / "altocue.toml"
+    assert old in config.read_text()
+    config.write_text(config.read_text().replace(old, new))
+    assert clean.clean_project(Project.open(project.root))["clips"]["noisy"]["status"] != "reused"
+
+
+def test_the_cli_can_override_the_sound_settings(project):
+    assert main(["clean", "--project", str(project.root), "--deess", "strong", "--breaths", "9"]) == 0
+    saved = json.loads((project.audio_dir / "report.json").read_text())
+    assert saved["deess"] == "strong" and saved["breaths"] == 9
 
 
 def test_a_changed_denoise_setting_redoes_the_sound(project):

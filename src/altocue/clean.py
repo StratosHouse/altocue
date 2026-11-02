@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ffmpeg, swift
+from . import ffmpeg, level, swift
 from .errors import AltocueError
 from .master import limiter_latency
 from .models import Clip
@@ -37,6 +37,9 @@ VERSION_TIMEOUT = 10.0
 PRINT_SECONDS = 0.25
 TAIL = 4800  # `deep-filter -D` drops the last 1440 samples, so it gets spare ones
 ENGINES = ("auto", "apple", "deep-filter", "afftdn")
+# ffmpeg's `deesser` raises its intensity to the fifth power, so i=0.3 does nothing to real speech.
+# Measured on real sibilants at the chain's -18 LUFS: light -1 to -3 dB, normal -2 to -6, strong -4 to -8.
+DEESS = {"off": 0.0, "light": 0.45, "normal": 0.5, "strong": 0.55}
 ISOLATOR = Path(__file__).with_name("isolate.swift")
 
 # Runs on Apple Silicon as downloaded. It is ad-hoc signed and embeds DeepFilterNet3.
@@ -78,6 +81,8 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--force", action="store_true", help="Clean clips that are already done")
     parser.add_argument("--denoiser", choices=ENGINES, help="Override the engine set in altocue.toml")
+    parser.add_argument("--deess", choices=list(DEESS), help="Override the de-essing set in altocue.toml")
+    parser.add_argument("--breaths", type=float, help="Turn breaths down this many dB. 0 leaves them")
 
 
 def find_deep_filter() -> str | None:
@@ -217,15 +222,17 @@ def plan_denoise(snr: float) -> dict[str, Any]:
     return {"strength": strength, "atten_db": atten, "reduction_db": reduction, "wet": round(wet, 1)}
 
 
-def tone_filters(hum: dict[str, Any] | None) -> str:
+def tone_filters(hum: dict[str, Any] | None, deess: str = "light") -> str:
     """High-pass, optional hum notches, gentle EQ, de-esser, compressor. Stock filters only."""
+    if deess not in DEESS:
+        raise AltocueError(f"Unknown de-essing strength {deess}.", fix=f"Use one of {', '.join(DEESS)}.")
     parts = ["highpass=f=80:p=2"]
     if hum:
         parts += [f"bandreject=f={hum['hz'] * k}:t=q:w=30" for k in (1, 2, 3)]
     parts += [
         "equalizer=f=300:t=q:w=1.2:g=-1.5",
         "equalizer=f=3000:t=q:w=1.2:g=1.5",
-        "deesser=i=0.3",
+        *([f"deesser=i={DEESS[deess]}"] if DEESS[deess] else []),
         "acompressor=threshold=0.15:ratio=2:attack=10:release=150:makeup=1.3",
     ]
     return ",".join(parts)
@@ -366,6 +373,12 @@ def _denoise(
     return _run_afftdn(samples, folder, plan["reduction_db"]), "afftdn"
 
 
+def _level(voice: Path, folder: Path, words: list[tuple[float, float]] | None, phrases: bool, breath_down_db: float) -> tuple[Path, dict[str, Any]]:
+    samples, _ = ffmpeg.read_wav(voice)
+    levelled, report = level.level_voice(samples, RATE, words, phrases=phrases, breath_down_db=breath_down_db)
+    return (voice if levelled is samples else ffmpeg.write_wav(folder / "levelled.wav", levelled, RATE)), report
+
+
 def _harm(before: np.ndarray, voice: Path, raw: Path) -> dict[str, float]:
     return {"retained_db": 0.0, "share_lost": 0.0} if voice == raw else speech_change(before, ffmpeg.read_wav(voice)[0], RATE)
 
@@ -386,11 +399,15 @@ def clean_clip(
     isolate: str | None = None,
     denoise: bool = True,
     spoken: bool | None = None,
+    words: list[tuple[float, float]] | None = None,
+    phrases: bool = True,
+    deess: str = "light",
+    breath_down_db: float = 0.0,
 ) -> dict[str, Any]:
     """Clean one clip to `dest` and report what was measured and what was done.
 
-    `spoken` comes from the transcript. A clip with no speech keeps its own sound and level,
-    because levelling ambience to speech level would turn wind into the loudest thing in the film.
+    `spoken` and `words` come from the transcript. A clip with no speech keeps its own sound and
+    level, because levelling ambience to speech level would turn wind into the loudest thing in the film.
     """
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -445,10 +462,11 @@ def clean_clip(
                 )
                 return report
 
+        voice, levelled = _level(voice, folder, words, phrases, breath_down_db)
         into = ffmpeg.loudness(voice)["integrated"]
         pre = INTO_COMPRESSOR_LUFS - into if into > -69 else 0.0
         toned = folder / "toned.wav"
-        ffmpeg.run(["-i", str(voice), "-af", f"volume={pre:.2f}dB,{tone_filters(hum)}", "-c:a", "pcm_f32le", str(toned)])
+        ffmpeg.run(["-i", str(voice), "-af", f"volume={pre:.2f}dB,{tone_filters(hum, deess)}", "-c:a", "pcm_f32le", str(toned)])
         out = ffmpeg.loudness(toned)
         gain = VOICE_LUFS - out["integrated"] if out["integrated"] > -69 else 0.0
         room = PEAK_LIMIT_DB - out["true_peak"] + MAX_LIMITING_DB
@@ -475,8 +493,11 @@ def clean_clip(
             noise_drop_db=round((floor - loud["integrated"]) - (floor_after - final["integrated"]), 1),
             speech_retained_db=change["retained_db"],
             speech_share_lost=change["share_lost"],
+            **levelled,
             level_before_lufs=loud["integrated"],
             level_lufs=final["integrated"],
+            range_before=loud["range"],
+            range_after=final["range"],
             true_peak=final["true_peak"],
             peak_after=round(float(20 * np.log10(np.abs(after).max() + 1e-9)), 1),
             clipped_before=int(np.sum(np.abs(before) >= 0.999)),
@@ -485,23 +506,31 @@ def clean_clip(
     return report
 
 
-def _spoken(project: Project, clip: Clip) -> bool | None:
+def _words(project: Project, clip: Clip) -> list[tuple[float, float]] | None:
     try:
-        return bool(project.words(clip.id))
+        return [(word.start, word.end) for word in project.words(clip.id)]
     except AltocueError:
         return None
 
 
-def clean_project(project: Project, force: bool = False, denoiser: str | None = None) -> dict[str, Any]:
+def clean_project(
+    project: Project, force: bool = False, denoiser: str | None = None, deess: str | None = None, breaths: float | None = None
+) -> dict[str, Any]:
     """Clean every clip to `work/audio/<clip id>.wav` and save the report beside them."""
     path = project.audio_dir / "report.json"
     saved = json.loads(path.read_text()) if path.exists() else {}
     denoiser, binary, notes = choose_denoiser(denoiser or str(project.setting("audio", "denoiser", "auto")))
     isolate = binary if denoiser == "apple" else None
     deep_filter = binary if denoiser == "deep-filter" else usable_deep_filter()[0] if isolate else None  # the spare, if isolation fails
-    use_denoiser = bool(project.setting("audio", "denoise", True))
-    same = saved.get("denoise", True) == use_denoiser and saved.get("denoiser") == denoiser  # a changed setting redoes the sound
-    earlier = saved.get("clips", {}) if same else {}
+    settings = {
+        "denoiser": denoiser,
+        "denoise": bool(project.setting("audio", "denoise", True)),
+        "level_phrases": bool(project.setting("audio", "level_phrases", True)),
+        "deess": deess or str(project.setting("audio", "deess", "light")),
+        "breaths": float(project.setting("audio", "breaths", 0) if breaths is None else breaths),
+    }
+    tone_filters(None, settings["deess"])  # refuses a bad strength before any work
+    earlier = saved.get("clips", {}) if all(saved.get(key) == value for key, value in settings.items()) else {}  # a changed setting redoes the sound
     entries: dict[str, Any] = {}
     for clip in project.clips():
         dest = project.audio_dir / f"{clip.id}.wav"
@@ -518,8 +547,20 @@ def clean_project(project: Project, force: bool = False, denoiser: str | None = 
         elif not force and clip.id in earlier and dest.exists() and dest.stat().st_mtime >= Path(clip.path).stat().st_mtime:
             entries[clip.id] = {**earlier[clip.id], "status": "reused"}
         else:
-            entries[clip.id] = clean_clip(clip, dest, deep_filter=deep_filter, isolate=isolate, denoise=use_denoiser, spoken=_spoken(project, clip))
-    report = {"denoiser": denoiser, "denoise": use_denoiser, "target_lufs": VOICE_LUFS, "warnings": notes, "clips": entries}
+            words = _words(project, clip)
+            entries[clip.id] = clean_clip(
+                clip,
+                dest,
+                deep_filter=deep_filter,
+                isolate=isolate,
+                denoise=settings["denoise"],
+                spoken=None if words is None else bool(words),
+                words=words,
+                phrases=settings["level_phrases"],
+                deess=settings["deess"],
+                breath_down_db=settings["breaths"],
+            )
+    report = {**settings, "target_lufs": VOICE_LUFS, "warnings": notes, "clips": entries}
     write_json(path, report)
     return report
 
@@ -532,11 +573,13 @@ def describe(entry: dict[str, Any]) -> str:
     hum = f"hum {entry['hum_hz']} Hz" if entry["hum_hz"] else "no hum"
     floor = f"noise floor {entry['noise_floor_before']} to {entry['noise_floor_after']} dB"
     line = f"{entry['id']}: {entry['engine']} ({entry['strength']}), {floor}, {hum}, {entry['level_lufs']} LUFS"
+    if entry.get("phrases"):
+        line += f", {entry['phrases']} phrases, range {entry['range_before']} to {entry['range_after']} LU"
     return f"{line} (reused)" if entry["status"] == "reused" else line
 
 
 def run(args: argparse.Namespace) -> int:
-    report = clean_project(Project.open(args.project), force=args.force, denoiser=args.denoiser)
+    report = clean_project(Project.open(args.project), force=args.force, denoiser=args.denoiser, deess=args.deess, breaths=args.breaths)
     for note in report["warnings"]:
         print(f"Warning: {note}")
     for entry in report["clips"].values():
