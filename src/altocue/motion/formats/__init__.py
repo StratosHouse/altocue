@@ -24,6 +24,8 @@ GROUPS = {
     "proof": "Social proof",
     "teach": "Teaching",
     "wipe": "Graphic wipes",
+    "backdrop": "Backdrops",
+    "film": "Film pieces",
 }
 JOBS = ("hook", "prove", "explain", "transition", "close")
 AREAS = ("panel", "edge", "full")

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
+from ..brand import data_path
 from ..errors import AltocueError
 from ..project import Project
 
@@ -36,9 +37,18 @@ def own_id(text: str) -> str | None:
     return found.group(1) if found else None
 
 
+def bundled(name: str) -> Path | None:
+    """A composition Altocue ships. Each is seeded and drawn from time alone."""
+    path = data_path("compositions", f"{name}.html")
+    return path if name and re.fullmatch(r"[a-z0-9_-]+", name) and path.is_file() else None
+
+
 def resolve(project: Project, item: dict[str, Any]) -> dict[str, Any]:
     """Find the file, and read the id the renderer needs to mount it."""
     named = item.get("name")
+    shipped = None if item.get("file") else bundled(str(named or ""))
+    if shipped and not (project.root / FOLDER / f"{named}.html").exists():
+        return {**item, "file": str(shipped), "path": str(shipped), "own_id": own_id(shipped.read_text()) or ""}
     relative = item.get("file") or (f"{FOLDER}/{named}.html" if named else None)
     if not relative:
         raise AltocueError('A composition needs "name" or "file".', fix='Use {"type": "composition", "name": "..."} after `altocue library add <name>`.')

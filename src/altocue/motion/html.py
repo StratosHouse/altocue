@@ -150,6 +150,8 @@ def _style(item: dict[str, Any], *, leave: bool = False) -> str:
     parts = []
     if "y" in item:
         parts.append(f"top:{float(item['y']):g}px")
+    if item.get("place"):
+        parts.append(str(item["place"]))  # a film fits the graphic to a zone of the frame
     if leave:
         parts.append(f"--dur:{max(item['end'] - item['start'], 0.04):.3f}s;--leave:{max(item['end'] - item['start'] - 0.2, 0):.3f}s")
     return f'style="{";".join(parts)}"' if parts else ""
@@ -214,7 +216,8 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
     raise ValueError(kind)
 
 
-def compose(timeline: dict[str, Any], brand: Brand) -> str:
+def base_css(timeline: dict[str, Any], brand: Brand) -> tuple[str, dict[str, float]]:
+    """The shared stylesheet and the layout it was filled in for."""
     width, height = timeline["width"], timeline["height"]
     geo = layout(width, height, brand, timeline.get("zone"))
     colors = brand.colors
@@ -230,9 +233,19 @@ def compose(timeline: dict[str, Any], brand: Brand) -> str:
         "width": width,
         "height": height,
     }
+    return css, geo
+
+
+def root_tokens(timeline: dict[str, Any], brand: Brand, geo: dict[str, float]) -> str:
+    size = caption_size(timeline["width"], timeline["height"], brand)
+    return f'--cap-y:{geo["cap_y"]}px;--cap-size:{size};--top:{geo["top"]}px;--lt-y:{geo["lt_y"]}px;--rail:{geo["rail"]}px'
+
+
+def compose(timeline: dict[str, Any], brand: Brand) -> str:
+    width, height = timeline["width"], timeline["height"]
+    css, geo = base_css(timeline, brand)
     items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
-    size = caption_size(width, height, brand)
-    tokens = f'--cap-y:{geo["cap_y"]}px;--cap-size:{size};--top:{geo["top"]}px;--lt-y:{geo["lt_y"]}px;--rail:{geo["rail"]}px'
+    tokens = root_tokens(timeline, brand, geo)
     style = brand.caption["style"]
     upper = brand.caption.get("uppercase")
     captions = "\n".join(caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"])

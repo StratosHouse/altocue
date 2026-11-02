@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from html import escape
 from typing import Any
 
@@ -57,3 +58,54 @@ def rows(item: dict[str, Any], name: str) -> list[dict[str, Any]]:
 
 def seconds(item: dict[str, Any]) -> float:
     return max(float(item["end"]) - float(item["start"]), 0.04)
+
+
+def flow(times: Sequence[float], values: Sequence[float]) -> Callable[[float], float]:
+    """A curve through key poses. Eased keys stop dead at every pose, and this one keeps its speed through them.
+
+    It is a monotone cubic, after Fritsch and Carlson, so it never overshoots a pose and a held value stays held.
+    Past either end it holds the last pose.
+    """
+    if len(times) != len(values) or len(times) < 2:
+        raise ValueError("flow needs at least two poses, one time for each value")
+    widths = [b - a for a, b in zip(times, times[1:], strict=False)]
+    if min(widths) <= 0:
+        raise ValueError("flow needs times that only rise")
+    slopes = [(b - a) / width for a, b, width in zip(values, values[1:], widths, strict=False)]
+    tangents = [slopes[0]]
+    for before, after, width_a, width_b in zip(slopes, slopes[1:], widths, widths[1:], strict=False):
+        if before * after <= 0:
+            tangents.append(0.0)
+            continue
+        weight_a, weight_b = 2 * width_b + width_a, width_b + 2 * width_a
+        tangents.append((weight_a + weight_b) / (weight_a / before + weight_b / after))  # a harmonic mean, which is what keeps it from overshooting
+    tangents.append(slopes[-1])
+
+    def at(time: float) -> float:
+        if time <= times[0]:
+            return float(values[0])
+        if time >= times[-1]:
+            return float(values[-1])
+        index = next(i for i, width in enumerate(widths) if time <= times[i] + width)
+        width = widths[index]
+        share = (time - times[index]) / width
+        share2, share3 = share * share, share * share * share
+        return float(
+            (2 * share3 - 3 * share2 + 1) * values[index]
+            + (share3 - 2 * share2 + share) * width * tangents[index]
+            + (3 * share2 - 2 * share3) * values[index + 1]
+            + (share3 - share2) * width * tangents[index + 1]
+        )
+
+    return at
+
+
+def flow_easing(times: Sequence[float], values: Sequence[float], steps: int = 32) -> str:
+    """The same curve as a CSS `linear()` easing, for one element that passes through several poses in one animation."""
+    start, end = times[0], times[-1]
+    low, high = values[0], values[-1]
+    if high == low:
+        raise ValueError("A flow easing needs its last pose to differ from its first")
+    curve = flow(times, values)
+    points = (start + (end - start) * index / steps for index in range(steps + 1))
+    return "linear(" + ",".join(f"{(curve(point) - low) / (high - low):.4f} {100 * index / steps:.2f}%" for index, point in enumerate(points)) + ")"

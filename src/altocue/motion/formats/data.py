@@ -373,7 +373,7 @@ def _count_up(item: dict[str, Any]) -> str:
     value = _num(item["value"], "count_up", "value")
     places = _places([value])
     prefix, suffix = _affix(item)
-    run = min(kit.seconds(item) * 0.55, 1.7)
+    run = float(item.get("run") or min(kit.seconds(item) * 0.55, 1.7))
     width = len(_show(value, places, prefix, suffix))
     size = min(236, 1400 / max(width, 1))
     number = _count(value, places, prefix, suffix, run, 0.1)
@@ -923,7 +923,7 @@ FORMATS = (
         summary="A big number climbs to its value while a rule draws beneath it.",
         group="data",
         jobs=("hook", "prove"),
-        slots=(Slot("value", kind="number"), Slot("label", limit=70), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False)),
+        slots=(Slot("value", kind="number"), Slot("label", limit=70), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False), Slot("run", kind="number", required=False)),
         example={"value": 1284, "label": "Sample orders shipped last *quarter*"},
         draw=_count_up,
         seconds=3.0,
