@@ -27,6 +27,18 @@ Nobody has listened to these. The newer twelve were chosen by file name and meas
 | `whoosh7.ogg` | A recorded whoosh for a transition | 0.73 s | `1800.ogg` | [BigSoundBank](https://bigsoundbank.com/whoosh-7-s1800.html) |
 | `whoosh8.ogg` | A recorded whoosh for a transition | 0.63 s | `1801.ogg` | [BigSoundBank](https://bigsoundbank.com/whoosh-8-s1801.html) |
 
+## How each sound is placed
+
+`sounds.json` also says how `altocue.mix` places each sound. A cue in `motion.json` can override any of these.
+
+- **`align`:** `start` puts the first sample on the time, `peak` puts the loudest one there.
+- **`offset_ms`:** a stated nudge.
+- **`min_gap_ms`:** a repeat of this sound sooner than this is dropped and reported.
+- **`bed_db`:** with no voice, how far its peak sits over the music.
+- **`dip_db`:** with no voice, how far the music falls before it. 0 is no dip.
+
+These are starting values, set by role. Nobody has listened to them.
+
 ## Source and licence
 
 - **Kenney:** [kenney.nl](https://kenney.nl). Packs: [Interface Sounds](https://kenney.nl/assets/interface-sounds) 1.0, [UI Audio](https://kenney.nl/assets/ui-audio), [Impact Sounds](https://kenney.nl/assets/impact-sounds), [Digital Audio](https://kenney.nl/assets/digital-audio), [Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds) and [RPG Audio](https://kenney.nl/assets/rpg-audio).

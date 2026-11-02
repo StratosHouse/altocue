@@ -37,7 +37,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "sfx": ("altocue.stock.sfx", "Find sound effects you are allowed to use"),
     "credits": ("altocue.stock.credits", "List what this film must credit"),
     "deliver": ("altocue.deliver", "Subtitles, chapters, thumbnails and platform versions"),
-    "export": ("altocue.export", "Hand the edit to Premiere, Resolve or Final Cut"),
+    "timeline": ("altocue.timeline_view", "See the edit on a timeline in the HyperFrames studio"),
     "recipes": ("altocue.generate.recipes", "Browse and cost generation recipes"),
     "facts": ("altocue.facts", "Measure the finished film"),
     "benchmark": ("altocue.benchmark", "Compare against real videos from a CSV or your own key"),

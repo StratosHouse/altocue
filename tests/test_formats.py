@@ -115,11 +115,17 @@ def test_the_basic_renderer_still_draws_something(fmt, brand):
 
 
 @pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
+def test_the_default_length_leaves_time_to_read_the_example(fmt):
+    assert not [row for row in rules.reading_time({"total": 300.0, "items": [placed(fmt)]}, 3.0) if row["short_by"] > 0]
+
+
+@pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
 def test_placement_and_sound_know_the_format(fmt, brand):
     assert estimated_height(placed(fmt), 1080, 1920, brand) > 0
     if fmt.sound:
         assert brands.data_path("sfx", f"{fmt.sound}.ogg").exists()
-        assert {"name": fmt.sound, "at": 0.5} in render.sfx_cues({"items": [placed(fmt)]})
+        at = 0.5 + fmt.seconds / 2 if fmt.group == "wipe" else 0.5
+        assert {"name": fmt.sound, "at": at} in render.sfx_cues({"items": [placed(fmt)]})
 
 
 def test_ids_never_shadow_core_types():

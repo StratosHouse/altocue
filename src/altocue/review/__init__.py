@@ -8,13 +8,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .. import ffmpeg, qa
+from .. import facts, ffmpeg, qa
 from ..errors import AltocueError
 from ..models import GateResult
 from ..project import Project
 from . import codex, gemini, pack, report, rounds, rubric
 
-__all__ = ["add_arguments", "codex", "editor_vendor", "gemini", "independence", "pack", "qa", "report", "rounds", "rubric", "run"]
+__all__ = ["add_arguments", "codex", "editor_vendor", "facts", "gemini", "independence", "pack", "qa", "report", "rounds", "rubric", "run"]
 
 HOSTS = (("CLAUDECODE", "anthropic"), ("CODEX_SANDBOX", "openai"), ("GEMINI_CLI", "google"))
 REVIEWERS = ("auto", "gemini", "pack", "codex")
@@ -59,7 +59,7 @@ def finish(project: Project, file: Path, digest: str, result: dict[str, Any], re
         weighted=result["weighted"],
         open_items=len(qa.failed(gates)) + len(result["notes"]),
     )
-    path = report.write(project, file, result, gates, log)
+    path = report.write(project, file, result, gates, log, measured=facts.after_review(project, file))
     print(f"\n{result['verdict']}" + (f" (weighted {result['weighted']:.2f})" if result["weighted"] is not None else ""))
     if reviewer.get("independent") is False:
         print(f"  Not an independent review. {reviewer['independent_why']}")

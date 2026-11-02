@@ -491,3 +491,31 @@ def test_a_new_pack_clears_the_old_report(clip, stub):
     (clip.project.review_dir / "REPORT.md").write_text("old")
     assert main(argv(clip, "--reviewer", "pack")) == 0
     assert not (clip.project.review_dir / "REPORT.md").exists()
+
+
+# Facts come after the score
+
+
+def test_facts_reach_the_report_only_after_scoring(clip, stub):
+    assert main(argv(clip, "--ingest", str(verdict_file(clip)))) == 0
+    text = (clip.project.review_dir / "REPORT.md").read_text()
+    assert text.index("## Scores") < text.index("## Measured facts") < text.index("## What this review could not see or hear")
+    assert "never shown to the reviewer" in text and "None is a score" in text
+    saved = json.loads((clip.project.review_dir / "report.json").read_text())
+    assert saved["facts"]["sha256"] == qa.sha256(clip.file)
+    assert (clip.project.review_dir / "facts.json").exists() and (clip.project.review_dir / "facts.md").exists()
+
+
+def test_a_failed_gate_still_gets_its_facts(clip, stub):
+    stub["gates"] = FAILING
+    assert main(argv(clip, "--reviewer", "pack")) == 1
+    assert "## Measured facts" in (clip.project.review_dir / "REPORT.md").read_text()
+
+
+def test_facts_that_cannot_be_measured_never_cost_a_verdict(clip, stub, monkeypatch):
+    def broken(*_, **__):
+        raise AltocueError("ffmpeg fell over.")
+
+    monkeypatch.setattr(review.facts, "measure", broken)
+    assert main(argv(clip, "--ingest", str(verdict_file(clip)))) == 0
+    assert "Could not be measured: ffmpeg fell over." in (clip.project.review_dir / "REPORT.md").read_text()

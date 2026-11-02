@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
@@ -17,7 +15,7 @@ from typing import Any
 
 from PIL import Image
 
-from .. import ffmpeg
+from .. import ffmpeg, swift
 
 SWIFT = Path(__file__).with_name("ocr.swift")
 BATCH = 80
@@ -33,29 +31,10 @@ TILES = {  # ffmpeg crop per tile, each 60 percent of the frame, so small print 
 NO_READER = "No text reader on this machine. Install tesseract (brew install tesseract, or sudo apt install tesseract-ocr)."
 
 
-def _cache() -> Path:
-    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "altocue"
-
-
 @lru_cache(maxsize=1)
 def vision_binary() -> Path | None:
-    """Compile the Vision reader once per version of its source."""
-    if sys.platform != "darwin" or not shutil.which("swiftc"):
-        return None
-    source = SWIFT.read_bytes()
-    target = _cache() / f"ocr-{hashlib.sha256(source).hexdigest()[:12]}"
-    if target.exists():
-        return target
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temp = target.with_suffix(f".{os.getpid()}")
-    try:
-        done = subprocess.run(["swiftc", "-O", str(SWIFT), "-o", str(temp)], capture_output=True, text=True, timeout=300)
-    except subprocess.TimeoutExpired:
-        return None
-    if done.returncode != 0 or not temp.exists():
-        return None
-    temp.replace(target)
-    return target
+    """The Vision reader, on a Mac with a Swift compiler."""
+    return swift.compiled(SWIFT, "ocr")
 
 
 def reader() -> tuple[str | None, str]:
