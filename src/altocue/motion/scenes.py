@@ -55,7 +55,7 @@ ZONES = {
         "high": (0.07, 0.13, 0.93, 0.55),
         "phone_a": (0.05, 0.36, 0.49, 0.8),
         "phone_b": (0.51, 0.36, 0.95, 0.8),
-        "phone": (0.2, 0.3, 0.8, 0.82),
+        "phone": (0.22, 0.41, 0.78, 0.86),
     },
     "square": {
         "center": (0.08, 0.12, 0.92, 0.88),
@@ -68,7 +68,7 @@ ZONES = {
         "high": (0.08, 0.06, 0.92, 0.5),
         "phone_a": (0.14, 0.33, 0.48, 0.93),
         "phone_b": (0.52, 0.33, 0.86, 0.93),
-        "phone": (0.34, 0.33, 0.66, 0.9),
+        "phone": (0.36, 0.38, 0.64, 0.93),
     },
 }
 
@@ -389,7 +389,8 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
         )
         if not item.get("label"):
             return tag
-        note = f'<div class="clip footnote" data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 1000}"{_below(item)}><span>{escape(str(item["label"]))}</span></div>'
+        timing = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 1000}"'
+        note = f'<div class="clip footnote" {timing}{_below(item)}><span>{escape(str(item["label"]))}</span></div>'
         return f"{tag}\n{note}"
     made = item_html(item, brand, track)
     extra = item.get("zone_class")

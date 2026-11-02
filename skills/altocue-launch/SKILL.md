@@ -152,6 +152,8 @@ altocue qa
 altocue facts
 ```
 
+Send the film to the Editor in Chief too. `altocue review` runs the fact gates, then a blind reviewer, and code decides SHIP or FIX. Make the fixes it lists, render again, and review again. It gets two rounds, then it goes to a person.
+
 `film qa` seeks frames forwards and backwards and compares them, and reports pops, dead air, frame 0, the motion curve, the flash limit and planned silences. It also writes a hook sheet and a phone sheet into `review/sheets/`. **Read both, with no sound.** Numbers catch broken, not bad.
 
 Then pull a frame from each scene of `out/final.mp4` and look at it. Watch for overlaps, text that overflows, labels nobody can read, flicker, sudden stops, a name that changes between shots, and a distorted logo.

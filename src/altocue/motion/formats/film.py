@@ -169,7 +169,7 @@ def _waveform(item: dict[str, Any]) -> str:
 
 
 CASCADE_CSS = """
-$ .board{position:relative;width:880u;max-width:100%;padding:34u 34u 30u;border-radius:40u;background:color-mix(in srgb,var(--surface) 88%,var(--panel));box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 12%,transparent) inset,0 2u 0 color-mix(in srgb,var(--ink) 9%,transparent) inset,0 60u 140u rgba(0,0,0,.55);animation:wcin .62s cubic-bezier(.16,1,.3,1) both}
+$ .board{position:relative;text-align:left;width:880u;max-width:100%;padding:34u 34u 30u;border-radius:40u;background:color-mix(in srgb,var(--surface) 88%,var(--panel));box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 12%,transparent) inset,0 2u 0 color-mix(in srgb,var(--ink) 9%,transparent) inset,0 60u 140u rgba(0,0,0,.55);animation:wcin .62s cubic-bezier(.16,1,.3,1) both}
 $ header{display:flex;align-items:center;justify-content:space-between;gap:20u;padding:4u 8u 26u}
 $ strong{font-size:40u;font-weight:600;letter-spacing:-.025em}
 $ .pill{position:relative;display:inline-flex;align-items:center;gap:12u;padding:12u 24u 12u 20u;border-radius:99u;font-size:34u;font-weight:600;letter-spacing:-.02em;background:color-mix(in srgb,var(--ink) 8%,transparent);animation:wcpill .5s cubic-bezier(.2,1.5,.4,1) var(--t) both}

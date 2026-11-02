@@ -196,8 +196,8 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         "cap_seconds": CAP,
     }
 
-    def stamp(text: str) -> dict[str, Any]:
-        return {"type": "corner_stamp", "text": text, "corner": "tr", "start": 0.0}
+    def stamp(text: str, **over: Any) -> dict[str, Any]:
+        return {"type": "corner_stamp", "text": text, "corner": "tr", "start": 0.0, **over}
 
     scenes: list[dict[str, Any]] = [
         {
@@ -362,7 +362,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "shows": ["maps"],
             "link": {"type": "shape_match", "label": "Shape match", "why": "Each format hands over with a wipe from the library."},
             "items": [
-                stamp("MAPS"),
+                stamp("MAPS", aspects={"1:1": {"corner": "bl"}}),
                 {
                     "type": "flight_route",
                     "text": "Real maps, *drawn in code*",

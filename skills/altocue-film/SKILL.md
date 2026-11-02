@@ -35,6 +35,20 @@ The storyboard format, scene links, camera moves and motion rules are the same f
 | A voiced story with a picture per line | `line`, Line-by-Line Reel | 30 s to 3 min | Optional |
 | A film cut to a song | `music`, Music Cut | 20 to 60 s | None |
 
+## Real footage inside a film
+
+A film can hold real pictures. Add `{"type": "footage", "file": "assets/take.mp4", "zone": "phone_a", "label": "Raw"}` to a scene. The zones `phone`, `phone_a` and `phone_b` keep a vertical clip upright at every aspect. Pictures stay muted. To hear a take, set `"voice"` on the scene, and `"voice_offset"` if the picture starts early.
+
+Keep your own clips in `assets/` and generated ones in `generated/`, so either can be swapped without touching the motion.
+
+## A hard length
+
+Set `"cap_seconds": 90` in `brief.json` when a length is a limit and not a guide. `film check` fails past it, and the render refuses any file that runs over.
+
+## Numbers on screen
+
+A claim on screen must be true of what shipped. Read numbers from the tool when the storyboard is built, such as `altocue library stats`, and never type them from memory.
+
 ## Voice comes first when there is voice
 
 For `explainer` and `line`, record or generate the voice before animating. Put each take in `assets/voice/<scene>.wav`, and set `"seconds": "voice"` with `"voice"` and `"says"` on the scene. The timeline is built from the real durations, then you animate to it. Until a take exists, `film check` estimates from the word count, and that estimate is only for planning.
