@@ -128,8 +128,8 @@ basis = "stated"
 as_of = "2026-11-02"
 fixed_credits = 0
 cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
-fallback = "none"
-fallback_note = "Closest native format on the v0.2 branch is stepped_list, which ticks rows off as they are spoken, with no tiers. Set fallback to format:stepped_list once that is merged and confirmed."
+fallback = "format:stepped_list"
+fallback_note = "Native stepped_list ticks rows off as they are spoken. It has no tiers."
 
 [[recipe]]
 id = "glass-graph"
@@ -150,8 +150,8 @@ basis = "stated"
 as_of = "2026-11-02"
 fixed_credits = 0
 cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
-fallback = "none"
-fallback_note = "Closest native format on the v0.2 branch is chart_story, a line that builds with callouts. Set fallback to format:chart_story once that is merged and confirmed."
+fallback = "format:chart_story"
+fallback_note = "Native chart_story builds a line with callouts over the speaker. It has no depth behind them."
 
 [[recipe]]
 id = "captions"
