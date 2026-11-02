@@ -132,6 +132,18 @@ def on_screen(timeline: dict[str, Any]) -> list[dict[str, Any]]:
     return strings
 
 
+def _word_count(text: str) -> int:
+    return sum(1 for word in text.split() if any(ch.isalnum() for ch in word))
+
+
+def _read_through(item: dict[str, Any]) -> list[str]:
+    """A format's text is read in full. Its lists and charts are scanned, so only the longest row counts."""
+    fmt = formats.find(item["type"])
+    texts = [_clean(item[slot.name]) for slot in fmt.slots if slot.kind == "text" and item.get(slot.name)] if fmt else []
+    rows = [text for text in map(_clean, formats.strings(item)) if text not in texts]
+    return texts + ([max(rows, key=_word_count)] if rows else [])
+
+
 def reading_time(timeline: dict[str, Any], wps: float = READING_WPS) -> list[dict[str, Any]]:
     """How long each graphic's words stay up, against how long they take to read.
 
@@ -139,13 +151,16 @@ def reading_time(timeline: dict[str, Any], wps: float = READING_WPS) -> list[dic
     being said, and BBC R&D found viewers keep up with accurate subtitles well past guideline speed.
     """
     groups: dict[tuple[str, float, float], list[str]] = {}
-    for item in on_screen(timeline):
-        if item["layer"] != "captions":
-            groups.setdefault((item["layer"], item["start"], item["end"]), []).append(item["text"])
+    plain = [item for item in timeline.get("items", []) if not formats.find(item.get("type"))]
+    for item in on_screen({"items": plain}):
+        groups.setdefault((item["layer"], item["start"], item["end"]), []).append(item["text"])
+    for item in timeline.get("items", []):
+        if formats.find(item.get("type")):
+            groups[(item["type"], item["start"], item["end"])] = _read_through(item)
     close = timeline.get("total")
     rows = []
-    for (layer, start, end), texts in groups.items():
-        words = sum(1 for text in texts for word in text.split() if any(ch.isalnum() for ch in word))
+    for (layer, start, end), texts in sorted(groups.items(), key=lambda entry: entry[0][1]):
+        words = sum(_word_count(text) for text in texts)
         if not words:
             continue
         shown = round((min(end, close) if close else end) - start, 3)

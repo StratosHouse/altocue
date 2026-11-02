@@ -39,7 +39,7 @@ Rules of thumb from the trade, not findings. `references/story.md` labels what h
 
 ## What the creator's results say
 
-If the creator has results, run `altocue learn notes` before writing the beats. It prints only notes still in date. They are hypotheses about one creator, so use them to choose what to test, never to promise an outcome. See `altocue-data`. Never pass them to the Editor in Chief.
+If the creator has results, run `altocue learn notes -p <their folder>` before writing the beats. It prints only notes still in date. They are hypotheses about one creator, so use them to choose what to test, never to promise an outcome. See `altocue-data`. Never pass them to the Editor in Chief.
 
 ## Batches
 

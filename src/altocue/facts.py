@@ -29,6 +29,7 @@ OCR_MOST = 480  # frames read for first text, so a long film stays quick and its
 SEARCH_AFTER = 2.0  # a graphic can take this long to land after its planned start
 LOOP_WINDOW = 0.2
 SILENT_LUFS = -69.0
+SILENT_DB = -99.0
 BUCKETS = ((10.0, "0-10"), (30.0, "10-30"), (60.0, "30-60"))
 LAST_BUCKET = "60+"
 SENTENCE_END = ".?!"
@@ -156,7 +157,7 @@ def scene_changes(file: Path, end: float) -> list[float]:
 
 
 def edit_facts(c: gates.Context) -> dict[str, Any]:
-    end = c.footage_end
+    end = max(c.footage_end, 0.001)
     scenes = scene_changes(c.file, end)
     insert_marks = [at for pair in c.inserts() for at in pair if 0 < at < end]
     cuts = sorted({round(s.start, 3) for s in c.shots[1:]} | {round(at, 3) for at in insert_marks})
@@ -192,7 +193,7 @@ def first_text(c: gates.Context, fps: float) -> dict[str, Any]:
     for record in records:
         said = rules.tokens(record["text"])
         if sum(len(t) for t in said) >= 3 and (not strings or len(wanted.intersection(said)) / len(said) >= gates.TEXT_MATCH):
-            times.add((int(re.search(r"f_(\d+)", record["file"]).group(1)) - 1) / rate)  # type: ignore[union-attr]
+            times.add((int(Path(record["file"]).stem.removeprefix("f_")) - 1) / rate)
     ordered = sorted(times)
     if strings:
         first = ordered[0] if ordered else None
@@ -259,8 +260,10 @@ def opening_facts(c: gates.Context) -> dict[str, Any]:
     return {"opening_lufs": known(opening, how), "opening_minus_integrated": known(round(opening - whole, 1), f"{how}, minus the whole film")}
 
 
-def _rms_db(samples: np.ndarray) -> float:
-    return round(20 * float(np.log10(np.sqrt(np.mean(samples**2)) + 1e-9)), 1) if len(samples) else -99.0
+def rms_db(samples: np.ndarray) -> float:
+    """Level in dB, floored at -99 as the cut gate floors it, so a silent end reads as silence and not as a huge number."""
+    level = float(np.sqrt(np.mean(samples**2))) if len(samples) else 0.0
+    return round(max(20 * float(np.log10(level + 1e-9)), SILENT_DB), 1)
 
 
 def loop_facts(c: gates.Context) -> dict[str, Any]:
@@ -279,7 +282,7 @@ def loop_facts(c: gates.Context) -> dict[str, Any]:
     else:
         samples, rate = c.samples()
         size = int(LOOP_WINDOW * rate)
-        delta = _rms_db(samples[-size:]) - _rms_db(samples[:size])
+        delta = rms_db(samples[-size:]) - rms_db(samples[:size])
         found["loop_audio_delta_db"] = known(round(delta, 1), f"RMS of the last {LOOP_WINDOW:g}s minus the first {LOOP_WINDOW:g}s")
     return found
 

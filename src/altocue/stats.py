@@ -7,12 +7,13 @@ from math import comb
 
 import numpy as np
 
+Numbers = Sequence[float] | np.ndarray
 SEED = 20261102
 PERMUTATIONS = 9999
 RESAMPLES = 2000
 
 
-def median(values: Sequence[float]) -> float:
+def median(values: Numbers) -> float:
     return float(np.median(np.asarray(values, dtype=float)))
 
 
@@ -22,7 +23,7 @@ def ranks(values: np.ndarray) -> np.ndarray:
     return (np.cumsum(counts) - (counts - 1) / 2)[inverse]
 
 
-def spearman(x: Sequence[float], y: Sequence[float]) -> float | None:
+def spearman(x: Numbers, y: Numbers) -> float | None:
     """Rank correlation. None when either side never changes, because nothing can be said then."""
     left, right = ranks(np.asarray(x, dtype=float)), ranks(np.asarray(y, dtype=float))
     if left.std() == 0 or right.std() == 0:
@@ -30,7 +31,7 @@ def spearman(x: Sequence[float], y: Sequence[float]) -> float | None:
     return float(np.corrcoef(left, right)[0, 1])
 
 
-def permutation_p(x: Sequence[float], y: Sequence[float], *, rounds: int = PERMUTATIONS) -> float:
+def permutation_p(x: Numbers, y: Numbers, *, rounds: int = PERMUTATIONS) -> float:
     """Two-sided: how often shuffled pairs correlate at least this strongly. Needs no distribution."""
     left, right = ranks(np.asarray(x, dtype=float)), ranks(np.asarray(y, dtype=float))
     left, right = left - left.mean(), right - right.mean()
@@ -43,7 +44,7 @@ def permutation_p(x: Sequence[float], y: Sequence[float], *, rounds: int = PERMU
     return (hits + 1) / (rounds + 1)
 
 
-def bootstrap_interval(x: Sequence[float], y: Sequence[float], *, rounds: int = RESAMPLES) -> tuple[float, float]:
+def bootstrap_interval(x: Numbers, y: Numbers, *, rounds: int = RESAMPLES) -> tuple[float, float]:
     """The middle 95 percent of the correlation when the posts are resampled."""
     left, right = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
     picks = np.random.default_rng(SEED).integers(0, len(left), size=(rounds, len(left)))
@@ -51,7 +52,7 @@ def bootstrap_interval(x: Sequence[float], y: Sequence[float], *, rounds: int = 
     return float(np.percentile(found, 2.5)), float(np.percentile(found, 97.5))
 
 
-def adjust(pvalues: Sequence[float]) -> list[float]:
+def adjust(pvalues: Numbers) -> list[float]:
     """Benjamini-Hochberg. Each adjusted value is the false discovery rate at which that test holds."""
     count = len(pvalues)
     if not count:

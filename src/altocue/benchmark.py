@@ -359,6 +359,7 @@ def build_result(videos: list[Video], as_of: date, winner: float, *, source: str
         row["winners"] += (video.ratio or 0) >= winner
         row["baseline_videos"] = max(row["baseline_videos"], video.baseline_videos)
     return {
+        "note": UNTRUSTED,
         "as_of": as_of.isoformat(),
         "source": source,
         "views_by": views_by,
@@ -548,7 +549,8 @@ def raw_youtube_list(args: argparse.Namespace, folder: Path, as_of: date) -> int
                 )
     rows.sort(key=lambda row: -row["views"])
     expires = as_of + timedelta(days=YOUTUBE_KEEP_DAYS)
-    path = write_json(folder / YOUTUBE_LIST, {"data_source": YOUTUBE_MARK, "fetched": as_of.isoformat(), "expires": expires.isoformat(), "rows": rows})
+    saved = {"data_source": YOUTUBE_MARK, "note": UNTRUSTED, "fetched": as_of.isoformat(), "expires": expires.isoformat(), "rows": rows}
+    path = write_json(folder / YOUTUBE_LIST, saved)
     print(f"\n{POLICY}\n\n{UNTRUSTED}\n")
     for row in rows[:25]:
         print(f"{row['views']:>12,}  {row['published'][:10]}  {_cell(row['channel'])}: {_cell(row['title'])[:70]}")

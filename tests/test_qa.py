@@ -16,6 +16,7 @@ from altocue import qa
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import GateResult
+from altocue.motion import formats
 from altocue.qa import gates, ocr, rules
 
 CLEAN = CONTROLS[0]
@@ -413,6 +414,27 @@ def test_time_past_the_end_of_the_film_is_not_reading_time():
 def test_punctuation_is_not_a_word():
     timeline = {"items": [{"type": "chip", "text": "One - two", "start": 0.0, "end": 1.0}]}
     assert rules.reading_time(timeline, 3.0)[0]["words"] == 2
+
+
+def test_a_list_or_chart_is_scanned_so_only_its_longest_row_counts():
+    """Nobody reads a chart label by label, and a gate that says so would fail a third of the formats."""
+    timeline = {
+        "items": [
+            {
+                "type": "stepped_list",
+                "title": "Three moves",
+                "items": ["Cancel what has no goal", "Cap the rest at twenty five minutes", "Write the decision down"],
+                "start": 0.0,
+                "end": 4.0,
+            }
+        ]
+    }
+    assert rules.reading_time(timeline, 3.0)[0]["words"] == 2 + 7
+
+
+def test_a_format_with_long_copy_still_has_to_be_held_long_enough():
+    timeline = {"items": [{"type": "vocab_card", **formats.find("vocab_card").example, "start": 0.0, "end": 3.0}]}
+    assert rules.reading_time(timeline, 3.0)[0]["short_by"] > 0
 
 
 def test_captions_are_left_out_of_the_reading_gate():

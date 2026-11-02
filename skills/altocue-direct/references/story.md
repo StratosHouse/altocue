@@ -73,7 +73,7 @@ any "let me tell you about" equivalent.
 
 ## Concept-without-product rules
 
-1. Dramatize the RELIEF, not the mechanism (sell the exhale, not the
+1. Dramatise the RELIEF, not the mechanism (sell the exhale, not the
    checklist).
 2. The concept appears as PHYSICS of the world: magic that behaves the way
    the product behaves.
@@ -87,9 +87,9 @@ any "let me tell you about" equivalent.
 - Guilt framing. Many parents already carry it, and backlash is real. Failure
   is weather, never character flaw.
 - "Enjoy it while it lasts" sentimentality (reads as a threat).
-- Perfect-parent contrast (no honor roll in the world).
+- Perfect-parent contrast (no honours board in the world).
 - App UI, phones, notification sounds inside the story world.
-- Mom-only framing of care work.
+- Mum-only framing of care work.
 - Engagement-bait CTAs ("comment YES", "tag a mom who..."). **[source]**
   Platforms are said to suppress these.
 - Breaking the character's emotional register for a trend.

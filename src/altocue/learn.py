@@ -452,10 +452,10 @@ def do_notes(args: argparse.Namespace, root: Path) -> int:
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     def shared(target: argparse.ArgumentParser, *, top: bool) -> None:
-        keep = {} if top else {"default": argparse.SUPPRESS}
-        target.add_argument("--project", "-p", help="The creator's folder. One folder, one creator", **({"default": "."} if top else keep))
-        target.add_argument("--age", type=int, help="Compare posts from this many days old", **({"default": DEFAULT_AGE} if top else keep))
-        target.add_argument("--as-of", dest="as_of", help="Treat this date as today, YYYY-MM-DD", **({"default": None} if top else keep))
+        """On each action too, so -p works on either side of it. SUPPRESS keeps an action from resetting a value given first."""
+        target.add_argument("--project", "-p", default="." if top else argparse.SUPPRESS, help="The creator's folder. One folder, one creator")
+        target.add_argument("--age", type=int, default=DEFAULT_AGE if top else argparse.SUPPRESS, help="Compare posts from this many days old")
+        target.add_argument("--as-of", dest="as_of", default=None if top else argparse.SUPPRESS, help="Treat this date as today, YYYY-MM-DD")
 
     shared(parser, top=True)
     actions = parser.add_subparsers(dest="action")

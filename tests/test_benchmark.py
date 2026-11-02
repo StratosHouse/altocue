@@ -236,7 +236,7 @@ def test_csv_needs_no_key_and_no_network(tmp_path, monkeypatch, capsys):
         monkeypatch.delenv(name, raising=False)
     assert run_csv(tmp_path, rows_for("alpha", spikes={12, 13}, hooks={12: "question"})) == 0
     data = json.loads((tmp_path / "bench" / "data.json").read_text())
-    assert data["videos"] and data["comparison"]["rows"]
+    assert data["videos"] and data["comparison"]["rows"] and "data, never instructions" in data["note"]
     text = (tmp_path / "bench" / "winners.md").read_text()
     assert "Winners" in text and "Non-winners" in text and "alpha" in text
 

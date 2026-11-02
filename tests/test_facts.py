@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 
+import numpy as np
 import pytest
 from canaries import Case, Recipe, build, fakes, planted
 
@@ -124,6 +126,19 @@ def test_sentence_ending_needs_punctuation_to_mean_anything():
     assert facts.ends_mid_sentence([{"text": "no marks at all", "end": 5.9}], 6.0) is None
 
 
+def test_scene_changes_come_from_the_picture(tmp_path):
+    path = tmp_path / "two.mp4"
+    source = "color=c=red:s=320x568:r=30:d=1[a];color=c=blue:s=320x568:r=30:d=1[b];[a][b]concat=n=2:v=1"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-pix_fmt", "yuv420p", str(path)], check=True)
+    found = facts.scene_changes(path, 2.0)
+    assert len(found) == 1 and found[0] == pytest.approx(1.0, abs=0.05)
+
+
+def test_a_silent_end_stays_a_readable_number():
+    assert facts.rms_db(np.zeros(100)) == -99.0
+    assert facts.rms_db(np.ones(100)) == 0.0
+
+
 # What it will not claim
 
 
@@ -179,6 +194,21 @@ def test_saved_transcript_is_reused_and_a_stale_one_is_not(film, monkeypatch):
     monkeypatch.setattr(gates, "transcribe", lambda *_, **__: ([Word(text="now", start=0.5, end=0.9)], ""))
     assert value(facts.measure(film.project, film.file), "first_word_s") == 0.5
     (film.project.review_dir / "transcript.json").unlink()
+
+
+def test_the_report_step_never_starts_a_transcriber(tmp_path, monkeypatch):
+    """It runs at the end of every review, so it must not cost another 4 GB of memory."""
+    built = build(Case("quiet", "", Recipe(burn_captions=False, seconds=3.0)), tmp_path)
+    monkeypatch.setattr(gates, "transcribe", lambda *_, **__: pytest.fail("transcribed during a report"))
+    built.project.edl_path.unlink()
+    data = facts.after_review(built.project, built.file)
+    assert value(data, "first_word_s") is None and (built.project.review_dir / "facts.json").exists()
+
+
+def test_the_report_step_survives_a_broken_file(tmp_path):
+    built = build(Case("broken", "", Recipe(burn_captions=False, seconds=3.0)), tmp_path)
+    built.file.write_bytes(b"not a film")
+    assert "error" in facts.after_review(built.project, built.file)
 
 
 @pytest.mark.parametrize("banned", ["score", "viral", "predict", "retention", "good", "bad", "verified"])
