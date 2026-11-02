@@ -1,0 +1,45 @@
+{
+  "id": "elevenlabs-music",
+  "name": "ElevenLabs Music",
+  "url": "https://elevenlabs.io/music-terms",
+  "classes": [
+    "music",
+    "generate"
+  ],
+  "holds": "Hosted AI music on paid plans.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "elevenlabs-music",
+    "url": "https://elevenlabs.io/music-terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://elevenlabs.io/music-terms",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The free plan has no downloads or API. Film, TV, radio and studio games need Enterprise."
+}

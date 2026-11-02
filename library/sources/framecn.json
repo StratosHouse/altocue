@@ -1,0 +1,49 @@
+{
+  "id": "framecn",
+  "name": "framecn",
+  "url": "https://github.com/shadcn-labs/framecn",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A small free set of video components built on Editframe.",
+  "size": {
+    "count": 15,
+    "unit": "free items",
+    "as_of": "2026-11-02",
+    "method": "registry"
+  },
+  "licence": {
+    "scope": "per_set",
+    "id": "MIT",
+    "url": "https://github.com/shadcn-labs/framecn/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://framecn.vercel.app/r/registry.json",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "15 free items are MIT, 68 Pro items are paid. The Editframe licence was not verified."
+}

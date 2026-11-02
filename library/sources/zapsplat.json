@@ -1,0 +1,47 @@
+{
+  "id": "zapsplat",
+  "name": "Zapsplat",
+  "url": "https://www.zapsplat.com/license-agreement",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Sound effects behind an account.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.zapsplat.com/license-agreement",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.zapsplat.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its licence page turned away every read. One search snippet says it bars AI training."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "meshy",
+  "name": "Meshy",
+  "url": "https://www.meshy.ai/pricing",
+  "classes": [
+    "generate",
+    "3d"
+  ],
+  "holds": "Hosted text and image to 3D.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "meshy-terms",
+    "url": "https://www.meshy.ai/pricing",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://docs.meshy.ai/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The free plan is CC BY 4.0 with no API. Paid plans are customer owned."
+}

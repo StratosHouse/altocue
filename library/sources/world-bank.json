@@ -1,0 +1,50 @@
+{
+  "id": "world-bank",
+  "name": "World Bank data",
+  "url": "https://data.worldbank.org/",
+  "classes": [
+    "data"
+  ],
+  "holds": "World development indicators.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://data.worldbank.org/",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://datahelpdesk.worldbank.org/knowledgebase/topics/125589",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "world population 2023",
+    "results": 1,
+    "direct_file": false,
+    "status": "pass"
+  },
+  "notes": "The JSON API works. Its licence page was not read."
+}

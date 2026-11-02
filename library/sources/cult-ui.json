@@ -1,0 +1,49 @@
+{
+  "id": "cult-ui",
+  "name": "Cult UI",
+  "url": "https://github.com/nolly-studio/cult-ui",
+  "classes": [
+    "motion"
+  ],
+  "holds": "Interface components, thin on video use.",
+  "size": {
+    "count": 307,
+    "unit": "entries",
+    "as_of": "2026-11-02",
+    "method": "registry"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/nolly-studio/cult-ui/blob/main/LICENSE.md",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://www.cult-ui.com/r/registry.json",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Patterns only."
+}

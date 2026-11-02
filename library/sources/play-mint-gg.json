@@ -1,0 +1,47 @@
+{
+  "id": "play-mint-gg",
+  "name": "Mint",
+  "url": "https://play.mint.gg/",
+  "classes": [
+    "3d",
+    "generate"
+  ],
+  "holds": "A 3D generation service for agents, with a gallery of experiences.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "mint-terms",
+    "url": "https://docs.mint.gg/terms-of-service.md",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://docs.mint.gg/llms.txt",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "On your own account only, and prices show only after sign-in. Mint assigns you what it holds in your own output. Assets from other people's experiences are not licensed, and some gallery pieces show third-party characters. Its repo code is MIT, its CDN assets are not."
+}

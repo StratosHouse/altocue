@@ -1,0 +1,50 @@
+{
+  "id": "the-met",
+  "name": "The Metropolitan Museum of Art",
+  "url": "https://metmuseum.github.io/",
+  "classes": [
+    "photo"
+  ],
+  "holds": "Public domain artworks from The Met.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": "CC0-1.0",
+    "url": "https://metmuseum.github.io/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://metmuseum.github.io/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "80 per second"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "ocean, public domain",
+    "results": 871,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "Use API v1.1. The old search route was retired on 2026-10-01."
+}

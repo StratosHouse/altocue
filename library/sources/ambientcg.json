@@ -1,0 +1,49 @@
+{
+  "id": "ambientcg",
+  "name": "ambientCG",
+  "url": "https://ambientcg.com/",
+  "classes": [
+    "texture"
+  ],
+  "holds": "CC0 materials and textures.",
+  "size": {
+    "count": 2929,
+    "unit": "assets",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://docs.ambientcg.com/license/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://docs.ambientcg.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "Not stated"
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": ""
+}

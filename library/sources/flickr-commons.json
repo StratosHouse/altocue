@@ -1,0 +1,44 @@
+{
+  "id": "flickr-commons",
+  "name": "Flickr Commons",
+  "url": "https://www.flickr.com/commons/usage/",
+  "classes": [
+    "photo"
+  ],
+  "holds": "Heritage photographs from libraries and archives.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://www.flickr.com/commons/usage/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.flickr.com/services/api/tos/",
+    "key": "free",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "No known copyright restrictions, but no warranty. A commercial key may carry fees, and storage limits apply."
+}

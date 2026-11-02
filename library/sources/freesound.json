@@ -1,0 +1,59 @@
+{
+  "id": "freesound",
+  "name": "Freesound",
+  "url": "https://freesound.org/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "A huge community sound library with a licence on every sound.",
+  "size": {
+    "count": 591898,
+    "unit": "sounds",
+    "as_of": "2026-11-02",
+    "method": "stats"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://freesound.org/help/faq/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": "{title} by {author}, {licence}"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://freesound.org/docs/api/overview.html",
+    "key": "free",
+    "key_env": "FREESOUND_TOKEN",
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "60 per minute and 2,000 per day. Originals 30 per minute and 500 per day through OAuth2"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": {
+    "default": [
+      "CC0"
+    ],
+    "with_credit": [
+      "CC-BY"
+    ],
+    "refuse": [
+      "noncommercial"
+    ]
+  },
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Default to CC0 and CC BY. Its API terms say commercial use is negotiated and may be charged later, and bar full copies."
+}

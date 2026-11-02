@@ -1,0 +1,47 @@
+{
+  "id": "rawtherapee-haldclut",
+  "name": "RawTherapee HaldCLUT",
+  "url": "https://rawpedia.rawtherapee.com/Film_Simulation",
+  "classes": [
+    "lut"
+  ],
+  "holds": "A film simulation set.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://rawpedia.rawtherapee.com/Film_Simulation",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://rawpedia.rawtherapee.com/Film_Simulation",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "dead"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "The page returned 404, so its licence could not be verified."
+}

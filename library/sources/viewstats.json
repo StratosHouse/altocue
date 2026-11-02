@@ -1,0 +1,47 @@
+{
+  "id": "viewstats",
+  "name": "ViewStats",
+  "url": "https://www.viewstats.com/",
+  "classes": [
+    "data"
+  ],
+  "holds": "YouTube analytics with a costly business API.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "viewstats-terms",
+    "url": "https://www.viewstats.com/terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.viewstats.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_automation"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its terms ban data mining and robots."
+}

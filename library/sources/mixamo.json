@@ -1,0 +1,49 @@
+{
+  "id": "mixamo",
+  "name": "Mixamo",
+  "url": "https://community.adobe.com/t5/mixamo-discussions/mixamo-faq-licensing-royalties-ownership-eula-and-tos/td-p/13234775",
+  "classes": [
+    "character",
+    "3d"
+  ],
+  "holds": "Rigged characters and animation behind an Adobe sign-in.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "mixamo",
+    "url": "https://community.adobe.com/t5/mixamo-discussions/mixamo-faq-licensing-royalties-ownership-eula-and-tos/td-p/13234775",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.mixamo.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_redistribution",
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "It needs an Adobe sign-in, bars raw file distribution and bars machine learning."
+}

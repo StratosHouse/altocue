@@ -1,0 +1,46 @@
+{
+  "id": "dqnamo",
+  "name": "dqnamo",
+  "url": "https://dqnamo.com/",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A design engineer's portfolio of interface experiments.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://dqnamo.com/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://dqnamo.com/kitchen",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Link only. No terms, no licence, and a public repo with no LICENSE file, so it is all rights reserved."
+}

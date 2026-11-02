@@ -1,0 +1,45 @@
+{
+  "id": "remotion",
+  "name": "Remotion",
+  "url": "https://github.com/remotion-dev/remotion",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A popular framework for video in React.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "remotion",
+    "url": "https://github.com/remotion-dev/remotion/blob/main/LICENSE.md",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://www.remotion.dev/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Source-available, with a company licence above its free tier, so Altocue takes no dependency on it."
+}
