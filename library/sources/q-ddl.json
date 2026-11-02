@@ -1,0 +1,46 @@
+{
+  "id": "q-ddl",
+  "name": "Q-DDL LUT pack",
+  "url": "https://www.cgchannel.com/2020/01/download-800-free-3d-luts/",
+  "classes": [
+    "lut"
+  ],
+  "holds": "A pack of more than 800 LUTs known mainly from 2020 press.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://www.cgchannel.com/2020/01/download-800-free-3d-luts/",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.cgchannel.com/2020/01/download-800-free-3d-luts/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "CC BY by press report only. Downloads run through ad-link shorteners."
+}

@@ -1,0 +1,51 @@
+{
+  "id": "internet-archive",
+  "name": "Internet Archive",
+  "url": "https://archive.org/",
+  "classes": [
+    "video"
+  ],
+  "holds": "A vast archive of films, with rights set by whoever uploaded them.",
+  "size": {
+    "count": 34002,
+    "unit": "ocean movies",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://archive.org/about/terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://archive.org/developers/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "Not read"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "metadata_unreliable"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "A person must check every item. Its public domain tag sits on recent feature films, so a machine cannot trust it."
+}

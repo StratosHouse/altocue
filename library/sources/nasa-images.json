@@ -1,0 +1,59 @@
+{
+  "id": "nasa-images",
+  "name": "NASA Images and Video",
+  "url": "https://images.nasa.gov/",
+  "classes": [
+    "video",
+    "photo"
+  ],
+  "holds": "Agency video, photographs and audio from NASA's public library.",
+  "size": {
+    "count": 1626,
+    "unit": "rocket videos",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "nasa-media",
+    "url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "{title}, NASA"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://images.nasa.gov/docs/images.nasa.gov_api_docs.pdf",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "Not stated"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "trademark_risk",
+    "people_release"
+  ],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "ocean, video",
+    "results": 358,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "No key and real MP4 files. Manifest URLs are plain http, so rewrite them. Reject items that mention copyright or courtesy, because third-party media is marked only in the text. Never imply endorsement."
+}

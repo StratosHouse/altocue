@@ -1,0 +1,47 @@
+{
+  "id": "mapbox-gl",
+  "name": "Mapbox GL JS",
+  "url": "https://github.com/mapbox/mapbox-gl-js",
+  "classes": [
+    "map"
+  ],
+  "holds": "A map renderer that went proprietary at version 2.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "mapbox-tos",
+    "url": "https://github.com/mapbox/mapbox-gl-js/blob/main/LICENSE.txt",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://docs.mapbox.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Proprietary since version 2, and it needs a key."
+}

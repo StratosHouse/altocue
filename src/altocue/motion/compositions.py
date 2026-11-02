@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
-from html import escape
+from html import escape, unescape
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from ..errors import AltocueError
 from ..project import Project
@@ -16,6 +18,22 @@ FOLDER = "motion/fetched"
 STAGE_FOLDER = "compositions"
 GSAP_CDN = re.compile(r"https://cdn\.jsdelivr\.net/npm/gsap@[\d.]+/dist/gsap\.min\.js")
 OWN_ID = re.compile(r'<div[^>]*\bdata-composition-id="([^"]+)"')
+COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+
+LOCAL_HOSTS = {"cdn.jsdelivr.net", "cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"}  # the places registry items load from
+KEPT_SUFFIXES = {".js", ".mjs", ".css", ".json", ".woff2", ".woff", ".ttf", ".otf", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".glb", ".gltf", ".hdr", ".wasm", ".bin"}
+QUOTED_URL = re.compile(r"""(?<=["'`(])https?://[^\s"'`<>()\\${}]+(?=["'`)])""")
+LOADED_URL = re.compile(
+    r"""(?:<(?:script|img|video|audio|source|iframe|link)\b[^>]*?\b(?:src|href)=["']|url\(\s*["']?|\bfrom\s+["']|\bimport\s*\(\s*["']|\bfetch\s*\(\s*["'])(https?://[^"'`)\s]+)"""
+)
+FONT_CSS = re.compile(r"""<link\b[^>]*?href=["'](https://fonts\.googleapis\.com/css[^"']*)["'][^>]*>|@import\s+url\(\s*["']?(https://fonts\.googleapis\.com/css[^"')]*)["']?\s*\)\s*;?""")
+JS_IMPORT = re.compile(r"""(\b(?:from|import)\s*\(?\s*["'])((?:/npm/|/gh/|https://cdn\.jsdelivr\.net/|\.{1,2}/)[^"']+)(["'])""")
+
+
+def own_id(text: str) -> str | None:
+    """The id a page declares. Registry files often show a sample one in a leading comment, which is not it."""
+    found = OWN_ID.search(COMMENT.sub("", text))
+    return found.group(1) if found else None
 
 
 def resolve(project: Project, item: dict[str, Any]) -> dict[str, Any]:
@@ -28,10 +46,10 @@ def resolve(project: Project, item: dict[str, Any]) -> dict[str, Any]:
     if not path.is_file() or not path.is_relative_to(project.root.resolve()):
         fix = f"Run `altocue library add {named}`." if named else "Point `file` at an HTML file inside the project."
         raise AltocueError(f"The composition {relative} is not in this project.", fix=fix)
-    found = OWN_ID.search(path.read_text(errors="replace"))
+    found = own_id(path.read_text(errors="replace"))
     if not found:
         raise AltocueError(f"{relative} is not a HyperFrames composition.", fix='It needs a <template> holding a div with data-composition-id="...".')
-    return {**item, "file": relative, "path": str(path), "own_id": found.group(1)}
+    return {**item, "file": relative, "path": str(path), "own_id": found}
 
 
 def mount(item: dict[str, Any], attrs: str) -> str:
@@ -53,7 +71,68 @@ def install(items: list[dict[str, Any]], stage: Path, renderer_dir: Path) -> Non
     if local:
         shutil.copy(local, folder / "gsap.min.js")
     for item in chosen:
-        text = Path(item["path"]).read_text(errors="replace")
+        source = Path(item["path"])
+        text = source.read_text(errors="replace")
         if local:
             text = GSAP_CDN.sub(f"{STAGE_FOLDER}/gsap.min.js", text)
         (folder / f"{item['own_id']}.html").write_text(text)
+        if source.with_suffix("").is_dir():
+            shutil.copytree(source.with_suffix(""), folder / source.stem, dirs_exist_ok=True)
+
+
+def rename(text: str, own: str, name: str) -> str:
+    """Dozens of registry items are all called `main`, and two sharing a film would overwrite each other on the stage."""
+    text = re.sub(rf"""(data-composition-id=["']){re.escape(own)}(["'])""", rf"\g<1>{name}\g<2>", text)
+    return re.sub(rf"""(__timelines\s*\[\s*["'`]){re.escape(own)}(["'`]\s*\])""", rf"\g<1>{name}\g<2>", text)
+
+
+def rebase(text: str, name: str, tops: set[str]) -> str:
+    """An item's own files sit in a folder on the stage. Paths from the stage root work in markup, CSS, scripts and the runtime's assetUrl alike."""
+    for top in sorted(tops):
+        text = re.sub(rf"""(?<=["'`(])(?:\.{{0,2}}/)*{re.escape(top)}(?=[/"'`)])""", f"/{STAGE_FOLDER}/{name}/{top}", text)
+    return text
+
+
+def localise(text: str, name: str, folder: Path) -> tuple[str, list[str]]:
+    """Save what an item loads from the web beside it, so a render needs no network. GSAP is left to `install`, which uses the renderer's own copy."""
+    from ..generate import http
+
+    stage_path = f"/{STAGE_FOLDER}/{name}/vendor"
+    saved: dict[str, str] = {}
+
+    def keep(url: str) -> str:
+        plain = unescape(url)
+        if plain in saved:
+            return saved[plain]
+        suffix = Path(urlsplit(plain).path).suffix.lower()
+        file = hashlib.sha256(plain.encode()).hexdigest()[:16] + (suffix if suffix in KEPT_SUFFIXES else ".js")
+        saved[plain] = file
+        dest = http.download(plain, folder / "vendor" / file, timeout=120)
+        if file.endswith((".js", ".mjs")):
+            body = dest.read_text(errors="replace")
+            pointed = JS_IMPORT.sub(lambda found: f"{found[1]}./{keep(urljoin(plain, found[2]))}{found[3]}", body)
+            if pointed != body:
+                dest.write_text(pointed)
+        return file
+
+    def fonts(found: re.Match[str]) -> str:
+        plain = unescape(found[1] or found[2])
+        sheet = http.download(plain, folder / "vendor" / "fonts.css.part", timeout=60)
+        css = sheet.read_text(errors="replace")
+        sheet.unlink()
+        saved[plain] = ""
+        css = re.sub(r"https://fonts\.gstatic\.com/[^\s)\"']+", lambda url: f"{stage_path}/{keep(url[0])}", css)
+        return f"<style>{css}</style>" if found[1] else css
+
+    def swap(found: re.Match[str]) -> str:
+        parts = urlsplit(found[0])
+        built_later = found[0].endswith(("=", "/"))  # a prefix the item finishes at run time, for a font someone else may choose
+        if parts.hostname not in LOCAL_HOSTS or parts.path in ("", "/") or built_later or GSAP_CDN.fullmatch(found[0]):
+            return found[0]
+        return f"{stage_path}/{keep(found[0])}"
+
+    text = QUOTED_URL.sub(swap, FONT_CSS.sub(fonts, text))
+    left = [url for url in LOADED_URL.findall(text) if urlsplit(url).path not in ("", "/") and not GSAP_CDN.fullmatch(url)]
+    if left:
+        raise AltocueError(f"{name} loads {left[0]} while rendering, so it could not render offline.", fix="Pick another item with `altocue library search`.")
+    return text, list(saved)

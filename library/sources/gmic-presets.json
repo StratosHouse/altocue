@@ -1,0 +1,46 @@
+{
+  "id": "gmic-presets",
+  "name": "G'MIC colour presets",
+  "url": "https://gmic.eu/color_presets/",
+  "classes": [
+    "lut"
+  ],
+  "holds": "More than 1,100 colour lookup tables.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://gmic.eu/color_presets/",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://gmic.eu/color_presets/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "metadata_unreliable"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The licence of the table files is not clear from the page."
+}

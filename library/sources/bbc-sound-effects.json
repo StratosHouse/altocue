@@ -1,0 +1,47 @@
+{
+  "id": "bbc-sound-effects",
+  "name": "BBC Sound Effects",
+  "url": "https://sound-effects.bbcrewind.co.uk/licensing",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "The BBC's sound archive.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "bbc-remarc",
+    "url": "https://sound-effects.bbcrewind.co.uk/licensing",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://sound-effects.bbcrewind.co.uk/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "noncommercial"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its RemArc licence covers personal, research and education use only. Commercial use is sold elsewhere."
+}

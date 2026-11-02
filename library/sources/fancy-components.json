@@ -1,0 +1,49 @@
+{
+  "id": "fancy-components",
+  "name": "Fancy Components",
+  "url": "https://github.com/danielpetho/fancy",
+  "classes": [
+    "motion"
+  ],
+  "holds": "The strongest kinetic type of the React libraries.",
+  "size": {
+    "count": 158,
+    "unit": "entries",
+    "as_of": "2026-11-02",
+    "method": "registry"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/danielpetho/fancy/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://www.fancycomponents.dev/r/registry.json",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Would need a port to a seekable clock."
+}

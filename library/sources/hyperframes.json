@@ -1,0 +1,58 @@
+{
+  "id": "hyperframes",
+  "name": "HyperFrames registry",
+  "url": "https://hyperframes.heygen.com/catalog",
+  "classes": [
+    "motion",
+    "transition"
+  ],
+  "holds": "Hundreds of seekable motion blocks made for the renderer Altocue uses.",
+  "size": {
+    "count": 448,
+    "unit": "items",
+    "as_of": "2026-11-02",
+    "method": "registry"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": "Apache-2.0",
+    "url": "https://github.com/heygen-com/hyperframes/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the licence files that come with the item"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://hyperframes.heygen.com/catalog",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "trademark_risk"
+  ],
+  "adapter": "altocue.library",
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "hyperframes catalog --json",
+    "results": 448,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "Fetched item by item through `altocue library add`. Most run GSAP, which is under GreenSock's standard licence, not an open one. Branded items and transitions.dev ports are refused."
+}

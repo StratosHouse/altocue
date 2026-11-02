@@ -1,0 +1,49 @@
+{
+  "id": "kokonutui",
+  "name": "Kokonut UI",
+  "url": "https://kokonutui.com/",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A free MIT set of 102 animated components.",
+  "size": {
+    "count": 102,
+    "unit": "components",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/kokonut-labs/kokonutui/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://kokonutui.com/r/registry.json",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": true
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The MIT free set only, hand-ported to a seekable clock. Its Pro set is paid and barred from open source, so take names from /r/registry.json and never from llms.txt."
+}

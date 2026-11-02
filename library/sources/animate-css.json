@@ -1,0 +1,47 @@
+{
+  "id": "animate-css",
+  "name": "Animate.css",
+  "url": "https://github.com/animate-css/animate.css",
+  "classes": [
+    "animation"
+  ],
+  "holds": "A popular set of CSS animations.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "Hippocratic-2.1",
+    "url": "https://github.com/animate-css/animate.css/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/animate-css/animate.css",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "GitHub says Hippocratic 2.1, which is not an open licence, while npm says MIT."
+}

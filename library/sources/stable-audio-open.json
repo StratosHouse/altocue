@@ -1,0 +1,47 @@
+{
+  "id": "stable-audio-open",
+  "name": "Stable Audio Open",
+  "url": "https://huggingface.co/stabilityai/stable-audio-open-1.0",
+  "classes": [
+    "music",
+    "sfx",
+    "generate"
+  ],
+  "holds": "A gated AI audio model.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "stability-community",
+    "url": "https://huggingface.co/stabilityai/stable-audio-open-1.0",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "local",
+    "docs": "https://huggingface.co/stabilityai/stable-audio-open-1.0",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "It sits behind a community licence whose revenue threshold was not read."
+}

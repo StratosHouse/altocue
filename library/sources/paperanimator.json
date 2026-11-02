@@ -1,0 +1,46 @@
+{
+  "id": "paperanimator",
+  "name": "Paper Animator",
+  "url": "https://paperanimator.com/",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A paid browser tool for paper-style animation.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "paperanimator",
+    "url": "https://paperanimator.com/terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://paperanimator.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Link only. Its terms forbid copying service content without written consent. Altocue's paper formats are original."
+}

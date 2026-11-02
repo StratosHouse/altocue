@@ -1,0 +1,48 @@
+{
+  "id": "storyset",
+  "name": "Storyset",
+  "url": "https://storyset.com/terms",
+  "classes": [
+    "illustration"
+  ],
+  "holds": "Illustrations from the Freepik group.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "storyset",
+    "url": "https://storyset.com/terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://storyset.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_redistribution",
+    "no_automation"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "It needs credit or payment, and bars collections and robots."
+}
