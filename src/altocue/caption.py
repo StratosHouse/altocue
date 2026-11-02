@@ -31,8 +31,13 @@ def balanced(words: list[dict[str, Any]], max_words: int) -> list[list[dict[str,
     return [words[i : i + size] for i in range(0, len(words), size)]
 
 
-def build_pages(words: list[dict[str, Any]], *, max_words: int = 4, combine_ms: int = 700) -> list[dict[str, Any]]:
-    """Group mapped words into pages. Each word needs `text`, `start`, `end` and `segment`."""
+def build_pages(
+    words: list[dict[str, Any]], *, max_words: int = 4, combine_ms: int = 700, ends: dict[str, float] | None = None
+) -> list[dict[str, Any]]:
+    """Group mapped words into pages. Each word needs `text`, `start`, `end` and `segment`.
+
+    `ends` gives each segment's last moment in output seconds, and a page's hold stops there.
+    """
     runs: list[list[dict[str, Any]]] = []
     for word in words:
         current = runs[-1] if runs else None
@@ -63,15 +68,19 @@ def build_pages(words: list[dict[str, Any]], *, max_words: int = 4, combine_ms: 
         page["end"] = round(min(page["end"] + HOLD_AFTER, following["start"]), 3)
     if pages:
         pages[-1]["end"] = round(pages[-1]["end"] + HOLD_AFTER, 3)
+    for page in pages:
+        page["end"] = min(page["end"], (ends or {}).get(page["segment"], page["end"]))
     return pages
 
 
 def build(project: Project) -> list[dict[str, Any]]:
     style = brands.load(project).caption
+    edl = project.edl()
     pages = build_pages(
-        [w for w in cut.map_words(project, project.edl()) if w.get("kind", "word") == "word"],
+        [w for w in cut.map_words(project, edl) if w.get("kind", "word") == "word"],
         max_words=int(style["max_words"]),
         combine_ms=int(style["combine_ms"]),
+        ends=cut.segment_ends(edl),
     )
     write_json(project.work / "captions.json", {"pages": pages})
     return pages
