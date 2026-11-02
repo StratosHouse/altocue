@@ -45,7 +45,7 @@ def test_a_format_is_described_properly(fmt):
     assert re.fullmatch(r"[a-z][a-z0-9_]*", fmt.id)
     assert fmt.group in formats.GROUPS and fmt.area in formats.AREAS and set(fmt.jobs) <= set(formats.JOBS) and fmt.jobs
     assert 12 <= len(fmt.summary) <= 110 and fmt.summary.endswith(".")
-    assert "—" not in fmt.summary and fmt.shortest <= fmt.seconds <= fmt.longest
+    assert "\u2014" not in fmt.summary and fmt.shortest <= fmt.seconds <= fmt.longest
 
 
 @pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
