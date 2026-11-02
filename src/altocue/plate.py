@@ -63,7 +63,7 @@ def _even(value: float) -> int:
 def push_filter(c: Canvas, frames: int, start: float, end: float) -> str:
     """A slow zoom with sub-pixel motion. `crop` alone steps by whole pixels and jitters."""
     span = max(frames - 1, 1)
-    z = f"({start}+({end}-{start})*n/{span})"
+    z = f"({start}+({end}-{start})*in/{span})"  # perspective names its frame counter `in`, not `n`
     w, h = f"(W/{z})", f"(H/{z})"
     x0, y0 = f"((W-{w})/2)", f"((H-{h})*{ZOOM_ORIGIN_Y})"
     x1, y1 = f"({x0}+{w})", f"({y0}+{h})"
