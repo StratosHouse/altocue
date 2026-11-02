@@ -62,7 +62,7 @@ Nothing that QA measures moves. A transition or a freeze changes picture only.
 
 - **The film keeps its exact frame count.** Sound is not touched, so word times, captions and graphics stay true.
 - **A transition sits across the cut,** half before and half after. The outgoing shot plays on past its out point and the incoming shot starts before its in point, from the source footage. Where the source runs out, its last or first frame holds.
-- **So picture from outside the cut shows during the overlap,** and lips there do not match the words. It stays under half strength, but look at it. If the handle shows a flub, shorten the transition.
+- **So picture from outside the cut shows during the overlap,** and lips there do not match the words. In a dissolve it stays under half strength, but look at it. If the handle shows a flub, shorten the transition.
 - **A freeze overwrites frames.** The picture holds while the sound carries on, then returns exactly in step. Nothing after it shifts, and the film does not get longer.
 
 ## Freezes

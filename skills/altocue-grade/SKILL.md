@@ -45,7 +45,7 @@ altocue grade --lut ~/luts/show.cube
 ## Rules
 
 - **Skin comes first.** If a correction moves skin hue too far, it backs off by itself. Do not fight that.
-- **Looks protect skin too.** Colours near this clip's skin take a quarter of the look, then the whole look backs off until skin hue stays within 3 degrees and face level within 10%, to no less than a quarter of the strength you asked for. The report says what each clip took: `look_strength` and `look_skin_moved`.
+- **Looks protect skin too.** Colours near this clip's skin take a quarter of the look. If skin hue still moves past 3 degrees or the face past 10% in level, the guard tightens, and only then does the whole look back off, to no less than a quarter of the strength you asked for. The report says what each clip took: `look_strength` and `look_skin_moved`.
 - **A look that removes colour is not guarded,** so black and white stays black and white.
 - **Two people with very different skin share one clip's guard.** Check both faces in the draft.
 - **One correction per clip.** Per-frame correction flickers.

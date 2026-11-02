@@ -32,7 +32,7 @@ from .grade import (
 )
 from .project import Project
 
-SKIN_GUARD = 0.75  # How much of a look the colours at the centre of skin refuse.
+SKIN_GUARDS = (0.75, 0.9, 1.0)  # How much of a look the colours at the centre of skin refuse. Tighter comes before weaker.
 FLOOR = 0.25  # A look a person asked for never backs off to nothing.
 GREY_SKIN = 0.25  # Skin left with less colour than this share was turned to mono on purpose.
 SHEET_CELL = 260
@@ -225,6 +225,7 @@ class Finish:
     strength: float = 1.0
     cube: Cube | None = None
     skin_center: tuple[float, float, float] | None = None
+    guard: float = SKIN_GUARDS[0]
     moved: float = 0.0  # Degrees of skin hue this finish moves.
 
     @property
@@ -244,7 +245,7 @@ class Finish:
             return base
         share = np.full((*base.shape[:-1], 1), amount)
         if self.skin_center is not None:
-            share = share * (1 - SKIN_GUARD * skin_weight(rgb_to_lab(base), self.skin_center))
+            share = share * (1 - self.guard * skin_weight(rgb_to_lab(base), self.skin_center))
         return np.clip(base + (self.render(base) - base) * share, 0, 1)
 
 
@@ -283,9 +284,12 @@ def fit(finish: Finish, skin: np.ndarray | None) -> Finish:
     if np.hypot(np.median(after[..., 1]), np.median(after[..., 2])) < GREY_SKIN * colour:
         return finish  # Black and white with coloured skin would be a mistake, not protection.
     center = tuple(bare.mean(axis=0).tolist())
-    guarded = replace(finish, skin_center=center)
-    share = max(back_off(guarded, skin)[0], FLOOR)
-    settled = replace(guarded, strength=finish.strength * share)
+    for guard in SKIN_GUARDS:  # A colourist tightens the key on skin before turning the whole grade down.
+        guarded = replace(finish, skin_center=center, guard=guard)
+        share = back_off(guarded, skin)[0]
+        if share == 1.0:
+            break
+    settled = replace(guarded, strength=finish.strength * max(share, FLOOR))
     return replace(settled, moved=_hue_gap(median_hue(skin), median_hue(settled.apply(skin))))
 
 
