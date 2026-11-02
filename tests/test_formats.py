@@ -20,6 +20,9 @@ from altocue.timeline import resolve_items
 
 ALL = list(formats.load().values())
 WORDS = [{"text": "hello", "start": 1.0, "end": 1.4}, {"text": "runway", "start": 2.0, "end": 2.4}]
+CSS_WORDS = set("infinite both forwards backwards none linear ease ease-in ease-out ease-in-out var calc steps cubic-bezier alternate reverse".split())
+CSS_WORDS |= set("alternate-reverse running paused normal step-end step-start jump-end jump-none jump-start jump-both start end min max clamp s ms".split())
+CORE_KEYFRAMES = {"rise", "leave", "capin", "growy", "endin", "lineup", "stepon", "fmtout"}
 SVG_TAGS = "svg|path|circle|rect|line|polyline|polygon|ellipse|g|text|textPath|use"
 UNSEEKED = re.compile(rf"(?:::(?:before|after)|(?:^|[\s>])(?:{SVG_TAGS})(?:[.:\[][^{{\s]*)?)\s*\{{[^}}]*animation", re.M)
 CLOCKS = re.compile(r"Date\.now|Math\.random|requestAnimationFrame|setTimeout|setInterval|performance\.now")
@@ -62,6 +65,30 @@ def test_a_format_is_time_pure_and_self_contained(fmt, brand):
 def test_animations_sit_on_html_elements(fmt):
     """HyperFrames 0.8.222 seeks SVG and pseudo-element animations to film time, so they look finished in any clip after 0."""
     assert not UNSEEKED.search(fmt.css), "Animate an HTML wrapper or a real span instead"
+
+
+@pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
+def test_keyframes_belong_to_the_format(fmt):
+    """Two formats in one film must not overwrite each other's keyframes, or lean on one that is not loaded."""
+    css = formats.scoped_css(fmt)
+    own = set(formats.KEYFRAMES.findall(css))
+    assert all(name.startswith(f"{fmt.id}--") for name in own)
+    used = set()
+    for block in formats.ANIMATED.findall(css):
+        used |= {word for word in formats.WORD.findall(block) if word.startswith(f"{fmt.id}--")}
+    assert used <= own, "This format animates with keyframes it never defines"
+    undefined = {word for block in formats.ANIMATED.findall(css) if block.startswith("animation") for word in formats.WORD.findall(block.split(":", 1)[1])}
+    assert not undefined - own - CSS_WORDS - CORE_KEYFRAMES, "Keyframes from another format would be missing when that format is not in the film"
+
+
+CORE_CLASSES = {"cap", "leave", "hook", "chip", "lt", "stat", "quote", "steps", "title", "end"}
+
+
+@pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
+def test_format_markup_avoids_the_core_class_names(fmt):
+    """The core stylesheet is not scoped, so a `.end` inside a format picks up the end card's look."""
+    classes = {name for group in re.findall(r'class="([^"]*)"', fmt.draw(placed(fmt))) for name in group.split()}
+    assert not classes & CORE_CLASSES
 
 
 @pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)

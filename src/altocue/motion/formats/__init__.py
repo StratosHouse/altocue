@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -27,6 +28,10 @@ AREAS = ("panel", "edge", "full")
 CORE_TYPES = {"hook", "chip", "lower_third", "stat", "quote", "steps", "title", "endcard", "composition"}
 FONT_FILES = {"mono": "GeistMono-Variable.ttf", "serif": "InstrumentSerif-Regular.ttf", "hand": "Caveat-Variable.ttf"}
 FONT_STACKS = {"mono": 'ui-monospace,Menlo,monospace', "serif": "Georgia,serif", "hand": "cursive"}
+
+KEYFRAMES = re.compile(r"@keyframes\s+([\w-]+)")
+ANIMATED = re.compile(r"@keyframes\s+[\w-]+|animation(?:-name)?\s*:[^;}]+")
+WORD = re.compile(r"(?<![\w-])[A-Za-z_][\w-]*")
 
 BASE_CSS = """
 .fmt-panel{left:var(--gutter);right:calc(var(--gutter) + var(--rail,0px));top:var(--top)}
@@ -164,6 +169,16 @@ def fonts_for(items: Iterable[dict[str, Any]]) -> list[str]:
     return sorted({font for fmt in used(items) for font in fmt.fonts})
 
 
+def scoped_css(fmt: Format) -> str:
+    """Keyframes carry the format's id, so two formats in one film can each have their own `pop`."""
+    names = set(KEYFRAMES.findall(fmt.css))
+
+    def rename(found: re.Match[str]) -> str:
+        return WORD.sub(lambda word: f"{fmt.id}--{word.group(0)}" if word.group(0) in names else word.group(0), found.group(0))
+
+    return ANIMATED.sub(rename, fmt.css)
+
+
 def stylesheet(items: Iterable[dict[str, Any]]) -> str:
     """Only what this film uses. Faces load from files the renderer copies next to the page."""
     items = list(items)
@@ -172,4 +187,4 @@ def stylesheet(items: Iterable[dict[str, Any]]) -> str:
         return ""
     faces = "".join(f'@font-face{{font-family:"{name}";src:url("{FONT_FILES[name]}");font-weight:100 900}}\n' for name in fonts_for(items))
     stacks = "".join(f'--{name}:"{name}",{FONT_STACKS[name]};' for name in fonts_for(items))
-    return faces + (f":root{{{stacks}}}\n" if stacks else "") + BASE_CSS + "\n".join(fmt.css for fmt in formats)
+    return faces + (f":root{{{stacks}}}\n" if stacks else "") + BASE_CSS + "\n".join(scoped_css(fmt) for fmt in formats)
