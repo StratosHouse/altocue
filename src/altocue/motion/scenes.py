@@ -177,7 +177,7 @@ def _exit(pose: dict[str, float], link: dict[str, Any]) -> dict[str, float]:
     kind, move = link["type"], dict(pose)
     direction = float(link.get("direction", -1))
     if kind == "through":
-        move.update(scale=pose["scale"] * 1.5, opacity=0.0)
+        move.update(scale=pose["scale"] * 1.8, opacity=0.0)
     elif kind == "dive":
         move.update(scale=pose["scale"] * float(link.get("zoom", 5.0)), opacity=0.0)
     elif kind == "pan":
@@ -193,7 +193,7 @@ def _entry(pose: dict[str, float], link: dict[str, Any]) -> dict[str, float]:
     kind, move = link["type"], dict(pose)
     direction = float(link.get("direction", -1))
     if kind == "through":
-        move.update(scale=pose["scale"] * 0.74, opacity=0.0)
+        move.update(scale=pose["scale"] * 0.6, opacity=0.0)
     elif kind == "dive":
         move.update(scale=pose["scale"] * 0.56, opacity=0.0)
     elif kind == "pan":
@@ -260,8 +260,9 @@ def camera_css(scene: dict[str, Any], spans: dict[str, Any]) -> str:
     poses: list[tuple[float, dict[str, float]]] = []
     if lap_in:
         poses.append((begin - lap_in, _entry(first, arrive)))
-        if arrive["type"] == "through":
-            poses.append((begin - 0.02, {**_entry(first, arrive), "scale": first["scale"] * 0.84, "opacity": 0.0}))  # the two scenes pass each other, they do not stack
+        if arrive["type"] == "through":  # the two scenes pass each other at speed, they do not stack
+            poses.append((begin - 0.02, {**first, "scale": first["scale"] * 0.68, "opacity": 0.0}))
+            poses.append((begin + lap_in * 0.35, {**first, "scale": first["scale"] * 0.88, "opacity": 0.85}))
         poses.append((begin + lap_in, first))
     else:
         poses.append((begin, first))
@@ -269,7 +270,8 @@ def camera_css(scene: dict[str, Any], spans: dict[str, Any]) -> str:
     if lap_out:
         poses.append((end - lap_out, last))
         if leave["type"] == "through":
-            poses.append((end + 0.02, {**last, "scale": last["scale"] * 1.26, "opacity": 0.0}))
+            poses.append((end - lap_out * 0.35, {**last, "scale": last["scale"] * 1.2, "opacity": 0.85}))
+            poses.append((end + 0.02, {**last, "scale": last["scale"] * 1.62, "opacity": 0.0}))
         poses.append((end + lap_out, _exit(last, leave)))
     else:
         poses.append((end, last))
