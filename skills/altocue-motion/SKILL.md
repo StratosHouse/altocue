@@ -23,9 +23,11 @@ Write `motion.json` in the project root. Times are seconds in the finished video
     { "type": "endcard", "headline": "Run the *check* this week", "cta": "yoursite.com", "duration": 2.6 }
   ],
   "music": { "path": "music/bed.mp3" },
-  "sfx": true
+  "sfx": [{ "name": "whoosh", "at": { "word": "next" } }]
 }
 ```
+
+`sfx` is `true` for the house sounds, `false` for none, or a list of cues to add to them. See `altocue-clean` for cues and for how music ends.
 
 ## Types
 
