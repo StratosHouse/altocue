@@ -17,7 +17,7 @@ from time import monotonic, sleep
 from typing import Any
 
 from .. import __version__, ffmpeg
-from ..direct import IMAGE_SUFFIXES, Review, Shot, full_prompt, load_shots, require_valid, run_check
+from ..direct import IMAGE_SUFFIXES, SYNTHETIC, Review, Shot, full_prompt, load_shots, require_valid, run_check
 from ..errors import AltocueError
 from ..project import Project
 from . import store
@@ -27,6 +27,8 @@ from .fal import FalProvider
 from .higgsfield import HiggsfieldProvider
 
 STALE_DAYS = 30
+C2PA_MARK = b"c2pa.claim"  # every C2PA manifest labels its claim box this way. Four bytes alone turn up by chance in video
+KEEP_MARKS = "Keep every AI label, watermark and provenance mark this file carries."
 Out = Callable[[str], None]
 
 
@@ -472,6 +474,7 @@ class Run:
                     terms=str(self.provider.catalog.provider(self.provider.id)["terms_url"]),
                     route="cli" if self.provider.id == "higgsfield" else "api",
                     extra={
+                        "terms_as_of": str(self.provider.catalog.provider(self.provider.id).get("terms_as_of", "")),
                         "tier": item.shot.tier,
                         "params": item.params,
                         "seed_requested": item.req.seed,
@@ -486,7 +489,8 @@ class Run:
                 ),
             )
         self._log(item, "succeeded", cost)
-        store.record_asset(self.project, item.shot.id, asset=lead, digest=item.hash, imported=False, check_passed=check["passed"])
+        meta = {"synthetic": item.shot.synthetic}
+        store.record_asset(self.project, item.shot.id, asset=lead, digest=item.hash, imported=False, check_passed=check["passed"], meta=meta)
         if item.record is not None:
             item.record["check_passed"] = check["passed"]
         self._save(item, "done", asset=str(lead.relative_to(self.project.root)))
@@ -581,6 +585,8 @@ def _provenance(
         "terms_url": terms,
         "route": route,
         "altocue_version": __version__,
+        "synthetic": shot.synthetic if shot else [],
+        "script": shot.script if shot else "",
         **(extra or {}),
     }
 
@@ -660,16 +666,30 @@ def import_asset(
     job_id: str = "",
     terms_url: str | None = None,
     shots_file: str = "shots.json",
+    surface: str = "",
+    recipe: str = "",
+    upstream: Sequence[str] = (),
+    synthetic: Sequence[str] = (),
+    claims: str = "",
+    consent: str = "",
     out: Out = print,
 ) -> Path:
-    """Register a file that was generated elsewhere, such as through a provider's MCP server."""
+    """Register a file that was generated elsewhere, such as through a provider's MCP server.
+
+    The file is copied byte for byte, so a provider's labels and marks stay on it.
+    """
     source = Path(file).expanduser().resolve()
     if not source.is_file():
         raise AltocueError(f"Not found: {source}")
     if (cost or 0) < 0 or (credits or 0) < 0:
         raise AltocueError("--cost and --credits cannot be negative.")
+    strangers = sorted(set(synthetic) - set(SYNTHETIC))
+    if strangers:
+        raise AltocueError(f"--synthetic takes {', '.join(SYNTHETIC)}, and {', '.join(strangers)} is not one.")
+    if surface == "mcp" and not job_id:
+        raise AltocueError("An MCP import needs --job-id.", fix="Keep every job id from the run. It is how a charge is traced to a file.")
     usd, rate, rate_as_of = priced_call(project, provider, cost=cost, credits=credits)
-    ffmpeg.probe_json(source)
+    probe = ffmpeg.probe_json(source)
     known = None
     if (project.root / shots_file).exists():
         known = next((s for s in load_shots(project.root / shots_file).shots if s.id == shot), None)
@@ -677,7 +697,10 @@ def import_asset(
     if known and known.kind != kind:
         fix = "Import the right file, or change the shot's kind."
         raise AltocueError(f"{shot} is a {known.kind} shot and {source.name} is a {kind}.", fix=fix)
-    terms = terms_url or str(catalog_for(project).provider(provider)["terms_url"])
+    catalog = catalog_for(project)
+    config = catalog.providers.get(provider, {})
+    terms = terms_url or str(catalog.provider(provider)["terms_url"])
+    flags = sorted({*(known.synthetic if known else ()), *synthetic})
     digest = store.sha256(source)[:12]
     asset = store.generated_dir(project) / f"{shot}-{digest}{source.suffix.lower()}"
     asset.parent.mkdir(parents=True, exist_ok=True)
@@ -692,16 +715,39 @@ def import_asset(
         "usd_per_credit": rate,
         "usd_per_credit_as_of": rate_as_of,
         "unreserved": held is None,
+        "surface": surface,
+        "recipe": recipe,
+        "upstream": list(upstream),
+        "synthetic": flags,
+        "claims": _claims_record(project, claims),
+        "consent": consent,
+        "terms_as_of": str(config.get("terms_as_of", "")),
+        "marks": {
+            "c2pa": store.holds(source, C2PA_MARK),
+            "tags": probe.get("format", {}).get("tags", {}),
+            "keep": str(config.get("labels_note") or KEEP_MARKS),
+        },
     }
     if held:
         extra |= {"reserved_usd": held["usd"], "reserved_credits": held["credits"], "over_reservation_usd": held["over_usd"]}
     data = _provenance(known, prompt=prompt, provider=provider, model=model, seed=seed, cost=usd, terms=terms, route="import", extra=extra)
     store.write_provenance(asset, {**data, "shot": shot, "kind": kind})
-    store.record_asset(project, shot, asset=asset, digest=digest, imported=True, check_passed=check["passed"])
+    meta = {"synthetic": flags, "recipe": recipe, "unreserved": held is None}
+    store.record_asset(project, shot, asset=asset, digest=digest, imported=True, check_passed=check["passed"], meta=meta)
     row = {"run": "import", "shot": shot, "provider": provider, "model": model, "usd": usd, "credits": credits, "unreserved": held is None}
     store.log_spend(project, {**row, "state": "succeeded", "basis": "import", "job_id": job_id})
     _report_import(project, shot, usd, held, out)
+    if {"person", "voice"} & set(flags) and not consent:
+        out(f"Warning: {shot} is flagged {', '.join(flags)} with no --consent note. Record whose likeness or voice this is, or that it is an invented adult.")
     return asset
+
+
+def _claims_record(project: Project, claims: str) -> dict[str, str] | str:
+    """A claims file is pinned by its hash, so what was approved can be told from what changed later."""
+    path = project.root / claims if claims else None
+    if path is None or not path.is_file():
+        return claims
+    return {"file": claims, "sha256": store.sha256(path)}
 
 
 def _report_import(project: Project, shot: str, usd: float, held: dict[str, Any] | None, out: Out) -> None:

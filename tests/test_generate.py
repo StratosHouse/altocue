@@ -1488,6 +1488,96 @@ def test_import_needs_a_cost_or_credits(project, tmp_path, capsys):
     assert "--cost" in err and "--credits" in err
 
 
+# Provenance through --import
+
+
+def full_import(project: Project, source: Path, *extra: str) -> int:
+    base = ["--import", str(source), "--shot", "s01", "--prompt", PROMPT, "--model", "seedance_2_5", "--credits", "180"]
+    return go(project, *base, "--surface", "mcp", "--job-id", "job-7", *extra)
+
+
+def test_import_keeps_every_field_per_asset(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    (project.root / "approved.json").write_text(json.dumps(["Holds 500 ml"]))
+    args = ["--recipe", "ugc-video", "--upstream", "job-1,job-2", "--synthetic", "person,voice"]
+    assert full_import(project, source, *args, "--claims", "approved.json", "--consent", "none-generated-adult") == 0
+    sidecar = sidecar_of(project)
+    assert sidecar["credits"] == 180
+    assert sidecar["surface"] == "mcp"
+    assert sidecar["recipe"] == "ugc-video"
+    assert sidecar["upstream"] == ["job-1", "job-2"]
+    assert sidecar["synthetic"] == ["person", "voice"]
+    assert sidecar["claims"]["file"] == "approved.json"
+    assert len(sidecar["claims"]["sha256"]) == 64
+    assert sidecar["consent"] == "none-generated-adult"
+    assert sidecar["job_id"] == "job-7"
+    entry = json.loads((project.work / "generated" / "manifest.json").read_text())["shots"]["s01"]
+    assert entry["synthetic"] == ["person", "voice"] and entry["recipe"] == "ugc-video" and entry["unreserved"] is True
+
+
+def test_claims_can_be_a_statement_instead_of_a_file(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--claims", "observable-only") == 0
+    assert sidecar_of(project)["claims"] == "observable-only"
+
+
+def test_import_stamps_the_terms_it_was_made_under(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source) == 0
+    assert sidecar_of(project)["terms_as_of"] == load_catalog().provider("higgsfield")["terms_as_of"]
+
+
+def test_import_never_touches_the_providers_marks(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    with source.open("ab") as handle:
+        handle.write(b"\x00c2pa.claim bytes\x00")
+    assert full_import(project, source) == 0
+    assert generated_asset(project, "s01").read_bytes() == source.read_bytes()
+    sidecar = sidecar_of(project)
+    assert sidecar["marks"]["c2pa"] is True
+    assert "label" in sidecar["marks"]["keep"].lower()
+
+
+def test_a_clean_file_records_no_mark(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source) == 0
+    assert sidecar_of(project)["marks"]["c2pa"] is False
+
+
+def test_an_unknown_synthetic_flag_is_refused(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--synthetic", "person,ghost") == 1
+    assert "ghost" in capsys.readouterr().err
+
+
+def test_an_mcp_import_needs_its_job_id(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--credits", "5", "--surface", "mcp") == 1
+    assert "--job-id" in capsys.readouterr().err
+
+
+def test_a_person_with_no_consent_note_is_called_out(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--synthetic", "person") == 0
+    assert "--consent" in capsys.readouterr().out
+
+
+def test_generated_shots_carry_their_flags_too(project, fal):
+    write_shots(project, shot(synthetic=["person"], script="This bottle holds half a litre."))
+    assert go(project, "--yes") == 0
+    sidecar = sidecar_of(project)
+    assert sidecar["synthetic"] == ["person"]
+    assert sidecar["script"] == "This bottle holds half a litre."
+    assert sidecar["terms_as_of"] == load_catalog().provider("fal")["terms_as_of"]
+
+
+def test_import_takes_the_flags_from_the_shot_list(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    write_shots(project, shot(synthetic=["person"]))
+    assert full_import(project, source) == 0
+    assert sidecar_of(project)["synthetic"] == ["person"]
+
+
 # Command plumbing
 
 

@@ -40,6 +40,17 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def holds(path: Path, needle: bytes) -> bool:
+    """Whether these bytes are anywhere in a file, across block edges."""
+    tail = b""
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1 << 20), b""):
+            if needle in tail + block:
+                return True
+            tail = block[-(len(needle) - 1) :]
+    return False
+
+
 class JobStore:
     """One file per shot and request. The reference is written before the first poll."""
 
@@ -76,7 +87,9 @@ def read_manifest(project: Project) -> dict[str, dict[str, Any]]:
     return json.loads(path.read_text())["shots"] if path.exists() else {}
 
 
-def record_asset(project: Project, shot: str, *, asset: Path, digest: str, imported: bool, check_passed: bool | None) -> None:
+def record_asset(
+    project: Project, shot: str, *, asset: Path, digest: str, imported: bool, check_passed: bool | None, meta: dict[str, Any] | None = None
+) -> None:
     shots = read_manifest(project)
     shots[shot] = {
         "asset": str(asset.relative_to(project.root)),
@@ -84,6 +97,7 @@ def record_asset(project: Project, shot: str, *, asset: Path, digest: str, impor
         "hash": digest,
         "imported": imported,
         "check_passed": check_passed,
+        **(meta or {}),
     }
     atomic_json(manifest_path(project), {"shots": shots})
 

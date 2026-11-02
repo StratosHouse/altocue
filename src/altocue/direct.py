@@ -27,7 +27,8 @@ TIERS: tuple[str, ...] = ("draft", "standard", "hero")
 ASPECTS = ("21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16")
 CHECKS = {"video": ("motion", "frames", "none"), "image": ("still", "none")}
 REQUIRED = ("id", "purpose", "kind", "tier", "prompt", "aspect", "duration", "placement", "check")
-OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra")
+OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra", "synthetic", "script")
+SYNTHETIC = ("person", "voice", "scene", "product")
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
 PUNCTUATION = " .,!?;:\"'"
 
@@ -93,6 +94,8 @@ class Shot(Model):
     audio: bool = False
     seed: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    synthetic: list[str] = field(default_factory=list)
+    script: str = ""
 
     def media(self) -> list[str]:
         return [value for value in (self.first_frame, self.last_frame, *self.refs) if value]
@@ -181,6 +184,9 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
     for key in ("refs", "characters"):
         if key in raw and not (isinstance(raw[key], list) and all(isinstance(item, str) for item in raw[key])):
             found.append(error(key, f"{key} must be a list of strings."))
+    strangers = set(raw.get("synthetic") or []) - set(SYNTHETIC) if isinstance(raw.get("synthetic", []), list) else {"synthetic"}
+    if strangers:
+        found.append(error("synthetic", f"synthetic is a list drawn from {', '.join(SYNTHETIC)}, and {', '.join(sorted(strangers))} is not one."))
     if kind == "image" and raw.get("first_frame"):
         found.append(error("first-frame", "An image has no first frame. Use refs."))
     if raw.get("last_frame") and not raw.get("first_frame"):

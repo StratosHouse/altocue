@@ -66,6 +66,16 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--job-id", default="", help="With --import: the provider's job id")
     parser.add_argument("--from", dest="source", default="higgsfield", help="With --import: the provider. Default higgsfield")
     parser.add_argument("--terms-url", help="With --import: terms URL, if the provider is not in models.toml")
+    parser.add_argument("--surface", default="", choices=["", "mcp", "cli", "api", "web"], help="With --import: how it was made")
+    parser.add_argument("--recipe", default="", help="With --import: the recipe that made it, from `altocue recipes`")
+    parser.add_argument("--upstream", default="", help="With --import: job ids this was built from, comma separated")
+    parser.add_argument("--synthetic", default="", help="With --import: what is generated: person, voice, scene, product, comma separated")
+    parser.add_argument("--claims", default="", help="With --import: a file of approved claims, or a statement such as observable-only")
+    parser.add_argument("--consent", default="", help="With --import: whose likeness or voice this is, such as none-generated-adult")
+
+
+def _listed(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def _import(args: argparse.Namespace, project: Project) -> int:
@@ -88,6 +98,12 @@ def _import(args: argparse.Namespace, project: Project) -> int:
         job_id=args.job_id,
         terms_url=args.terms_url,
         shots_file=args.shots,
+        surface=args.surface,
+        recipe=args.recipe,
+        upstream=_listed(args.upstream),
+        synthetic=_listed(args.synthetic),
+        claims=args.claims,
+        consent=args.consent,
     )
     print(f"{args.shot}: registered {asset.relative_to(project.root)}")
     return 0
