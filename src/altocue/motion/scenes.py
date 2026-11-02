@@ -7,6 +7,7 @@ so the speed never drops to nothing at a pose and nothing fully stops.
 
 from __future__ import annotations
 
+import math
 import re
 from html import escape
 from pathlib import Path
@@ -19,7 +20,9 @@ from .formats import kit
 from .html import base_css, item_html, root_tokens
 
 PANEL_WIDTH = 880.0  # what a panel format fills at full scale
-SAMPLES = 36
+SLOW_SAMPLES = 6  # keys a second on a slow drift
+FAST_SAMPLES = 30  # keys a second through a link
+FAST_STRETCH = 1.2  # seconds. Anything shorter between poses counts as fast
 SOFT_DRIFT = 0.018
 WORLD_DRIFT = 0.012  # scale added each scene, so the backdrop never settles
 WORLD_KICK = 0.05  # and a little more when the camera goes through a cut
@@ -224,15 +227,24 @@ def _css_pose(pose: dict[str, float]) -> str:
     return f"transform:{' '.join(parts)};opacity:{pose.get('opacity', 1):.3f}"
 
 
+def _sample_times(times: list[float]) -> list[float]:
+    """Slow stretches need few keys. A link lasts under a second and moves fast, so it gets one for about every other frame."""
+    samples = [times[0]]
+    for begin, end in zip(times, times[1:], strict=False):
+        rate = FAST_SAMPLES if end - begin < FAST_STRETCH else SLOW_SAMPLES
+        count = max(int(math.ceil((end - begin) * rate)), 2)
+        samples += [begin + (end - begin) * index / count for index in range(1, count + 1)]
+    return samples
+
+
 def _keyframes(name: str, poses: list[tuple[float, dict[str, float]]], span: float) -> str:
     """Sample a curve through the poses. Each property flows on its own, so nothing stops at a pose."""
     times = [at for at, _ in poses]
     keys = ("scale", "x", "y", "rx", "ry", "opacity")
     curves = {key: kit.flow(times, [pose.get(key, 1.0 if key in ("scale", "opacity") else 0.0) for _, pose in poses]) for key in keys}
     steps = []
-    for index in range(SAMPLES + 1):
-        at = times[0] + span * index / SAMPLES
-        steps.append(f"{100 * index / SAMPLES:.2f}%{{{_css_pose({key: curve(at) for key, curve in curves.items()})}}}")
+    for at in _sample_times(times):
+        steps.append(f"{100 * (at - times[0]) / span:.3f}%{{{_css_pose({key: curve(at) for key, curve in curves.items()})}}}")
     return f"@keyframes {name}{{{''.join(steps)}}}"
 
 

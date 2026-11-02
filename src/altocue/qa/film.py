@@ -167,7 +167,7 @@ def phone_read(project: Project, line: dict[str, Any], frames: list[Path], times
                     and measured["contrast"] >= wanted_contrast
                     and held
                 )
-                detail = f"{measured['font_px']:g} px at 1080, {sizes['phone_px']:g} px on a phone, contrast {measured['contrast']:g}:1, held {seconds:.1f} of {needed:.1f} s"
+                detail = f"{measured['font_px']:g} px at 1080, {sizes['phone_px']:g} px on a phone, contrast {measured['contrast']:g}:1, held {seconds:.1f} s"
                 report.append({"scene": scene["id"], "text": wanted, "role": role, "passed": bool(ok), "detail": detail, **measured, **sizes})
     return {"rows": report}
 

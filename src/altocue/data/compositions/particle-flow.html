@@ -9,7 +9,6 @@
       <div id="particle-flow-root" data-composition-id="particle-flow" data-width="1920" data-height="1080">
         <canvas id="particle-flow-canvas"></canvas>
       </div>
-      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
       <script>
         (function () {
           // Particles flying towards the camera. Every position is worked out from time alone, so any frame can be drawn first.
@@ -60,12 +59,11 @@
             }
             context.globalAlpha = 1;
           }
-          var clock = { t: 0 };
-          var timeline = gsap.timeline({ paused: true });
-          timeline.to(clock, { t: 240, duration: 240, ease: "none", onUpdate: function () { draw(clock.t); } }, 0);
-          draw(0);
-          window.__timelines = window.__timelines || {};
-          window.__timelines["particle-flow"] = timeline;
+          // The renderer announces each frame's time, and that time is the only input. No timeline, no clock.
+          window.addEventListener("hf-seek", function (event) {
+            draw(event.detail.time);
+          });
+          draw(window.__hfThreeTime || 0);
         })();
       </script>
     </template>

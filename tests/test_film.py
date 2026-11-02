@@ -766,6 +766,37 @@ def test_a_slow_pulse_stays_inside_the_flash_limit(tmp_path):
     assert found["peak_per_second"] <= 3 and found["passed"]
 
 
+# A track someone brought
+
+
+def test_a_chosen_track_moves_the_cuts_to_its_beats(tmp_path, monkeypatch, capsys):
+    folder = tmp_path / "film"
+    altocue("film", "new", "music", str(folder))
+    project = Project.open(folder)
+    track = folder / "assets" / "music" / "track.wav"
+    track.write_bytes(b"not really audio")
+    path = folder / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["music"] = {"path": "assets/music/track.wav"}
+    made["snap"] = True
+    path.write_text(json.dumps(made))
+    beats = [round(index * 0.52, 3) for index in range(80)]
+    calls = []
+
+    def fake(command, **_):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, json.dumps({"bpm": 115, "beatTimes": beats}), "")
+
+    monkeypatch.setattr(hyperframes, "binary", lambda: tmp_path)
+    monkeypatch.setattr(subprocess, "run", fake)
+    done = film.timing(film.load(project), "16:9")
+    for scene in done["scenes"][1:]:
+        assert min(abs(scene["start"] - beat) for beat in beats) < 0.04
+    film.timing(film.load(project), "16:9")
+    assert len(calls) == 1, "The beat map is kept until the file changes"
+    assert "beats" in calls[0]
+
+
 # Motion checks, each with a planted fault
 
 
@@ -978,7 +1009,7 @@ def shipped() -> list[Path]:
 @pytest.mark.parametrize("path", shipped(), ids=lambda p: p.stem)
 def test_a_shipped_composition_draws_from_time_alone(path):
     text = path.read_text()
-    assert "<template>" in text and f'window.__timelines["{path.stem}"]' in text and f'data-composition-id="{path.stem}"' in text
+    assert "<template>" in text and "hf-seek" in text and f'data-composition-id="{path.stem}"' in text and "gsap" not in text.lower()
     assert not re.search(r"Date\.now|Math\.random|requestAnimationFrame|setTimeout|setInterval|performance\.now", text)
 
 
