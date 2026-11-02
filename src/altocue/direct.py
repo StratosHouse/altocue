@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
-from . import ffmpeg
+from . import claims, ffmpeg
 from .errors import AltocueError
 from .models import GateResult, Model
 from .project import Project
@@ -27,7 +27,8 @@ TIERS: tuple[str, ...] = ("draft", "standard", "hero")
 ASPECTS = ("21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16")
 CHECKS = {"video": ("motion", "frames", "none"), "image": ("still", "none")}
 REQUIRED = ("id", "purpose", "kind", "tier", "prompt", "aspect", "duration", "placement", "check")
-OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra")
+OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra", "synthetic", "script")
+SYNTHETIC = ("person", "voice", "scene", "product")
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
 PUNCTUATION = " .,!?;:\"'"
 
@@ -93,6 +94,8 @@ class Shot(Model):
     audio: bool = False
     seed: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    synthetic: list[str] = field(default_factory=list)
+    script: str = ""
 
     def media(self) -> list[str]:
         return [value for value in (self.first_frame, self.last_frame, *self.refs) if value]
@@ -181,6 +184,9 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
     for key in ("refs", "characters"):
         if key in raw and not (isinstance(raw[key], list) and all(isinstance(item, str) for item in raw[key])):
             found.append(error(key, f"{key} must be a list of strings."))
+    strangers = set(raw.get("synthetic") or []) - set(SYNTHETIC) if isinstance(raw.get("synthetic", []), list) else {"synthetic"}
+    if strangers:
+        found.append(error("synthetic", f"synthetic is a list drawn from {', '.join(SYNTHETIC)}, and {', '.join(sorted(strangers))} is not one."))
     if kind == "image" and raw.get("first_frame"):
         found.append(error("first-frame", "An image has no first frame. Use refs."))
     if raw.get("last_frame") and not raw.get("first_frame"):
@@ -227,6 +233,21 @@ def _character_findings(shots: list[Shot]) -> list[Finding]:
             found.append(Finding(level, shot.id, "still-first", f"{who} needs an approved still before video. Set first_frame."))
         if shot.characters and not shot.refs and not shot.first_frame:
             found.append(Finding("warning", shot.id, "identity-ref", "A character with no reference image will get an invented face."))
+    return found
+
+
+def _honesty_findings(shots: list[Shot]) -> list[Finding]:
+    """A claim the film can never ship is money wasted for certain, so this one stops the run."""
+    found: list[Finding] = []
+    for shot in shots:
+        said = claims.experience(f"{shot.script}\n{shot.prompt}") if "person" in shot.synthetic else []
+        if said:
+            quoted = ", ".join(f'"{phrase}"' for phrase in said[:3])
+            why = f"A generated person cannot say {quoted}. A label does not cure this. Show what can be seen, or film a real customer."
+            found.append(Finding("error", shot.id, "claims", why))
+        if shot.characters and not shot.synthetic:
+            why = "A character with no synthetic flag. The honesty gates read that flag. Set it to person if this figure is generated."
+            found.append(Finding("warning", shot.id, "synthetic-flag", why))
     return found
 
 
@@ -304,6 +325,7 @@ def validate(data: dict[str, Any], root: Path | None = None) -> Review:
             review.shots.append(Shot.from_dict(item))
     review.findings += _media_findings(review.shots, root)
     review.findings += _character_findings(review.shots)
+    review.findings += _honesty_findings(review.shots)
     for shot in review.shots:
         review.findings += lint_prompt(shot)
     return review

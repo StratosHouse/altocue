@@ -21,6 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from altocue import ffmpeg
+from altocue.generate import import_asset
 from altocue.models import Clip, Edl, GateResult, Segment, Word
 from altocue.project import Project, write_json
 
@@ -36,6 +37,14 @@ SCRIPT = (
 ).split()
 PHRASE_AT = 12
 PHRASE = ["you", "need", "is"]
+CLAIMING = (
+    "i tried this serum for a month and it changed my life so i bought two more and my results keep getting better "
+    "every single day and honestly anyone can see the difference by now"
+).split()
+HOST_PROMPT = "A woman holds the bottle up to the window, handheld, ending on the label."
+LABEL = "AI-generated actor"
+LABEL_ITEM = {"type": "chip", "text": LABEL, "start": 0.0, "end": SECONDS}
+LABEL_BURN = (LABEL, 0.12, 0.0, SECONDS)
 
 
 OWED = {
@@ -83,6 +92,8 @@ class Recipe:
     plate: bool = False
     assets: list[dict[str, Any]] = field(default_factory=list)
     credits_txt: bool = False
+    performer: str = ""
+    exempt: str = ""
 
 
 @dataclass
@@ -138,6 +149,35 @@ CANARIES = [
             items=[{"type": "chip", "text": "Follow this plan", "start": 1.0, "end": 3.0}], burn_text=[("Follow this plan", 0.94, 1.0, 3.0)]
         ),
     ),
+    Case(
+        "labelled synthetic host claims experience in speech and captions",
+        "claims",
+        Recipe(performer=HOST_PROMPT, expected=CLAIMING, heard=CLAIMING, items=[LABEL_ITEM], burn_text=[LABEL_BURN]),
+    ),
+    Case(
+        "synthetic host told to claim experience in the prompt",
+        "claims",
+        Recipe(
+            performer='She looks at the lens and says: "I bought this and it worked for me." Handheld, ending on her face.',
+            items=[LABEL_ITEM],
+            burn_text=[LABEL_BURN],
+        ),
+    ),
+    Case(
+        "synthetic host captioned as a buyer",
+        "claims",
+        Recipe(
+            performer=HOST_PROMPT,
+            items=[LABEL_ITEM, {"type": "chip", "text": "Verified buyer", "start": 2.0, "end": 4.0}],
+            burn_text=[LABEL_BURN, ("Verified buyer", 0.2, 2.0, 4.0)],
+        ),
+    ),
+    Case("synthetic performer with no disclosure", "disclosure", Recipe(performer=HOST_PROMPT)),
+    Case(
+        "disclosure that flashes past",
+        "disclosure",
+        Recipe(performer=HOST_PROMPT, items=[{**LABEL_ITEM, "end": 0.5}], burn_text=[(LABEL, 0.12, 0.0, 0.5)]),
+    ),
 ]
 
 CONTROLS = [
@@ -159,6 +199,9 @@ CONTROLS = [
             burn_text=[("Altocue free plan", 0.12, 0.0, 6.0)],
         ),
     ),
+    Case("clean, labelled synthetic host", "", Recipe(performer=HOST_PROMPT, items=[LABEL_ITEM], burn_text=[LABEL_BURN])),
+    Case("clean, recorded exemption", "", Recipe(performer=HOST_PROMPT, exempt="Audio-only ad, the picture is a placeholder.")),
+    Case("clean, a real speaker may say what they tried", "", Recipe(expected=CLAIMING, heard=CLAIMING)),
 ]
 
 
@@ -326,13 +369,21 @@ def build(case: Case, root: Path) -> Built:
     if recipe.plate:
         render(project.work / "plate.mp4", replace(recipe, burn_captions=False, burn_text=[]), work, pages)
 
+    source = file
+    if recipe.performer:
+        source = import_asset(project, file=file, shot="host", prompt=recipe.performer, model="seedance_2_5", cost=0, synthetic=["person"], out=lambda _: None)
+    if recipe.exempt:
+        config = project.root / "altocue.toml"
+        config.write_text(config.read_text().replace('exempt = ""', f'exempt = "{recipe.exempt}"'))
+        project = Project.open(project.root)
+
     third = recipe.seconds / 3
     labels = recipe.labels or ["", "", ""]
     edl = Edl(
         fps=FPS, segments=[Segment(id=f"s{i + 1}", clip="take", start=i * third, end=(i + 1) * third, label=labels[i]) for i in range(3)]
     )
     project.save_edl(edl)
-    project.save_clips([Clip(id="take", path=str(file), duration=recipe.seconds, fps=FPS, width=WIDTH, height=HEIGHT)])
+    project.save_clips([Clip(id="take", path=str(source), duration=recipe.seconds, fps=FPS, width=WIDTH, height=HEIGHT)])
     write_json(
         project.timeline_path,
         {"width": WIDTH, "height": HEIGHT, "fps": FPS, "duration": recipe.seconds, "tail": recipe.tail,

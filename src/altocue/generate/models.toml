@@ -2,8 +2,12 @@
 # request field name may live. Vendors retire video APIs without warning, so a
 # change here must never need a code release.
 #
-# A route is provider + tier + capability. There is at most one, and a shot that
-# has no route is an error with a suggestion, never a quiet swap to another model.
+# A route is provider + surface + tier + capability. There is at most one, and a
+# shot that has no route is an error with a suggestion, never a quiet swap to
+# another model. Surface is empty for a route Altocue runs itself. `surface = "mcp"`
+# is a route only an agent can drive, through the provider's MCP server: Altocue
+# quotes it and imports the result, and a run never picks it. Model ids differ by
+# surface, so a CLI id here says nothing about the MCP id, or the other way round.
 #
 # Capabilities: text_to_video, image_to_video, reference_to_video,
 # frame_and_refs_to_video, text_to_image, reference_to_image.
@@ -32,16 +36,21 @@ source_url = "https://fal.ai/docs/documentation/model-apis/fal-cdn"
 [providers.higgsfield]
 label = "Higgsfield"
 terms_url = "https://higgsfield.ai/terms-of-use-agreement"
-terms_as_of = "2026-08-27"
+terms_as_of = "2026-10-23"
+labels_note = "Keep every AI label, watermark and provenance mark. Higgsfield's terms (5.5) bar removing or obscuring them, and you disclose AI output where the law asks."
+upload_warning = """\
+Higgsfield's terms, updated 2026-10-23, let it train its models on what you upload and what it makes, unless you hold an Enterprise Agreement (section 4.4). \
+Deleting a file stops future use, but anything already used stays in trained models (16.5). \
+Faces, voices and client footage need the owner's agreement first (4.2, 5.3)."""
 poll_seconds = 3.0
 destination = "Higgsfield, through its CLI"
-# Higgsfield bills plan credits and its pricing page shows no dollar figure to a
-# plain fetch. This default is a ceiling, rounded up from the dearest third-party
-# figure found ($15 for 200 credits), so the spend cap errs safe. Set your own
+# Higgsfield bills plan credits. Its plans tool, read 2026-11-02, showed $0.033 a
+# credit on an annual Ultra plan ($99 for 3,000) and $0.0526 to $0.0588 on top-ups.
+# This default stays above all of them, so the spend cap errs safe. Set your own
 # with `usd_per_credit` under [generate]: plan price divided by plan credits.
 usd_per_credit = 0.08
-usd_per_credit_as_of = "2026-10-30"
-usd_per_credit_source = "https://www.layer3labs.io/guides/higgsfield-api"
+usd_per_credit_as_of = "2026-11-02"
+usd_per_credit_source = "https://higgsfield.ai/mcp"
 source_url = "https://github.com/higgsfield-ai/cli"
 
 # fal: Seedance 2.0 Mini. Draft tier, 720p.
@@ -569,3 +578,226 @@ max_images = 14
 price = "cli"
 as_of = "2026-10-30"
 source_url = "https://raw.githubusercontent.com/higgsfield-ai/cli/main/MODELS.md"
+
+
+# Higgsfield, through its MCP server. An agent drives these, and they exist only on
+# that surface as far as we have checked. Read from the server's model listing on
+# 2026-11-02. Credit rates come from a price file dated 2026-10-08 and marked
+# historical, so quote with get_cost before spending. The listing states no cap on
+# references. 9 is the Seedance 2.0 limit, kept here as a cautious one.
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "draft"
+capability = "text_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "t2v", resolution = "480p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 0
+credits_per_second = 3
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "draft"
+capability = "image_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "480p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", first_frame = "start_image", last_frame = "end_image" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 2
+credits_per_second = 3
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "draft"
+capability = "reference_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "480p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", refs = "image_references" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 9
+credits_per_second = 3
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "draft"
+capability = "frame_and_refs_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "480p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", first_frame = "start_image", last_frame = "end_image", refs = "image_references" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 9
+credits_per_second = 3
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "standard"
+capability = "text_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "t2v", resolution = "720p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 0
+credits_per_second = 7
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "standard"
+capability = "image_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "720p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", first_frame = "start_image", last_frame = "end_image" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 2
+credits_per_second = 7
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "standard"
+capability = "reference_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "720p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", refs = "image_references" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 9
+credits_per_second = 7
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "standard"
+capability = "frame_and_refs_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "720p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", first_frame = "start_image", last_frame = "end_image", refs = "image_references" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 9
+credits_per_second = 7
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "hero"
+capability = "text_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "t2v", resolution = "1080p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 0
+credits_per_second = 12
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "hero"
+capability = "image_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "1080p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", first_frame = "start_image", last_frame = "end_image" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 2
+credits_per_second = 12
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "hero"
+capability = "reference_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "1080p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", refs = "image_references" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 9
+credits_per_second = 12
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"
+
+[[model]]
+provider = "higgsfield"
+surface = "mcp"
+tier = "hero"
+capability = "frame_and_refs_to_video"
+kind = "video"
+model = "seedance_2_5"
+params = { mode = "omni_reference", resolution = "1080p" }
+fields = { duration = "duration", aspect = "aspect_ratio", audio = "generate_audio", first_frame = "start_image", last_frame = "end_image", refs = "image_references" }
+aspects = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+min_duration = 4
+max_duration = 30
+max_images = 9
+credits_per_second = 12
+price = "mcp"
+as_of = "2026-11-02"
+source_url = "https://higgsfield.ai/mcp"

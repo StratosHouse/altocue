@@ -23,6 +23,7 @@ Run `altocue doctor --json`.
 - **Never invent speech.** Captions and cuts come from the transcript. If you have no transcript, stop and get one.
 - **Never overwrite a source.** Sources are links. Everything is rebuilt from them.
 - **Never spend money or upload footage without a yes.** Name the provider, what goes to it and the cost. Do this every time.
+- **A generated person may not claim experience.** No fake testimonials, with or without a label. See `altocue-ugc`.
 - **Never claim a check you did not run.** If you could not see or hear something, say so.
 - **Never call a video finished until QA passes and the Editor in Chief has given a verdict.**
 
@@ -60,6 +61,8 @@ Run `altocue doctor --json`.
 | Music, sound effects, credits for stock | `altocue-sound` |
 | Generated shots or images | `altocue-generate` |
 | A format, stock, music, a font, a look or anything else to use | `altocue-library` |
+| A UGC-style ad, a generated host, an AI actor | `altocue-ugc` |
+| A hosted effect or command, and what it costs | `altocue recipes` |
 | A verdict before publishing | `altocue-review` |
 
 ## Project files

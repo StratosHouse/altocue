@@ -59,8 +59,15 @@ library = []            # folders of your own clips, searched first
 
 [generate]
 provider = ""           # fal or higgsfield. Empty means nothing generates
-spend_cap_usd = 0.0     # the most one run may spend. 0 blocks all paid calls
+spend_cap_usd = 0.0     # the most this project may spend, on every route. 0 blocks all paid calls
 usd_per_credit = 0.08   # Higgsfield only: your plan's dollars per credit
+
+[disclosure]            # for a film with a generated person. A check, not legal advice
+label = "AI-generated actor"   # the words that must stay on screen. Put them in motion.json
+exempt = ""             # why no label is needed, in your words. Recorded, never judged
+
+[ugc]
+label_text = []         # words printed on the real product, so `qa --check ugc` does not call them baked in
 
 [review]
 reviewer = "auto"       # auto, gemini, codex or pack

@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
-from .. import ffmpeg
+from .. import claims, ffmpeg
 from ..errors import AltocueError
 from ..models import Clip, Edl, GateResult, Word
 from ..project import Project
@@ -53,6 +53,15 @@ SILENT_LABELS = ("broll", "b-roll", "silent", "no speech")
 HOLD_LABELS = ("hold", "freeze", "still")
 HOLD_ITEMS = {"title", "endcard"}
 
+DISCLOSURE_SECONDS = 2.0  # a house floor. New York sets no format, and a flash is not conspicuous
+SPEECH_CEILING = 2.9  # words a second. About 2.5 reads as a person, and past this it reads as rushed AI
+COLD_OPEN = 0.4
+STATIC_OPEN = 0.3  # mean luma change between frames. A frozen start measures near zero. Not yet calibrated on real clips
+BAKED_FPS = 2.0
+BAKED_MATCH = 0.6
+LIP_SHEET = 12
+LIP_WIDTH = 270
+
 TALL_ZONE = {"left": 0.05, "right": 0.92, "top": 0.09, "bottom": 0.82}
 FLAT_ZONE = {"left": 0.04, "right": 0.96, "top": 0.05, "bottom": 0.95}
 
@@ -87,6 +96,19 @@ class Shot:
 
 
 @dataclass
+class Performer:
+    """A shot flagged as a synthetic person. `spans` are output seconds, and None means the edit could not be read."""
+
+    shot: str
+    lines: dict[str, str]
+    spans: list[tuple[float, float]] | None
+
+    @property
+    def placed(self) -> bool:
+        return self.spans is None or bool(self.spans)
+
+
+@dataclass
 class Context:
     """What every gate reads: one probe, one transcript, one set of text boxes."""
 
@@ -102,6 +124,7 @@ class Context:
     _heard: tuple[list[Word] | None, str] | None = None
     _seen: dict[str, Any] | None = None
     _samples: tuple[np.ndarray, int] | None = field(default=None, repr=False)
+    _cast: list[Performer] | None = None
 
     @classmethod
     def open(cls, project: Project, file: str | Path, stage: str = "final", *, rules_path: str | Path | None = None) -> Context:
@@ -832,6 +855,229 @@ def gate_rules_ocr(c: Context) -> GateResult:
     return GateResult(id="rules_ocr", passed=not firm, value={"findings": len(firm), "review": len(doubtful)}, threshold=0, detail=detail)
 
 
+def _shot_list(project: Project) -> dict[str, dict[str, Any]]:
+    """Raw, because this gate reads the flags on any list, even one that would not pass `altocue direct`."""
+    try:
+        rows = json.loads((project.root / "shots.json").read_text()).get("shots", [])
+    except (OSError, ValueError):
+        return {}
+    return {str(row["id"]): row for row in rows if isinstance(row, dict) and row.get("id")}
+
+
+def _same_file(path: Path, target: Path, digest: str) -> bool:
+    """The same bytes count, because a source is often the download an import was copied from."""
+    if not path.is_file():
+        return False
+    if path.resolve() == target.resolve():
+        return True
+    from ..generate import store
+
+    return store.sha256(path) == digest
+
+
+def _placed(c: Context, shot: str, asset: Path, digest: str) -> list[tuple[float, float]] | None:
+    """Where a shot is in the edit: inserts, plus every segment cut from it as a source."""
+    if c.edl is None and c.timeline is None:
+        return None
+    root = c.project.root
+    spans = []
+    for item in (c.timeline or {}).get("inserts", []):
+        chosen = item.get("source") == "generated" and item.get("title") == shot
+        if chosen or _same_file(root / item["file"], asset, digest):
+            spans.append((float(item["start"]), float(item["end"])))
+    try:
+        clips = {clip.id for clip in c.project.clips() if _same_file(Path(clip.path), asset, digest)}
+    except AltocueError:
+        clips = set()
+    if clips and c.edl:
+        spans += [(shot_at.start, shot_at.end) for shot_at, segment in zip(c.shots, c.edl.segments, strict=True) if segment.clip in clips]
+    return spans
+
+
+def cast(c: Context) -> list[Performer]:
+    """Every synthetic person the project knows about, with where each one falls in the edit."""
+    if c._cast is not None:
+        return c._cast
+    from ..generate import store
+
+    listed = _shot_list(c.project)
+    found: list[Performer] = []
+    for shot, entry in store.read_manifest(c.project).items():
+        sidecar = c.project.root / entry["provenance"]
+        data = json.loads(sidecar.read_text()) if sidecar.exists() else {}
+        row = listed.get(shot, {})
+        if "person" not in {*(data.get("synthetic") or []), *(row.get("synthetic") or [])}:
+            continue
+        lines = {"script": str(row.get("script") or data.get("script") or ""), "prompt": str(row.get("prompt") or data.get("prompt") or "")}
+        found.append(Performer(shot, lines, _placed(c, shot, c.project.root / entry["asset"], str(data.get("sha256", "")))))
+    c._cast = found
+    return found
+
+
+def _within(spans: list[tuple[float, float]] | None, start: float, end: float) -> bool:
+    return spans is None or any(start < b and end > a for a, b in spans)
+
+
+def _unused(people: list[Performer]) -> str:
+    names = [p.shot for p in people if not p.placed]
+    return f" Flagged and not in this cut: {', '.join(names)}." if names else ""
+
+
+def gate_claims(c: Context) -> GateResult:
+    """Decision D1: a generated person may not claim experience. A label does not cure it, so nothing here can."""
+    people = cast(c)
+    placed = [p for p in people if p.placed]
+    if not placed:
+        return not_applicable("claims", f"No synthetic person in this film.{_unused(people)}")
+    spoken = c.spoken()
+    strings = rules.on_screen(c.timeline) if c.timeline else []
+    hits: list[str] = []
+    for person in placed:
+        lines = dict(person.lines)
+        lines["speech"] = " ".join(w["text"] for w in spoken or [] if _within(person.spans, w["start"], w["end"]))
+        lines["on screen"] = " | ".join(s["text"] for s in strings if _within(person.spans, s["start"], s["end"]))
+        for where, text in lines.items():
+            hits += [f"{phrase!r} in the {where} of {person.shot}" for phrase in claims.experience(text)]
+    if hits:
+        detail = f"A generated person claims experience: {'; '.join(hits[:5])}. A label does not cure this. {claims.NOT_LEGAL_ADVICE}"
+        return GateResult(id="claims", passed=False, value=len(hits), threshold=0, detail=detail)
+    if spoken is None and not strings:
+        return skipped("claims", "No transcript and no captions, so what the performer says is unknown.")
+    return GateResult(id="claims", passed=True, value=0, threshold=0, detail=f"{len(placed)} synthetic performers, no claim of experience found.{_unused(people)}")
+
+
+def gate_disclosure(c: Context) -> GateResult:
+    """A film with a synthetic performer says so on screen, or the project records why it need not."""
+    people = cast(c)
+    placed = [p for p in people if p.placed]
+    if not placed:
+        return not_applicable("disclosure", f"No synthetic person in this film.{_unused(people)}")
+    names = ", ".join(p.shot for p in placed)
+    exempt = str(c.project.setting("disclosure", "exempt", "") or "").strip()
+    if exempt:
+        return GateResult(id="disclosure", passed=True, value="exempt", detail=f"Recorded exemption for {names}: {exempt} Nobody checked it. {claims.NOT_LEGAL_ADVICE}")
+    if c.timeline is None:
+        return skipped("disclosure", NO_TIMELINE, DISCLOSURE_SECONDS)
+    label = str(c.project.setting("disclosure", "label", "") or "")
+    shown = [(float(s["start"]), float(s["end"])) for s in rules.on_screen(c.timeline) if claims.discloses(s["text"], label)]
+    seconds = _covered(shown)
+    wanted = min(DISCLOSURE_SECONDS, c.footage_end)
+    if seconds >= wanted:
+        return GateResult(id="disclosure", passed=True, value=round(seconds, 2), threshold=wanted, detail=f"On screen for {seconds:.1f}s. {claims.NOT_LEGAL_ADVICE}")
+    said = f"on screen for only {seconds:.1f}s" if shown else "nowhere on screen"
+    detail = f"{names} is a synthetic performer, and the disclosure is {said}. {claims.NOT_LEGAL_ADVICE}"
+    return GateResult(id="disclosure", passed=False, value=round(seconds, 2), threshold=wanted, detail=detail)
+
+
+def _covered(ranges: list[tuple[float, float]]) -> float:
+    total, reached = 0.0, float("-inf")
+    for start, end in sorted(ranges):
+        total += max(end - max(start, reached), 0.0)
+        reached = max(reached, end)
+    return total
+
+
+def gate_speech_rate(c: Context) -> GateResult:
+    spoken = c.spoken()
+    if not spoken or len(spoken) < 4:
+        return skipped("speech_rate", "Too few words, or no transcript, to measure a rate.", SPEECH_CEILING)
+    span = max(spoken[-1]["end"] - spoken[0]["start"], 0.001)
+    rate = round(len(spoken) / span, 2)
+    return GateResult(id="speech_rate", passed=rate <= SPEECH_CEILING, value=rate, threshold=SPEECH_CEILING, detail=f"{len(spoken)} words in {span:.1f}s")
+
+
+def opening_motion(file: Path) -> float | None:
+    """Mean luma change between frames over the opening, 0 for a frozen picture."""
+    command = [ffmpeg.require(), "-v", "error", "-t", f"{COLD_OPEN}", "-i", str(file), "-vf", "scale=240:136,format=gray", "-f", "rawvideo", "-"]
+    done = subprocess.run(command, capture_output=True)
+    if done.returncode != 0 or not done.stdout:
+        return None
+    frames = np.frombuffer(done.stdout, np.uint8).reshape(-1, 136, 240).astype(np.float32)
+    return round(float(np.abs(np.diff(frames, axis=0)).mean()), 2) if len(frames) > 1 else None
+
+
+def gate_cold_open(c: Context) -> GateResult:
+    spoken = c.spoken()
+    if not spoken:
+        return skipped("cold_open", "No transcript, so the first word is unknown.", COLD_OPEN)
+    first = float(spoken[0]["start"])
+    motion = opening_motion(c.file)
+    problems = [f"first word at {first:.2f}s"] if first > COLD_OPEN else []
+    if motion is not None and motion < STATIC_OPEN:
+        problems.append(f"static start, {motion:g} of change between frames")
+    detail = "; ".join(problems) or f"first word at {first:.2f}s, opening picture moves"
+    if motion is None:
+        detail += ". The opening picture could not be measured"
+    return GateResult(id="cold_open", passed=not problems, value=first, threshold=COLD_OPEN, detail=detail)
+
+
+def _expected(token: str, planned: set[str]) -> bool:
+    """The reader's tiles cut words in half, so part of a planned word still counts as planned."""
+    return token in planned or any(token in word or (len(word) > 2 and word in token) for word in planned)
+
+
+def gate_baked_text(c: Context) -> GateResult:
+    """Models burn in their own subtitles. Anything read that the edit did not plan, and the product does not print, is baked in."""
+    chosen, reason = ocr.reader()
+    if chosen is None:
+        return skipped("baked_text", reason)
+    picture = c.plate or c.file
+    with tempfile.TemporaryDirectory(prefix="altocue-ocr-") as folder:
+        records = ocr.read_video(picture, BAKED_FPS, [], Path(folder))
+    planned = {token for item in (rules.on_screen(c.timeline) if c.timeline and not c.plate else []) for token in rules.tokens(item["text"])}
+    planned |= {token for line in c.project.setting("ugc", "label_text", []) for token in rules.tokens(str(line))}
+    hits: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        said = rules.tokens(record["text"])
+        known = sum(_expected(token, planned) for token in said)
+        if said and sum(len(t) for t in said) >= 3 and known / len(said) < BAKED_MATCH:
+            hits.setdefault(" ".join(said), []).append(record)
+    firm = [text for text, seen in hits.items() if ocr.confidence(seen) == "high"]
+    doubtful = [text for text in hits if text not in firm]
+    detail = f"text in the picture: {'; '.join(firm[:5])}" if firm else f"{len(records)} text boxes read by {chosen}, none unplanned"
+    if doubtful:
+        detail += f". Needs a human look: {'; '.join(doubtful[:5])}"
+    return GateResult(id="baked_text", passed=not firm, value={"findings": len(firm), "review": len(doubtful)}, threshold=0, detail=detail)
+
+
+def lip_sheet(c: Context, onsets: list[tuple[float, str]]) -> Path:
+    """A grid of frames at the words where lips must close, for a person to look at."""
+    columns = 4
+    rows = (len(onsets) + columns - 1) // columns
+    cells: list[Image.Image] = []
+    with tempfile.TemporaryDirectory(prefix="altocue-lips-") as folder:
+        for index, (at, word) in enumerate(onsets):
+            grabbed = grab(c.file, at, Path(folder) / f"{index}.jpg", width=LIP_WIDTH)
+            if grabbed:
+                with Image.open(grabbed) as picture:
+                    cell = picture.convert("RGB")
+                ImageDraw.Draw(cell).text((8, 8), f"{stamp(at)} {word}", fill=(255, 255, 0))
+                cells.append(cell)
+    height = cells[0].height if cells else 1
+    sheet = Image.new("RGB", (LIP_WIDTH * columns, height * rows), (0, 0, 0))
+    for index, cell in enumerate(cells):
+        sheet.paste(cell, ((index % columns) * LIP_WIDTH, (index // columns) * height))
+    target = c.project.review_dir / "lip-sheet.jpg"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(target, quality=88)
+    return target
+
+
+def gate_lip_closure(c: Context) -> GateResult:
+    """Never measured. The face model finds mouth corners, not lips, so a closure cannot be read from it."""
+    spoken = c.spoken()
+    if not spoken:
+        return skipped("lip_closure", "No transcript, so the p, b and m words are unknown.")
+    words = [(float(w["start"]), w["text"]) for w in spoken if (rules.tokens(w["text"]) or [""])[0][:1] in {"p", "b", "m"}]
+    if not words:
+        return not_applicable("lip_closure", "No word here starts with p, b or m.")
+    picks = words if len(words) <= LIP_SHEET else [words[i * len(words) // LIP_SHEET] for i in range(LIP_SHEET)]
+    sheet = lip_sheet(c, picks)
+    relative = sheet.relative_to(c.project.root)
+    detail = f"Not measured, because Altocue has no lip landmarks. A person must look at the {len(picks)} frames in {relative}, or scrub those words at quarter speed."
+    return skipped("lip_closure", detail)
+
+
 def guarded(c: Context, ids: tuple[str, ...], measure: Callable[[Context], GateResult | list[GateResult]]) -> list[GateResult]:
     """A gate that cannot finish is skipped, and says why. QA must survive the files it exists to catch."""
     try:
@@ -858,5 +1104,18 @@ def run_all(c: Context) -> list[GateResult]:
         (("format",), gate_format),
         (("rules_strings",), gate_rules_strings),
         (("rules_ocr",), gate_rules_ocr),
+        (("claims",), gate_claims),
+        (("disclosure",), gate_disclosure),
+    ]
+    return [result for ids, measure in plan for result in guarded(c, ids, measure)]
+
+
+def run_ugc(c: Context) -> list[GateResult]:
+    """The craft checks for footage that should read as a phone. Asked for by name, never part of a normal run."""
+    plan: list[tuple[tuple[str, ...], Callable[[Context], GateResult | list[GateResult]]]] = [
+        (("speech_rate",), gate_speech_rate),
+        (("cold_open",), gate_cold_open),
+        (("baked_text",), gate_baked_text),
+        (("lip_closure",), gate_lip_closure),
     ]
     return [result for ids, measure in plan for result in guarded(c, ids, measure)]
