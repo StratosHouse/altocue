@@ -64,7 +64,7 @@ padding:0 calc(30px * var(--scale)) 0 calc(24px * var(--scale));border-radius:99
 .lt{left:var(--gutter);top:var(--lt-y);display:flex;flex-direction:column;gap:calc(5px * var(--scale));padding:calc(24px * var(--scale)) calc(38px * var(--scale)) calc(26px * var(--scale));border-radius:calc(26px * var(--scale));max-width:calc(100%% - var(--gutter) * 2 - var(--rail,0px))}
 .lt strong{font-size:calc(42px * var(--scale));font-weight:600;letter-spacing:-.022em;line-height:1.1}
 .lt span{font-size:calc(31px * var(--scale));font-weight:400;color:var(--soft);letter-spacing:-.005em}
-.lt::before{content:"";position:absolute;left:calc(14px * var(--scale));top:26%%;bottom:26%%;width:calc(3px * var(--scale));border-radius:9px;background:var(--accent);animation:growy .5s .12s var(--ease) both;transform-origin:50%% 50%%}
+.lt i{position:absolute;left:calc(14px * var(--scale));top:26%%;bottom:26%%;width:calc(3px * var(--scale));border-radius:9px;background:var(--accent);animation:growy .5s .12s var(--ease) both;transform-origin:50%% 50%%}
 @keyframes growy{from{transform:scaleY(0)}to{transform:none}}
 
 /* Stat */
@@ -164,7 +164,7 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
         return f'<div class="clip chip glass rise" {attrs} {_style(item)}><i></i>{escape(item["text"])}</div>'
     if kind == "lower_third":
         sub = f"<span>{escape(item['subtitle'])}</span>" if item.get("subtitle") else ""
-        return f'<div class="clip lt glass rise" {attrs} {_style(item)}><strong>{escape(item["title"])}</strong>{sub}</div>'
+        return f'<div class="clip lt glass rise" {attrs} {_style(item)}><i></i><strong>{escape(item["title"])}</strong>{sub}</div>'
     if kind == "stat":
         return f'<div class="clip stat glass rise" {attrs} {_style(item)}><span class="num">{escape(str(item["value"]))}</span><span class="lab">{escape(item.get("label", ""))}</span></div>'
     if kind == "quote":
