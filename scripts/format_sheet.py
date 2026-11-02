@@ -18,16 +18,32 @@ from altocue.motion import formats
 from altocue.motion.html import compose
 from altocue.motion.hyperframes import binary, quiet_env
 
-SIZES = {"tall": (1080, 1920), "wide": (1920, 1080)}
+SIZES = {"tall": (1080, 1920), "wide": (1920, 1080), "square": (1080, 1080)}
+FILLER = "Longest copy this format promises to hold without breaking the layout at all ever again and again and again and again and again"
 BACKDROP = '<div style="position:absolute;inset:0;background:linear-gradient(160deg,#2a3f4f,#6a5a4a 55%,#1e2a33)"></div>'
 GAP = 0.25
 
 
-def timeline_for(picked: list[formats.Format], size: tuple[int, int]) -> tuple[dict, list[tuple[float, float]]]:
+def stressed(fmt: formats.Format) -> dict:
+    """The example with every text slot and list filled to its promised limit, to prove the limits are true."""
+    copy = dict(fmt.example)
+    for slot in fmt.slots:
+        if slot.kind == "text" and slot.limit:
+            copy[slot.name] = (FILLER * 4)[: slot.limit].strip()
+        if slot.kind == "list" and copy.get(slot.name):
+            rows = [dict(r) if isinstance(r, dict) else r for r in copy[slot.name]]
+            rows = (rows * slot.limit)[: slot.limit] if slot.limit else rows
+            if slot.each:
+                rows = [{**r, "text": (FILLER * 4)[: slot.each].strip()} if isinstance(r, dict) and "text" in r else (FILLER * 4)[: slot.each].strip() for r in rows]
+            copy[slot.name] = rows
+    return copy
+
+
+def timeline_for(picked: list[formats.Format], size: tuple[int, int], stress: bool = False) -> tuple[dict, list[tuple[float, float]]]:
     items, spans, at = [], [], 0.0
     for fmt in picked:
         end = at + fmt.seconds
-        items.append({**fmt.example, "type": fmt.id, "start": at, "end": end})
+        items.append({**(stressed(fmt) if stress else fmt.example), "type": fmt.id, "start": at, "end": end})
         spans.append((at, end))
         at = end + GAP
     return {"width": size[0], "height": size[1], "fps": 30, "duration": at, "tail": 0, "total": at, "captions": [], "items": items}, spans
@@ -50,6 +66,7 @@ def main() -> None:
     parser.add_argument("--aspect", choices=SIZES, default="tall")
     parser.add_argument("--out", default="/tmp/altocue-sheet", help="Folder for the sheet")
     parser.add_argument("--phases", type=int, default=3, help="Frames per format")
+    parser.add_argument("--stress", action="store_true", help="Fill every slot to its limit")
     args = parser.parse_args()
     picked = [f for f in formats.load().values() if (not args.group or f.group == args.group) and (not args.id or f.id in args.id)]
     if not picked:
@@ -61,7 +78,7 @@ def main() -> None:
     brand = brands.Brand(json.loads(data_path("brands", "default.json").read_text()), data_path("brands"))
     shutil.copy(brand.font_file, stage / brand.font_file.name)
     size = SIZES[args.aspect]
-    timeline, spans = timeline_for(picked, size)
+    timeline, spans = timeline_for(picked, size, args.stress)
     for font in formats.fonts_for(timeline["items"]):
         shutil.copy(data_path("fonts", formats.FONT_FILES[font]), stage / formats.FONT_FILES[font])
     page = compose(timeline, brand)
@@ -71,15 +88,15 @@ def main() -> None:
     shares = [0.3, 0.62, 0.9][: args.phases] if args.phases > 1 else [0.8]
     times = [round(start + (end - start) * share, 3) for start, end in spans for share in shares]
     frames = stills(stage, times, out / "frames")
-    shrink = 300 if args.aspect == "tall" else 420
+    shrink = 300 if args.aspect == "tall" else 400
     tall = round(shrink * size[1] / size[0])
-    columns = min(len(shares) * 4, 12)
+    columns = len(shares) * 3
     rows = math.ceil(len(frames) / columns)
     sheet = Image.new("RGB", (columns * shrink, rows * tall), (10, 10, 10))
     for index, path in enumerate(frames):
         with Image.open(path) as image:
             sheet.paste(image.convert("RGB").resize((shrink, tall)), ((index % columns) * shrink, (index // columns) * tall))
-    target = out / f"sheet-{args.group or 'all'}-{args.aspect}.jpg"
+    target = out / f"sheet-{args.group or 'all'}-{args.aspect}{'-stress' if args.stress else ''}.jpg"
     sheet.save(target, quality=86)
     print(target, f"{len(picked)} formats")
 
