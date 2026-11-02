@@ -7,14 +7,16 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import cut, ffmpeg
+from . import cut, ffmpeg, overlays, transitions
 from .errors import AltocueError
+from .models import Edl
 from .motion import compositions, formats, placement
 from .project import Project, write_json
 
 END_HOLD_TYPES = {"endcard"}
 DEFAULT_LENGTHS = {"hook": 2.6, "chip": 2.4, "lower_third": 3.2, "stat": 2.8, "quote": 3.6, "steps": 6.0, "title": 2.4, "endcard": 2.6, "composition": 3.0}
 STILL_TYPES = {".png", ".jpg", ".jpeg", ".webp"}
+CUT_REACH = 0.75  # A word starts a little after the cut it follows, by up to the pause the cut kept.
 
 
 def bare(word: str) -> str:
@@ -33,6 +35,56 @@ def resolve_time(value: Any, words: list[dict[str, Any]]) -> float:
     if occurrence < 1 or len(hits) < occurrence:
         raise AltocueError(f'Graphic is anchored to "{value["word"]}", which is not in the cut.', fix="Pick a word that is still spoken, or use a time in seconds.")
     return hits[occurrence - 1]["start"] + float(value.get("offset", 0))
+
+
+def resolve_transitions(raw: list[dict[str, Any]], words: list[dict[str, Any]], edl: Edl) -> list[dict[str, Any]]:
+    """Each transition lands on the cut nearest its anchor. A dissolve with no cut under it blends a shot with itself."""
+    fps = edl.fps
+    lengths = [max(1, round((s.end - s.start) * fps)) for s in edl.segments]
+    cuts = [sum(lengths[:index]) for index in range(1, len(lengths))]
+    found: dict[int, dict[str, Any]] = {}
+    for entry in raw:
+        item = transitions.parse(entry)
+        at = resolve_time(entry.get("at"), words)
+        near = min(range(len(cuts)), key=lambda index: abs(cuts[index] / fps - at), default=None)
+        if near is None or abs(cuts[near] / fps - at) > CUT_REACH:
+            listed = ", ".join(f"{frame / fps:.2f}" for frame in cuts) or "none"
+            raise AltocueError(f"No cut within {CUT_REACH} s of {at:.2f} s for the {item['type']}.", fix=f"Anchor it to a word at a cut. Cuts are at: {listed}.")
+        if near + 1 in found:
+            raise AltocueError(f"The cut at {cuts[near] / fps:.2f} s has more than one transition.", fix="Keep one.")
+        frames = max(2, round(item["duration"] * fps))
+        start = cuts[near] - frames // 2
+        found[near + 1] = {"cut": near + 1, "frames": frames, "type": item["type"], "start": round(start / fps, 6), "end": round((start + frames) / fps, 6)}
+    return [found[cut] for cut in sorted(found)]
+
+
+def resolve_freezes(raw: list[dict[str, Any]], words: list[dict[str, Any]], fps: int) -> list[dict[str, Any]]:
+    """A freeze holds the frame on its anchor. The length is frames of picture, and sound carries on under them."""
+    holds = []
+    for entry in raw:
+        length = float(entry.get("duration", 0))
+        if length <= 0:
+            raise AltocueError("A freeze needs a duration in seconds.", fix='Use {"at": {"word": "stop"}, "duration": 0.6}.')
+        frame = round(resolve_time(entry.get("at"), words) * fps)
+        frames = max(1, round(length * fps))
+        holds.append({"frame": frame, "frames": frames, "start": round(frame / fps, 6), "end": round((frame + frames) / fps, 6)})
+    return holds
+
+
+def picture_edits(project: Project, edl: Edl, *, words: list[dict[str, Any]] | None = None) -> dict[str, list[dict[str, Any]]]:
+    """What motion.json asks of the picture edit. The cut and the sound never change for these."""
+    path = project.root / "motion.json"
+    motion = json.loads(path.read_text()) if path.exists() else {}
+    if not motion.get("transitions") and not motion.get("freezes"):
+        return {"transitions": [], "freezes": []}
+    words = cut.map_words(project, edl) if words is None else words
+    return {"transitions": resolve_transitions(motion.get("transitions", []), words, edl), "freezes": resolve_freezes(motion.get("freezes", []), words, edl.fps)}
+
+
+def resolve_overlays(raw: Any, words: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Overlays run the whole film unless they name a `start` or an `end`."""
+    items = overlays.parse(raw)
+    return [{**item, **{key: resolve_time(item[key], words) for key in ("start", "end") if key in item}} for item in items]
 
 
 def resolve_items(raw: list[dict[str, Any]], words: list[dict[str, Any]], duration: float) -> tuple[list[dict[str, Any]], float]:
@@ -76,8 +128,13 @@ def resolve_inserts(project: Project, raw: list[dict[str, Any]], words: list[dic
             raise AltocueError(f"{file} is HDR, so it would look washed out here.", fix="Place it with `altocue broll --pick b1=file:...`, which converts it.")
         start = resolve_time(entry["start"], words)
         end = resolve_time(entry["end"], words) if "end" in entry else start + float(entry.get("duration", 2.5))
-        inserts.append({"file": file, "start": start, "end": end})
+        inserts.append({"file": file, "start": start, "end": end, **edges(entry)})
     return inserts
+
+
+def edges(entry: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """An insert may arrive or leave by a transition. By default it cuts."""
+    return {edge: transitions.parse(entry[edge]) for edge in ("in", "out") if entry.get(edge)}
 
 
 def chosen_broll(project: Project) -> list[dict[str, Any]]:
@@ -88,7 +145,7 @@ def chosen_broll(project: Project) -> list[dict[str, Any]]:
     chosen = json.loads(path.read_text())
     if chosen.get("inserts") and chosen.get("cut") != project.cut_mark():
         raise AltocueError("The cut changed after the B-roll was chosen.", fix="Run `altocue broll`, then pick again. Or delete broll.json.")
-    return chosen.get("inserts", [])
+    return [{**insert, **edges(insert)} for insert in chosen.get("inserts", [])]
 
 
 def build(project: Project) -> dict[str, Any]:
@@ -98,6 +155,7 @@ def build(project: Project) -> dict[str, Any]:
     motion_file = project.root / "motion.json"
     motion = json.loads(motion_file.read_text()) if motion_file.exists() else {}
     duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
+    edits = picture_edits(project, edl, words=words)
     items, tail = resolve_items(motion.get("items", []), words, duration)
     items = [compositions.resolve(project, item) if item["type"] == "composition" else item for item in items]
     width, height = project.size
@@ -117,6 +175,9 @@ def build(project: Project) -> dict[str, Any]:
         "music": motion.get("music"),
         "sfx": motion.get("sfx", True),
         "inserts": sorted(resolve_inserts(project, motion.get("inserts", []), words) + chosen_broll(project), key=lambda i: i["start"]),
+        "transitions": edits["transitions"],
+        "freezes": edits["freezes"],
+        "overlay": resolve_overlays(motion.get("overlay"), words),
     }
     write_json(project.timeline_path, timeline)
     return timeline
