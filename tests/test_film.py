@@ -27,9 +27,21 @@ def board(**over) -> dict:
         "type": "launch",
         "scenes": [
             {"id": "hook", "beat": "hook", "seconds": 4, "items": [{"type": "word_slam", "text": "Too many tabs", "start": 0.2}], "sound": [{"name": "tick", "at": 1.0}]},
-            {"id": "problem", "beat": "problem", "seconds": 7, "items": [{"type": "marker", "text": "Nobody reads *the report*", "start": 0.5, "duration": 4}], "sound": [{"name": "pop", "at": 2.0}]},
+            {
+                "id": "problem",
+                "beat": "problem",
+                "seconds": 7,
+                "items": [{"type": "marker", "text": "Nobody reads *the report*", "start": 0.5, "duration": 4}],
+                "sound": [{"name": "pop", "at": 2.0}],
+            },
             {"id": "product", "beat": "product", "seconds": 8, "items": [{"type": "marker", "text": "One page, *always fresh*"}]},
-            {"id": "payoff", "beat": "payoff", "seconds": 6, "items": [{"type": "marker", "text": "Ten hours back"}], "sound": [{"name": "ding", "at": {"scene": "payoff", "offset": 0.4}}]},
+            {
+                "id": "payoff",
+                "beat": "payoff",
+                "seconds": 6,
+                "items": [{"type": "marker", "text": "Ten hours back"}],
+                "sound": [{"name": "ding", "at": {"scene": "payoff", "offset": 0.4}}],
+            },
             {"id": "close", "beat": "close", "seconds": 5, "items": [{"type": "marker", "text": "Try it today"}]},
         ],
     }
@@ -82,6 +94,7 @@ def test_changing_one_scene_moves_every_later_scene_and_every_later_cue():
         assert new["start"] == pytest.approx(old["start"] + shift)
     for old, new in zip(before["scenes"][:3], after["scenes"][:3], strict=True):
         assert new["start"] == old["start"]
+
     def ding(done):
         return next(c["at"] for c in done["cues"] if c.get("name") == "ding" and c.get("planned"))
 
@@ -548,7 +561,9 @@ def renderer(monkeypatch):
         page = (stage / "index.html").read_text()
         width = re.search(r'data-width="(\d+)"', page).group(1)
         height = re.search(r'data-height="(\d+)"', page).group(1)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x101020:s={width}x{height}:r={fps}:d={total}", "-pix_fmt", "yuv420p", str(output)], check=True)
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x101020:s={width}x{height}:r={fps}:d={total}", "-pix_fmt", "yuv420p", str(output)], check=True
+        )
         return output
 
     monkeypatch.setattr(film, "render_picture", fake)
@@ -640,6 +655,7 @@ def test_the_bed_gets_louder_towards_the_payoff(tmp_path):
     with wave.open(str(path)) as handle:
         rate = handle.getframerate()
         raw = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2").astype(float).reshape(-1, 2).mean(axis=1)
+
     def level(a, b):
         return float(np.sqrt(np.mean(raw[int(a * rate) : int(b * rate)] ** 2)))
 
@@ -731,11 +747,9 @@ def test_re_rendering_one_film_is_not_a_repeat(tmp_path, monkeypatch):
 def strobe(path: Path, rate: float, seconds: float = 2.0) -> Path:
     """Alternating black and white at `rate` full flashes a second."""
     half = 1 / (2 * rate)
-    expr = f"if(lt(mod(t,{2 * half}),{half}),235,16)"
-    subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=black:s=320x180:r=60:d={seconds}", "-vf", f"format=gray,geq=lum='{expr}'", "-pix_fmt", "yuv420p", str(path)],
-        check=True,
-    )
+    expr = f"if(lt(mod(T,{2 * half}),{half}),235,16)"
+    source = f"color=c=black:s=320x180:r=60:d={seconds},format=yuv420p,geq=lum='{expr}':cb=128:cr=128"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, str(path)], check=True)
     return path
 
 
@@ -759,7 +773,28 @@ def reference(tmp_path) -> Path:
     for index, colour in enumerate(("red", "blue", "green", "white")):
         parts.append(tmp_path / f"{index}.mp4")
         subprocess.run(
-            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c={colour}:s=320x180:r=30:d=1", "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000:duration=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(parts[-1])],
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                f"color=c={colour}:s=320x180:r=30:d=1",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=330:sample_rate=48000:duration=1",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-shortest",
+                str(parts[-1]),
+            ],
             check=True,
         )
     listing = tmp_path / "list.txt"

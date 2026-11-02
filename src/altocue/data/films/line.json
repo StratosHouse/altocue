@@ -1,0 +1,212 @@
+{
+  "id": "line",
+  "name": "Line-by-Line Reel",
+  "promise": "Record the voice first, and every spoken line gets its own picture, already in sync.",
+  "cost": "$0 drawn in code.",
+  "generation": "optional",
+  "aspect": "9:16",
+  "fps": 30,
+  "default": "main",
+  "beats": [
+    "line"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "script"
+  ],
+  "formats": [
+    "whiteboard",
+    "stick_crew",
+    "scrapbook",
+    "line_boil",
+    "pen_trail",
+    "silhouette_act"
+  ],
+  "notes": [
+    "YouTube names image slideshows with little narrative as not monetizable. Real narration and a distinct idea in each video are what keep this format on the right side."
+  ],
+  "brief": {
+    "example": true,
+    "company": "A short reel on why ships do not tip over.",
+    "audience": "Curious people on a phone",
+    "goal": "Finish the reel",
+    "message": "Weight low, width wide.",
+    "must_show": [
+      "the wide hull"
+    ],
+    "terms": [
+      "hull"
+    ],
+    "tone": "Friendly and quick",
+    "script": "Five lines, one picture each.",
+    "brand": {
+      "colors": {
+        "ink": "#fbf7ec",
+        "accent": "#4cc2ff",
+        "panel": "#0d1520",
+        "surface": "#172433"
+      }
+    },
+    "deliverables": [
+      "9:16"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Why ships stay up",
+        "route": "montage",
+        "clock": "voice",
+        "hero": {
+          "scene": "line4",
+          "offset": 0.5
+        },
+        "music": {
+          "style": "paper"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 9,
+            "tones": "#2a6fb0,#123a5e,#4cc2ff"
+          }
+        ],
+        "scenes": [
+          {
+            "id": "line1",
+            "beat": "line",
+            "seconds": "voice",
+            "voice": "assets/voice/line1.wav",
+            "says": "A ship weighs more than a town square full of cars.",
+            "verb": "state",
+            "energy": 3,
+            "carry": "the size",
+            "link": {
+              "type": "curtain",
+              "why": "Each line turns the page."
+            },
+            "items": [
+              {
+                "type": "silhouette_act",
+                "text": "Heavier than a *full car park*",
+                "pose": "walk",
+                "start": 0,
+                "role": "hook",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "line2",
+            "beat": "line",
+            "seconds": "voice",
+            "voice": "assets/voice/line2.wav",
+            "says": "So why does it not simply roll over?",
+            "verb": "ask",
+            "energy": 4,
+            "carry": "the question",
+            "link": {
+              "type": "curtain",
+              "why": "Each line turns the page."
+            },
+            "items": [
+              {
+                "type": "line_boil",
+                "text": "Why does it *not roll over?*",
+                "start": 0.1,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "line3",
+            "beat": "line",
+            "seconds": "voice",
+            "voice": "assets/voice/line3.wav",
+            "says": "Because the heavy things sit low, and the hull is wide.",
+            "verb": "show",
+            "energy": 6,
+            "carry": "the wide hull",
+            "shows": [
+              "the wide hull"
+            ],
+            "link": {
+              "type": "curtain",
+              "why": "Each line turns the page."
+            },
+            "items": [
+              {
+                "type": "whiteboard",
+                "title": "Low and *wide*",
+                "points": [
+                  {
+                    "text": "Weight low"
+                  },
+                  {
+                    "text": "Hull wide"
+                  },
+                  {
+                    "text": "Water pushes back"
+                  }
+                ],
+                "sketch": "cycle",
+                "start": 0.1
+              }
+            ]
+          },
+          {
+            "id": "line4",
+            "beat": "line",
+            "seconds": "voice",
+            "voice": "assets/voice/line4.wav",
+            "says": "Tip it, and the water pushes the low side straight back up.",
+            "verb": "prove",
+            "energy": 8,
+            "carry": "the push",
+            "silences": [
+              {
+                "from": 0.0,
+                "to": 0.45
+              }
+            ],
+            "link": {
+              "type": "curtain",
+              "why": "Each line turns the page."
+            },
+            "items": [
+              {
+                "type": "stick_crew",
+                "text": "The water *pushes back*",
+                "start": 0.1,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "line5",
+            "beat": "line",
+            "seconds": "voice",
+            "voice": "assets/voice/line5.wav",
+            "says": "Weight low. Width wide. That is the whole trick.",
+            "verb": "land",
+            "energy": 5,
+            "items": [
+              {
+                "type": "marker",
+                "text": "Weight low. Width wide. *That is it.*",
+                "start": 0.1,
+                "zone": "center"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -103,7 +103,7 @@ def _smooth(t: float) -> float:
 def _strip(texts: list[str], run: float, wait: float) -> str:
     """Stacked labels stepped through one per frame. The last one is what holds."""
     cells = "".join(f"<i>{kit.esc(text)}</i>" for text in texts)
-    return f'<span class="ct"><span class="st" style="--n:{len(texts) - 1};--r:{run:.3f}s;--w:{wait:.3f}s">{cells}</span></span>'
+    return f'<span class="ct"><span class="st" data-layout-allow-overflow data-layout-allow-overlap style="--n:{len(texts) - 1};--r:{run:.3f}s;--w:{wait:.3f}s">{cells}</span></span>'
 
 
 def _count(final: float, places: int = 0, prefix: str = "", suffix: str = "", run: float = 1.0, wait: float = 0.0, linear: bool = False) -> str:
@@ -556,7 +556,7 @@ def _value_steps(texts: list[str], enter: float, lead: float, run: float, count:
     frames.append((lead / span * 100, f"transform:translateY({-count * 1.16:.2f}em);animation-timing-function:steps({ticks},end)"))
     frames.append((100.0, f"transform:translateY({-last * 1.16:.2f}em)"))
     cells = "".join(f"<i>{kit.esc(text)}</i>" for text in texts)
-    return _keys(f"{mark}t{index}", frames), f'<span class="ct"><span class="st" style="animation:{mark}t{index} {span:.3f}s linear both">{cells}</span></span>'
+    return _keys(f"{mark}t{index}", frames), f'<span class="ct"><span class="st" data-layout-allow-overflow data-layout-allow-overlap style="animation:{mark}t{index} {span:.3f}s linear both">{cells}</span></span>'
 
 
 # Comparisons and flows

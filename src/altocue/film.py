@@ -34,7 +34,10 @@ STILL_AT = 0.62  # share of a scene where everything has landed and nothing has 
 SHEET_WIDTH = 480
 PROOF_FRAMES = 30
 REAL_FOOTAGE = (
-    ("Reference Reel", "Your clips in the style of a reel you admire. Measure the reel with `altocue film study`, then edit with `altocue new`, `cut`, `caption`, `motion`."),
+    (
+        "Reference Reel",
+        "Your clips in the style of a reel you admire. Measure the reel with `altocue film study`, then edit with `altocue new`, `cut`, `caption`, `motion`.",
+    ),
     ("Clip Cut", "One statement from a long recording, as a short. Use `altocue clips`, then `frame`, `caption` and `master`."),
     ("Product Proof Spot", "An ad cut from real product footage. Use `altocue new`, `direct`, `plate`, `grade`, `motion`."),
 )
@@ -222,7 +225,12 @@ def require_clean(film: Film) -> None:
 def brand_of(film: Film) -> brands.Brand:
     default = json.loads(brands.data_path("brands", "default.json").read_text())
     extra = film.brief.get("brand") or {}
-    merged = {**default, "colors": {**default["colors"], **(extra.get("colors") or {})}, "font": {**default["font"], **(extra.get("font") or {})}, "logo": extra.get("logo")}
+    merged = {
+        **default,
+        "colors": {**default["colors"], **(extra.get("colors") or {})},
+        "font": {**default["font"], **(extra.get("font") or {})},
+        "logo": extra.get("logo"),
+    }
     if extra.get("name"):
         merged["name"] = extra["name"]
     for key, value in merged["colors"].items():
@@ -339,8 +347,10 @@ def render_picture(stage: Path, output: Path, *, fps: int, draft: bool, total: f
 # Sound
 
 
-def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -> Path:
-    """Every recorded line at its scene's start, or silence the length of the film."""
+def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -> Path | None:
+    """Every recorded line at its scene's start. A film with no lines has no voice track, and the music leads."""
+    if not any(scene.get("voice") and (project.root / str(scene["voice"])).is_file() for scene in board.get("scenes", [])):
+        return None
     count = round(done["total"] * mix.RATE)
     track = np.zeros(count)
     starts = {scene["id"]: scene["start"] for scene in done["scenes"]}
@@ -374,7 +384,13 @@ def scored(film: Film, done: dict[str, Any]) -> tuple[Path, dict[str, Any]]:
     """The music for these exact timings. Change a scene and it is written again to fit."""
     settings = music_settings(film)
     silences = done.get("silences") or []
-    recipe = {"scenes": [[s["id"], s.get("beat"), s.get("energy"), s["start"], s["end"]] for s in done["scenes"]], "settings": settings, "hero": done.get("hero"), "silences": silences, "total": done["total"]}
+    recipe = {
+        "scenes": [[s["id"], s.get("beat"), s.get("energy"), s["start"], s["end"]] for s in done["scenes"]],
+        "settings": settings,
+        "hero": done.get("hero"),
+        "silences": silences,
+        "total": done["total"],
+    }
     key = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()[:16]
     folder = film.project.work / "film"
     wav, info_file = folder / f"score-{key}.wav", folder / f"score-{key}.json"
@@ -398,7 +414,7 @@ def make_sound(film: Film, line: dict[str, Any], done: dict[str, Any], board: di
             print(f"Warning: {warning}")
             report = {**report, "warning": warning}
     dest = folder / "mix.wav"
-    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done))
+    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end="land" if track else "own")
     return dest, report
 
 
@@ -433,12 +449,41 @@ def render_film(project: Project, *, board: dict[str, Any], name: str, aspect: s
     audio, report = sound or make_sound(film, line, done, filled, folder)
     picture = render_picture(stage, folder / "picture.mp4", fps=fps, draft=draft, total=line["total"])
     muxed = folder / "render.mp4"
-    ffmpeg.run(["-i", str(picture), "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "alac", "-t", f"{line['total']:.3f}", "-movflags", "+faststart", str(muxed.with_suffix(".mov"))])
+    ffmpeg.run(
+        [
+            "-i",
+            str(picture),
+            "-i",
+            str(audio),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "alac",
+            "-t",
+            f"{line['total']:.3f}",
+            "-movflags",
+            "+faststart",
+            str(muxed.with_suffix(".mov")),
+        ]
+    )
     dest = project.out / f"{name}.mp4"
     dest.parent.mkdir(parents=True, exist_ok=True)
     loudness, peak = master.project_target(project)
     result = master.master_file(muxed.with_suffix(".mov"), dest, loudness=loudness, true_peak=peak)
-    rows = {"file": str(dest.relative_to(project.root)), "aspect": aspect, "fps": fps, "draft": draft, "seconds": line["total"], "scenes": [[s["id"], s["start"], s["end"]] for s in line["scenes"]], "master": result, "score": report}
+    rows = {
+        "file": str(dest.relative_to(project.root)),
+        "aspect": aspect,
+        "fps": fps,
+        "draft": draft,
+        "seconds": line["total"],
+        "scenes": [[s["id"], s["start"], s["end"]] for s in line["scenes"]],
+        "master": result,
+        "score": report,
+    }
     rows["flash"] = flash.measure(dest) if not _stub(picture) else None
     write_json(project.review_dir / f"film-{name.replace('/', '-')}.json", rows)
     return dest
@@ -551,11 +596,20 @@ def layout_report(stage: Path, times: list[float]) -> list[dict[str, Any]]:
 
 def layout_issues(found: dict[str, Any]) -> list[dict[str, Any]]:
     keep = []
-    for section in ("runtime", "layout", "motion", "contrast"):
-        block = found.get(section) or {}
-        rows = block.get("issues") or block.get("findings") or []
-        for row in rows:
-            keep.append({"check": section, "code": row.get("code"), "message": row.get("message"), "at": row.get("time"), "selector": row.get("selector"), "severity": row.get("severity")})
+    for section in ("runtime", "layout", "motion", "craft"):
+        for row in (found.get(section) or {}).get("findings") or []:
+            if row.get("severity") in ("warning", "error"):
+                keep.append(
+                    {
+                        "check": section,
+                        "code": row.get("code"),
+                        "message": row.get("message"),
+                        "at": row.get("time"),
+                        "selector": row.get("selector"),
+                        "severity": row.get("severity"),
+                        "text": row.get("text"),
+                    }
+                )
     return keep
 
 
@@ -575,13 +629,15 @@ def run_stills(args: argparse.Namespace) -> int:
     from .qa import film as film_qa
 
     readable = film_qa.phone_read(project, line, frames, times)
-    write_json(project.review_dir / f"stills-{slug(aspect)}.json", {"times": times, "contact": str(contact.relative_to(project.root)), "layout": issues, "phone": readable})
+    write_json(
+        project.review_dir / f"stills-{slug(aspect)}.json", {"times": times, "contact": str(contact.relative_to(project.root)), "layout": issues, "phone": readable}
+    )
     print(f"One still per scene in {out}\nContact sheet: {contact}")
     for issue in issues:
         print(f"LAYOUT {issue.get('at', '')}: {issue.get('code')}: {issue.get('message')}")
     failed = [row for row in readable["rows"] if not row["passed"]]
     for row in readable["rows"]:
-        print(f"{'PASS' if row['passed'] else 'FAIL'} {row['scene']}: \"{row['text'][:40]}\" {row['detail']}")
+        print(f'{"PASS" if row["passed"] else "FAIL"} {row["scene"]}: "{row["text"][:40]}" {row["detail"]}')
     print(f"{len(issues)} layout findings, {len(failed)} phone read failures. Open the contact sheet before any full render.")
     return 1 if failed or any(issue.get("severity") == "error" for issue in issues) else 0
 
@@ -602,7 +658,14 @@ def apply_variant(board: dict[str, Any], variant: dict[str, Any]) -> dict[str, A
 
 def copy_table(board: dict[str, Any], plan: list[dict[str, Any]]) -> str:
     layers = board.get("layers") or {}
-    rows = ["# Copy table", "", "Read this before anything renders.", "", "| Layer | Master | " + " | ".join(v["id"] for v in plan) + " |", "|---|---|" + "---|" * len(plan)]
+    rows = [
+        "# Copy table",
+        "",
+        "Read this before anything renders.",
+        "",
+        "| Layer | Master | " + " | ".join(v["id"] for v in plan) + " |",
+        "|---|---|" + "---|" * len(plan),
+    ]
     for name, value in layers.items():
         cells = [f"**{v['set'][name]}**" if name in v.get("set", {}) else "" for v in plan]
         rows.append(f"| {name} | {value} | " + " | ".join(cells) + " |")

@@ -7,10 +7,50 @@
   "aspect": "16:9",
   "fps": 60,
   "default": "30",
-  "beats": ["hook", "problem", "product", "payoff", "close"],
-  "brief_fields": ["company", "audience", "goal", "message", "must_show", "tone", "brand", "deliverables"],
-  "formats": ["count_up", "word_slam", "mask_rise", "corner_stamp", "notification_stack", "marker", "strike_replace", "work_cascade", "cursor_walk", "prompt_result", "floating_device", "bento_grid", "state_gauge", "recap_check", "number_wheel", "logo_sting", "shape_match", "dot_grid", "soft_gradient", "grain_field", "particle_field", "ascii_field"],
-  "notes": ["The example product and every number in it are invented. Replace them with true ones before this leaves your machine."],
+  "beats": [
+    "hook",
+    "problem",
+    "product",
+    "payoff",
+    "close"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "brand",
+    "deliverables"
+  ],
+  "formats": [
+    "count_up",
+    "word_slam",
+    "mask_rise",
+    "corner_stamp",
+    "notification_stack",
+    "marker",
+    "strike_replace",
+    "work_cascade",
+    "cursor_walk",
+    "prompt_result",
+    "floating_device",
+    "bento_grid",
+    "state_gauge",
+    "recap_check",
+    "number_wheel",
+    "logo_sting",
+    "shape_match",
+    "dot_grid",
+    "soft_gradient",
+    "grain_field",
+    "particle_field",
+    "ascii_field"
+  ],
+  "notes": [
+    "The example product and every number in it are invented. Replace them with true ones before this leaves your machine."
+  ],
   "brief": {
     "example": true,
     "product": "Ebbline",
@@ -18,11 +58,28 @@
     "audience": "Founders running support themselves",
     "goal": "Free trial sign-ups on launch day",
     "message": "The queue clears itself before lunch.",
-    "must_show": ["the queue clearing", "a person keeping the hard tickets"],
-    "terms": ["support queue"],
+    "must_show": [
+      "the queue clearing",
+      "a person keeping the hard tickets"
+    ],
+    "terms": [
+      "support queue"
+    ],
     "tone": "Calm, exact, a little dry",
-    "brand": {"colors": {"ink": "#f6f3ee", "soft": "#b7b1c4", "accent": "#ff8a5c", "panel": "#0c0a14", "surface": "#1b1730"}},
-    "deliverables": ["16:9", "9:16", "1:1"],
+    "brand": {
+      "colors": {
+        "ink": "#f6f3ee",
+        "soft": "#b7b1c4",
+        "accent": "#ff8a5c",
+        "panel": "#0a0814",
+        "surface": "#1a1533"
+      }
+    },
+    "deliverables": [
+      "16:9",
+      "9:16",
+      "1:1"
+    ],
     "length": 30
   },
   "variants": {
@@ -31,64 +88,1065 @@
         "title": "Ebbline launch",
         "route": "continuous",
         "clock": "music",
-        "hero": {"scene": "product", "offset": 6.2},
-        "layers": {"product": "Ebbline", "hook": "tickets waiting. *Before coffee.*", "offer": "Your first 500 replies are free", "cta": "Start free at ebbline.example", "tickets": "412", "price": "$0 to start", "date": "Live today"},
-        "backdrop": [{"type": "soft_gradient", "seed": 3}, {"type": "dot_grid", "size": 46}, {"type": "grain_field", "strength": 0.06, "over": true}],
+        "hero": {
+          "scene": "product",
+          "offset": 6.0
+        },
+        "layers": {
+          "product": "Ebbline",
+          "hook": "tickets waiting. *Before coffee.*",
+          "offer": "Your first 500 replies are free",
+          "cta": "Start free at ebbline.example",
+          "tickets": "412",
+          "price": "$0 to start",
+          "date": "Live today",
+          "peak": "438"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 3,
+            "tones": "#ff7a4d,#4a3bff,#b28cff"
+          },
+          {
+            "type": "dot_grid",
+            "size": 46
+          },
+          {
+            "type": "grain_field",
+            "strength": 0.06,
+            "over": true
+          }
+        ],
         "scenes": [
           {
-            "id": "hook", "beat": "hook", "seconds": 4, "verb": "interrupt", "energy": 3, "carry": "the number grows into the queue",
+            "id": "hook",
+            "beat": "hook",
+            "seconds": 4,
+            "verb": "interrupt",
+            "energy": 3,
+            "carry": "the number grows into the queue",
             "shows": [],
-            "camera": {"move": "push", "amount": 0.12},
-            "link": {"type": "dive", "seconds": 0.9, "zoom": 4.0, "why": "The camera falls into the number, and the alerts behind it are what the number was counting."},
+            "camera": {
+              "move": "push",
+              "amount": 0.12
+            },
+            "link": {
+              "type": "dive",
+              "seconds": 0.9,
+              "zoom": 4.0,
+              "why": "The camera falls into the number, and the alerts behind it are what the number was counting."
+            },
             "items": [
-              {"type": "corner_stamp", "text": "MON 09:02", "label": "Support inbox", "corner": "tl", "start": 0},
-              {"type": "count_up", "value": "{{tickets}}", "label": "{{hook}}", "start": 0, "zone": "center", "align": "center", "scale": 1.0, "role": "hook"}
+              {
+                "type": "corner_stamp",
+                "text": "MON 09:02",
+                "label": "Support inbox",
+                "corner": "tl",
+                "start": 0
+              },
+              {
+                "type": "count_up",
+                "value": "{{tickets}}",
+                "label": "{{hook}}",
+                "start": 0,
+                "zone": "center",
+                "align": "center",
+                "scale": 1.2,
+                "run": 1.0,
+                "role": "hook"
+              }
             ],
-            "sound": [{"name": "tick", "at": 0.05}, {"name": "pop", "at": 1.05}, {"name": "rise", "at": 3.1}]
+            "sound": [
+              {
+                "name": "tick",
+                "at": 0.05
+              },
+              {
+                "name": "pop",
+                "at": 1.05
+              },
+              {
+                "name": "rise",
+                "at": 3.1
+              }
+            ]
           },
           {
-            "id": "problem", "beat": "problem", "seconds": 7, "verb": "pile up", "energy": 5, "carry": "the alerts slide off the way the camera is going",
+            "id": "problem",
+            "beat": "problem",
+            "seconds": 7,
+            "verb": "pile up",
+            "energy": 5,
+            "carry": "the alerts slide off the way the camera is going",
             "shows": [],
-            "camera": {"move": "pan", "x": -0.022},
-            "link": {"type": "pan", "seconds": 0.7, "why": "The same sideways move carries us off the pile and onto the product."},
+            "camera": {
+              "move": "pan",
+              "x": -0.022
+            },
+            "link": {
+              "type": "pan",
+              "seconds": 0.7,
+              "why": "The same sideways move carries us off the pile and onto the product."
+            },
             "items": [
-              {"type": "mask_rise", "lines": ["Same five", "*questions.*"], "start": 0.35, "duration": 3.3, "zone": "left"},
-              {"type": "notification_stack", "zone": "right", "start": 0.2, "duration": 3.5, "alerts": [{"text": "Where is my order?", "label": "Ticket 4417"}, {"text": "How do I reset my password?", "label": "Ticket 4418"}, {"text": "Can I change my plan?", "label": "Ticket 4419"}, {"text": "Where is my order?", "label": "Ticket 4420"}, {"text": "Refund for a double charge", "label": "Ticket 4421"}]},
-              {"type": "marker", "text": "All day, your team *copies and pastes.*", "start": 3.9, "zone": "center", "align": "center"}
+              {
+                "type": "mask_rise",
+                "lines": [
+                  "Same five",
+                  "*questions.*"
+                ],
+                "start": -0.3,
+                "duration": 3.5,
+                "zone": "left"
+              },
+              {
+                "type": "notification_stack",
+                "zone": "right",
+                "start": -0.3,
+                "duration": 3.6,
+                "alerts": [
+                  {
+                    "text": "Where is my order?",
+                    "label": "Ticket 4417"
+                  },
+                  {
+                    "text": "How do I reset my password?",
+                    "label": "Ticket 4418"
+                  },
+                  {
+                    "text": "Can I change my plan?",
+                    "label": "Ticket 4419"
+                  },
+                  {
+                    "text": "Where is my order?",
+                    "label": "Ticket 4420"
+                  },
+                  {
+                    "text": "Refund for a double charge",
+                    "label": "Ticket 4421"
+                  }
+                ]
+              },
+              {
+                "type": "marker",
+                "text": "All day, your team *copies and pastes.*",
+                "start": 3.2,
+                "zone": "high",
+                "align": "center"
+              },
+              {
+                "type": "state_gauge",
+                "zone": "low",
+                "align": "center",
+                "start": 3.3,
+                "scale": 0.9,
+                "important": false,
+                "rows": [
+                  {
+                    "text": "Still waiting",
+                    "states": [
+                      {
+                        "value": "{{tickets}}",
+                        "level": 0.62,
+                        "at": 3.3
+                      },
+                      {
+                        "value": "419",
+                        "level": 0.7,
+                        "at": 4.3,
+                        "hot": true
+                      },
+                      {
+                        "value": "431",
+                        "level": 0.82,
+                        "at": 5.1,
+                        "hot": true
+                      },
+                      {
+                        "value": "{{peak}}",
+                        "level": 0.92,
+                        "at": 5.9,
+                        "hot": true
+                      }
+                    ]
+                  }
+                ]
+              }
             ],
-            "sound": [{"name": "ding", "at": 0.3}, {"name": "ding", "at": 1.3}, {"name": "ding", "at": 2.3}, {"name": "whoosh", "at": 6.5}]
+            "sound": [
+              {
+                "name": "ding",
+                "at": 0.1
+              },
+              {
+                "name": "ding",
+                "at": 0.9
+              },
+              {
+                "name": "ding",
+                "at": 1.7
+              },
+              {
+                "name": "tick",
+                "at": 4.3
+              },
+              {
+                "name": "tick",
+                "at": 5.1
+              },
+              {
+                "name": "tick",
+                "at": 5.9
+              },
+              {
+                "name": "whoosh",
+                "at": 6.6
+              }
+            ]
           },
           {
-            "id": "product", "beat": "product", "seconds": 8, "verb": "clear", "energy": 8, "carry": "the zero stays in mind as the camera pulls away",
-            "shows": ["the queue clearing"],
-            "silences": [{"from": 5.65, "to": 6.2}],
-            "camera": {"poses": [{"at": 0, "scale": 1.0, "ry": -7, "rx": 5}, {"at": 5.9, "scale": 1.05, "ry": 2, "rx": 2}, {"at": 7.9, "scale": 0.9, "ry": 0, "rx": 0}], "origin": "right"},
-            "link": {"type": "through", "seconds": 0.7, "why": "The pull-back turns into the push that lands on the result."},
-            "items": [
-              {"type": "word_slam", "text": "{{product}} answers *first.*", "start": 0.3, "zone": "left", "important": true},
-              {"type": "work_cascade", "title": "Support *queue*", "from": "{{tickets}}", "to": 0, "label": "open", "done": "Queue *clear* before lunch", "start": 0.2, "zone": "right", "rows": [{"text": "Where is my order?", "label": "Orders"}, {"text": "Reset my password", "label": "Account"}, {"text": "Change my plan", "label": "Billing"}, {"text": "Refund a double charge", "label": "Billing"}, {"text": "Cancel my renewal", "label": "Billing"}]}
+            "id": "product",
+            "beat": "product",
+            "seconds": 8,
+            "verb": "clear",
+            "energy": 8,
+            "carry": "the zero stays in mind as the camera pulls away",
+            "shows": [
+              "the queue clearing"
             ],
-            "sound": [{"name": "click", "at": 0.7}, {"name": "tick", "at": 1.6}, {"name": "tick", "at": 2.6}, {"name": "tick", "at": 3.6}, {"name": "tick", "at": 4.6}, {"name": "boom", "at": 6.2}]
+            "silences": [
+              {
+                "from": 5.5,
+                "to": 6.0
+              }
+            ],
+            "camera": {
+              "poses": [
+                {
+                  "at": 0,
+                  "scale": 1.0,
+                  "ry": -9,
+                  "rx": 6
+                },
+                {
+                  "at": 5.8,
+                  "scale": 1.06,
+                  "ry": 2,
+                  "rx": 2
+                },
+                {
+                  "at": 7.9,
+                  "scale": 0.88,
+                  "ry": 0,
+                  "rx": 0
+                }
+              ],
+              "origin": "right"
+            },
+            "link": {
+              "type": "through",
+              "seconds": 0.7,
+              "why": "The pull-back turns into the push that lands on the result."
+            },
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "{{product}} answers *first.*",
+                "start": -0.2,
+                "duration": 6.2,
+                "zone": "left",
+                "important": true
+              },
+              {
+                "type": "word_slam",
+                "text": "Queue *clear.*",
+                "start": 6.0,
+                "zone": "left",
+                "important": true,
+                "role": "term"
+              },
+              {
+                "type": "work_cascade",
+                "title": "Support *queue*",
+                "from": "{{peak}}",
+                "to": 0,
+                "label": "open",
+                "done": "Before lunch",
+                "start": -0.3,
+                "zone": "right",
+                "rows": [
+                  {
+                    "text": "Where is my order?",
+                    "label": "Orders"
+                  },
+                  {
+                    "text": "Reset my password",
+                    "label": "Account"
+                  },
+                  {
+                    "text": "Change my plan",
+                    "label": "Billing"
+                  },
+                  {
+                    "text": "Refund a double charge",
+                    "label": "Billing"
+                  },
+                  {
+                    "text": "Cancel my renewal",
+                    "label": "Billing"
+                  }
+                ]
+              }
+            ],
+            "sound": [
+              {
+                "name": "click",
+                "at": 0.6
+              },
+              {
+                "name": "tick",
+                "at": 1.5
+              },
+              {
+                "name": "tick",
+                "at": 2.5
+              },
+              {
+                "name": "tick",
+                "at": 3.5
+              },
+              {
+                "name": "tick",
+                "at": 4.5
+              },
+              {
+                "name": "boom",
+                "at": 6.0
+              }
+            ]
           },
           {
-            "id": "payoff", "beat": "payoff", "seconds": 6, "verb": "prove", "energy": 9, "carry": "the last tick lands on the mark",
-            "shows": ["a person keeping the hard tickets"],
-            "camera": {"move": "push", "amount": 0.05},
-            "link": {"type": "through", "seconds": 0.8, "why": "The last tick pushes through into the mark, so the film ends on the name."},
-            "items": [
-              {"type": "strike_replace", "lead": "First reply in", "swap": ["3 hours", "40 seconds"], "start": 0.2, "zone": "left"},
-              {"type": "recap_check", "title": "What you *get back*", "points": ["Replies in your tone", "A person keeps the hard tickets", "Every fix teaches it"], "start": 0.5, "zone": "right"}
+            "id": "payoff",
+            "beat": "payoff",
+            "seconds": 6,
+            "verb": "prove",
+            "energy": 9,
+            "carry": "the last tick lands on the mark",
+            "shows": [
+              "a person keeping the hard tickets"
             ],
-            "sound": [{"name": "thud", "at": 1.4}, {"name": "ding", "at": 2.6}]
+            "camera": {
+              "move": "orbit",
+              "turn": -4,
+              "tilt": 5,
+              "amount": 0.05,
+              "origin": "center"
+            },
+            "link": {
+              "type": "through",
+              "seconds": 0.8,
+              "why": "The last tick pushes through into the mark, so the film ends on the name."
+            },
+            "items": [
+              {
+                "type": "strike_replace",
+                "lead": "First reply in",
+                "swap": [
+                  "3 hours",
+                  "40 seconds"
+                ],
+                "start": -0.3,
+                "zone": "left"
+              },
+              {
+                "type": "recap_check",
+                "title": "What you *get back*",
+                "points": [
+                  "Replies in your tone",
+                  "A person keeps the hard tickets",
+                  "Every fix teaches it"
+                ],
+                "start": -0.3,
+                "zone": "right"
+              }
+            ],
+            "sound": [
+              {
+                "name": "thud",
+                "at": 1.4
+              },
+              {
+                "name": "ding",
+                "at": 2.6
+              }
+            ]
           },
           {
-            "id": "close", "beat": "close", "seconds": 5, "verb": "land", "energy": 6,
-            "backdrop": [{"type": "particle_field", "seed": 4, "count": 80}],
-            "camera": {"move": "push", "amount": 0.035},
-            "items": [
-              {"type": "logo_sting", "text": "{{product}}", "label": "{{offer}}", "cta": "{{cta}}", "start": 0.1, "duration": 4.9, "role": "cta"}
+            "id": "close",
+            "beat": "close",
+            "seconds": 5,
+            "verb": "land",
+            "energy": 6,
+            "backdrop": [
+              {
+                "type": "particle_field",
+                "seed": 4,
+                "count": 80
+              }
             ],
-            "sound": [{"name": "boom", "at": 0.15}]
+            "camera": {
+              "move": "push",
+              "amount": 0.035
+            },
+            "items": [
+              {
+                "type": "logo_sting",
+                "text": "{{product}}",
+                "label": "{{offer}}",
+                "cta": "{{cta}}",
+                "start": -0.3,
+                "duration": 5.3,
+                "role": "cta"
+              }
+            ],
+            "sound": [
+              {
+                "name": "boom",
+                "at": 0.15
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "15": {
+      "brief": {
+        "length": 15,
+        "must_show": [
+          "the queue clearing"
+        ],
+        "terms": [
+          "first reply"
+        ]
+      },
+      "storyboard": {
+        "title": "Ebbline fifteen",
+        "route": "continuous",
+        "clock": "music",
+        "beats": [
+          "hook",
+          "product",
+          "payoff",
+          "close"
+        ],
+        "hero": {
+          "scene": "result",
+          "offset": 0.6
+        },
+        "layers": {
+          "product": "Ebbline",
+          "cta": "Start free at ebbline.example",
+          "offer": "Your first 500 replies are free",
+          "price": "$0 to start",
+          "date": "Live today",
+          "hook": "One reply. *One click.*"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 3,
+            "tones": "#ff7a4d,#4a3bff,#b28cff"
+          },
+          {
+            "type": "dot_grid",
+            "size": 46
+          },
+          {
+            "type": "grain_field",
+            "strength": 0.05,
+            "over": true
+          }
+        ],
+        "scenes": [
+          {
+            "id": "select",
+            "beat": "hook",
+            "seconds": 3,
+            "verb": "select",
+            "energy": 4,
+            "carry": "the pointer keeps travelling",
+            "camera": {
+              "move": "push",
+              "amount": 0.06
+            },
+            "link": {
+              "type": "pan",
+              "seconds": 0.6,
+              "why": "The pointer's move carries the camera to the setting."
+            },
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "{{hook}}",
+                "start": 0,
+                "zone": "center",
+                "align": "center",
+                "role": "hook",
+                "important": true
+              }
+            ],
+            "sound": [
+              {
+                "name": "click",
+                "at": 1.2
+              }
+            ]
+          },
+          {
+            "id": "change",
+            "beat": "product",
+            "seconds": 5,
+            "verb": "change",
+            "energy": 7,
+            "carry": "the answer it made",
+            "shows": [
+              "the queue clearing"
+            ],
+            "camera": {
+              "move": "orbit",
+              "turn": -5,
+              "tilt": 6,
+              "amount": 0.05,
+              "origin": "center"
+            },
+            "link": {
+              "type": "through",
+              "seconds": 0.7,
+              "why": "The click pushes through to the result."
+            },
+            "items": [
+              {
+                "type": "cursor_walk",
+                "text": "Reply *tone*",
+                "steps": [
+                  "Pick the warm tone",
+                  "Keep it short",
+                  "Add the order link"
+                ],
+                "done": "Saved",
+                "button": "Apply",
+                "start": -0.3,
+                "zone": "center"
+              }
+            ],
+            "sound": [
+              {
+                "name": "click",
+                "at": 1.4
+              },
+              {
+                "name": "click",
+                "at": 2.4
+              },
+              {
+                "name": "click",
+                "at": 3.4
+              }
+            ]
+          },
+          {
+            "id": "result",
+            "beat": "payoff",
+            "seconds": 3.5,
+            "verb": "prove",
+            "energy": 9,
+            "carry": "the zero",
+            "camera": {
+              "move": "push",
+              "amount": 0.05
+            },
+            "silences": [
+              {
+                "from": 0.0,
+                "to": 0.5
+              }
+            ],
+            "link": {
+              "type": "through",
+              "seconds": 0.7,
+              "why": "The result pushes into the mark."
+            },
+            "items": [
+              {
+                "type": "before_after",
+                "before": "3 hours",
+                "after": "40 sec",
+                "label": "First reply, sample team",
+                "start": -0.3,
+                "zone": "center",
+                "align": "center"
+              }
+            ],
+            "sound": [
+              {
+                "name": "boom",
+                "at": 0.6
+              }
+            ]
+          },
+          {
+            "id": "close",
+            "beat": "close",
+            "seconds": 3.5,
+            "verb": "land",
+            "energy": 6,
+            "camera": {
+              "move": "push",
+              "amount": 0.03
+            },
+            "items": [
+              {
+                "type": "logo_sting",
+                "text": "{{product}}",
+                "label": "{{offer}}",
+                "cta": "{{cta}}",
+                "start": -0.3,
+                "role": "cta",
+                "duration": 3.8
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "20": {
+      "brief": {
+        "length": 20,
+        "must_show": [
+          "the queue clearing"
+        ],
+        "terms": [
+          "open tickets"
+        ]
+      },
+      "storyboard": {
+        "title": "Ebbline twenty",
+        "route": "continuous",
+        "clock": "music",
+        "beats": [
+          "hook",
+          "product",
+          "payoff",
+          "close"
+        ],
+        "hero": {
+          "scene": "feature",
+          "offset": 2.6
+        },
+        "layers": {
+          "product": "Ebbline",
+          "cta": "Start free at ebbline.example",
+          "offer": "Your first 500 replies are free",
+          "price": "$0 to start",
+          "date": "Live today",
+          "hook": "Something *small* changed."
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 3,
+            "tones": "#ff7a4d,#4a3bff,#b28cff"
+          },
+          {
+            "type": "dot_grid",
+            "size": 46
+          },
+          {
+            "type": "grain_field",
+            "strength": 0.05,
+            "over": true
+          }
+        ],
+        "scenes": [
+          {
+            "id": "detail",
+            "beat": "hook",
+            "seconds": 4,
+            "verb": "tease",
+            "energy": 3,
+            "carry": "the shape grows into the object",
+            "camera": {
+              "move": "push",
+              "amount": 0.14
+            },
+            "link": {
+              "type": "dive",
+              "seconds": 0.9,
+              "zoom": 4.0,
+              "why": "The detail fills the frame, and it turns out to be the screen."
+            },
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "{{hook}}",
+                "start": 0,
+                "zone": "center",
+                "align": "center",
+                "role": "hook",
+                "important": true
+              }
+            ],
+            "sound": [
+              {
+                "name": "rise",
+                "at": 2.8
+              }
+            ]
+          },
+          {
+            "id": "reveal",
+            "beat": "product",
+            "seconds": 6,
+            "verb": "reveal",
+            "energy": 6,
+            "carry": "the same screen, closer",
+            "shows": [
+              "the queue clearing"
+            ],
+            "camera": {
+              "move": "orbit",
+              "turn": 6,
+              "tilt": 4,
+              "amount": 0.06
+            },
+            "link": {
+              "type": "through",
+              "seconds": 0.7,
+              "why": "The camera keeps going into the screen."
+            },
+            "items": [
+              {
+                "type": "floating_device",
+                "text": "{{product}}, *in your pocket*",
+                "label": "Every open ticket, answered",
+                "device": "phone",
+                "screen": "Queue",
+                "start": -0.4
+              }
+            ],
+            "sound": [
+              {
+                "name": "whoosh",
+                "at": 5.6
+              }
+            ]
+          },
+          {
+            "id": "feature",
+            "beat": "payoff",
+            "seconds": 6,
+            "verb": "prove",
+            "energy": 9,
+            "carry": "the last number",
+            "camera": {
+              "move": "push",
+              "amount": 0.06
+            },
+            "silences": [
+              {
+                "from": 2.0,
+                "to": 2.5
+              }
+            ],
+            "link": {
+              "type": "through",
+              "seconds": 0.7,
+              "why": "The number pushes into the mark."
+            },
+            "items": [
+              {
+                "type": "zoom_click",
+                "text": "One number *changed the morning*",
+                "label": "Open tickets",
+                "value": "0",
+                "start": -0.3,
+                "duration": 6.3
+              }
+            ],
+            "sound": [
+              {
+                "name": "click",
+                "at": 1.6
+              },
+              {
+                "name": "boom",
+                "at": 2.6
+              }
+            ]
+          },
+          {
+            "id": "close",
+            "beat": "close",
+            "seconds": 4,
+            "verb": "land",
+            "energy": 6,
+            "camera": {
+              "move": "push",
+              "amount": 0.03
+            },
+            "items": [
+              {
+                "type": "logo_sting",
+                "text": "{{product}}",
+                "label": "{{offer}}",
+                "cta": "{{cta}}",
+                "start": -0.3,
+                "role": "cta",
+                "duration": 4.3
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "24": {
+      "brief": {
+        "length": 24,
+        "must_show": [
+          "the queue clearing"
+        ]
+      },
+      "storyboard": {
+        "title": "Ebbline journey",
+        "route": "continuous",
+        "clock": "music",
+        "beats": [
+          "hook",
+          "product",
+          "payoff",
+          "close"
+        ],
+        "hero": {
+          "scene": "return",
+          "offset": 0.6
+        },
+        "layers": {
+          "product": "Ebbline",
+          "cta": "Start free at ebbline.example",
+          "offer": "Your first 500 replies are free",
+          "price": "$0 to start",
+          "date": "Live today",
+          "hook": "Press *once.*"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 3,
+            "tones": "#ff7a4d,#4a3bff,#b28cff"
+          },
+          {
+            "type": "dot_grid",
+            "size": 46
+          },
+          {
+            "type": "grain_field",
+            "strength": 0.05,
+            "over": true
+          }
+        ],
+        "scenes": [
+          {
+            "id": "press",
+            "beat": "hook",
+            "seconds": 4,
+            "verb": "press",
+            "energy": 4,
+            "carry": "the press flies the camera in",
+            "camera": {
+              "move": "push",
+              "amount": 0.14
+            },
+            "link": {
+              "type": "dive",
+              "seconds": 1.0,
+              "zoom": 6.0,
+              "why": "The press flies the camera into the product."
+            },
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "{{hook}}",
+                "start": 0,
+                "zone": "center",
+                "align": "center",
+                "role": "hook",
+                "important": true
+              }
+            ],
+            "sound": [
+              {
+                "name": "click",
+                "at": 3.0
+              }
+            ]
+          },
+          {
+            "id": "inside",
+            "beat": "product",
+            "seconds": 8,
+            "verb": "travel",
+            "energy": 7,
+            "carry": "the tunnel opens into the board",
+            "shows": [
+              "the queue clearing"
+            ],
+            "camera": {
+              "move": "push",
+              "amount": 0.2
+            },
+            "link": {
+              "type": "through",
+              "seconds": 0.8,
+              "why": "The tunnel ends at the board, flying out the way we came in."
+            },
+            "items": [
+              {
+                "type": "composition",
+                "name": "ascii-tunnel",
+                "start": -0.5,
+                "duration": 4.7,
+                "important": false
+              },
+              {
+                "type": "composition",
+                "name": "particle-flow",
+                "start": 3.8,
+                "important": false
+              },
+              {
+                "type": "mask_rise",
+                "lines": [
+                  "Every ticket",
+                  "*read for you*"
+                ],
+                "start": 0.7,
+                "duration": 3.1,
+                "zone": "center"
+              },
+              {
+                "type": "mask_rise",
+                "lines": [
+                  "Every reply",
+                  "*written first*"
+                ],
+                "start": 4.4,
+                "duration": 3.2,
+                "zone": "center"
+              }
+            ],
+            "sound": [
+              {
+                "name": "whoosh",
+                "at": 7.5
+              }
+            ]
+          },
+          {
+            "id": "return",
+            "beat": "payoff",
+            "seconds": 8,
+            "verb": "return",
+            "energy": 9,
+            "carry": "the empty queue",
+            "camera": {
+              "poses": [
+                {
+                  "at": 0,
+                  "scale": 1.08,
+                  "ry": -5,
+                  "rx": 4
+                },
+                {
+                  "at": 6,
+                  "scale": 1.0
+                },
+                {
+                  "at": 7.9,
+                  "scale": 0.94
+                }
+              ],
+              "origin": "center"
+            },
+            "silences": [
+              {
+                "from": 0.0,
+                "to": 0.5
+              }
+            ],
+            "link": {
+              "type": "through",
+              "seconds": 0.7,
+              "why": "The pull-back turns into the mark."
+            },
+            "items": [
+              {
+                "type": "work_cascade",
+                "title": "Support *queue*",
+                "from": 412,
+                "to": 0,
+                "label": "open",
+                "done": "Queue *clear*",
+                "start": -0.4,
+                "zone": "center",
+                "rows": [
+                  {
+                    "text": "Where is my order?",
+                    "label": "Orders"
+                  },
+                  {
+                    "text": "Reset my password",
+                    "label": "Account"
+                  },
+                  {
+                    "text": "Change my plan",
+                    "label": "Billing"
+                  },
+                  {
+                    "text": "Refund a double charge",
+                    "label": "Billing"
+                  }
+                ]
+              }
+            ],
+            "sound": [
+              {
+                "name": "boom",
+                "at": 0.6
+              }
+            ]
+          },
+          {
+            "id": "close",
+            "beat": "close",
+            "seconds": 4,
+            "verb": "land",
+            "energy": 6,
+            "camera": {
+              "move": "push",
+              "amount": 0.03
+            },
+            "items": [
+              {
+                "type": "logo_sting",
+                "text": "{{product}}",
+                "label": "{{offer}}",
+                "cta": "{{cta}}",
+                "start": -0.3,
+                "role": "cta",
+                "duration": 4.3
+              }
+            ]
           }
         ]
       }

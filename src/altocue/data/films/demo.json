@@ -1,0 +1,254 @@
+{
+  "id": "demo",
+  "name": "Demo Episode",
+  "promise": "A walkthrough where every line shows what it names, with a checked report of what was made.",
+  "cost": "$0.",
+  "generation": "none",
+  "aspect": "16:9",
+  "fps": 30,
+  "default": "main",
+  "beats": [
+    "hook",
+    "disclose",
+    "example",
+    "reveal",
+    "ask"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "claims"
+  ],
+  "formats": [
+    "chapter_card",
+    "terminal_run",
+    "code_typing",
+    "prompt_result",
+    "zoom_click",
+    "lower_third"
+  ],
+  "notes": [
+    "State how the film was made near the start, and keep estimates apart from what was measured."
+  ],
+  "brief": {
+    "example": true,
+    "company": "Sluice is an invented command line tool that tidies a repository before a release.",
+    "audience": "Developers who ship weekly",
+    "goal": "Try the tool",
+    "message": "One command gets a repo ready to ship.",
+    "must_show": [
+      "the command running"
+    ],
+    "terms": [
+      "ship on Friday"
+    ],
+    "tone": "Plain and exact",
+    "claims": [
+      "All figures are invented for this example"
+    ],
+    "brand": {
+      "colors": {
+        "accent": "#7fe0c3",
+        "panel": "#0b1014",
+        "surface": "#141c22"
+      }
+    },
+    "deliverables": [
+      "16:9"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Sluice demo",
+        "route": "montage",
+        "clock": "reads",
+        "hero": {
+          "scene": "reveal",
+          "offset": 1.0
+        },
+        "music": {
+          "style": "glass"
+        },
+        "layers": {
+          "product": "Sluice"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 5,
+            "tones": "#2e8f7a,#27407a,#7fe0c3"
+          },
+          {
+            "type": "dot_grid",
+            "size": 52
+          }
+        ],
+        "scenes": [
+          {
+            "id": "hook",
+            "beat": "hook",
+            "seconds": 4,
+            "verb": "promise",
+            "energy": 4,
+            "carry": "the promise",
+            "link": {
+              "type": "curtain",
+              "why": "A clean wipe into the working part."
+            },
+            "camera": {
+              "move": "push",
+              "amount": 0.05
+            },
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "Ship on *Friday.* Calmly.",
+                "start": 0,
+                "zone": "center",
+                "align": "center",
+                "role": "hook",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "disclose",
+            "beat": "disclose",
+            "seconds": 5,
+            "verb": "disclose",
+            "energy": 3,
+            "carry": "the plain statement",
+            "link": {
+              "type": "through",
+              "why": "Straight into the terminal."
+            },
+            "camera": {
+              "move": "drift"
+            },
+            "items": [
+              {
+                "type": "chapter_card",
+                "text": "How this was *made*",
+                "subtitle": "An invented tool, drawn in code, with sample output",
+                "number": 1,
+                "of": 3,
+                "start": 0
+              }
+            ]
+          },
+          {
+            "id": "run",
+            "beat": "example",
+            "seconds": 7,
+            "verb": "run",
+            "energy": 6,
+            "carry": "the pass line",
+            "shows": [
+              "the command running"
+            ],
+            "link": {
+              "type": "pan",
+              "why": "Across to the code it changed."
+            },
+            "camera": {
+              "move": "orbit",
+              "turn": -4,
+              "tilt": 4,
+              "amount": 0.04
+            },
+            "items": [
+              {
+                "type": "terminal_run",
+                "text": "sluice ready",
+                "name": "~/shop",
+                "output": [
+                  {
+                    "text": "Reading 214 files",
+                    "kind": "dim"
+                  },
+                  {
+                    "text": "Tidying the changelog",
+                    "kind": "dim"
+                  },
+                  {
+                    "text": "All 86 checks passed",
+                    "kind": "ok"
+                  },
+                  {
+                    "text": "Ready in *38 seconds*",
+                    "kind": "ok"
+                  }
+                ],
+                "start": 0,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "reveal",
+            "beat": "reveal",
+            "seconds": 6,
+            "verb": "reveal",
+            "energy": 8,
+            "carry": "the small diff",
+            "silences": [
+              {
+                "from": 0.2,
+                "to": 0.7
+              }
+            ],
+            "link": {
+              "type": "through",
+              "why": "The diff pushes into the ask."
+            },
+            "camera": {
+              "move": "push",
+              "amount": 0.05
+            },
+            "items": [
+              {
+                "type": "code_typing",
+                "name": "release.toml",
+                "lines": [
+                  "[release]",
+                  "changelog = \"tidy\"",
+                  "checks = \"all\"",
+                  "ship = true"
+                ],
+                "start": 0,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "ask",
+            "beat": "ask",
+            "seconds": 4,
+            "verb": "ask",
+            "energy": 5,
+            "camera": {
+              "move": "push",
+              "amount": 0.03
+            },
+            "items": [
+              {
+                "type": "logo_sting",
+                "text": "{{product}}",
+                "label": "Sample tool, for illustration",
+                "start": 0,
+                "duration": 4,
+                "role": "cta"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -37,6 +37,7 @@ from typing import Any
 
 from .errors import AltocueError
 from .motion import formats
+from .qa import rules
 
 HOOK_BY = 3.0  # sound off, large type says what this is by here
 WORDS_BY = 1.0
@@ -58,6 +59,8 @@ BRIEF_FIELDS = ("company", "audience", "goal", "message", "must_show", "tone", "
 CAMERA_MOVES = ("push", "pull", "pan", "rise", "drift", "orbit")
 CAMERA_LINKS = ("cut", "through", "dive", "pan", "rise", "dissolve")
 WIPES = ("iris", "white_flash", "shape_match", "shutter", "curtain", "torn_wipe")
+LINK_SECONDS = {"through": 0.6, "dive": 0.8, "pan": 0.6, "rise": 0.6, "dissolve": 0.5}
+WIPE_SECONDS = {"iris": 1.0, "white_flash": 0.8, "shape_match": 1.1, "shutter": 0.9, "curtain": 1.0, "torn_wipe": 1.0}
 IMPORTANT_JOBS = {"hook", "prove", "close"}
 PASSING = {"chip", "trust_strip", "ticker", "corner_stamp"}
 LAYER = re.compile(r"\{\{\s*([\w-]+)\s*\}\}")
@@ -114,7 +117,7 @@ def _length(scene: dict[str, Any], voice: dict[str, float] | None) -> float:
         taken = (voice or {}).get(str(scene.get("id")))
         return (taken if taken else estimated(scene)) + VOICE_PAD
     if not number(value) or value <= 0:
-        raise AltocueError(f'Scene {scene.get("id")} has no length.', fix='Set "seconds" to a positive number, or to "voice" when a recording sets it.')
+        raise AltocueError(f"Scene {scene.get('id')} has no length.", fix='Set "seconds" to a positive number, or to "voice" when a recording sets it.')
     return float(value)
 
 
@@ -194,7 +197,16 @@ def resolve(board: dict[str, Any], *, fps: int, aspect: str = "16:9", beats: lis
     hero_at = None
     if hero is not None and scenes:
         hero_at = float(hero) if number(hero) else clock.at(hero, scenes[0])
-    return {"fps": fps, "aspect": aspect, "total": total, "scenes": [{key: value for key, value in s.items() if key not in ("items", "sound", "silences")} for s in scenes], "items": items, "cues": sorted(cues, key=lambda c: c["at"]), "silences": silences, "hero": hero_at}
+    return {
+        "fps": fps,
+        "aspect": aspect,
+        "total": total,
+        "scenes": [{key: value for key, value in s.items() if key not in ("items", "sound", "silences")} for s in scenes],
+        "items": items,
+        "cues": sorted(cues, key=lambda c: c["at"]),
+        "silences": silences,
+        "hero": hero_at,
+    }
 
 
 def _bare(text: Any) -> str:
@@ -205,11 +217,6 @@ def on_screen(item: dict[str, Any]) -> list[str]:
     if item.get("type") not in formats.load():
         return [str(item[key]) for key in ("text", "headline", "cta", "title", "subtitle", "label", "value") if item.get(key)]
     return formats.strings(item)
-
-
-def read_time(text: str) -> float:
-    """What a stranger needs to find it, read it and take it in."""
-    return max(HOLD, 1.0 + 0.3 * len(text.split()))
 
 
 def _important(item: dict[str, Any]) -> bool:
@@ -242,7 +249,12 @@ def _check_brief(brief: dict[str, Any], record: dict[str, Any], add: Any) -> Non
         if not re.fullmatch(r"\d+:\d+", str(aspect)):
             add("error", "brief", f"The deliverable {aspect} is not an aspect.", "Use 16:9, 9:16, 1:1 or 4:5.")
     if brief.get("example"):
-        add("warning", "brief", "This is still the example, and its product and numbers are invented.", 'Replace every claim with a true one, then remove "example" from brief.json.')
+        add(
+            "warning",
+            "brief",
+            "This is still the example, and its product and numbers are invented.",
+            'Replace every claim with a true one, then remove "example" from brief.json.',
+        )
     if not brief.get("terms"):
         add("warning", "brief", "No search terms listed.", 'Add "terms" to brief.json: the one to three words this audience would search for.')
 
@@ -297,8 +309,17 @@ def _check_scenes(board: dict[str, Any], record: dict[str, Any], approved: list[
                 add("warning", str(scene.get("id")), f'No "{key}".', f'Add "{key}": {hint}.')
 
 
-def _check_timing(done: dict[str, Any], add: Any) -> None:
+def arrival(scene: dict[str, Any] | None) -> float:
+    """How long before a scene's start the camera link from the scene before it begins."""
+    link = (scene or {}).get("link") or {}
+    made = {"type": link} if isinstance(link, str) else link
+    kind = made.get("type", "cut")
+    return float(made.get("seconds", LINK_SECONDS.get(kind, 0.0))) / 2 if kind in CAMERA_LINKS else 0.0
+
+
+def _check_timing(done: dict[str, Any], add: Any, reading: float = rules.READING_WPS) -> None:
     scenes = {scene["id"]: scene for scene in done["scenes"]}
+    leads = {scene["id"]: arrival(before) for before, scene in zip([None, *done["scenes"]], done["scenes"], strict=False)}
     first_scene = done["scenes"][0]["id"] if done["scenes"] else None
     flashes: list[float] = []
     hooks: list[float] = []
@@ -315,29 +336,53 @@ def _check_timing(done: dict[str, Any], add: Any) -> None:
             add("error", where, str(error.args[0]), error.fix or "Shorten the copy.")
         scene = scenes[item["scene"]]
         seconds = item["end"] - item["start"]
-        if item["start"] < scene["start"] - frame:
-            add("error", where, f"{kind} starts {scene['start'] - item['start']:.2f} s before its scene.", "Move it into the scene, or to the scene before.")
+        if item["start"] < scene["start"] - leads[item["scene"]] - frame:
+            add(
+                "error",
+                where,
+                f"{kind} starts {scene['start'] - item['start']:.2f} s before its scene.",
+                "It may lead by half the link at most, so it arrives with the camera.",
+            )
         if item["end"] > scene["end"] + frame and not item.get("carry"):
-            add("error", where, f"{kind} runs {item['end'] - scene['end']:.2f} s past the end of its scene.", 'Shorten it, or add "carry": true if it crosses the cut on purpose.')
+            add(
+                "error",
+                where,
+                f"{kind} runs {item['end'] - scene['end']:.2f} s past the end of its scene.",
+                'Shorten it, or add "carry": true if it crosses the cut on purpose.',
+            )
         if fmt and seconds + frame < fmt.shortest and fmt.id not in FLASHES and fmt.group != "wipe":
             add("error", where, f"{kind} runs {seconds:.2f} s, and it needs at least {fmt.shortest:g} s to play.", "Give it longer.")
         if fmt and seconds > fmt.longest + frame and fmt.group != "backdrop":
             add("warning", where, f"{kind} runs {seconds:.2f} s, longer than the {fmt.longest:g} s it was made for.", "Shorten it, or split the moment in two.")
         shown = " ".join(on_screen(item))
-        if _important(item) and shown:
-            settled = seconds - ARRIVAL
-            if settled + frame < HOLD:
-                add("error", where, f'"{shown[:40]}" holds {settled:.2f} s after it lands, and important text needs about {HOLD:g} s.', "Give it longer, or say less.")
-            elif seconds + frame < read_time(shown):
-                add("warning", where, f'"{shown[:40]}" is up {seconds:.2f} s and needs about {read_time(shown):.2f} s to read.', "Give it longer, or cut words.")
+        if _important(item) and shown and seconds - ARRIVAL + frame < HOLD:
+            add(
+                "error",
+                where,
+                f'"{shown[:40]}" holds {seconds - ARRIVAL:.2f} s after it lands, and important text needs about {HOLD:g} s.',
+                "Give it longer, or say less.",
+            )
         for _ in range(FLASHES.get(str(kind), int(item.get("flashes", 0)))):
             flashes.append((item["start"] + item["end"]) / 2)
         if _role(item, first_scene) == "hook" and shown:
             hooks.append(item["start"])
+    for row in rules.reading_time({"items": done["items"], "total": done["total"]}, reading):
+        if row["short_by"] > frame:
+            add(
+                "error",
+                str(row["layer"]),
+                f"{row['words']} words at {row['start']:.2f} s get {row['shown']:.1f} s and need {row['needed']:.1f} s at {reading:g} words a second.",
+                "Give it longer, or cut words.",
+            )
     for index, at in enumerate(flashes):
         count = sum(1 for other in flashes[index:] if other - at < 1.0)
         if count > MOST_FLASHES:
-            add("error", "storyboard", f"{count} flashes in one second at {at:.2f} s. The limit is three flashes a second (WCAG 2.2, criterion 2.3.1).", "Space them out, or drop a flash.")
+            add(
+                "error",
+                "storyboard",
+                f"{count} flashes in one second at {at:.2f} s. The limit is three flashes a second (WCAG 2.2, criterion 2.3.1).",
+                "Space them out, or drop a flash.",
+            )
             break
     if done["scenes"] and not done.get("no_hook"):
         first = min(hooks, default=None)
@@ -356,10 +401,20 @@ def _check_timing(done: dict[str, Any], add: Any) -> None:
         add("warning", "storyboard", f"The hero moment comes {hero / done['total']:.0%} of the way in.", "Spent this early, the film has nothing left to build to.")
     silences = done.get("silences") or []
     if not any(s["to"] <= hero + 0.05 and hero - s["to"] <= SILENCE_WITHIN for s in silences):
-        add("warning", "storyboard", f"No planned silence in the {SILENCE_WITHIN:g} s before the hero moment.", 'Add a short drop-out with "silences" on the scene before it.')
+        add(
+            "warning",
+            "storyboard",
+            f"No planned silence in the {SILENCE_WITHIN:g} s before the hero moment.",
+            'Add a short drop-out with "silences" on the scene before it.',
+        )
     for entry in silences:
         if entry["to"] - entry["from"] < SHORTEST_SILENCE:
-            add("warning", "storyboard", f"The silence at {entry['from']:.2f} s is under {SHORTEST_SILENCE:g} s, so it will not register.", "Make it longer, or remove it.")
+            add(
+                "warning",
+                "storyboard",
+                f"The silence at {entry['from']:.2f} s is under {SHORTEST_SILENCE:g} s, so it will not register.",
+                "Make it longer, or remove it.",
+            )
 
 
 def _check_cover(brief: dict[str, Any], board: dict[str, Any], done: dict[str, Any], add: Any) -> None:
@@ -367,14 +422,14 @@ def _check_cover(brief: dict[str, Any], board: dict[str, Any], done: dict[str, A
     named = {_bare(entry) for scene in board.get("scenes", []) for entry in scene.get("shows", [])}
     for want in brief.get("must_show") or []:
         if _bare(want) not in named and _bare(want) not in shown:
-            add("error", "brief", f'The must-show "{want}" is in no scene.', f'Put it on screen, and name it under "shows" on that scene.')
+            add("error", "brief", f'The must-show "{want}" is in no scene.', 'Put it on screen, and name it under "shows" on that scene.')
     for term in brief.get("terms") or []:
         said = _bare(" ".join(str(scene.get("says", "")) for scene in board.get("scenes", [])))
         if _bare(term) not in shown and _bare(term) not in said:
             add("error", "brief", f'The search term "{term}" is never said or shown.', "Name it right after the moment that explains it.")
     for read in (entry for scene in board.get("scenes", []) for entry in scene.get("reads", [])):
         if number(read.get("seconds")) and read["seconds"] < SHORT_READ:
-            add("warning", "storyboard", f"The read \"{read.get('what', '?')}\" gets {read['seconds']:.2f} s.", "Too short to find, understand and register.")
+            add("warning", "storyboard", f'The read "{read.get("what", "?")}" gets {read["seconds"]:.2f} s.', "Too short to find, understand and register.")
 
 
 def check(
@@ -408,7 +463,7 @@ def check(
     if number(wanted) and abs(done["total"] - float(wanted)) > wanted * LENGTH_SLACK:
         add("error", "storyboard", f"The film runs {done['total']:.1f} s and the brief asks for {wanted:g} s.", "Change a scene's seconds, or the brief.")
     if record.get("route_required") and board.get("route") not in ROUTES:
-        add("warning", "storyboard", "No route stated.", f"Set \"route\" to one of {', '.join(ROUTES)}.")
+        add("warning", "storyboard", "No route stated.", f'Set "route" to one of {", ".join(ROUTES)}.')
     clock = board.get("clock")
     if clock is not None and clock not in CLOCKS:
         add("error", "storyboard", f'Unknown clock "{clock}".', f"Use one of {', '.join(CLOCKS)}.")
@@ -420,5 +475,10 @@ def check(
     if card and number(card.get("average_shot")) and done["scenes"]:
         average = done["total"] / len(done["scenes"])
         if not 0.5 <= average / float(card["average_shot"]) <= 2.0:
-            add("warning", "storyboard", f"Scenes average {average:.1f} s, and the style card measured {card['average_shot']:.1f} s a shot.", "Follow the card's pacing, or say why not.")
+            add(
+                "warning",
+                "storyboard",
+                f"Scenes average {average:.1f} s, and the style card measured {card['average_shot']:.1f} s a shot.",
+                "Follow the card's pacing, or say why not.",
+            )
     return problems

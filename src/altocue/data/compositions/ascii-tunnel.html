@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+  <body>
+    <template>
+      <style>
+        #ascii-tunnel-root { position: absolute; inset: 0; overflow: hidden; }
+        #ascii-tunnel-root canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      </style>
+      <div id="ascii-tunnel-root" data-composition-id="ascii-tunnel" data-width="1920" data-height="1080">
+        <canvas id="ascii-tunnel-canvas"></canvas>
+      </div>
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          // Brightness on a fixed grid, mapped to glyphs. A cell only changes when its brightness crosses a band, so calm areas stay calm.
+          var root = document.getElementById("ascii-tunnel-root");
+          var canvas = document.getElementById("ascii-tunnel-canvas");
+          var context = canvas.getContext("2d");
+          var width = (canvas.width = Number(root.getAttribute("data-width")) || 1920);
+          var height = (canvas.height = Number(root.getAttribute("data-height")) || 1080);
+          var ramp = " .:-=+*#%@";
+          var cell = Math.round(Math.max(width, height) / 96);
+          var columns = Math.ceil(width / cell);
+          var rows = Math.ceil(height / (cell * 1.5));
+          var style = getComputedStyle(root);
+          var accent = (style.getPropertyValue("--accent") || "#ffffff").trim();
+          var ink = (style.getPropertyValue("--ink") || "#ffffff").trim();
+          context.textBaseline = "top";
+          context.font = cell + "px Menlo, ui-monospace, monospace";
+          function brightness(column, row, time) {
+            var x = (column / columns - 0.5) * (width / height);
+            var y = (row / rows - 0.5) * 1;
+            var radius = Math.sqrt(x * x + y * y) + 0.001;
+            var turn = Math.atan2(y, x);
+            var rings = Math.sin(1 / radius * 1.4 + time * 2.4);
+            var spokes = Math.sin(turn * 6 + time * 0.6);
+            return (0.5 + 0.5 * rings * (0.6 + 0.4 * spokes)) * Math.min(radius * 2.6, 1);
+          }
+          function draw(time) {
+            context.clearRect(0, 0, width, height);
+            for (var row = 0; row < rows; row += 1) {
+              for (var column = 0; column < columns; column += 1) {
+                var level = brightness(column, row, time);
+                var band = Math.floor(level * (ramp.length - 1) + 0.5);
+                if (band < 1) continue;
+                context.globalAlpha = 0.16 + (band / ramp.length) * 0.6;
+                context.fillStyle = band > 6 ? accent : ink;
+                context.fillText(ramp.charAt(band), column * cell, row * cell * 1.5);
+              }
+            }
+            context.globalAlpha = 1;
+          }
+          var clock = { t: 0 };
+          var timeline = gsap.timeline({ paused: true });
+          timeline.to(clock, { t: 240, duration: 240, ease: "none", onUpdate: function () { draw(clock.t); } }, 0);
+          draw(0);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["ascii-tunnel"] = timeline;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

@@ -102,6 +102,8 @@ def test_copy_goes_through_escaping(fmt, brand):
 
 @pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
 def test_every_string_reaches_the_qa_rules(fmt):
+    if fmt.group == "backdrop":
+        pytest.skip("a backdrop carries no copy")
     item = placed(fmt)
     assert formats.strings(item), "QA would not see this format's copy"
     seen = rules.on_screen({"items": [item]})

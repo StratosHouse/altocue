@@ -51,11 +51,67 @@ class Style:
 
 
 STYLES = {
-    "pulse": Style("Driving and modern. A held pulse under a bright motif, for launches.", (112, 124), MINOR, (45, 47, 48, 50), ((1, 6, 3, 7), (1, 4, 6, 5), (6, 4, 1, 7)), 1.7, (2.0, 2.4, 0.26), "four", "eighths", "pulse"),
-    "glass": Style("Airy and exact. Bell plucks over soft chords, for calm products.", (100, 112), LYDIAN, (48, 50, 52), ((1, 5, 6, 4), (1, 2, 6, 5), (4, 1, 5, 6)), 2.2, (3.5, 1.5, 0.6), "half", "offbeat", "long"),
-    "paper": Style("Warm and light on its feet. Wooden plucks and a walking bass, for explainers.", (100, 116), MAJOR, (48, 50, 53), ((1, 4, 5, 1), (1, 6, 4, 5), (4, 5, 3, 6)), 2.4, (4.0, 0.9, 0.24), "half", "ticks", "walk", 0.12),
-    "night": Style("Dark and patient. Low chords and far-off bells, for case files.", (100, 106), DORIAN, (45, 46, 50), ((1, 7, 6, 7), (1, 4, 1, 7), (6, 7, 1, 1)), 2.6, (1.41, 3.0, 1.1), "heart", "none", "long"),
-    "bright": Style("Up and open. Short stabs and a straight kick, for ads.", (118, 125), MIXOLYDIAN, (48, 50, 52, 55), ((1, 7, 4, 1), (1, 4, 5, 4), (4, 1, 7, 4)), 1.5, (1.0, 1.3, 0.2), "four", "offbeat", "pulse"),
+    "pulse": Style(
+        "Driving and modern. A held pulse under a bright motif, for launches.",
+        (112, 124),
+        MINOR,
+        (45, 47, 48, 50),
+        ((1, 6, 3, 7), (1, 4, 6, 5), (6, 4, 1, 7)),
+        1.7,
+        (2.0, 2.4, 0.26),
+        "four",
+        "eighths",
+        "pulse",
+    ),
+    "glass": Style(
+        "Airy and exact. Bell plucks over soft chords, for calm products.",
+        (100, 112),
+        LYDIAN,
+        (48, 50, 52),
+        ((1, 5, 6, 4), (1, 2, 6, 5), (4, 1, 5, 6)),
+        2.2,
+        (3.5, 1.5, 0.6),
+        "half",
+        "offbeat",
+        "long",
+    ),
+    "paper": Style(
+        "Warm and light on its feet. Wooden plucks and a walking bass, for explainers.",
+        (100, 116),
+        MAJOR,
+        (48, 50, 53),
+        ((1, 4, 5, 1), (1, 6, 4, 5), (4, 5, 3, 6)),
+        2.4,
+        (4.0, 0.9, 0.24),
+        "half",
+        "ticks",
+        "walk",
+        0.12,
+    ),
+    "night": Style(
+        "Dark and patient. Low chords and far-off bells, for case files.",
+        (100, 106),
+        DORIAN,
+        (45, 46, 50),
+        ((1, 7, 6, 7), (1, 4, 1, 7), (6, 7, 1, 1)),
+        2.6,
+        (1.41, 3.0, 1.1),
+        "heart",
+        "none",
+        "long",
+    ),
+    "bright": Style(
+        "Up and open. Short stabs and a straight kick, for ads.",
+        (118, 125),
+        MIXOLYDIAN,
+        (48, 50, 52, 55),
+        ((1, 7, 4, 1), (1, 4, 5, 4), (4, 1, 7, 4)),
+        1.5,
+        (1.0, 1.3, 0.2),
+        "four",
+        "offbeat",
+        "pulse",
+    ),
 }
 TYPE_STYLE = {"launch": "pulse", "explainer": "paper", "demo": "glass", "ad": "bright", "gauge": "paper", "case": "night", "line": "paper", "music": "pulse"}
 
@@ -199,7 +255,7 @@ def grid(scenes: list[dict[str, Any]], *, style: str = "pulse", seed: int = 1, t
     low, high = chosen.tempo
     wanted = float(tempo) if tempo else float(rng.uniform(low, high))
     lengths = [float(scene["end"] - scene["start"]) for scene in scenes]
-    bpm, counts = fit_tempo(lengths, *( (int(tempo), int(tempo)) if tempo else (low, high)), wanted)
+    bpm, counts = fit_tempo(lengths, *((int(tempo), int(tempo)) if tempo else (low, high)), wanted)
     beats: list[float] = []
     sections = []
     for scene, seconds, count in zip(scenes, lengths, counts, strict=True):
@@ -255,7 +311,9 @@ def _energy(scene: dict[str, Any], index: int, count: int) -> float:
     return float(value) / 10
 
 
-def compose(scenes: list[dict[str, Any]], total: float, *, style: str = "pulse", seed: int = 1, tempo: float | None = None, hero: float | None = None, silences: Any = ()) -> tuple[np.ndarray, dict[str, Any]]:
+def compose(
+    scenes: list[dict[str, Any]], total: float, *, style: str = "pulse", seed: int = 1, tempo: float | None = None, hero: float | None = None, silences: Any = ()
+) -> tuple[np.ndarray, dict[str, Any]]:
     """The piece as stereo floats, and what it is."""
     chosen = pick(style)
     rng = np.random.default_rng(seed)
@@ -386,7 +444,7 @@ def compose(scenes: list[dict[str, Any]], total: float, *, style: str = "pulse",
         begin, end = round(float(span["from"]) * RATE), round(float(span["to"]) * RATE)
         ramp = int(0.02 * RATE)
         fall[begin - ramp : begin] = np.minimum(fall[begin - ramp : begin], np.linspace(1, 0.012, ramp))
-        fall[begin : end] = 0.012
+        fall[begin:end] = 0.012
         fall[end : end + ramp] = np.linspace(0.012, 1, len(fall[end : end + ramp]))
     out *= fall[:, None]
     release = min(int(0.35 * RATE), mix.count)
@@ -434,7 +492,7 @@ def seed_of(name: str) -> int:
 
 def sound_print(samples: np.ndarray, bpm: float) -> list[float]:
     """A short fingerprint: which notes, how bright, how the level moves, and how fast. Two films with near prints sound alike."""
-    mono = samples.mean(axis=1)[:: 4]
+    mono = samples.mean(axis=1)[::4]
     rate = RATE / 4
     size = 8192
     hop = size // 2

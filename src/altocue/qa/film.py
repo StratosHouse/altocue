@@ -147,16 +147,26 @@ def phone_read(project: Project, line: dict[str, Any], frames: list[Path], times
                 needed = hold_needed(len(wanted.split()))
                 held = seconds >= needed
                 if not hits:
-                    report.append({"scene": scene["id"], "text": wanted, "passed": False, "role": role, "detail": "not read in the still: it may be cut off, faint or mid-move"})
+                    report.append(
+                        {"scene": scene["id"], "text": wanted, "passed": False, "role": role, "detail": "not read in the still: it may be cut off, faint or mid-move"}
+                    )
                     continue
                 biggest = max(hits, key=lambda hit: hit["box"][3])
                 x, y, w, h = biggest["box"]
                 pad = h * 0.15
-                measured = measure_text(still, [x * width - pad * width, y * height - pad * height, w * width + 2 * pad * width, h * height + 2 * pad * height], min(width, height))
+                measured = measure_text(
+                    still, [x * width - pad * width, y * height - pad * height, w * width + 2 * pad * width, h * height + 2 * pad * height], min(width, height)
+                )
                 sizes = read_size(width, height, measured["font_px"])
                 floor = TEXT_FLOORS.get(role or "", 0)
                 wanted_contrast = MIN_CONTRAST if role in TEXT_FLOORS else BODY_CONTRAST
-                ok = sizes["phone_px"] >= PHONE_FLOOR and sizes["player_px"] >= PLAYER_FLOOR and measured["font_px"] >= floor and measured["contrast"] >= wanted_contrast and held
+                ok = (
+                    sizes["phone_px"] >= PHONE_FLOOR
+                    and sizes["player_px"] >= PLAYER_FLOOR
+                    and measured["font_px"] >= floor
+                    and measured["contrast"] >= wanted_contrast
+                    and held
+                )
                 detail = f"{measured['font_px']:g} px at 1080, {sizes['phone_px']:g} px on a phone, contrast {measured['contrast']:g}:1, up {seconds:.1f} s of {needed:.1f} s needed"
                 report.append({"scene": scene["id"], "text": wanted, "role": role, "passed": bool(ok), "detail": detail, **measured, **sizes})
     return {"rows": report}
@@ -168,7 +178,9 @@ def frame_stats(path: Path) -> dict[str, Any]:
     width, height = clip.display_size
     tall = max(2, int(round(ANALYSIS_WIDTH * height / width / 2)) * 2)
     size = ANALYSIS_WIDTH * tall
-    process = subprocess.Popen([ffmpeg.require(), "-v", "error", "-i", str(path), "-vf", f"scale={ANALYSIS_WIDTH}:{tall}:flags=area,format=gray", "-f", "rawvideo", "-"], stdout=subprocess.PIPE)
+    process = subprocess.Popen(
+        [ffmpeg.require(), "-v", "error", "-i", str(path), "-vf", f"scale={ANALYSIS_WIDTH}:{tall}:flags=area,format=gray", "-f", "rawvideo", "-"], stdout=subprocess.PIPE
+    )
     means, spreads, steps, skips = [], [], [], []
     before = before2 = first = None
     assert process.stdout is not None
@@ -245,11 +257,18 @@ def loop_seam(stats: dict[str, Any], median: float) -> dict[str, Any]:
     step, count = stats["step"], stats["count"]
     ratio = stats["seam"] / (median + 1e-6)
     speed = (step[count - 1] + 0.05) / (step[1] + 0.05) if count > 3 else 1.0
-    return {"seam": round(stats["seam"], 3), "seam_vs_median": round(float(ratio), 2), "speed_ratio": round(float(speed), 2), "passed": bool((ratio <= 2.0 or stats["seam"] < 0.5) and 0.5 <= speed <= 2.0)}
+    return {
+        "seam": round(stats["seam"], 3),
+        "seam_vs_median": round(float(ratio), 2),
+        "speed_ratio": round(float(speed), 2),
+        "passed": bool((ratio <= 2.0 or stats["seam"] < 0.5) and 0.5 <= speed <= 2.0),
+    }
 
 
 def levels(path: Path, *, rate: int = 16000) -> tuple[np.ndarray, int, int]:
-    done = subprocess.run([ffmpeg.require(), "-v", "error", "-i", str(path), "-map", "0:a:0", "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"], capture_output=True, check=True)
+    done = subprocess.run(
+        [ffmpeg.require(), "-v", "error", "-i", str(path), "-map", "0:a:0", "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"], capture_output=True, check=True
+    )
     samples = np.frombuffer(done.stdout, np.float32)
     window, hop = int(0.1 * rate), int(0.05 * rate)
     if samples.size < window:
@@ -272,7 +291,16 @@ def planned_silences(path: Path, planned: list[dict[str, float]]) -> list[dict[s
         inside = [trace[k] for k in range(len(trace)) if k * hop / rate >= begin and (k * hop + window) / rate <= end]
         if inside:
             loudest = float(max(inside))
-            report.append({"from": begin, "to": end, "loudest_db": round(loudest, 1), "under_loud_db": round(top - loudest, 1), "limit_db": round(limit, 1), "passed": loudest < limit})
+            report.append(
+                {
+                    "from": begin,
+                    "to": end,
+                    "loudest_db": round(loudest, 1),
+                    "under_loud_db": round(top - loudest, 1),
+                    "limit_db": round(limit, 1),
+                    "passed": loudest < limit,
+                }
+            )
     return report
 
 
@@ -306,25 +334,49 @@ def report_rows(path: Path, line: dict[str, Any], *, loop: bool = False) -> tupl
         rows.append({"level": level, "check": name, "detail": detail})
 
     zero = found["frame_zero"] or {"mean": 0, "contrast": 0}
-    add("FAIL" if zero["contrast"] < FRAME_ZERO_CONTRAST or zero["mean"] < FRAME_ZERO_MEAN else "PASS", "frame 0", f"mean {zero['mean']}, contrast {zero['contrast']}. Thumbnails and muted autoplay show this frame.")
+    add(
+        "FAIL" if zero["contrast"] < FRAME_ZERO_CONTRAST or zero["mean"] < FRAME_ZERO_MEAN else "PASS",
+        "frame 0",
+        f"mean {zero['mean']}, contrast {zero['contrast']}. Thumbnails and muted autoplay show this frame.",
+    )
     add("WARN" if found["pops"] else "PASS", "pops", f"small spikes at {found['pops']}: intended hits, or glitches?" if found["pops"] else "none")
     for stretch in found["frozen"]:
         add("PASS" if stretch["to_end"] else "FAIL", "dead air", f"{stretch['from']} to {stretch['to']} s has no motion")
     if not found["frozen"]:
         add("PASS", "dead air", "nothing stops for a second or more")
     flat = found["flat_seconds"]
-    add("WARN" if flat else "PASS", "motion curve", f"flat seconds at {flat}" if flat else f"every second moves, from {min(found['motion_curve'])} to {max(found['motion_curve'])} of 255")
+    add(
+        "WARN" if flat else "PASS",
+        "motion curve",
+        f"flat seconds at {flat}" if flat else f"every second moves, from {min(found['motion_curve'])} to {max(found['motion_curve'])} of 255",
+    )
     planned = [scene["start"] for scene in line["scenes"][1:]] if line.get("route") == "montage" else []
     compared = compare_cuts(found["cuts"], planned, stats["fps"])
     if compared:
-        add("PASS" if compared["max_error_frames"] <= 1 and not compared["missing"] else "FAIL", "cuts against plan", f"worst {compared['max_error_frames']} frames off, missing {compared['missing']}, unplanned {compared['unplanned']}")
+        add(
+            "PASS" if compared["max_error_frames"] <= 1 and not compared["missing"] else "FAIL",
+            "cuts against plan",
+            f"worst {compared['max_error_frames']} frames off, missing {compared['missing']}, unplanned {compared['unplanned']}",
+        )
     if loop:
         seam = loop_seam(stats, found["median_step"])
-        add("PASS" if seam["passed"] else "FAIL", "loop seam", f"seam {seam['seam']} of 255, {seam['seam_vs_median']} times the median step, speed ratio {seam['speed_ratio']}")
+        add(
+            "PASS" if seam["passed"] else "FAIL",
+            "loop seam",
+            f"seam {seam['seam']} of 255, {seam['seam_vs_median']} times the median step, speed ratio {seam['speed_ratio']}",
+        )
     measured = flash.measure(path)
-    add("PASS" if measured["passed"] else "FAIL", "flash limit", f"{measured['peak_per_second']:g} flashes in the worst second, limit {measured['limit']} (WCAG 2.2, 2.3.1)")
+    add(
+        "PASS" if measured["passed"] else "FAIL",
+        "flash limit",
+        f"{measured['peak_per_second']:g} flashes in the worst second, limit {measured['limit']} (WCAG 2.2, 2.3.1)",
+    )
     for entry in planned_silences(path, line.get("silences") or []):
-        add("PASS" if entry["passed"] else "FAIL", "planned silence", f"{entry['from']:.2f} to {entry['to']:.2f} s peaks at {entry['loudest_db']} dBFS, needs under {entry['limit_db']}")
+        add(
+            "PASS" if entry["passed"] else "FAIL",
+            "planned silence",
+            f"{entry['from']:.2f} to {entry['to']:.2f} s peaks at {entry['loudest_db']} dBFS, needs under {entry['limit_db']}",
+        )
     return rows, found
 
 

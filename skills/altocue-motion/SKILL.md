@@ -49,6 +49,16 @@ Rules of thumb, not findings, apart from reading time.
 - **Keep the picture moving, about every 2 to 4 seconds after the hook,** and a cut counts. No study shows viewers leave if nothing changes that often, so pace to the content.
 - **End on the last useful point.** Keep the end card short.
 
+## Make it feel alive
+
+For drawn figures, cursors and cameras:
+
+- **Never teleport.** Everything arrives from somewhere and leaves for somewhere.
+- **Parts turn on real pivots.** An arm swings from the shoulder, and the forearm follows from the elbow.
+- **Trailing parts lag.** Offset each joint by a couple of frames, so a limb bends through a move.
+- **One main action, two or three small idle loops.** A breath, a blink, a slow sway. Keep them small, or they read as a tremble.
+- **Do not stop at a pose.** Ordinary eased keys stop dead at each one. `kit.flow` in `motion/formats/kit.py` draws a curve through several poses with its speed intact, and `kit.flow_easing` gives the same curve as a CSS `linear()` easing. It never overshoots a pose. The film camera uses this.
+
 ## Brand
 
 Point `[brand] name` at a JSON file. It only needs what differs:

@@ -111,4 +111,3 @@ def study(path: str | Path, *, read_text: bool = True) -> dict[str, Any]:
         if reason:
             card["text_note"] = reason
     return card
-

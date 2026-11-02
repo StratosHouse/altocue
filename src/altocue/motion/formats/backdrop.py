@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import random
+import re
 import struct
 import zlib
 from typing import Any
@@ -14,6 +15,7 @@ GLYPHS = ("·", ":", "+", "#")
 ASCII_COLUMNS = 96
 ASCII_ROWS = 44
 GRAIN_TILE = 160
+HEX = re.compile(r"#[0-9a-fA-F]{6}")
 
 
 def _seeded(item: dict[str, Any]) -> random.Random:
@@ -26,10 +28,12 @@ def _dot_grid(item: dict[str, Any]) -> str:
 
 
 def _soft_gradient(item: dict[str, Any]) -> str:
-    places = ((16, 22, 62, 0), (82, 28, 56, 1), (58, 88, 70, 2))
+    places = ((14, 20, 66, 0), (86, 30, 72, 1), (56, 92, 80, 2))
     rng = _seeded(item)
+    tones = [tone for tone in str(item.get("tones", "")).split(",") if HEX.fullmatch(tone.strip())]
+    paint = "".join(f"--tone{index}:{tone.strip()};" for index, tone in enumerate(tones[:3]))
     blobs = "".join(f'<i class="b{tone}" style="--x:{x + rng.uniform(-6, 6):.1f}%;--y:{y + rng.uniform(-6, 6):.1f}%;--r:{r}%;--t:{-rng.uniform(0, 9):.2f}s"></i>' for x, y, r, tone in places)
-    return f'<div class="wash">{blobs}</div>'
+    return f'<div class="wash" style="{paint}">{blobs}</div>'
 
 
 def _png_noise(seed: int) -> str:
@@ -111,8 +115,8 @@ FORMATS = (
         summary="Slow pools of brand colour drift and blend behind everything.",
         group="backdrop",
         jobs=("explain",),
-        slots=(Slot("seed", kind="number", required=False),),
-        example={"seed": 3},
+        slots=(Slot("seed", kind="number", required=False), Slot("tones", kind="path", required=False)),
+        example={"seed": 3, "tones": "#5b4bff,#ff8a5c"},
         draw=_soft_gradient,
         seconds=8.0,
         shortest=1.0,
@@ -126,9 +130,9 @@ FORMATS = (
 .f-soft_gradient{overflow:hidden;background:linear-gradient(170deg,color-mix(in srgb,var(--surface) 72%,var(--panel)),var(--panel) 62%)}
 .f-soft_gradient .wash{position:absolute;inset:-10%}
 .f-soft_gradient i{position:absolute;display:block;left:var(--x);top:var(--y);width:calc(var(--r) * 1.5);aspect-ratio:1;translate:-50% -50%;border-radius:50%;animation:sgdrift 17s ease-in-out var(--t) infinite alternate}
-.f-soft_gradient .b0{background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 34%,transparent),transparent)}
-.f-soft_gradient .b1{background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 16%,color-mix(in srgb,var(--surface) 70%,transparent)),transparent);animation-duration:23s}
-.f-soft_gradient .b2{background:radial-gradient(closest-side,color-mix(in srgb,var(--ink) 9%,transparent),transparent);animation-duration:29s}
+.f-soft_gradient .b0{background:radial-gradient(closest-side,color-mix(in srgb,var(--tone0,var(--accent)) 46%,transparent),transparent)}
+.f-soft_gradient .b1{background:radial-gradient(closest-side,color-mix(in srgb,var(--tone1,var(--surface)) 34%,transparent),transparent);animation-duration:23s}
+.f-soft_gradient .b2{background:radial-gradient(closest-side,color-mix(in srgb,var(--tone2,var(--ink)) 11%,transparent),transparent);animation-duration:29s}
 @keyframes sgdrift{from{transform:translate3d(-7%,-4%,0) scale(.94)}to{transform:translate3d(9%,6%,0) scale(1.1)}}
 """,
     ),

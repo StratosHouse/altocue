@@ -16,23 +16,22 @@ SILHOUETTE_POSES = ("walk", "wave", "point")
 
 
 def _count(start: int, end: int, begin: float, finish: float) -> str:
-    """A counter as a stack of values, each shown for its slice of time. It eases down, fast then slow, and lands exactly."""
-    cells = []
+    """A counter as a stack of values, each shown for its slice of time. It eases down and lands exactly as the last card ticks."""
     span = max(finish - begin, 0.1)
-    last = 0
-    values = []
+    direction = 1 if end >= start else -1
+    values: list[tuple[int, float]] = []
     for step in range(COUNT_STEPS + 1):
         share = step / COUNT_STEPS
-        eased = 1 - (1 - share) ** 2.4
-        values.append((round(start + (end - start) * eased), begin + span * share))
+        value = round(start + (end - start) * (1 - (1 - share) ** 1.6))
+        if step < COUNT_STEPS and (end - value) * direction <= 0:
+            value = end - direction  # the last value belongs to the last moment
+        if not values or value != values[-1][0]:
+            values.append((value, begin + span * share if step else 0.0))
+    cells = []
     for index, (value, at) in enumerate(values):
-        leave = values[index + 1][1] if index + 1 < len(values) else None
-        if value == last and index:
-            continue
-        last = value
-        out = f";--o:{leave:.3f}s" if leave is not None else ";--o:9999s"
-        cells.append(f'<b class="n" style="--t:{at if index else 0:.3f}s{out}">{value:,}</b>')
-    return f'<span class="ct">{"".join(cells)}</span>'
+        leave = values[index + 1][1] if index + 1 < len(values) else 99999.0
+        cells.append(f'<b class="n" style="--t:{at:.3f}s;--o:{leave:.3f}s">{value:,}</b>')
+    return f'<span class="ct" data-layout-allow-overlap>{"".join(cells)}</span>'
 
 
 def _work_cascade(item: dict[str, Any]) -> str:
@@ -146,7 +145,7 @@ $ .ct{position:relative;display:inline-block;min-width:2.4ch;height:1.15em;line-
 $ .n{position:absolute;right:0;top:0;font-weight:inherit;opacity:0;animation:wcon .01s linear var(--t) forwards,wcoff .01s linear var(--o) forwards}
 $ .list{display:flex;flex-direction:column;gap:12u}
 $ .row{position:relative;display:flex;align-items:center;gap:20u;min-height:84u;padding:0 24u;border-radius:22u;overflow:hidden;background:color-mix(in srgb,var(--ink) 5%,transparent);animation:wcrow .5s cubic-bezier(.16,1,.3,1) calc(.08s + var(--i) * .06s) both,wcglow .9s ease-out var(--t) both,wcdone .5s ease-out var(--n) both}
-$ .txt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:32u;font-weight:500;letter-spacing:-.015em}
+$ .txt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:35u;font-weight:500;letter-spacing:-.015em}
 $ .tag{flex:none;padding:6u 16u;border-radius:99u;font-size:23u;font-style:normal;font-weight:500;color:var(--soft);background:color-mix(in srgb,var(--ink) 7%,transparent)}
 $ .st{position:relative;flex:none;width:40u;height:40u;border-radius:50%;box-shadow:0 0 0 2.5u color-mix(in srgb,var(--ink) 22%,transparent) inset}
 $ .st u{position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--accent) 0 28%,transparent 0);-webkit-mask-image:radial-gradient(closest-side,transparent 66%,#000 68%);opacity:0;animation:wcspin .7s linear var(--t) infinite,wcshow .15s linear var(--t) both,wchide .1s linear var(--n) forwards}

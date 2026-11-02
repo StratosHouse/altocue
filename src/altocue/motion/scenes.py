@@ -21,8 +21,6 @@ from .html import base_css, item_html, root_tokens
 PANEL_WIDTH = 880.0  # what a panel format fills at full scale
 SAMPLES = 36
 SOFT_DRIFT = 0.018
-LINK_SECONDS = {"through": 0.6, "dive": 0.8, "pan": 0.6, "rise": 0.6, "dissolve": 0.5}
-WIPE_SECONDS = {"iris": 1.0, "white_flash": 0.8, "shape_match": 1.1, "shutter": 0.9, "curtain": 1.0, "torn_wipe": 1.0}
 WORLD_DRIFT = 0.012  # scale added each scene, so the backdrop never settles
 WORLD_KICK = 0.05  # and a little more when the camera goes through a cut
 SHUTTER = 180
@@ -31,8 +29,8 @@ SHUTTER = 180
 ZONES = {
     "wide": {
         "center": (0.14, 0.12, 0.86, 0.88),
-        "left": (0.06, 0.12, 0.47, 0.88),
-        "right": (0.5, 0.08, 0.95, 0.92),
+        "left": (0.05, 0.12, 0.45, 0.88),
+        "right": (0.46, 0.06, 0.97, 0.94),
         "top": (0.14, 0.05, 0.86, 0.46),
         "bottom": (0.14, 0.54, 0.86, 0.95),
         "full": (0.05, 0.06, 0.95, 0.94),
@@ -64,7 +62,6 @@ ZONES = {
 FILM_CSS = """
 .ground{position:absolute;inset:0;background:var(--panel)}
 .world,.cam,.over{position:absolute;inset:0;transform-origin:50% 50%}
-.cam{backface-visibility:hidden}
 .cam .bg{display:none}
 .zone{display:flex;flex-direction:column;justify-content:center}
 .zone.mid{align-items:center;text-align:center}
@@ -97,6 +94,8 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     fmt = formats.find(item["type"])
     area = fmt.area if fmt else ("full" if item["type"] in ("title", "endcard", "composition", "footage") else "panel")
     named = item.get("zone")
+    if item["type"] == "composition":
+        return {**item, "width": size[0], "height": size[1]}
     if area == "edge" or (area == "full" and not named):
         return item
     zone = str(named or "center")
@@ -113,7 +112,7 @@ def _link(scene: dict[str, Any]) -> dict[str, Any]:
     link = scene.get("link") or {}
     made = {"type": link} if isinstance(link, str) else dict(link)
     kind = made.setdefault("type", "cut")
-    made.setdefault("seconds", LINK_SECONDS.get(kind, WIPE_SECONDS.get(kind, 0.0)))
+    made.setdefault("seconds", storyboard.LINK_SECONDS.get(kind, storyboard.WIPE_SECONDS.get(kind, 0.0)))
     return made
 
 
@@ -249,12 +248,16 @@ def camera_css(scene: dict[str, Any], spans: dict[str, Any]) -> str:
     poses: list[tuple[float, dict[str, float]]] = []
     if lap_in:
         poses.append((begin - lap_in, _entry(first, arrive)))
+        if arrive["type"] == "through":
+            poses.append((begin - 0.02, {**_entry(first, arrive), "scale": first["scale"] * 0.84, "opacity": 0.0}))  # the two scenes pass each other, they do not stack
         poses.append((begin + lap_in, first))
     else:
         poses.append((begin, first))
     poses += inner
     if lap_out:
         poses.append((end - lap_out, last))
+        if leave["type"] == "through":
+            poses.append((end + 0.02, {**last, "scale": last["scale"] * 1.26, "opacity": 0.0}))
         poses.append((end + lap_out, _exit(last, leave)))
     else:
         poses.append((end, last))

@@ -9,4 +9,6 @@ These steps work for a person or for a coding agent. Ask before running anything
 5. **Confirm.** `altocue doctor` lists what is ready and how to fix what is not.
 6. **Get the skills.** The Claude Code plugin brings them. Anywhere else, clone the repo: `skills/altocue/SKILL.md` explains the workflow, and the tools have their own skills beside it.
 
+**Making a launch video?** There is a dedicated feature for it, and it needs no footage: `altocue launch my-launch --product "Name"`, guided by the `altocue-launch` skill. It takes a brief through to a finished film with its 9:16 and 1:1 cutdowns.
+
 The first transcription downloads a speech model, about 2.5 GB on Apple Silicon.

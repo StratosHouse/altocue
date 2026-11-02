@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import difflib
 import math
+import random
 import re
 from typing import Any
 
 from ...errors import AltocueError
 from . import Format, Slot, kit
 
+CURSOR_DWELL = 0.22  # a hand arrives, then presses
 UNIT = re.compile(r"(?<![\w.#-])(-?\d*\.?\d+)u\b")
 KEYWORDS = frozenset(
     "and as async await break case catch class const continue def default del do elif else except export extends false False finally fn for from func function if import in "
@@ -66,18 +68,29 @@ def _typed(text: str, start: float, span: float) -> tuple[str, float]:
 
 
 def _pointer(start: tuple[float, float], stops: list[tuple[float, float, float]], *, travel: float = 0.56, leave: tuple[float, float, float] | None = None) -> str:
-    """The pointer moves on nested wrappers: X and Y on different curves, so it arcs like a hand, one pair per stop. Coordinates are at full scale."""
+    """The pointer rides a curve to each stop and waits a beat before it presses, the way a hand does.
+
+    Each leg is its own offset path with a seeded bend, so a render never changes and two legs never bend alike.
+    Coordinates are at full scale. The press happens at each stop's time, so the click sound can land on it.
+    """
     inner = f'<b class="glyph">{POINTER}</b>'
     for _, _, at in stops:
         inner = f'<div class="press" style="--t:{at:.3f}s">{inner}</div>'
     px, py = start
-    for x, y, at in stops:
-        go = max(at - travel, 0.0)
-        inner = f'<div class="mx" style="--d:{x - px:.1f};--t:{go:.3f}s;--n:{travel:.3f}s"><div class="my" style="--d:{y - py:.1f};--t:{go:.3f}s;--n:{travel:.3f}s">{inner}</div></div>'
-        px, py = x, y
+    legs: list[tuple[float, float, float, float]] = [(x, y, at, CURSOR_DWELL) for x, y, at in stops]
     if leave:
-        x, y, at = leave
-        inner = f'<div class="mx" style="--d:{x - px:.1f};--t:{at:.3f}s;--n:.7s"><div class="my" style="--d:{y - py:.1f};--t:{at:.3f}s;--n:.7s">{inner}</div></div>'
+        legs.append((leave[0], leave[1], leave[2], 0.0))
+    for index, (x, y, at, dwell) in enumerate(legs):
+        dx, dy = x - px, y - py
+        distance = math.hypot(dx, dy) or 1.0
+        rng = random.Random(f"{start}{index}{x:.1f}{y:.1f}")
+        bend = distance * rng.uniform(0.12, 0.24) * rng.choice((-1, 1))
+        mid = rng.uniform(0.42, 0.62)
+        cx, cy = dx * mid - dy / distance * bend, dy * mid + dx / distance * bend
+        seconds = max(min(travel * (0.7 + distance / 1500), travel * 1.4), 0.24) if index < len(stops) else 0.7
+        go = max(at - seconds - dwell, 0.0) if index < len(stops) else at
+        inner = f"<div class=\"leg\" style=\"offset-path:path('M0 0Q{cx:.1f} {cy:.1f} {dx:.1f} {dy:.1f}');--t:{go:.3f}s;--n:{seconds:.3f}s\">{inner}</div>"
+        px, py = x, y
     return f'<div class="ptr" style="left:calc({start[0]:.1f}px * var(--scale));top:calc({start[1]:.1f}px * var(--scale))">{inner}</div>'
 
 
@@ -86,18 +99,16 @@ def _ripple(x: float, y: float, at: float) -> str:
 
 
 POINTER_CSS = """
-$ .ptr{position:absolute;width:0;height:0;margin:0;z-index:9}
-$ .mx,$ .my,$ .press{position:absolute;left:0;top:0;width:0;height:0}
-$ .mx{animation:pd-mx var(--n) cubic-bezier(.3,.05,.12,1) var(--t) both}
-$ .my{animation:pd-my var(--n) cubic-bezier(.5,0,.3,1) var(--t) both}
+$ .ptr{position:absolute;width:0;height:0;margin:0;z-index:9;transform:scale(var(--scale));transform-origin:0 0}
+$ .leg,$ .press{position:absolute;left:0;top:0;width:0;height:0}
+$ .leg{offset-rotate:0deg;offset-anchor:0 0;offset-distance:0%;animation:pd-leg var(--n) cubic-bezier(.45,.05,.2,1) var(--t) both}
 $ .press{animation:pd-press .22s ease-out calc(var(--t) - .08s) both}
-$ .glyph{position:absolute;left:-14u;top:-8u;display:block;width:72u;height:72u;filter:drop-shadow(0 8u 12u rgba(0,0,0,.5))}
+$ .glyph{position:absolute;left:-14px;top:-8px;display:block;width:72px;height:72px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.5))}
 $ .glyph svg{display:block;width:100%;height:100%}
 $ .glyph path{fill:var(--ink);stroke:var(--panel);stroke-width:3.4;stroke-linejoin:round}
 $ .rip{position:absolute;left:calc(var(--x) * 1px * var(--scale));top:calc(var(--y) * 1px * var(--scale));width:0;height:0;z-index:8}
 $ .rip{display:block;border-radius:50%;box-shadow:0 0 0 3u var(--accent);animation:pd-rip .62s cubic-bezier(.16,.7,.3,1) var(--t) both}
-@keyframes pd-mx{to{transform:translateX(calc(var(--d) * 1u))}}
-@keyframes pd-my{to{transform:translateY(calc(var(--d) * 1u))}}
+@keyframes pd-leg{from{offset-distance:0%}to{offset-distance:100%}}
 @keyframes pd-press{0%,100%{transform:none}45%{transform:scale(.82)}}
 @keyframes pd-rip{0%{opacity:0;width:0;height:0;margin:0}2%{opacity:1}100%{opacity:0;width:150u;height:150u;margin:-75u 0 0 -75u}}
 """
@@ -1372,7 +1383,7 @@ FORMATS = (
         draw=_logo_sting,
         seconds=2.2,
         shortest=1.4,
-        longest=5.0,
+        longest=8.0,
         area="full",
         tall=1080,
         sound="whoosh",

@@ -1,0 +1,251 @@
+{
+  "id": "music",
+  "name": "Music Cut",
+  "promise": "A brand film cut to the sections of a song, with every cut on the beat.",
+  "cost": "$0 with Altocue's score or a track you have rights to.",
+  "generation": "none",
+  "aspect": "16:9",
+  "fps": 30,
+  "default": "main",
+  "beats": [
+    "intro",
+    "verse",
+    "chorus",
+    "bridge",
+    "outro"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "rights"
+  ],
+  "formats": [
+    "word_swap",
+    "typewriter",
+    "ticker",
+    "word_slam",
+    "mask_rise",
+    "weight_flex"
+  ],
+  "notes": [
+    "Own words on screen only. Confirm the rights to any track you bring. With a track set, add \"snap\": true so cuts move to its beats."
+  ],
+  "brief": {
+    "example": true,
+    "company": "A short mood film for an invented coffee roaster.",
+    "audience": "Regulars",
+    "goal": "Share it",
+    "message": "Slow mornings, on purpose.",
+    "must_show": [
+      "slow mornings"
+    ],
+    "terms": [
+      "slow roast"
+    ],
+    "tone": "Warm and unhurried",
+    "rights": "Altocue's own score, so nothing to clear.",
+    "brand": {
+      "colors": {
+        "accent": "#ff5d73",
+        "panel": "#120b12",
+        "surface": "#221523"
+      }
+    },
+    "deliverables": [
+      "16:9",
+      "9:16"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Slow roast",
+        "route": "montage",
+        "clock": "music",
+        "hero": {
+          "scene": "chorus",
+          "offset": 0.2
+        },
+        "music": {
+          "style": "pulse",
+          "tempo": 120
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 12,
+            "tones": "#ff5d73,#5a2a8c,#ffb28a"
+          },
+          {
+            "type": "particle_field",
+            "seed": 7,
+            "count": 70
+          }
+        ],
+        "scenes": [
+          {
+            "id": "intro",
+            "beat": "intro",
+            "seconds": 4,
+            "verb": "open",
+            "energy": 3,
+            "carry": "the first word",
+            "link": {
+              "type": "dissolve",
+              "why": "The intro melts into the verse."
+            },
+            "camera": {
+              "move": "push",
+              "amount": 0.05
+            },
+            "items": [
+              {
+                "type": "mask_rise",
+                "lines": [
+                  "Slow",
+                  "*mornings*"
+                ],
+                "start": 0,
+                "zone": "center",
+                "role": "hook",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "verse",
+            "beat": "verse",
+            "seconds": 8,
+            "verb": "tell",
+            "energy": 5,
+            "carry": "the rhythm",
+            "shows": [
+              "slow mornings"
+            ],
+            "link": {
+              "type": "through",
+              "why": "The verse pushes into the chorus."
+            },
+            "camera": {
+              "move": "orbit",
+              "turn": 4,
+              "tilt": 3,
+              "amount": 0.04
+            },
+            "silences": [
+              {
+                "from": 7.4,
+                "to": 7.9
+              }
+            ],
+            "items": [
+              {
+                "type": "word_swap",
+                "lead": "Made for",
+                "words": [
+                  "first light",
+                  "cold hands",
+                  "long talks",
+                  "no hurry"
+                ],
+                "start": 0.2,
+                "duration": 7.6,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "chorus",
+            "beat": "chorus",
+            "seconds": 8,
+            "verb": "lift",
+            "energy": 9,
+            "carry": "the beat",
+            "link": {
+              "type": "through",
+              "why": "The chorus falls away into the bridge."
+            },
+            "camera": {
+              "move": "push",
+              "amount": 0.08
+            },
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "Roasted *slow.*",
+                "start": 0.0,
+                "duration": 3.9,
+                "zone": "center",
+                "align": "center",
+                "important": true
+              },
+              {
+                "type": "word_slam",
+                "text": "On *purpose.*",
+                "start": 4.0,
+                "zone": "center",
+                "align": "center",
+                "important": true
+              }
+            ],
+            "sound": [
+              {
+                "name": "boom",
+                "at": 0.05
+              }
+            ]
+          },
+          {
+            "id": "bridge",
+            "beat": "bridge",
+            "seconds": 6,
+            "verb": "turn",
+            "energy": 4,
+            "carry": "the last line",
+            "link": {
+              "type": "dissolve",
+              "why": "The bridge settles into the mark."
+            },
+            "camera": {
+              "move": "drift"
+            },
+            "items": [
+              {
+                "type": "typewriter",
+                "text": "Every bag, *by hand.*",
+                "start": 0.3,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "outro",
+            "beat": "outro",
+            "seconds": 4,
+            "verb": "land",
+            "energy": 6,
+            "camera": {
+              "move": "push",
+              "amount": 0.03
+            },
+            "items": [
+              {
+                "type": "logo_sting",
+                "text": "Slow Roast",
+                "label": "Invented roaster, for illustration",
+                "start": 0,
+                "duration": 4,
+                "role": "cta"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

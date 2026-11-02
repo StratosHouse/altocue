@@ -27,6 +27,10 @@ Run `altocue doctor --json`.
 - **Never claim a check you did not run.** If you could not see or hear something, say so.
 - **Never call a video finished until QA passes and the Editor in Chief has given a verdict.**
 
+## A launch video goes to `altocue-launch` first
+
+If anyone mentions a launch video, a product launch, a SaaS launch, a product video or a launch film, stop here and use the `altocue-launch` skill. It is the dedicated feature for this, needs no footage, and runs through to the finished film. Any other film with no footage goes to `altocue-film`.
+
 ## The workflow
 
 1. **Understand the job.** Get the clips and a one-line brief: what this is for, who it is for, and how long it should be. Ask only if you cannot infer it.
@@ -51,6 +55,8 @@ Run `altocue doctor --json`.
 
 | The user wants | Use |
 |---|---|
+| A launch video, product launch, SaaS launch, product video or launch film | `altocue-launch` |
+| An explainer, demo, ad cards or any film with no footage | `altocue-film` |
 | Remove pauses, ums, retakes | `altocue-cut` |
 | Better sound, less noise, no hum | `altocue-clean` |
 | Better colour, HDR phone footage, matching shots | `altocue-grade` |

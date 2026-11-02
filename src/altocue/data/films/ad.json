@@ -1,0 +1,192 @@
+{
+  "id": "ad",
+  "name": "Ad Card Set",
+  "promise": "One product becomes a set of ad cards in every shape, plus a short motion cut.",
+  "cost": "$0 for layouts.",
+  "generation": "optional",
+  "aspect": "9:16",
+  "fps": 30,
+  "default": "main",
+  "beats": [
+    "callout",
+    "proof",
+    "offer"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "offer"
+  ],
+  "formats": [
+    "diagram_labels",
+    "testimonial_card",
+    "star_fill",
+    "before_after",
+    "quiz_reveal",
+    "trust_strip",
+    "ticket_stub"
+  ],
+  "notes": [
+    "Never write a review, a result, a discount or a quote. Use only ones the person gives you. The sample card here is marked as a sample."
+  ],
+  "brief": {
+    "example": true,
+    "company": "Oatlight makes an invented reading lamp.",
+    "audience": "People who read in bed",
+    "goal": "Pre-orders",
+    "message": "Warm light that will not wake anyone.",
+    "must_show": [
+      "the warm setting"
+    ],
+    "terms": [
+      "warm setting"
+    ],
+    "tone": "Quiet and warm",
+    "offer": "Sample offer, replace it",
+    "brand": {
+      "colors": {
+        "accent": "#ffc65c",
+        "panel": "#14100a",
+        "surface": "#241c11"
+      }
+    },
+    "deliverables": [
+      "9:16",
+      "1:1",
+      "4:5"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Oatlight cards",
+        "route": "montage",
+        "clock": "music",
+        "hero": {
+          "scene": "proof",
+          "offset": 1.0
+        },
+        "music": {
+          "style": "bright"
+        },
+        "layers": {
+          "product": "Oatlight",
+          "cta": "Pre-order at oatlight.example"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 2,
+            "tones": "#ffb347,#6b3d10,#ffd98a"
+          },
+          {
+            "type": "particle_field",
+            "seed": 3,
+            "count": 50
+          }
+        ],
+        "scenes": [
+          {
+            "id": "hook",
+            "beat": "callout",
+            "seconds": 3,
+            "verb": "stop",
+            "energy": 5,
+            "carry": "the warm word",
+            "link": {
+              "type": "shutter",
+              "why": "A hard card change, like flipping through a set."
+            },
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "Read. *Nobody wakes.*",
+                "start": 0,
+                "zone": "center",
+                "align": "center",
+                "role": "hook",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "before",
+            "beat": "callout",
+            "seconds": 3.5,
+            "verb": "compare",
+            "energy": 6,
+            "carry": "the smaller number",
+            "shows": [
+              "the warm setting"
+            ],
+            "link": {
+              "type": "shutter",
+              "why": "The next card."
+            },
+            "items": [
+              {
+                "type": "before_after",
+                "before": "Harsh",
+                "after": "Warm",
+                "label": "The warm setting, sample photo to come",
+                "start": 0.1,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "proof",
+            "beat": "proof",
+            "seconds": 4,
+            "verb": "prove",
+            "energy": 8,
+            "carry": "the rating",
+            "silences": [
+              {
+                "from": 0.3,
+                "to": 0.8
+              }
+            ],
+            "link": {
+              "type": "shutter",
+              "why": "The next card."
+            },
+            "items": [
+              {
+                "type": "star_fill",
+                "rating": 4.8,
+                "label": "Sample rating, replace with a real one",
+                "start": 0.1,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "offer",
+            "beat": "offer",
+            "seconds": 4.5,
+            "verb": "ask",
+            "energy": 7,
+            "items": [
+              {
+                "type": "ticket_stub",
+                "title": "{{product}} *first batch*",
+                "label": "Sample offer",
+                "detail": "Replace with a real offer",
+                "stamp": "Soon",
+                "start": 0.1,
+                "zone": "center",
+                "role": "cta"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
