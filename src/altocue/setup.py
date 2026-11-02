@@ -21,6 +21,7 @@ HOME = Path.home() / ".altocue"
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--yes", "-y", action="store_true", help="Install everything without asking")
     parser.add_argument("--skip-denoiser", action="store_true")
+    parser.add_argument("--deep-filter", action="store_true", help="Fetch deep-filter even on a Mac with Apple voice isolation")
     parser.add_argument("--skip-renderer", action="store_true")
     parser.add_argument("--plugin", action="store_true", help="Also print the Claude Code plugin commands")
 
@@ -59,9 +60,12 @@ def install_renderer(yes: bool) -> None:
     print(f"Renderer installed at {target}")
 
 
-def install_denoiser(yes: bool) -> None:
-    from .clean import DEEP_FILTER_RELEASES, find_deep_filter
+def install_denoiser(yes: bool, even_on_a_mac: bool = False) -> None:
+    from .clean import DEEP_FILTER_RELEASES, find_deep_filter, find_isolator
 
+    if find_isolator() and not even_on_a_mac:
+        print("Apple voice isolation is built into this Mac, so nothing to download.")
+        return
     if find_deep_filter():
         print("deep-filter already installed.")
         return
@@ -93,7 +97,7 @@ def run(args: argparse.Namespace) -> int:
     if not args.skip_renderer:
         install_renderer(args.yes)
     if not args.skip_denoiser:
-        install_denoiser(args.yes)
+        install_denoiser(args.yes, even_on_a_mac=args.deep_filter)
     if args.plugin:
         print("\nIn Claude Code:\n  /plugin marketplace add StratosHouse/altocue\n  /plugin install altocue@altocue")
     print("\nRun `altocue doctor` to confirm.")

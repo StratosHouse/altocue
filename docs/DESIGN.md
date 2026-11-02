@@ -118,10 +118,13 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 
 ## Audio
 
-- **Denoise:** `deep-filter` when present, otherwise `afftdn`.
+- **Denoise:** Apple voice isolation where the Mac has it, otherwise `deep-filter`, otherwise `afftdn`. `audio.denoiser` overrides. A guard rejects any engine that takes speech.
 - **Hum:** measured by FFT, notched only when found.
+- **Phrases:** gain moves only under speech, up to +9 and -6 dB. Pauses stay at unity, so room tone and breaths are not pumped.
 - **Tone:** high-pass, gentle EQ, de-esser, compressor.
-- **Cuts:** short fades at every join so no clicks.
+- **Cuts:** short fades at every join so no clicks, and the clip's own room tone in any hole the voice leaves.
+- **Music:** ducks on a smooth ramp that starts before the word. Its own end lands on the last frame.
+- **No voice:** the music leads, effects are levelled against it, and fades are tight.
 - **Master:** two-pass `loudnorm`, then a true-peak limiter. Default -14 LUFS and -1.5 dBTP. The QA gate allows 0.5 dB above that, because AAC can overshoot a limiter.
 
 ## Colour
