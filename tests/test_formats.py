@@ -20,6 +20,8 @@ from altocue.timeline import resolve_items
 
 ALL = list(formats.load().values())
 WORDS = [{"text": "hello", "start": 1.0, "end": 1.4}, {"text": "runway", "start": 2.0, "end": 2.4}]
+SVG_TAGS = "svg|path|circle|rect|line|polyline|polygon|ellipse|g|text|textPath|use"
+UNSEEKED = re.compile(rf"(?:::(?:before|after)|(?:^|[\s>])(?:{SVG_TAGS})(?:[.:\[][^{{\s]*)?)\s*\{{[^}}]*animation", re.M)
 CLOCKS = re.compile(r"Date\.now|Math\.random|requestAnimationFrame|setTimeout|setInterval|performance\.now")
 
 
@@ -54,6 +56,12 @@ def test_a_format_is_time_pure_and_self_contained(fmt, brand):
     assert "<script" not in html and "gsap" not in html.lower() and not CLOCKS.search(html)
     assert not re.search(r"""(?:src|href)=["']?https?:""", body) and "url(http" not in html
     assert "%%" not in fmt.css
+
+
+@pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
+def test_animations_sit_on_html_elements(fmt):
+    """HyperFrames 0.8.222 seeks SVG and pseudo-element animations to film time, so they look finished in any clip after 0."""
+    assert not UNSEEKED.search(fmt.css), "Animate an HTML wrapper or a real span instead"
 
 
 @pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
