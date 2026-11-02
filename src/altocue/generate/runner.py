@@ -22,7 +22,7 @@ from ..errors import AltocueError
 from ..project import Project
 from . import store
 from .base import TERMINAL, Cost, CostLine, GenProvider, GenRequest, JobRef, JobStatus, Moderated, SubmitUnknown
-from .catalog import Catalog, credit_rate, load_catalog
+from .catalog import Catalog, catalog_for, credit_rate, load_catalog
 from .fal import FalProvider
 from .higgsfield import HiggsfieldProvider
 
@@ -42,11 +42,6 @@ def get_provider(name: str, catalog: Catalog, *, project: Project | None = None)
     if name == "higgsfield":
         return HiggsfieldProvider(catalog, project=project)
     raise AltocueError(f"Unknown provider {name}.", fix="Use fal or higgsfield.")
-
-
-def catalog_for(project: Project) -> Catalog:
-    chosen = project.setting("generate", "models", "")
-    return load_catalog(project.root / chosen if chosen else None)
 
 
 def open_run(project: Project, shots_file: str = "shots.json", provider: str | None = None) -> tuple[Review, GenProvider, Catalog]:

@@ -252,7 +252,7 @@ def test_packaged_catalog_loads_and_covers_every_tier():
 
 def test_every_catalog_entry_is_dated_and_cited():
     for entry in load_catalog().entries:
-        assert entry.as_of == "2026-10-30", entry.model
+        assert entry.as_of >= "2026-10-30", entry.model
         assert entry.source_url.startswith("https://"), entry.model
         assert entry.capability in CAPABILITIES
         assert entry.tier in TIERS

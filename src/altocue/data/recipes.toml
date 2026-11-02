@@ -1,0 +1,959 @@
+# Altocue recipe catalog. One entry per useful hosted command, so an agent can see
+# what a command makes, what it costs and what leaves the machine before it runs one.
+#
+# Written in our own words. Nothing here is copied from Higgsfield's hosted workflow
+# bundle or its skill text. The hosted bundle carries no licence we could find, so
+# its prompts and scripts never belong in this repo. Command names are facts, and
+# they are recorded so an agent can find them.
+#
+# Read from the Higgsfield MCP server on 2026-11-02, without spending.
+#
+# Cost fields:
+#   basis          quote     a live quote from the provider's own tool
+#                  stated    the provider's own text says so, with no quote run
+#                  observed  seen on a real run, which may be a single sample
+#                  estimate  a planning figure from a dated price file
+#                  unknown   no figure found. Never invent one
+#   as_of          the date of that figure, or of the check that found none
+#   fixed_credits  paid once per job
+#   per_second     credits a second, by resolution
+#   each_credits   credits per `each_unit`
+#
+# Upload fields:
+#   uploads_footage  true when the job needs the project's own media on Higgsfield.
+#                    These refuse until the project runs
+#                    `altocue generate --allow-upload higgsfield`.
+#   sends            what goes, in plain words
+#
+# Fallback, for a user with no Higgsfield account:
+#   none             say so plainly
+#   fal:<model>      a fal.ai model, checked against its page on `fallback_checked`
+#   format:<id>      a native motion format in src/altocue/motion/formats
+#   native:<cmd>     an Altocue stage that does the job
+#
+# `excluded` keeps a recipe out of `altocue recipes list` and refuses it at quote,
+# reserve and import. The entry stays so an agent knows why it was left out.
+
+schema = 1
+
+# Reel effects. They read a vertical talking clip and render at the spoken moment.
+# All seven run in Higgsfield's cloud sandbox, so even the free ones upload the clip.
+# They cover the first 60 seconds, at 1080x1920 and 30 fps, and they add their own
+# grain, grade and sound effects. Run them on the graded, uncaptioned picture with
+# --no-finish, then import the result as a new source, so Altocue's own caption,
+# mix and master stages still see it. Stacked, one matte is shared by all of them.
+
+[[recipe]]
+id = "text-behind"
+title = "Word behind the head"
+group = "reel"
+command = "/text-behind"
+makes = "Sets a spoken key word behind the speaker's head, as on a magazine cover."
+when = "A talking head needs one word to land hard and a card over the face would be wrong."
+inputs = ["one vertical talking clip", "a key word of up to 24 characters"]
+limits = "First 60 seconds. Up to 12 moments of 2.2 s each. The head should cover about a third of the word, never the feet of letters."
+enters_at = "finish"
+tool = "remove_background, then sandbox_exec"
+loader = "get_preset_instructions"
+load = "/text-behind"
+uploads_footage = true
+sends = "the clip, to Higgsfield's sandbox"
+basis = "observed"
+as_of = "2026-10-08"
+fixed_credits = 1
+cost_note = "One matte, seen once on a 10 s 720p clip. The price for a 60 s clip is unknown, and remove_background has no cost preflight."
+fallback = "none"
+fallback_note = "Needs a matte and a composite. Altocue has no composite stage yet, so a fal matte alone does not get there."
+
+[[recipe]]
+id = "freeze-frame"
+title = "Freeze with a cut-out and a name tag"
+group = "reel"
+command = "/freeze-frame"
+makes = "Holds the picture, drains the room of colour and lifts the speaker out with an outline and a name tag."
+when = "A speaker introduces a person, a role or a turning point and the reel needs a beat."
+inputs = ["one vertical talking clip", "a name of up to 24 characters", "a role"]
+limits = "First 60 seconds. Up to 8 moments of 2.5 s each."
+enters_at = "finish"
+tool = "remove_background, then sandbox_exec"
+loader = "get_preset_instructions"
+load = "/freeze-frame"
+uploads_footage = true
+sends = "the clip, to Higgsfield's sandbox"
+basis = "observed"
+as_of = "2026-10-08"
+fixed_credits = 1
+cost_note = "One matte, seen once on a 10 s 720p clip. The price for a 60 s clip is unknown, and remove_background has no cost preflight."
+fallback = "none"
+fallback_note = "Needs a matte and a composite. Altocue has no composite stage yet."
+
+[[recipe]]
+id = "over-the-shoulder"
+title = "Before and after cards beside the head"
+group = "reel"
+command = "/over-the-shoulder"
+makes = "Puts two stat cards behind the speaker with a small camera move, for a spoken comparison."
+when = "The speaker compares two numbers out loud and both are true."
+inputs = ["one vertical talking clip", "two values of up to 16 characters each"]
+limits = "First 60 seconds. Up to 6 moments of 2.8 s each. Show only numbers that were spoken."
+enters_at = "finish"
+tool = "remove_background, then sandbox_exec"
+loader = "get_preset_instructions"
+load = "/over-the-shoulder"
+uploads_footage = true
+sends = "the clip, to Higgsfield's sandbox"
+basis = "observed"
+as_of = "2026-10-08"
+fixed_credits = 1
+cost_note = "One matte, seen once on a 10 s 720p clip. The price for a 60 s clip is unknown, and remove_background has no cost preflight."
+fallback = "none"
+fallback_note = "Needs a matte and a composite. A native stat graphic beside the speaker gets part of the way, with no depth."
+
+[[recipe]]
+id = "tier-list"
+title = "Ranking board that fills as it is spoken"
+group = "reel"
+command = "/tier-list"
+makes = "Builds a live ranking board that fills as each item is named, in the speaker's own labels."
+when = "The speaker ranks things out loud."
+inputs = ["one vertical talking clip", "a topic", "up to 12 items, 4 to a tier, 1 to 8 rows"]
+limits = "First 60 seconds. Never invent a rank that was not spoken."
+enters_at = "finish"
+tool = "sandbox_exec"
+loader = "get_preset_instructions"
+load = "/tier-list"
+uploads_footage = true
+sends = "the clip, to Higgsfield's sandbox"
+basis = "stated"
+as_of = "2026-11-02"
+fixed_credits = 0
+cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
+fallback = "none"
+fallback_note = "A native format is planned on the v0.2 branch. Name it here once it exists."
+
+[[recipe]]
+id = "glass-graph"
+title = "Frosted card with a climbing line"
+group = "reel"
+command = "/glass-graph"
+makes = "Shows a frosted card with a line rising between two spoken numbers."
+when = "The speaker gives a from and a to, and the climb is the point."
+inputs = ["one vertical talking clip", "a title", "a from value", "a to value"]
+limits = "First 60 seconds. Up to 6 moments of 3 s each."
+enters_at = "finish"
+tool = "sandbox_exec"
+loader = "get_preset_instructions"
+load = "/glass-graph"
+uploads_footage = true
+sends = "the clip, to Higgsfield's sandbox"
+basis = "stated"
+as_of = "2026-11-02"
+fixed_credits = 0
+cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
+fallback = "none"
+fallback_note = "A native format is planned on the v0.2 branch. Name it here once it exists."
+
+[[recipe]]
+id = "captions"
+title = "Hosted word-synced captions"
+group = "reel"
+command = "/captions"
+makes = "Burns word-for-word animated captions into the clip in one of three looks."
+when = "Rarely. Altocue's own captions stay a separate layer and QA can read them."
+inputs = ["one vertical talking clip", "a look", "a colour", "a height", "words per page"]
+limits = "First 60 seconds. Burned in, so QA cannot match them to the transcript."
+enters_at = "finish"
+tool = "sandbox_exec"
+loader = "get_preset_instructions"
+load = "/captions"
+uploads_footage = true
+sends = "the clip, to Higgsfield's sandbox"
+basis = "stated"
+as_of = "2026-11-02"
+fixed_credits = 0
+cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
+fallback = "native:altocue caption"
+fallback_note = "Prefer this anyway. It is free, local and checked against the transcript."
+
+[[recipe]]
+id = "grade-wipe"
+title = "Raw to graded reveal"
+group = "reel"
+command = "/grade-wipe"
+makes = "Runs one wipe from the raw picture to a graded one, with labels."
+when = "A film about colour or editing wants to show the change."
+inputs = ["one vertical talking clip", "labels", "warmth, teal and vignette settings"]
+limits = "First 60 seconds. One wipe of 3 s. It grades on top of your grade, so run it on ungraded picture."
+enters_at = "finish"
+tool = "sandbox_exec"
+loader = "get_preset_instructions"
+load = "/grade-wipe"
+uploads_footage = true
+sends = "the clip, to Higgsfield's sandbox"
+basis = "stated"
+as_of = "2026-11-02"
+fixed_credits = 0
+cost_note = "No matte, so the workflow text says it costs no credits. No live quote was run."
+fallback = "none"
+fallback_note = "A native wipe format is planned on the v0.2 branch. Name it here once it exists."
+
+# Hosted workflows. Load each one by name. Three of these names look like slash
+# commands in the tool description and do not resolve: the server answers with its
+# unknown-token fallback, the agent carries on with ordinary generation, and the
+# workflow's truth gate is gone without a word.
+
+[[recipe]]
+id = "ugc-video"
+title = "Generated host film"
+group = "workflow"
+command = "ugc-video"
+makes = "Finishes a short vertical film with a generated host: a demo, unboxing, try-on, tutorial or website walk-through."
+when = "A demo is needed and no presenter can be filmed. The host shows and explains. The host is never a customer."
+inputs = ["a product photo", "an approved claims list, or a script of only what can be seen", "a length of 4 to 30 s"]
+limits = "A generated host may not say they bought, used or got results. QA turns that into FIX, and a label does not cure it."
+enters_at = "source"
+tool = "generate_image, generate_video"
+loader = "get_workflow_instructions"
+load = "ugc-video"
+slash_trap = true
+variants = ["review", "product", "unboxing", "try-on", "tutorial", "website"]
+synthetic = ["person", "voice"]
+truth_gate = true
+uploads_footage = true
+sends = "your product photos, and any reference images"
+basis = "estimate"
+as_of = "2026-10-08"
+fixed_credits = 9.12
+per_second = { "480p" = 3, "720p" = 7, "1080p" = 12 }
+cost_note = "Creator 0.12, board 6.5 and clean-up 2.5, plus the clip at the seedance_2_5 rate. Before any retries."
+fallback = "fal:bytedance/seedance-2.0/reference-to-video"
+fallback_checked = "2026-10-30"
+fallback_note = "Same rules, built by hand from fal stills and the Seedance 2.0 reference route in models.toml. No hosted truth gate, so the skill's own applies."
+
+[[recipe]]
+id = "ad-multiplier"
+title = "Ad variants from one ad"
+group = "workflow"
+command = "ad-multiplier"
+makes = "Edits or recreates a 4 to 30 s ad, or swaps only its hook or call to action and stitches it back."
+when = "A finished ad needs hook tests. Change one thing per variant."
+inputs = ["a finished ad of 4 to 30 s", "the new hook or call to action"]
+limits = "Its text steers casting towards attractive replacements and a different apparent race. Never automate casting. A person chooses."
+enters_at = "source"
+tool = "generate_video with ad_multiplier or ad_multiplier_v2"
+loader = "get_workflow_instructions"
+load = "ad-multiplier"
+slash_trap = true
+variants = ["edit", "recreate", "hook-swap", "cta-swap"]
+uploads_footage = true
+sends = "the finished ad"
+basis = "estimate"
+as_of = "2026-10-08"
+per_second = { "480p" = 3, "720p" = 7, "1080p" = 12 }
+cost_note = "These are the ad_multiplier rates. For ad_multiplier_v2 two figures conflict: 3.6, 8.4 and 14.4 in the price file, and the seedance_2_5 rate in the workflow text. It also needs a Pro plan or higher."
+fallback = "native:altocue cut"
+fallback_note = "Make the new hook clip, then cut it in by hand."
+
+[[recipe]]
+id = "faceless-video"
+title = "Faceless narrated channel film"
+group = "workflow"
+command = "faceless-video"
+makes = "Builds a narrated film with no presenter, in one of five channel types, in a non-photoreal look."
+when = "An explainer section needs pictures and no person."
+inputs = ["a topic or script"]
+enters_at = "insert"
+tool = "generate_video, generate_audio"
+loader = "get_workflow_instructions"
+load = "faceless-video"
+slash_trap = true
+uploads_footage = false
+sends = "your script, as text"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Priced by scene and narration. No total found."
+fallback = "native:altocue motion"
+fallback_note = "Native explainer graphics over your own voice."
+
+[[recipe]]
+id = "narration"
+title = "Narrator takes"
+group = "workflow"
+command = "narration"
+makes = "Records numbered voice takes or a long read, or puts an on-screen narrator from a photo."
+when = "A film needs a voice and nobody can record one."
+inputs = ["a script", "a voice", "a presenter photo for the on-screen mode"]
+limits = "Never time-stretch a take to fit. Rewrite the line."
+enters_at = "audio"
+tool = "generate_audio, generate_video"
+loader = "get_workflow_instructions"
+load = "narration"
+synthetic = ["voice"]
+uploads_footage = true
+sends = "the presenter photo, in the on-screen mode"
+basis = "estimate"
+as_of = "2026-10-08"
+each_credits = 2
+each_unit = "take"
+cost_note = "The seed_audio figure. The on-screen mode is priced by its video model and is not included."
+fallback = "none"
+
+[[recipe]]
+id = "character-sheet"
+title = "Consistent character sheet"
+group = "workflow"
+command = "character-sheet"
+makes = "Draws one character from several angles, so later shots hold the same face."
+when = "A generated person recurs, and the asset lock needs a reference."
+inputs = ["a description, or a reference image with consent"]
+enters_at = "still"
+tool = "generate_image"
+loader = "get_workflow_instructions"
+load = "character-sheet"
+synthetic = ["person"]
+uploads_footage = false
+sends = "your description. A reference image you attach also goes up, so opt in first"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Priced by the image model. No total found."
+fallback = "fal:fal-ai/nano-banana-2/edit"
+fallback_checked = "2026-10-30"
+fallback_note = "Build the sheet from stills by hand. See the asset lock in altocue-direct."
+
+[[recipe]]
+id = "product-photoshoot"
+title = "Product stills"
+group = "workflow"
+command = "product-photoshoot"
+makes = "Shoots a product photo into one of ten still styles, keeping the label intact."
+when = "An insert or a cover needs a clean product still."
+inputs = ["a product photo"]
+enters_at = "still"
+tool = "generate_image with nano_banana_pro"
+loader = "get_workflow_instructions"
+load = "product-photoshoot"
+uploads_footage = true
+sends = "your product photo"
+basis = "estimate"
+as_of = "2026-10-08"
+each_credits = 2
+each_unit = "image at 2k"
+cost_note = "The nano_banana_pro 2k figure."
+fallback = "fal:fal-ai/nano-banana-2/edit"
+fallback_checked = "2026-10-30"
+fallback_note = "Fewer looks, and label fidelity is on you."
+
+[[recipe]]
+id = "thumbnail-generation"
+title = "Thumbnail frameworks"
+group = "workflow"
+command = "thumbnail-generation"
+makes = "Draws a cover in one of sixteen thumbnail frameworks."
+when = "A long video needs a designed cover and a real frame will not do."
+inputs = ["a topic", "a frame or a face, with consent"]
+enters_at = "still"
+tool = "generate_image with nano_banana_pro"
+loader = "get_workflow_instructions"
+load = "thumbnail-generation"
+uploads_footage = true
+sends = "the frame or face you supply"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Runs at 4k, and only the 2k price of the model was found."
+fallback = "fal:fal-ai/nano-banana-2"
+fallback_checked = "2026-10-30"
+
+# Galleries and studios. Browsing is free and never authorises a run.
+
+[[recipe]]
+id = "marketing-studio"
+title = "Marketing Studio"
+group = "gallery"
+command = "/marketing-studio"
+makes = "Opens 649 ad and product templates, including host, unboxing, how-to, review, TV spot and try-on modes."
+when = "A product ad wants a ready template. Any mode with a person is a generated host, under the same rules."
+inputs = ["a product photo", "a template", "optionally an avatar"]
+limits = "The widget shows its own price. Quote before you spend, and treat any host as synthetic."
+enters_at = "source"
+tool = "show_marketing_studio_v2, get_presets, execute_preset"
+loader = "get_presets"
+load = "source:marketing_studio"
+variants = ["ugc", "ugc_how_to", "ugc_unboxing", "product_showcase", "product_review", "tv_spot", "wild_card", "ugc_virtual_try_on", "virtual_try_on"]
+synthetic = ["person", "voice"]
+truth_gate = true
+uploads_footage = true
+sends = "your product photos"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Priced per preset. No preset prices found."
+fallback = "fal:fal-ai/nano-banana-2/edit"
+fallback_checked = "2026-10-30"
+fallback_note = "Far smaller. Our own prompts on fal stills, with no templates."
+
+[[recipe]]
+id = "viral-effects"
+title = "Viral effect chains"
+group = "gallery"
+command = "/effects"
+makes = "Runs one of 87 preset effect chains on a clip or still."
+when = "A pattern break is wanted and the look is more important than control."
+inputs = ["a clip or still"]
+enters_at = "insert"
+tool = "get_presets, execute_preset"
+loader = "get_presets"
+load = "source:viral"
+uploads_footage = true
+sends = "the clip or still"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Priced per preset. No preset prices found."
+fallback = "none"
+
+[[recipe]]
+id = "motion-gallery"
+title = "Motion graphics gallery"
+group = "gallery"
+command = "/motion"
+makes = "Offers 231 generated motion templates across hypermotion, mixed media, 2D and SaaS styles."
+when = "A brand wants a generated motion look and a native format will not do."
+inputs = ["a product or screen", "a template"]
+enters_at = "insert"
+tool = "get_presets, execute_preset"
+loader = "get_presets"
+load = "source:marketing_studio, category:motion"
+uploads_footage = true
+sends = "your product image or screen"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Priced per preset. No preset prices found."
+fallback = "native:altocue motion"
+fallback_note = "Native formats are original CSS and need no upload."
+
+[[recipe]]
+id = "product-gallery"
+title = "Product shot gallery"
+group = "gallery"
+command = "/product"
+makes = "Offers 418 product shot templates, 54 of them with people."
+when = "A product shot wants a ready template. Templates with people are generated people."
+inputs = ["a product photo", "a template"]
+enters_at = "still"
+tool = "get_presets, execute_preset"
+loader = "get_presets"
+load = "source:marketing_studio, category:product-shot"
+uploads_footage = true
+sends = "your product photo"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Priced per preset. No preset prices found."
+fallback = "fal:fal-ai/nano-banana-2/edit"
+fallback_checked = "2026-10-30"
+
+[[recipe]]
+id = "product-stills"
+title = "Fixed product still recipes"
+group = "gallery"
+command = "/hero-shot and 44 more"
+makes = "Turns one product photo into a fixed look, such as a hero shot, a flat lay or an in-hand shot."
+when = "A product insert needs one reliable look, with the label held exactly."
+inputs = ["one product photo"]
+limits = "They keep the label and add no claims or prices. Their master prompts stay out of chat."
+enters_at = "still"
+tool = "generate_image"
+loader = "get_preset_instructions"
+load = "/hero-shot"
+uploads_footage = true
+sends = "your product photo"
+basis = "observed"
+as_of = "2026-10-13"
+each_credits = 2.75
+each_unit = "image"
+cost_note = "Seen once on /hero-shot with gpt_image_2_5 at 2k. Other recipes may differ."
+fallback = "fal:fal-ai/nano-banana-2/edit"
+fallback_checked = "2026-10-30"
+
+[[recipe]]
+id = "product-motion"
+title = "Fixed product motion recipes"
+group = "gallery"
+command = "/product-spin and 17 more"
+makes = "Moves a product shot in one fixed way, such as a spin, a macro glide or a whip pan."
+when = "A cutaway needs the product to move and stock has nothing."
+inputs = ["one product still"]
+enters_at = "insert"
+tool = "generate_video"
+loader = "get_preset_instructions"
+load = "/product-spin"
+uploads_footage = true
+sends = "your product still"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Billed at the rate of whichever video model the recipe locks. Quote with get_cost."
+fallback = "fal:bytedance/seedance-2.0/image-to-video"
+fallback_checked = "2026-10-30"
+
+[[recipe]]
+id = "seasonal-portrait"
+title = "Seasonal portrait clips"
+group = "gallery"
+command = "/vampire-castle and 16 more"
+makes = "Turns a portrait into a short Halloween clip."
+when = "A seasonal post, with the consent of whoever is in the portrait."
+inputs = ["one portrait, with consent"]
+enters_at = "source"
+tool = "generate_video"
+loader = "get_preset_instructions"
+load = "/vampire-castle"
+uploads_footage = true
+sends = "the portrait"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "Billed at the rate of whichever video model the recipe locks. Quote with get_cost."
+fallback = "none"
+
+[[recipe]]
+id = "restyle"
+title = "Restyle a clip"
+group = "gallery"
+command = "/genjutsu"
+makes = "Repaints a 4 to 30 s clip in one of 20 styles, keeping its motion."
+when = "A clip should read as another medium."
+inputs = ["a clip of 4 to 30 s", "a style"]
+enters_at = "source"
+tool = "get_presets, generate_video"
+loader = "get_preset_instructions"
+load = "/genjutsu"
+uploads_footage = true
+sends = "the clip"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "The widget quotes it. No figure was recorded."
+fallback = "none"
+
+[[recipe]]
+id = "shorts-studio"
+title = "Longer restyle"
+group = "gallery"
+command = "shorts_studio_create"
+makes = "Restyles a 4 to 120 s clip at 720p."
+when = "A restyle runs past the 30 s limit of the other route."
+inputs = ["a clip of 4 to 120 s", "a style preset"]
+enters_at = "source"
+tool = "shorts_studio_create"
+loader = "tool"
+load = "shorts_studio_list_presets"
+uploads_footage = true
+sends = "the clip"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "The tool has a cost preflight. No figure was recorded."
+fallback = "none"
+
+[[recipe]]
+id = "what-if-shorts"
+title = "What-if shorts"
+group = "gallery"
+command = "/content-factory"
+makes = "Draws an animated what-if short of about 60 s in code, in one of 56 styles."
+when = "A channel wants a drawn short with no footage at all."
+inputs = ["a premise", "a style"]
+enters_at = "source"
+tool = "sandbox_exec, generate_audio"
+loader = "get_preset_instructions"
+load = "/content-factory"
+uploads_footage = false
+sends = "your premise, as text"
+basis = "estimate"
+as_of = "2026-10-08"
+each_credits = 0.23
+each_unit = "30 characters of voiceover"
+cost_note = "Only the voiceover is billed. This is the elevenlabs_v4 figure."
+fallback = "none"
+
+[[recipe]]
+id = "3d-scene"
+title = "Hosted 3D scene"
+group = "gallery"
+command = "/3d-jutsu"
+makes = "Builds a hosted 3D scene, then renders camera angles or video from it."
+when = "A location needs new camera angles that were never shot."
+inputs = ["a brief", "optionally photos of a location"]
+limits = "AI renders from the scene spend credits. Scene edits were not priced in what we read."
+enters_at = "insert"
+tool = "scene_builder_3d_create_project and related tools"
+loader = "get_preset_instructions"
+load = "/3d-jutsu"
+uploads_footage = true
+sends = "any location photos you attach"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "AI renders are billed. No figure found."
+fallback = "none"
+
+[[recipe]]
+id = "polish"
+title = "One fixed image edit"
+group = "gallery"
+command = "/polish"
+makes = "Applies one fixed edit to an image."
+when = "A generated still has one flaw and is otherwise right."
+inputs = ["an image"]
+enters_at = "still"
+tool = "generate_image"
+loader = "get_preset_instructions"
+load = "/polish"
+uploads_footage = true
+sends = "the image"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "It spends credits. Quote with get_cost."
+fallback = "none"
+
+[[recipe]]
+id = "ai-influencer"
+title = "Designed generated person"
+group = "gallery"
+command = "ai_influencer_prepare"
+makes = "Designs a reusable generated person and quotes it before it is made."
+when = "A series needs the same generated host. That host is still never a customer."
+inputs = ["a description", "trait choices"]
+enters_at = "still"
+tool = "ai_influencer_prepare, then ai_influencer_generate"
+loader = "tool"
+load = "ai_influencer_prepare"
+synthetic = ["person"]
+truth_gate = true
+uploads_footage = false
+sends = "your description"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "The prepare step quotes it. No figure was recorded."
+fallback = "none"
+
+# Single tools.
+
+[[recipe]]
+id = "seedance-insert"
+title = "One generated clip"
+group = "tool"
+command = "generate_video with seedance_2_5"
+makes = "Generates one 4 to 30 s clip from a prompt, or from approved stills."
+when = "A single insert, where identity must hold. Tiers map to the mcp routes in models.toml."
+inputs = ["a prompt", "approved stills as references"]
+enters_at = "insert"
+tool = "generate_video"
+loader = "tool"
+load = "models_explore, with action get"
+uploads_footage = true
+sends = "the reference stills"
+basis = "estimate"
+as_of = "2026-10-08"
+per_second = { "480p" = 3, "720p" = 7, "1080p" = 12 }
+cost_note = "Planning rates from a price file marked historical. Use get_cost for the real figure. A draft is 3 a second and can be finalised within seven days."
+fallback = "fal:bytedance/seedance-2.0/image-to-video"
+fallback_checked = "2026-10-30"
+
+[[recipe]]
+id = "talking-head"
+title = "Own-voice talking head"
+group = "tool"
+command = "generate_video with intone"
+makes = "Animates one character image in one location to a recorded voice, for 4 to 30 s."
+when = "A presenter needs to speak real words in their own recorded voice."
+inputs = ["one character image", "one location image", "a voice recording, with consent"]
+enters_at = "source"
+tool = "generate_video"
+loader = "tool"
+load = "models_explore, with action get"
+synthetic = ["person"]
+truth_gate = true
+uploads_footage = true
+sends = "the images and the voice recording"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "fal:veed/fabric-1.0"
+fallback_checked = "2026-11-02"
+
+[[recipe]]
+id = "motion-transfer"
+title = "Motion transfer"
+group = "tool"
+command = "generate_video with hf_mult_motion_control"
+makes = "Moves a character image the way a driving clip moves."
+when = "A performance exists, and it needs a different body or character. Needs consent from whoever performed it."
+inputs = ["a character image", "a driving clip"]
+limits = "Billed on the length of the driving clip. The server steers away from the older motion_control tool."
+enters_at = "source"
+tool = "generate_video"
+loader = "get_preset_instructions"
+load = "/genjutsu"
+uploads_footage = true
+sends = "the driving clip and the character image"
+basis = "estimate"
+as_of = "2026-10-08"
+per_second = { "480p" = 3, "720p" = 7, "1080p" = 11 }
+fallback = "fal:fal-ai/kling-video/v3/pro/motion-control"
+fallback_checked = "2026-11-02"
+
+[[recipe]]
+id = "object-replace"
+title = "Replace an object in a clip"
+group = "tool"
+command = "generate_video with hf_mult_replace_object"
+makes = "Swaps one object in a clip for another."
+when = "A prop or product in a good take is wrong."
+inputs = ["a clip", "an image of the new object"]
+limits = "Billed on the length of the clip."
+enters_at = "source"
+tool = "generate_video"
+loader = "get_preset_instructions"
+load = "/genjutsu"
+uploads_footage = true
+sends = "the clip and the object image"
+basis = "estimate"
+as_of = "2026-10-08"
+per_second = { "480p" = 3, "720p" = 7, "1080p" = 11 }
+fallback = "none"
+
+[[recipe]]
+id = "reframe"
+title = "Outpaint to a new shape"
+group = "tool"
+command = "reframe"
+makes = "Paints new picture around a clip of up to 60 s to reach a new aspect ratio."
+when = "A crop would cut the subject. Crop first, because a crop is free."
+inputs = ["a clip of up to 60 s", "a target aspect"]
+enters_at = "source"
+tool = "reframe"
+loader = "tool"
+load = "reframe"
+uploads_footage = true
+sends = "the clip"
+basis = "estimate"
+as_of = "2026-10-08"
+per_second = { "480p" = 3.6, "720p" = 5.1, "1080p" = 9.6 }
+cost_note = "The tool has a cost preflight, so use it."
+fallback = "native:altocue frame"
+fallback_note = "Crops, with no painted edges."
+
+[[recipe]]
+id = "upscale"
+title = "Upscale a clip"
+group = "tool"
+command = "upscale_video"
+makes = "Upscales a clip with ByteDance or Topaz models."
+when = "A generated clip is sharp enough in motion and too small for delivery."
+inputs = ["a clip", "a preset such as ugc or aigc"]
+limits = "No cost preflight, so a quote before spending is not possible."
+enters_at = "source"
+tool = "upscale_video"
+loader = "tool"
+load = "upscale_video"
+uploads_footage = true
+sends = "the clip"
+basis = "estimate"
+as_of = "2026-10-08"
+per_second = { "1080p" = 0.02, "2k" = 0.04, "4k" = 0.08 }
+cost_note = "These are the standard bytedance_video_upscale rates. The pro rate is ten times these."
+fallback = "fal:fal-ai/bytedance-upscaler/upscale/video"
+fallback_checked = "2026-11-02"
+fallback_note = "fal also lists fal-ai/topaz/upscale/video."
+
+[[recipe]]
+id = "upscale-image"
+title = "Upscale a still"
+group = "tool"
+command = "upscale_image"
+makes = "Upscales one image."
+when = "A still is right and too small."
+inputs = ["an image"]
+enters_at = "still"
+tool = "upscale_image"
+loader = "tool"
+load = "upscale_image"
+uploads_footage = true
+sends = "the image"
+basis = "unknown"
+as_of = "2026-11-02"
+cost_note = "The tool has a cost preflight. No figure was recorded."
+fallback = "none"
+
+[[recipe]]
+id = "matte"
+title = "Background matte"
+group = "tool"
+command = "remove_background"
+makes = "Cuts the speaker out of the background."
+when = "A composite needs a matte. The reel effects run this for you."
+inputs = ["a clip"]
+limits = "No cost preflight."
+enters_at = "finish"
+tool = "remove_background"
+loader = "tool"
+load = "remove_background"
+uploads_footage = true
+sends = "the clip"
+basis = "observed"
+as_of = "2026-10-08"
+fixed_credits = 1
+cost_note = "Seen once, on a 10 s 720p clip. The price on longer clips is unknown."
+fallback = "fal:bria/video/background-removal"
+fallback_checked = "2026-11-02"
+fallback_note = "fal also lists veed/video-background-removal/fast."
+
+[[recipe]]
+id = "dubbing"
+title = "Dub into another language"
+group = "tool"
+command = "dubbing"
+makes = "Dubs a clip into any of 18 languages, with lip-sync."
+when = "A finished film needs another language. Dub before caption and master."
+inputs = ["a clip", "a target language"]
+limits = "No cost preflight. Needs consent from whoever is speaking."
+enters_at = "source"
+tool = "dubbing"
+loader = "tool"
+load = "dubbing"
+uploads_footage = true
+sends = "the clip, with its voice"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "fal:fal-ai/elevenlabs/dubbing"
+fallback_checked = "2026-11-02"
+
+[[recipe]]
+id = "voice-change"
+title = "Change a voice"
+group = "tool"
+command = "voice_change"
+makes = "Replaces the voice in a clip and keeps the timing."
+when = "A delivery is right and the voice must change. Needs consent from both voices."
+inputs = ["a clip", "a target voice"]
+limits = "No cost preflight."
+enters_at = "source"
+tool = "voice_change"
+loader = "tool"
+load = "voice_change"
+synthetic = ["voice"]
+uploads_footage = true
+sends = "the clip, with its voice"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "none"
+
+# Left out on purpose. Each entry says why, so an agent does not reach for it.
+
+[[recipe]]
+id = "katana"
+title = "Reference remix"
+group = "workflow"
+command = "katana"
+makes = "Remixes a reference edit into a new film."
+when = "Not by default."
+inputs = ["a reference video"]
+enters_at = "source"
+tool = "get_workflow_instructions, generate_video"
+loader = "get_workflow_instructions"
+load = "katana"
+uploads_footage = true
+sends = "the reference video"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "none"
+excluded = "Its text tells the agent not to ask questions or seek consent, including for spending credits. That breaks the spend gate."
+
+[[recipe]]
+id = "sync-agents"
+title = "Agent sync"
+group = "tool"
+command = "sync_agents"
+makes = "Uploads your skills and a personality summary to Higgsfield."
+when = "Never."
+inputs = ["your agent's skills"]
+enters_at = "source"
+tool = "sync_agents"
+loader = "tool"
+load = "sync_agents"
+uploads_footage = true
+sends = "your skills and a summary of how you work"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "none"
+excluded = "It sends the user's skills and a personality dump to a third party. Altocue must never call it."
+
+[[recipe]]
+id = "virality-score"
+title = "Virality prediction"
+group = "tool"
+command = "virality_predictor"
+makes = "Scores a clip's hook, attention and retention."
+when = "Never as a gate."
+inputs = ["a clip"]
+enters_at = "finish"
+tool = "virality_predictor"
+loader = "tool"
+load = "virality_predictor"
+uploads_footage = true
+sends = "the clip"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "none"
+excluded = "Altocue reports facts and benchmarks, not virality scores."
+
+[[recipe]]
+id = "hosted-edit"
+title = "Hosted editing and montage"
+group = "workflow"
+command = "video-editing, video-montage"
+makes = "Cuts, assembles and captions in Higgsfield's sandbox."
+when = "Never inside Altocue."
+inputs = ["clips"]
+enters_at = "finish"
+tool = "sandbox_exec"
+loader = "get_workflow_instructions"
+load = "video-editing"
+uploads_footage = true
+sends = "your clips"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "native:altocue run"
+excluded = "Altocue is the editor. A hosted edit skips the cut, the gates and the review."
+
+[[recipe]]
+id = "publishing"
+title = "Publishing tools"
+group = "tool"
+command = "tiktok_*, publish_*"
+makes = "Posts to TikTok and hosts pages."
+when = "Never from Altocue."
+inputs = ["a finished film"]
+enters_at = "finish"
+tool = "tiktok_prepare_publish, publish_project"
+loader = "tool"
+load = "tiktok_accounts"
+uploads_footage = true
+sends = "the finished film"
+basis = "unknown"
+as_of = "2026-11-02"
+fallback = "none"
+excluded = "Altocue stops at a finished file. Publishing is a person's decision."
+
+[[recipe]]
+id = "local-bridges"
+title = "Local app bridges"
+group = "tool"
+command = "/use-after-effects, /use-blender"
+makes = "Installs a local bridge to a desktop app."
+when = "Never from Altocue."
+inputs = ["a desktop app"]
+enters_at = "finish"
+tool = "get_preset_instructions"
+loader = "get_preset_instructions"
+load = "/use-after-effects"
+uploads_footage = false
+sends = "nothing, and it installs software on your machine"
+basis = "stated"
+as_of = "2026-11-02"
+fixed_credits = 0
+fallback = "none"
+excluded = "Its text says the command itself authorises installing software. Only the user can decide that."

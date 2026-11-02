@@ -49,8 +49,10 @@ class ModelEntry:
     usd_per_second: float | None = None
     usd_per_second_audio: float | None = None
     usd_per_image: float | None = None
+    credits_per_second: float | None = None
     price: str = ""
     note: str = ""
+    surface: str = ""
 
     def without_field(self, name: str) -> ModelEntry:
         return replace(self, fields={k: v for k, v in self.fields.items() if k != name})
@@ -114,8 +116,9 @@ class Catalog:
             raise AltocueError(f"Unknown provider {name}.", fix=f"Use one of {', '.join(sorted(self.providers))}.")
         return self.providers[name]
 
-    def find(self, provider: str, tier: str, capability: str) -> ModelEntry | None:
-        return next((e for e in self.entries if (e.provider, e.tier, e.capability) == (provider, tier, capability)), None)
+    def find(self, provider: str, tier: str, capability: str, *, surface: str = "") -> ModelEntry | None:
+        """Runs use the empty surface. A route marked `mcp` is for an agent, and Altocue only quotes and imports it."""
+        return next((e for e in self.entries if (e.provider, e.surface, e.tier, e.capability) == (provider, surface, tier, capability)), None)
 
     def resolve(self, provider: str, req: GenRequest) -> ModelEntry:
         """The one route for this request, or an error that says what would work."""
@@ -130,7 +133,7 @@ class Catalog:
         return entry
 
     def _suggest(self, provider: str, req: GenRequest, capability: str) -> str:
-        options = [e for e in self.entries if e.capability == capability and not e.limits(req)]
+        options = [e for e in self.entries if e.capability == capability and not e.surface and not e.limits(req)]
         others = [e for e in options if e.provider != provider]
         tiers = [e for e in options if e.provider == provider]
         if tiers:
@@ -184,10 +187,15 @@ def load_catalog(path: str | Path | None = None) -> Catalog:
     except tomllib.TOMLDecodeError as error:
         raise AltocueError(f"Cannot read {source}: {error}", fix="Fix the TOML syntax.") from error
     entries = [_entry(raw, source) for raw in data.get("model", [])]
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, str]] = set()
     for entry in entries:
-        route = (entry.provider, entry.tier, entry.capability)
+        route = (entry.provider, entry.surface, entry.tier, entry.capability)
         if route in seen:
-            raise AltocueError(f"{' '.join(route)} is routed twice in {source}.", fix="Keep one model per provider, tier and capability.")
+            raise AltocueError(f"{' '.join(filter(None, route))} is routed twice in {source}.", fix="Keep one model per provider, surface, tier and capability.")
         seen.add(route)
     return Catalog(entries=entries, providers=data.get("providers", {}), path=source)
+
+
+def catalog_for(project: Any) -> Catalog:
+    chosen = project.setting("generate", "models", "")
+    return load_catalog(project.root / chosen if chosen else None)
