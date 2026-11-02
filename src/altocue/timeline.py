@@ -99,7 +99,7 @@ def build(project: Project) -> dict[str, Any]:
     motion = json.loads(motion_file.read_text()) if motion_file.exists() else {}
     duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
     items, tail = resolve_items(motion.get("items", []), words, duration)
-    items = [compositions.resolve(project, item) if item["type"] == "composition" else item for item in items]
+    items = [compositions.resolve(project, item) if item["type"] == "composition" else formats.place_images(project.root, item) for item in items]
     width, height = project.size
     brand = brands.load(project)
     picture = next((path for path in (project.work / "plate.mp4", project.work / "plate-draft.mp4") if path.exists()), None)

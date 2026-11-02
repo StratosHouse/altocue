@@ -55,6 +55,9 @@ class HyperFramesRenderer:
         for font in formats.fonts_for(timeline["items"]):
             shutil.copy(data_path("fonts", formats.FONT_FILES[font]), stage / formats.FONT_FILES[font])
         compositions.install(timeline["items"], stage, install_dir())
+        for item in timeline["items"]:
+            for name, path in item.get("stage_images", {}).items():
+                shutil.copy(path, stage / name)
         (stage / "index.html").write_text(compose(timeline, brand))
         output = dest / ("overlay-draft.mov" if draft else "overlay.mov")
         fps = 15 if draft else timeline["fps"]

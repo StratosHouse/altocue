@@ -7,55 +7,21 @@ div, and the div's registered `--is-k` custom property drives the faces inside.
 
 from __future__ import annotations
 
-import hashlib
 import math
 from collections.abc import Iterable
-from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ...errors import AltocueError
 from . import Format, Slot, kit
 
 GROUNDS = ("dark", "light", "clear")
-IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".webp")
-IMAGE_SLOTS = {"iso_stack": "layers", "orbit_cards": "cards"}
 COS30 = math.cos(math.radians(30))
 UNIT = 100.0  # one grid cell, in the diorama's own coordinates
 Point = tuple[float, float]
 
 
-def stage_name(src: str) -> str:
-    """The name a project image gets beside the page. A hash of its path, so two folders' logo.png never collide."""
-    suffix = PurePosixPath(str(src)).suffix.lower()
-    return f"img-{hashlib.sha256(str(src).encode()).hexdigest()[:16]}{suffix}"
-
-
-def resolve(root: Path, item: dict[str, Any]) -> dict[str, Any]:
-    """Check every image a graphic names is a real picture inside the project, and note where it is."""
-    slot = IMAGE_SLOTS.get(item.get("type", ""))
-    if not slot or not any(isinstance(row, dict) and row.get("src") for row in item.get(slot) or []):
-        return item
-    rows = []
-    for row in item[slot]:
-        if isinstance(row, dict) and row.get("src"):
-            path = (root / str(row["src"])).resolve()
-            if not path.is_file() or not path.is_relative_to(root.resolve()):
-                raise AltocueError(f"{item['type']}: the image {row['src']} is not in this project.", fix="Point `src` at an image file inside the project.")
-            if path.suffix.lower() not in IMAGE_TYPES:
-                raise AltocueError(f"{item['type']}: {row['src']} is not an image this renderer can show.", fix=f"Use one of {', '.join(IMAGE_TYPES)}.")
-            row = {**row, "path": str(path)}
-        rows.append(row)
-    return {**item, slot: rows}
-
-
-def images(item: dict[str, Any]) -> list[tuple[str, str]]:
-    """Every project image a resolved graphic shows, as (file on disk, name on stage). The renderer copies these."""
-    slot = IMAGE_SLOTS.get(item.get("type", ""))
-    return [(row["path"], stage_name(row["src"])) for row in item.get(slot) or [] if isinstance(row, dict) and row.get("path")] if slot else []
-
-
 def _picture(row: dict) -> str:
-    return f'<img src="{kit.esc(stage_name(row["src"]))}" alt="">' if row.get("src") else ""
+    return f'<img src="{kit.esc(row["src"])}" alt="">' if row.get("src") else ""
 
 
 def _scoped(format_id: str, *parts: str) -> str:
