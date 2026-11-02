@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://github.com/StratosHouse/altocue"><img src="assets/social-preview.png" alt="Altocue. Raw footage in. Finished video out." width="100%"></a>
+  <a href="https://github.com/StratosHouse/altocue"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/social-preview.png" alt="Altocue. Raw footage in. Finished video out." width="100%"></a>
 
   <h1>Altocue</h1>
 
@@ -9,14 +9,14 @@
   <p>
     <a href="#install"><img src="https://img.shields.io/badge/Claude_Code-Plugin-b5f4d9?style=flat-square&labelColor=080d13" alt="Claude Code plugin"></a>
     <a href="#install"><img src="https://img.shields.io/badge/Codex-Skills-a5e7d1?style=flat-square&labelColor=080d13" alt="Codex skills"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-f3f7fa?style=flat-square&labelColor=080d13" alt="MIT licence"></a>
-    <a href="LICENSES.md"><img src="https://img.shields.io/badge/Team_licence_fees-None-f3f7fa?style=flat-square&labelColor=080d13" alt="No team licence fees"></a>
+    <a href="https://github.com/StratosHouse/altocue/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-f3f7fa?style=flat-square&labelColor=080d13" alt="MIT licence"></a>
+    <a href="https://github.com/StratosHouse/altocue/blob/main/LICENSES.md"><img src="https://img.shields.io/badge/Team_licence_fees-None-f3f7fa?style=flat-square&labelColor=080d13" alt="No team licence fees"></a>
     <a href="https://www.stratosagency.ai/altocue"><img src="https://img.shields.io/badge/Website-Altocue-b5f4d9?style=flat-square&labelColor=080d13" alt="Altocue website"></a>
     <a href="https://www.stratosagency.ai"><img src="https://img.shields.io/badge/by-Stratos_House-f3f7fa?style=flat-square&labelColor=080d13" alt="By Stratos House"></a>
   </p>
 </div>
 
-<div align="center"><img src="assets/demo.gif" alt="A raw talking-head take beside the finished Altocue edit" width="100%"></div>
+<div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/demo.gif" alt="A raw talking-head take beside the finished Altocue edit" width="100%"></div>
 
 <p align="center"><sub>The presenter is AI-generated with Higgsfield. The mistakes are planted. The edit is real.</sub></p>
 
@@ -47,9 +47,9 @@ altocue setup
 /plugin install altocue@altocue
 ```
 
-**In Codex:** clone this repo and ask Codex to follow [INSTALL.md](INSTALL.md). It reads the skills in `.agents/skills`.
+**In Codex:** clone this repo and ask Codex to follow [INSTALL.md](https://github.com/StratosHouse/altocue/blob/main/INSTALL.md). It reads the skills in `.agents/skills`.
 
-**Any other agent:** point it at [INSTALL.md](INSTALL.md) and `skills/altocue/SKILL.md`.
+**Any other agent:** point it at [INSTALL.md](https://github.com/StratosHouse/altocue/blob/main/INSTALL.md) and `skills/altocue/SKILL.md`.
 
 ## Use it
 
@@ -61,7 +61,7 @@ Edit take.mov into a 45 second reel for first-time founders.
 
 Or drive it yourself:
 
-<div align="center"><img src="assets/terminal.gif" alt="A terminal running every Altocue stage, ending in SHIP" width="100%"></div>
+<div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/terminal.gif" alt="A terminal running every Altocue stage, ending in SHIP" width="100%"></div>
 
 ```bash
 altocue new my-video --input take.mov --aspect 9:16 --brief "A reel for first-time founders"
@@ -75,28 +75,28 @@ altocue run
 
 <table>
   <tr>
-    <td width="33%"><img src="assets/logos/cut-tile.svg" width="56" alt=""><br><strong>Cut</strong><br>Silence, fillers, stutters and retakes go. Edges snap to real speech. No cut lands inside a word.</td>
-    <td width="33%"><img src="assets/logos/clean-tile.svg" width="56" alt=""><br><strong>Clean</strong><br>Noise and hum out, voices levelled, mastered to a measured loudness and true peak.</td>
-    <td width="33%"><img src="assets/logos/grade-tile.svg" width="56" alt=""><br><strong>Grade</strong><br>iPhone HDR to SDR. White balance and exposure anchored on the face. Skin comes first.</td>
+    <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/cut-tile.svg" width="56" alt=""><br><strong>Cut</strong><br>Silence, fillers, stutters and retakes go. Edges snap to real speech. No cut lands inside a word.</td>
+    <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/clean-tile.svg" width="56" alt=""><br><strong>Clean</strong><br>Noise and hum out, voices levelled, mastered to a measured loudness and true peak.</td>
+    <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/grade-tile.svg" width="56" alt=""><br><strong>Grade</strong><br>iPhone HDR to SDR. White balance and exposure anchored on the face. Skin comes first.</td>
   </tr>
   <tr>
-    <td><img src="assets/logos/frame-tile.svg" width="56" alt=""><br><strong>Frame</strong><br>Any aspect ratio. Face-aware crops per shot, with punch-ins that hide jump cuts.</td>
-    <td><img src="assets/logos/caption-tile.svg" width="56" alt=""><br><strong>Caption</strong><br>Word-by-word highlight. Never crosses a cut. Only shows words really said.</td>
-    <td><img src="assets/logos/motion-tile.svg" width="56" alt=""><br><strong>Motion</strong><br>Hooks, lower thirds, stats, steps and end cards, timed to speech and placed clear of faces.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/frame-tile.svg" width="56" alt=""><br><strong>Frame</strong><br>Any aspect ratio. Face-aware crops per shot, with punch-ins that hide jump cuts.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/caption-tile.svg" width="56" alt=""><br><strong>Caption</strong><br>Word-by-word highlight. Never crosses a cut. Only shows words really said.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/motion-tile.svg" width="56" alt=""><br><strong>Motion</strong><br>Hooks, lower thirds, stats, steps and end cards, timed to speech and placed clear of faces.</td>
   </tr>
   <tr>
-    <td><img src="assets/logos/direct-tile.svg" width="56" alt=""><br><strong>Direct</strong><br>Story shape, beats, keyframes and shot lists, with the craft rules built in.</td>
-    <td><img src="assets/logos/generate-tile.svg" width="56" alt=""><br><strong>Generate</strong><br>Inserts through Higgsfield and fal.ai, behind a spend gate. Every asset keeps its provenance.</td>
-    <td><img src="assets/logos/broll-tile.svg" width="56" alt=""><br><strong>B-roll</strong><br>Finds the spots that want a cutaway, then fills them from your clips, free stock or generation.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/direct-tile.svg" width="56" alt=""><br><strong>Direct</strong><br>Story shape, beats, keyframes and shot lists, with the craft rules built in.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/generate-tile.svg" width="56" alt=""><br><strong>Generate</strong><br>Inserts through Higgsfield and fal.ai, behind a spend gate. Every asset keeps its provenance.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/broll-tile.svg" width="56" alt=""><br><strong>B-roll</strong><br>Finds the spots that want a cutaway, then fills them from your clips, free stock or generation.</td>
   </tr>
   <tr>
-    <td colspan="3"><img src="assets/logos/review-tile.svg" width="56" alt=""><br><strong>Review</strong><br>A separate Editor in Chief scores the final. Code decides SHIP or FIX.</td>
+    <td colspan="3"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/review-tile.svg" width="56" alt=""><br><strong>Review</strong><br>A separate Editor in Chief scores the final. Code decides SHIP or FIX.</td>
   </tr>
 </table>
 
 ## How it works
 
-<div align="center"><img src="assets/flow.png" alt="Sources go through transcribe, cut, clean, grade, frame, B-roll, direct, generate, caption, motion, render, master, QA gates and the Editor in Chief. FIX notes loop back to the cut. Passes ship." width="100%"></div>
+<div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/flow.png" alt="Sources go through transcribe, cut, clean, grade, frame, B-roll, direct, generate, caption, motion, render, master, QA gates and the Editor in Chief. FIX notes loop back to the cut. Passes ship." width="100%"></div>
 
 Every stage reads and writes plain files, so you or your agent can step in anywhere. The picture and sound edit is built with ffmpeg. Graphics render as a transparent layer on top, so changing a caption never re-encodes the edit.
 
@@ -142,6 +142,6 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 
 ## Licence
 
-Altocue is [MIT](LICENSE). Every required dependency is open source, so a team of any size can use it with no licence fee. See [LICENSES.md](LICENSES.md).
+Altocue is [MIT](https://github.com/StratosHouse/altocue/blob/main/LICENSE). Every required dependency is open source, so a team of any size can use it with no licence fee. See [LICENSES.md](https://github.com/StratosHouse/altocue/blob/main/LICENSES.md).
 
-<div align="center"><br><a href="https://www.stratosagency.ai"><img src="assets/stratos-mark.png" width="32" alt=""></a><br><sub>A Stratos House product</sub></div>
+<div align="center"><br><a href="https://www.stratosagency.ai"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/stratos-mark.png" width="32" alt=""></a><br><sub>A Stratos House product</sub></div>

@@ -1,7 +1,7 @@
 {
   "name": "altocue",
   "displayName": "Altocue",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Edit raw footage into finished video from your coding agent.",
   "author": { "name": "Stratos House AI", "url": "https://www.stratosagency.ai" },
   "homepage": "https://github.com/StratosHouse/altocue",

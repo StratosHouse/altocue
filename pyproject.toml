@@ -1,9 +1,23 @@
 [project]
 name = "altocue"
-version = "0.1.0"
+version = "0.1.1"
 description = "Edit raw footage into finished video from your coding agent."
+readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+authors = [{ name = "Stratos House" }]
+keywords = ["video", "video-editing", "claude-code", "codex", "agent-skills", "ffmpeg", "captions", "b-roll"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Non-Linear Editor",
+]
 dependencies = [
     "numpy>=2.0",
     "pillow>=11",
@@ -15,6 +29,12 @@ dependencies = [
 [project.optional-dependencies]
 mlx-whisper = ["mlx-whisper>=0.4.3,<0.5; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 faster-whisper = ["faster-whisper>=1.2.1,<2"]
+
+[project.urls]
+Homepage = "https://www.stratosagency.ai/altocue"
+Repository = "https://github.com/StratosHouse/altocue"
+Changelog = "https://github.com/StratosHouse/altocue/blob/main/CHANGELOG.md"
+Issues = "https://github.com/StratosHouse/altocue/issues"
 
 [project.scripts]
 altocue = "altocue.cli:main"

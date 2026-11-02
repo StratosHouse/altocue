@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
 - Stock search leads with Pixabay, because Pexels has paused new API keys
+- Published to PyPI, so `uvx altocue` works
 
 ## 0.1.0
 
