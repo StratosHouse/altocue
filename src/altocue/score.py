@@ -525,7 +525,7 @@ def remember(film: str, info: dict[str, Any]) -> str | None:
     warning = None
     for row in rows:
         if row["film"] != film and likeness(row["print"], print_) >= SAME_SOUND:
-            warning = f"This score sounds close to the one in {row['film']} ({row['style']}, {row['bpm']:g} bpm). Change the style or the seed so the two films do not sound the same."
+            warning = f"This score sounds close to the one in {row['film']} ({row['style']}, {row['bpm']:g} bpm). Change the style or the seed so the films differ."
             break
     rows = [row for row in rows if row["film"] != film]
     rows.append({"film": film, "style": info["style"], "seed": info["seed"], "bpm": info["bpm"], "print": print_})

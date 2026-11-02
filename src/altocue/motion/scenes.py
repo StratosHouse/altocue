@@ -29,8 +29,8 @@ SHUTTER = 180
 ZONES = {
     "wide": {
         "center": (0.14, 0.12, 0.86, 0.88),
-        "left": (0.05, 0.12, 0.45, 0.88),
-        "right": (0.46, 0.06, 0.97, 0.94),
+        "left": (0.075, 0.12, 0.46, 0.88),
+        "right": (0.47, 0.07, 0.955, 0.93),
         "top": (0.14, 0.05, 0.86, 0.46),
         "bottom": (0.14, 0.54, 0.86, 0.95),
         "full": (0.05, 0.06, 0.95, 0.94),
@@ -268,7 +268,7 @@ def world_css(scenes: list[dict[str, Any]], total: float) -> str:
     """The backdrop keeps travelling for the whole film, and leans into every camera link."""
     poses: list[tuple[float, dict[str, float]]] = [(0.0, {"scale": 1.03, "x": 0.0})]
     scale, x = 1.03, 0.0
-    for scene, after in zip(scenes, scenes[1:], strict=False):
+    for scene in scenes[:-1]:
         link = _link(scene)
         cut, reach = scene["end"], max(link["seconds"] / 2, 0.25)
         scale += WORLD_DRIFT
@@ -315,7 +315,7 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
     """The same shape `altocue render` writes, so every later stage can read a film like any other project."""
     scenes = done["scenes"]
     total = done["total"]
-    items = [_place(item, size) for item in done["items"]]
+    items = [_place({**item, "fixed": item.get("fixed", item["type"] == "corner_stamp")}, size) for item in done["items"]]
     return {
         "width": size[0],
         "height": size[1],
@@ -336,6 +336,8 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
         "cues": done["cues"],
         "silences": done.get("silences", []),
         "hero": done.get("hero"),
+        "route": (board or {}).get("route"),
+        "loop": bool((board or {}).get("loop")),
     }
 
 
@@ -378,14 +380,16 @@ def compose(line: dict[str, Any], brand: Brand) -> str:
         fx, fy = _focus(scene, (width, height))
         inner = []
         for item in line["items"]:
-            if item["scene"] != scene["id"]:
+            if item["scene"] != scene["id"] or item.get("fixed"):
                 continue
             track += 1
             shown = {**item, "end": tail(scene, spans["lap_out"])} if item.get("hold") else item
             inner.append(_clip(shown, brand, track))
-        style = f"transform-origin:{fx * 100:.2f}% {fy * 100:.2f}%;animation:cam-{scene['id']} {spans['last'] - spans['first']:.3f}s linear {max(spans['first'], 0):.3f}s both"
+        seconds = spans["last"] - spans["first"]
+        style = f"transform-origin:{fx * 100:.2f}% {fy * 100:.2f}%;animation:cam-{scene['id']} {seconds:.3f}s linear {max(spans['first'], 0):.3f}s both"
         cameras.append(f'<div class="cam" id="cam-{escape(str(scene["id"]))}" style="{style}">\n' + "\n".join(inner) + "\n</div>")
-    for item in line.get("links", []):
+    fixed = [item for item in line["items"] if item.get("fixed")]
+    for item in [*fixed, *line.get("links", [])]:
         track += 1
         ahead.append(_clip(item, brand, track))
     tokens = root_tokens(line, brand, geo)

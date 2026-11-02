@@ -94,7 +94,7 @@ def _tracking_marks(item: dict[str, Any]) -> str:
     labels = list(item.get("labels") or [])
     count = max(len(labels), 3)
     points = []
-    for index in range(count):
+    for _ in range(count):
         points.append((rng.uniform(16, 84), rng.uniform(18, 82), rng.uniform(3, 7), rng.uniform(2, 6), rng.uniform(0, 6.28), rng.uniform(0.6, 1.2)))
     name = f"tm{int(item.get('seed', 5))}"
     span = max(kit.seconds(item), 0.5)

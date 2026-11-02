@@ -10,12 +10,15 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PIL import Image, ImageDraw, ImageFont
 
 from altocue import brand as brands
-from altocue import cli, film, flash, score, storyboard, study
+from altocue import cli, ffmpeg, film, flash, score, storyboard, study
 from altocue.errors import AltocueError
-from altocue.motion import formats, hyperframes, scenes
+from altocue.motion import compositions, formats, hyperframes, scenes
+from altocue.motion.formats import kit, product
 from altocue.project import Project
+from altocue.qa import film as film_qa
 
 REPO = Path(__file__).resolve().parents[1]
 TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music")
@@ -761,6 +764,229 @@ def test_a_strobe_breaks_the_flash_limit(tmp_path):
 def test_a_slow_pulse_stays_inside_the_flash_limit(tmp_path):
     found = flash.measure(strobe(tmp_path / "slow.mp4", 2))
     assert found["peak_per_second"] <= 3 and found["passed"]
+
+
+# Motion checks, each with a planted fault
+
+
+def clip_with(path: Path, source: str, seconds: float = 3.0) -> Path:
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            source,
+            "-t",
+            str(seconds),
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=220:sample_rate=48000:duration={seconds}",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            str(path),
+        ],
+        check=True,
+    )
+    return path
+
+
+MOVING = "testsrc2=size=320x180:rate=30"
+
+
+def line_for(**over) -> dict:
+    return {"scenes": [{"id": "a", "start": 0.0, "end": 3.0}], "silences": [], **over}
+
+
+def gate(rows: list[dict], name: str) -> dict:
+    return next(row for row in rows if row["id"] == name)
+
+
+def test_a_moving_film_passes_the_motion_gates(tmp_path):
+    rows = film_qa.gate_rows(clip_with(tmp_path / "ok.mp4", MOVING), line_for())
+    assert gate(rows, "frame_zero")["passed"] and gate(rows, "dead_air")["passed"] and gate(rows, "flash_rate")["passed"]
+
+
+def test_canary_a_black_first_frame_fails(tmp_path):
+    source = f"{MOVING},drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill:enable='lt(t,0.05)'"
+    rows = film_qa.gate_rows(clip_with(tmp_path / "black.mp4", source), line_for())
+    assert not gate(rows, "frame_zero")["passed"]
+
+
+def test_canary_dead_air_in_the_middle_fails(tmp_path):
+    source = "testsrc2=size=320x180:rate=30,split[fa][fb];[fa][fb]freezeframes=first=20:last=70:replace=20[out0]"
+    rows = film_qa.gate_rows(clip_with(tmp_path / "held.mp4", source), line_for())
+    assert not gate(rows, "dead_air")["passed"]
+
+
+def test_canary_a_strobe_fails_the_flash_gate(tmp_path):
+    rows = film_qa.gate_rows(strobe(tmp_path / "fast.mp4", 6), line_for())
+    assert not gate(rows, "flash_rate")["passed"]
+
+
+def test_canary_a_planned_silence_with_sound_in_it_fails(tmp_path):
+    rows = film_qa.gate_rows(clip_with(tmp_path / "loud.mp4", MOVING), line_for(silences=[{"from": 1.0, "to": 1.6}]))
+    assert not gate(rows, "planned_silence")["passed"]
+
+
+def test_canary_a_cut_off_plan_fails(tmp_path):
+    parts = "color=c=red:s=320x180:r=30:d=1.5[a];color=c=blue:s=320x180:r=30:d=1.5[b];[a][b]concat=n=2:v=1[out0]"
+    rows = film_qa.gate_rows(
+        clip_with(tmp_path / "cut.mp4", parts), {"scenes": [{"id": "a", "start": 0.0}, {"id": "b", "start": 0.6}], "silences": [], "route": "montage"}
+    )
+    assert not gate(rows, "cuts_to_plan")["passed"]
+
+
+def test_canary_a_loop_with_a_seam_fails(tmp_path):
+    rows = film_qa.gate_rows(clip_with(tmp_path / "seam.mp4", MOVING), line_for(loop=True))
+    assert not gate(rows, "loop_seam")["passed"]
+
+
+def test_cuts_compare_against_the_plan_in_frames():
+    found = film_qa.compare_cuts([1.0, 2.53], [1.0, 2.5], 30)
+    assert found["max_error_frames"] == pytest.approx(0.9) and not found["missing"]
+    assert film_qa.compare_cuts([1.0], [1.0, 4.0], 30)["missing"] == [4.0]
+    assert film_qa.compare_cuts([1.0, 3.0], [1.0], 30)["unplanned"] == [3.0]
+
+
+def test_text_size_and_contrast_are_measured_from_pixels():
+    canvas = Image.new("RGB", (1080, 400), (10, 10, 20))
+    ImageDraw.Draw(canvas).text((60, 60), "Hook", fill=(250, 250, 250), font=ImageFont.truetype(str(brands.data_path("fonts", "Geist-Variable.ttf")), 120))
+    found = film_qa.measure_text(canvas, [40, 40, 400, 200], 1080)
+    assert 90 <= found["font_px"] <= 140 and found["contrast"] > 12
+
+
+def test_faint_text_measures_low_contrast():
+    canvas = Image.new("RGB", (1080, 400), (40, 40, 50))
+    ImageDraw.Draw(canvas).text((60, 60), "Hook", fill=(70, 70, 80), font=ImageFont.truetype(str(brands.data_path("fonts", "Geist-Variable.ttf")), 120))
+    assert film_qa.measure_text(canvas, [40, 40, 400, 200], 1080)["contrast"] < 3
+
+
+def test_text_on_a_phone_is_worked_out_from_the_canvas():
+    wide = film_qa.read_size(1920, 1080, 36)
+    tall = film_qa.read_size(1080, 1920, 36)
+    assert wide["phone_px"] == pytest.approx(6.8, abs=0.1) and tall["phone_px"] == pytest.approx(12.0, abs=0.1)
+
+
+def test_hold_time_grows_with_the_words():
+    assert film_qa.hold_needed(3) == pytest.approx(1.0) and film_qa.hold_needed(10) == pytest.approx(2.4)
+
+
+def test_the_seek_check_flags_a_frame_that_depends_on_history(tmp_path):
+    def snapshot(stage, times, out):
+        out.mkdir(parents=True, exist_ok=True)
+        made = []
+        for at in times:
+            shade = 200 if len(times) == 1 else 10
+            path = out / f"{at}.png"
+            Image.new("L", (32, 18), shade).save(path)
+            made.append(path)
+        return made
+
+    assert not film_qa.seek_check(tmp_path, [1.0, 2.0], snapshot)["passed"]
+
+
+def test_the_seek_check_passes_a_pure_film(tmp_path):
+    def snapshot(stage, times, out):
+        out.mkdir(parents=True, exist_ok=True)
+        made = []
+        for at in times:
+            path = out / f"{at}.png"
+            Image.new("L", (32, 18), int(at * 40)).save(path)
+            made.append(path)
+        return made
+
+    assert film_qa.seek_check(tmp_path, [1.0, 2.0], snapshot)["passed"]
+
+
+def test_a_cutdown_alone_leaves_the_master_and_says_so(tmp_path, renderer, capsys):
+    project = small_film(tmp_path / "film")
+    assert altocue("film", "render", "-p", str(project.root), "--draft") == 0
+    before = (project.out / "final.mp4").read_bytes()
+    assert altocue("film", "render", "-p", str(project.root), "--cutdowns", "9:16", "--only-cutdowns", "--draft") == 0
+    assert (project.out / "final.mp4").read_bytes() == before
+    report = json.loads((project.review_dir / "film.json").read_text())
+    assert report["master_unchanged"] == {"frames_checked": 30, "same": True}
+    assert "did not change" in capsys.readouterr().out
+
+
+def test_a_film_project_reports_its_own_next_step(tmp_path, capsys):
+    folder = tmp_path / "film"
+    altocue("film", "new", "launch", str(folder))
+    capsys.readouterr()
+    assert altocue("status", "-p", str(folder)) == 0
+    assert "altocue film render" in capsys.readouterr().out
+
+
+# Curves and the cursor
+
+
+def test_a_flow_passes_through_every_pose():
+    curve = kit.flow([0, 1, 3], [0.0, 2.0, 1.0])
+    assert curve(0) == 0 and curve(1) == pytest.approx(2.0) and curve(3) == 1.0
+
+
+def test_a_flow_never_overshoots():
+    curve = kit.flow([0, 1, 2, 3], [0.0, 1.0, 1.0, 4.0])
+    samples = [curve(i / 40) for i in range(121)]
+    assert min(samples) >= -1e-9 and max(samples) <= 4 + 1e-9
+    assert all(b >= a - 1e-9 for a, b in zip(samples, samples[1:], strict=False))
+
+
+def test_a_flow_keeps_its_speed_through_a_pose():
+    curve = kit.flow([0, 1, 2], [0.0, 1.0, 2.0])
+    assert curve(1.01) - curve(1.0) == pytest.approx(0.01, abs=0.002)
+
+
+def test_a_flow_easing_is_a_css_linear_function():
+    made = kit.flow_easing([0, 1, 2], [0.0, 0.8, 1.0], steps=8)
+    assert made.startswith("linear(0.0000 0.00%") and made.endswith("1.0000 100.00%)")
+
+
+def test_the_cursor_travels_a_curve_and_waits_before_it_presses():
+    made = product._pointer((100.0, 100.0), [(500.0, 300.0, 2.0), (700.0, 120.0, 3.0)])
+    paths = re.findall(r"path\('M0 0Q([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)'\)", made)
+    assert len(paths) == 2
+    cx, cy, dx, dy = (float(v) for v in paths[-1])
+    off_line = abs(cx * dy - cy * dx) / (dx**2 + dy**2) ** 0.5
+    assert off_line > 10, "The first leg should bend away from a straight line"
+    starts = [float(v) for v in re.findall(r"--t:([\d.]+)s;--n:", made)]
+    spans = [float(v) for v in re.findall(r"--n:([\d.]+)s", made)]
+    last_press = 3.0
+    assert max(start + span for start, span in zip(starts, spans, strict=True)) <= last_press - product.CURSOR_DWELL + 0.01
+
+
+def test_the_cursor_is_the_same_on_every_render():
+    stops = [(500.0, 300.0, 2.0)]
+    assert product._pointer((100.0, 100.0), stops) == product._pointer((100.0, 100.0), stops)
+
+
+# Compositions we ship
+
+
+def shipped() -> list[Path]:
+    return sorted((REPO / "src/altocue/data/compositions").glob("*.html"))
+
+
+@pytest.mark.parametrize("path", shipped(), ids=lambda p: p.stem)
+def test_a_shipped_composition_draws_from_time_alone(path):
+    text = path.read_text()
+    assert "<template>" in text and f'window.__timelines["{path.stem}"]' in text and f'data-composition-id="{path.stem}"' in text
+    assert not re.search(r"Date\.now|Math\.random|requestAnimationFrame|setTimeout|setInterval|performance\.now", text)
+
+
+@pytest.mark.parametrize("path", shipped(), ids=lambda p: p.stem)
+def test_a_shipped_composition_loads_with_no_project_copy(tmp_path, path):
+    project = Project.create(tmp_path / "film")
+    item = compositions.resolve(project, {"type": "composition", "name": path.stem, "start": 0, "end": 2})
+    assert item["own_id"] == path.stem and item["path"] == str(path.resolve()) or Path(item["path"]).name == path.name
 
 
 # Studying a reference

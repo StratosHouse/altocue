@@ -35,6 +35,13 @@ GATE_ACTIONS = {
     "rules_strings": "Change the on-screen text. A human decides how.",
     "rules_ocr": "Look at the frames named. A human decides how to fix them.",
     "claims": "Rewrite the line so the host shows what can be seen, or film a real customer who consents. A label does not cure this.",
+    "frame_zero": "Put the subject in the first frame. A thumbnail and muted autoplay show this frame.",
+    "dead_air": "Keep something moving across that range, or mark the hold in the storyboard.",
+    "pops": "Look at the frames named. Keep the hits you meant, and smooth the rest.",
+    "flash_rate": "Space the flashes out to three a second or fewer.",
+    "planned_silence": "Clear the sound from that range, or move the silence in the storyboard.",
+    "cuts_to_plan": "Check the scene lengths against the storyboard, then render again.",
+    "loop_seam": "Match the last frame to the first, in position and in speed.",
     "disclosure": "Add an on-screen label in motion.json, such as AI-generated actor, and flip the platform's AI toggle. See altocue-ugc.",
 }
 

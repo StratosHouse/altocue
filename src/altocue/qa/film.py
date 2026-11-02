@@ -167,7 +167,7 @@ def phone_read(project: Project, line: dict[str, Any], frames: list[Path], times
                     and measured["contrast"] >= wanted_contrast
                     and held
                 )
-                detail = f"{measured['font_px']:g} px at 1080, {sizes['phone_px']:g} px on a phone, contrast {measured['contrast']:g}:1, up {seconds:.1f} s of {needed:.1f} s needed"
+                detail = f"{measured['font_px']:g} px at 1080, {sizes['phone_px']:g} px on a phone, contrast {measured['contrast']:g}:1, up {seconds:.1f} s of {needed:.1f} s"
                 report.append({"scene": scene["id"], "text": wanted, "role": role, "passed": bool(ok), "detail": detail, **measured, **sizes})
     return {"rows": report}
 
@@ -305,10 +305,10 @@ def planned_silences(path: Path, planned: list[dict[str, float]]) -> list[dict[s
 
 
 def seek_check(stage: Path, times: list[float], snapshot: Any) -> dict[str, Any]:
-    """Reach the same instants forwards and backwards. A frame that differs depends on history, not on time."""
+    """Reach each instant in one forward sweep, then again from a cold page, last first. A frame that differs depends on history, not on time."""
     with tempfile.TemporaryDirectory(prefix="altocue-seek-") as scratch:
         forward = snapshot(stage, times, Path(scratch) / "forward")
-        backward = snapshot(stage, list(reversed(times)), Path(scratch) / "backward")
+        backward = [snapshot(stage, [at], Path(scratch) / f"back-{index}")[0] for index, at in enumerate(reversed(times))]
         rows = []
         for at, one, two in zip(times, forward, reversed(backward), strict=True):
             with Image.open(one) as a, Image.open(two) as b:
@@ -378,6 +378,60 @@ def report_rows(path: Path, line: dict[str, Any], *, loop: bool = False) -> tupl
             f"{entry['from']:.2f} to {entry['to']:.2f} s peaks at {entry['loudest_db']} dBFS, needs under {entry['limit_db']}",
         )
     return rows, found
+
+
+def gate_rows(path: Path, line: dict[str, Any]) -> list[dict[str, Any]]:
+    """The same measures as fact gates, so `altocue qa` fails a film the way it fails any other."""
+    stats = frame_stats(path)
+    found = analyse(stats)
+    rows: list[dict[str, Any]] = []
+
+    def gate(name: str, passed: bool, value: Any, threshold: Any, detail: str) -> None:
+        rows.append({"id": name, "passed": passed, "value": value, "threshold": threshold, "detail": detail})
+
+    def absent(name: str, why: str) -> None:
+        rows.append({"id": name, "passed": True, "value": "n/a", "threshold": None, "detail": why, "skipped": True})
+
+    zero = found["frame_zero"] or {"mean": 0, "contrast": 0}
+    gate(
+        "frame_zero",
+        zero["contrast"] >= FRAME_ZERO_CONTRAST and zero["mean"] >= FRAME_ZERO_MEAN,
+        zero["contrast"],
+        FRAME_ZERO_CONTRAST,
+        f"mean {zero['mean']}, contrast {zero['contrast']}",
+    )
+    stuck = [row for row in found["frozen"] if not row["to_end"]]
+    gate("dead_air", not stuck, len(stuck), 0, "; ".join(f"{row['from']} to {row['to']} s has no motion" for row in stuck) or "nothing stops for a second or more")
+    gate("pops", True, len(found["pops"]), None, f"spikes at {found['pops']}" if found["pops"] else "none")
+    measured = flash.measure(path)
+    gate(
+        "flash_rate", measured["passed"], measured["peak_per_second"], measured["limit"], f"{measured['peak_per_second']:g} flashes in the worst second (WCAG 2.2, 2.3.1)"
+    )
+    quiet = planned_silences(path, line.get("silences") or [])
+    if quiet:
+        bad = [row for row in quiet if not row["passed"]]
+        gate(
+            "planned_silence",
+            not bad,
+            len(bad),
+            0,
+            "; ".join(f"{row['from']:.2f} s peaks at {row['loudest_db']} dBFS" for row in bad) or f"{len(quiet)} planned silences are quiet",
+        )
+    else:
+        absent("planned_silence", "No silences planned.")
+    planned = [scene["start"] for scene in line["scenes"][1:]] if line.get("route") == "montage" else []
+    compared = compare_cuts(found["cuts"], planned, stats["fps"])
+    if compared:
+        ok = compared["max_error_frames"] <= 1 and not compared["missing"]
+        gate("cuts_to_plan", ok, compared["max_error_frames"], 1, f"worst {compared['max_error_frames']} frames off, missing {compared['missing']}")
+    else:
+        absent("cuts_to_plan", "Only a montage plans hard cuts.")
+    if line.get("loop"):
+        seam = loop_seam(stats, found["median_step"])
+        gate("loop_seam", seam["passed"], seam["seam"], 0.5, f"seam {seam['seam']} of 255, speed ratio {seam['speed_ratio']}")
+    else:
+        absent("loop_seam", "This film does not loop.")
+    return rows
 
 
 def run_film(project: Project, film: Any) -> int:

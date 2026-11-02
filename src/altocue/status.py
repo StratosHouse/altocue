@@ -208,8 +208,37 @@ CHECKS: tuple[tuple[str, Callable[[Project], Look | None]], ...] = (
 )
 
 
+def check_film(project: Project) -> Look:
+    board = project.root / "storyboard.json"
+    final = project.out / "final.mp4"
+    if not final.exists():
+        return Look(NOT_RUN, "no finished film yet")
+    changed = _older_than(final, [board, project.root / "brief.json"])
+    return Look(STALE, f"{changed.name} changed after the render") if changed else Look(DONE)
+
+
+def collect_film(project: Project) -> list[Stage]:
+    """A film from a storyboard has its own short path."""
+    stages = []
+    behind = ""
+    for name, check, command in (
+        ("film", check_film, "altocue film render -p {folder}"),
+        ("qa", check_qa, "altocue qa -p {folder}"),
+        ("review", check_review, "altocue review -p {folder}"),
+        ("deliver", check_deliver, "altocue deliver -p {folder}"),
+    ):
+        found = check(project)
+        if behind and found.state == DONE:
+            found = Look(STALE, f"waits on {behind}")
+        stages.append(Stage(name, found.state, found.detail, command + (f" {found.flags}" if found.flags else "")))
+        behind = behind or (name if found.state != DONE else "")
+    return stages
+
+
 def collect(project: Project) -> list[Stage]:
     """Every stage in order. Once one is out of date, nothing after it can be trusted."""
+    if (project.root / "storyboard.json").exists():
+        return collect_film(project)
     stages: list[Stage] = []
     behind = ""
     for name, check in CHECKS:

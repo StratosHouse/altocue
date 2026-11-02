@@ -386,7 +386,19 @@ def count_frames(file: Path) -> int:
     return int(done.stdout.strip().strip(",") or 0)
 
 
+def is_film(c: Context) -> bool:
+    """A film made from a storyboard has no cut to compare with, and its own checks instead."""
+    return bool(c.timeline and c.timeline.get("scenes"))
+
+
+def gate_film_length(c: Context) -> GateResult:
+    want, got = round(float(c.timeline["total"]) * c.fps), count_frames(c.file)  # type: ignore[index]
+    return GateResult(id="duration", passed=abs(got - want) <= 1, value=got, threshold=f"{want} +/- 1 frames", detail=f"{got} frames, the storyboard implies {want}")
+
+
 def gate_duration(c: Context) -> GateResult:
+    if is_film(c) and not c.edl:
+        return gate_film_length(c)
     if not c.edl:
         return skipped("duration", "No edl.json, so there is nothing to compare against.")
     fps = c.fps
@@ -418,6 +430,8 @@ def opening_level(window: np.ndarray, rate: int) -> float:
 
 
 def gate_cut_sound(c: Context) -> GateResult:
+    if is_film(c) and not c.edl:
+        return not_applicable("cut_sound", "A film from a storyboard has no spoken cuts.")
     if not c.edl:
         return skipped("cut_sound", "No edl.json, so the cuts are unknown.")
     if c.audio is None:
@@ -491,6 +505,9 @@ def doubled_phrases(words: list[str], allow: list[str] | None = None) -> list[st
 
 
 def word_gates(c: Context) -> list[GateResult]:
+    if is_film(c) and not c.edl and not any(i.get("voice") for i in c.timeline["scenes"]):  # type: ignore[index]
+        why = "This film has no voice."
+        return [not_applicable(name, why) for name in ("words", "doubled_phrase", "captions_match")]
     expected, why_not = (None, "No edl.json, so the expected words are unknown.")
     if c.edl:
         expected, why_not = from_cut("expected_words", c.project, c.edl)
@@ -739,6 +756,8 @@ def gate_graphics_clear(c: Context) -> GateResult:
     """Text boxes miss a title across someone's eyes. The layer's own transparency does not."""
     if c.timeline is None:
         return skipped("graphics_clear", NO_TIMELINE)
+    if is_film(c):
+        return not_applicable("graphics_clear", "A film from a storyboard has no footage under its graphics.")
     items = [i for i in c.timeline.get("items", []) if i.get("type") not in HOLD_ITEMS]
     if not items:
         return not_applicable("graphics_clear", "No graphics over the picture.")
@@ -1098,6 +1117,18 @@ def gate_lip_closure(c: Context) -> GateResult:
     return skipped("lip_closure", detail)
 
 
+FILM_GATES = ("frame_zero", "dead_air", "pops", "flash_rate", "planned_silence", "cuts_to_plan", "loop_seam")
+
+
+def film_gates(c: Context) -> list[GateResult]:
+    """Motion checks for a film made in code. Anything else has nothing to measure here."""
+    if not is_film(c):
+        return [not_applicable(name, "Not a film from a storyboard.") for name in FILM_GATES]
+    from . import film as film_checks
+
+    return [GateResult(**row) for row in film_checks.gate_rows(c.file, c.timeline)]  # type: ignore[arg-type]
+
+
 def guarded(c: Context, ids: tuple[str, ...], measure: Callable[[Context], GateResult | list[GateResult]]) -> list[GateResult]:
     """A gate that cannot finish is skipped, and says why. QA must survive the files it exists to catch."""
     try:
@@ -1127,6 +1158,7 @@ def run_all(c: Context) -> list[GateResult]:
         (("rules_ocr",), gate_rules_ocr),
         (("claims",), gate_claims),
         (("disclosure",), gate_disclosure),
+        (FILM_GATES, film_gates),
     ]
     return [result for ids, measure in plan for result in guarded(c, ids, measure)]
 
