@@ -136,6 +136,7 @@ def first_of(text: str) -> clips.Said:
         "Yeah, we tried that for a year.",
         "That one change doubled our pricing.",
         "Why does that matter to anyone?",
+        "This is a problem for the team.",
     ],
 )
 def test_a_first_line_that_answers_or_points_back_fails(line):
@@ -151,6 +152,7 @@ def test_a_first_line_that_answers_or_points_back_fails(line):
         "Why do most launches fail?",
         "No one tells you about hiring.",
         "There are three rules here.",
+        "This is Altocue.",
     ],
 )
 def test_a_first_line_that_stands_up_passes(line):

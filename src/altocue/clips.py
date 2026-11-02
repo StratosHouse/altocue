@@ -196,6 +196,11 @@ def unnamed(said: str) -> str:
     return ""
 
 
+def introduces(text: str) -> bool:
+    """"This is Altocue." names what it points at, which "This is a problem." does not."""
+    return bool(re.match(r"This is [A-Z]", text))
+
+
 def opening(line: Said, turns: bool) -> Check:
     leans = starts_with(line.said, LEANS_BACK)
     if leans:
@@ -203,7 +208,7 @@ def opening(line: Said, turns: bool) -> Check:
     answer = starts_with(line.said, ANSWERS)
     if answer:
         return Check(False, f'Starts with "{answer}", which answers something the clip does not hold.')
-    named = unnamed(line.said)
+    named = "" if introduces(line.text) else unnamed(line.said)
     if named:
         return Check(False, f'Says "{named}" before saying who or what that is.')
     if math.isinf(line.before):
