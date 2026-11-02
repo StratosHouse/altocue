@@ -359,7 +359,7 @@ def test_music_ducks_under_speech_and_comes_back(tmp_path):
     music = ffmpeg.write_wav(tmp_path / "music.wav", tone(12, 9000, 0.2), RATE)
     out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", music=music))[:, 0]
     during = band_rms_db(out[int(4.4 * RATE) : int(4.9 * RATE)], 9000)
-    after = band_rms_db(out[int(5.6 * RATE) : int(5.95 * RATE)], 9000)
+    after = band_rms_db(out[int(5.62 * RATE) : int(5.74 * RATE)], 9000)  # the next line's ramp starts at 5.75 s
     assert after - during >= 6
 
 
@@ -421,6 +421,140 @@ def test_the_bed_runs_on_through_the_tail(tmp_path):
     out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", music=music, sfx=[{"name": "whoosh", "at": 6.0}], tail=8.0))
     assert len(out) == len(samples) + 8 * RATE
     assert rms_db(out[7 * RATE : 8 * RATE, 0]) > -50
+
+
+def bed_gain_db(voice: np.ndarray, seconds: float = 12.0) -> np.ndarray:
+    """What the ducking did to a steady bed, in dB every 10 ms."""
+    bed = np.full((int(seconds * RATE), 2), 0.1)
+    ridden, _ = mix._ride(bed, voice, -45.0)
+    return 20 * np.log10(ridden[::480, 0] / 0.1)
+
+
+def lines(seconds: float, *spans: tuple[float, float]) -> np.ndarray:
+    voice = np.zeros(int(seconds * RATE))
+    for start, end in spans:
+        voice[int(start * RATE) : int(end * RATE)] = speech_bursts(end - start, 0.2, every=1, length=1)[: int(end * RATE) - int(start * RATE)]
+    return voice
+
+
+def test_the_music_is_down_by_the_time_the_first_word_lands():
+    gain = bed_gain_db(lines(12, (5, 7)))
+    assert gain[300] == pytest.approx(0, abs=0.01)
+    assert gain[int(5.0 * 100)] <= gain[600] + 0.5
+    assert gain[int(4.6 * 100)] > -0.5  # and it did not leave long before
+
+
+def test_the_ramp_down_and_back_up_are_smooth():
+    gain = bed_gain_db(lines(12, (5, 7)))
+    steps = np.diff(gain) * 100  # dB per second
+    assert gain.min() < -6
+    assert np.abs(steps).max() < 80
+    assert steps[720:].max() < steps[:600].min() * -0.6  # coming back is slower than going down
+
+
+def test_the_music_stays_down_across_a_breath_between_words():
+    gain = bed_gain_db(lines(12, (3, 5), (5.25, 7)))
+    assert gain[int(5.1 * 100)] == pytest.approx(gain[int(4.5 * 100)], abs=1)
+
+
+def test_the_music_comes_back_in_a_real_pause():
+    gain = bed_gain_db(lines(12, (2, 4), (7, 9)))
+    assert gain[int(5.5 * 100)] == pytest.approx(0, abs=0.1)
+
+
+def test_no_speech_leaves_the_bed_alone():
+    bed = np.full((4 * RATE, 2), 0.1)
+    ridden, under = mix._ride(bed, np.zeros(4 * RATE), -45.0)
+    assert np.array_equal(ridden, bed) and under == 0.0
+
+
+def tune(seconds: float, last_hit: float = 0.2, end_silence: float = 0.0) -> np.ndarray:
+    """A bed at 2 kHz that ends on a hit at 9 kHz, then whatever silence the file carries."""
+    body = tone(seconds - last_hit, 2000, 0.05)
+    return np.r_[body, tone(last_hit, 9000, 0.3), np.zeros(int(end_silence * RATE))]
+
+
+def last_hit_at(out: np.ndarray) -> float:
+    """When the 9 kHz hit starts, in seconds, read in 10 ms frames."""
+    sos = np.fft.rfft(out)
+    freqs = np.fft.rfftfreq(len(out), 1 / RATE)
+    high = np.fft.irfft(sos * (freqs > 6000), len(out))
+    level = np.sqrt(np.mean(high[: len(high) // 480 * 480].reshape(-1, 480) ** 2, axis=1))
+    return float(np.argmax(level > level.max() / 2) * 480 / RATE)
+
+
+def silent_voice(tmp_path: Path, seconds: float) -> Path:
+    voice = np.zeros(int(seconds * RATE))
+    voice[RATE // 2 : RATE] = speech_bursts(0.5, 0.15, every=1, length=1)[: RATE // 2]
+    return ffmpeg.write_wav(tmp_path / "voice.wav", voice, RATE)
+
+
+def test_the_end_of_the_track_lands_on_the_end_of_the_film(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tune(30), RATE)
+    out = stereo(mix.mix_bed(silent_voice(tmp_path, 10), tmp_path / "mix.wav", music=music))[:, 0]
+    assert len(out) == 10 * RATE
+    assert last_hit_at(out) == pytest.approx(9.8, abs=0.03)
+
+
+def test_the_landing_counts_the_tail_of_the_film(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tune(30), RATE)
+    out = stereo(mix.mix_bed(silent_voice(tmp_path, 10), tmp_path / "mix.wav", music=music, tail=2.0))[:, 0]
+    assert last_hit_at(out) == pytest.approx(11.8, abs=0.03)
+
+
+def test_silence_at_the_end_of_the_file_does_not_count_as_music(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tune(30, end_silence=4.0), RATE)
+    out = stereo(mix.mix_bed(silent_voice(tmp_path, 10), tmp_path / "mix.wav", music=music))[:, 0]
+    assert last_hit_at(out) == pytest.approx(9.8, abs=0.03)
+
+
+def test_a_short_track_loops_and_still_lands(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tune(4), RATE)
+    path = mix.mix_bed(silent_voice(tmp_path, 10), tmp_path / "mix.wav", music=music)
+    out = stereo(path)[:, 0]
+    assert len(out) == 10 * RATE and abs(out[int(9.9 * RATE) : int(9.95 * RATE)]).max() > 0.01
+    report = json.loads(path.with_suffix(".json").read_text())
+    assert report["music"]["end"] == "land" and report["music"]["loops"] >= 2
+
+
+def test_a_loop_join_does_not_click(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tone(1.5, 300, 0.2, phase=1.0), RATE)
+    out = stereo(mix.mix_bed(ffmpeg.write_wav(tmp_path / "voice.wav", np.zeros(6 * RATE), RATE), tmp_path / "mix.wav", music=music))[:, 0]
+    steady = np.abs(np.diff(out[RATE:RATE + 1000])).max()
+    assert np.abs(np.diff(out[RATE : 5 * RATE])).max() < steady * 2
+
+
+def test_fade_ending_starts_at_the_top_of_the_track(tmp_path):
+    body = np.r_[tone(1, 5000, 0.1), tone(29, 2000, 0.05)]
+    music = ffmpeg.write_wav(tmp_path / "music.wav", body, RATE)
+    voice = ffmpeg.write_wav(tmp_path / "voice.wav", np.zeros(10 * RATE), RATE)
+    path = mix.mix_bed(voice, tmp_path / "mix.wav", music=music, music_end="fade")
+    out = stereo(path)[:, 0]
+    assert band_rms_db(out[int(0.6 * RATE) : int(0.9 * RATE)], 5000) > band_rms_db(out[int(0.6 * RATE) : int(0.9 * RATE)], 2000)
+    assert json.loads(path.with_suffix(".json").read_text())["music"]["starts_at"] == 0
+    assert rms_db(out[-RATE // 2 :]) < rms_db(out[6 * RATE : 7 * RATE]) - 6
+
+
+def test_music_rises_at_the_head_and_is_gone_on_the_last_sample(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tone(30, 2000, 0.1), RATE)
+    voice = ffmpeg.write_wav(tmp_path / "voice.wav", np.zeros(10 * RATE), RATE)
+    out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", music=music))[:, 0]
+    assert abs(out[0]) < 0.001 and abs(out[-1]) < 0.001
+    assert rms_db(out[: RATE // 10]) < rms_db(out[RATE : 2 * RATE]) - 6
+    assert rms_db(out[-RATE // 20 :]) < rms_db(out[RATE : 2 * RATE]) - 6
+
+
+def test_silent_music_is_refused(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", np.zeros(4 * RATE), RATE)
+    with pytest.raises(AltocueError, match="silent"):
+        mix.mix_bed(silent_voice(tmp_path, 4), tmp_path / "mix.wav", music=music)
+
+
+def test_an_unknown_music_ending_is_refused(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tone(4, 2000, 0.1), RATE)
+    with pytest.raises(AltocueError) as caught:
+        mix.mix_bed(silent_voice(tmp_path, 4), tmp_path / "mix.wav", music=music, music_end="sudden")
+    assert "land" in caught.value.fix
 
 
 def test_mono_and_stereo_music_land_at_the_same_level(tmp_path):

@@ -98,7 +98,8 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
     audio = project.work / "mix.wav"
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
     room = voice.with_name(f"{voice.stem}-room.wav")
-    mix.mix_bed(voice, audio, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room)
+    music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
+    mix.mix_bed(voice, audio, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end)
     dest = project.out / ("draft.mp4" if draft else "render.mp4")
     ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
     return dest

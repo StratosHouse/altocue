@@ -22,12 +22,23 @@ SFX_DIR = Path(__file__).parent / "data" / "sfx"
 
 VOICE_LUFS = -16.0  # the level the constants below were proven at
 MUSIC_UNDER_VOICE_LU = 5.0  # before ducking
-MUSIC_FADE_IN = 0.25
+MUSIC_FADE_IN = 0.5
 MUSIC_FADE_OUT = 2.6
-DUCK = "threshold=0.06:ratio=3.5:attack=8:release=380:makeup=1"
-RIDER_MARGIN_DB = 10.0  # a sidechain alone left music on short lines
+MUSIC_LAND_FADE = 0.6  # keeps the track's own ending, and still never stops on a click
+MUSIC_LOOP_BLEND = 0.5
+MUSIC_SILENT_DB = -50.0
+MUSIC_ENDS = ("land", "fade")
+FRAMES_PER_SECOND = 100
+SYLLABLE_FRAMES = 5
+SYLLABLE_HOLD = 15  # 150 ms either side
+DUCK_UNDER_VOICE_DB = 12.0
+DUCK_LEAST_DB = 7.0  # a dip the ear can hear, even when the level alone would not ask for one
+DUCK_BEFORE = 0.25  # a word lands on music that is already down
+DUCK_AFTER = 0.5
+DUCK_HOLD = 0.1
+DUCK_BRIDGE = 0.45  # a shorter gap is a breath, and the music stays down through it
+DUCK_WINDOW = 2  # seconds of voice and music that set the depth
 RIDER_GATE_BELOW_VOICE_DB = 26.0
-RIDER_HOLD_FRAMES = 3  # 150 ms either side
 SFX_UNDER_DB = 10.0
 SFX_UNDER_RANGE = (8.0, 12.0)
 SFX_PEAK_OVER_VOICE_DB = 7.0
@@ -287,54 +298,116 @@ def _level_db(samples: np.ndarray, hop: int) -> np.ndarray:
     return 20 * np.log10(np.sqrt(np.mean(frames**2, axis=1)) + 1e-9)
 
 
+def _raised(position: np.ndarray) -> np.ndarray:
+    return 0.5 - 0.5 * np.cos(np.pi * np.clip(position, 0, 1))
+
+
+def _duck_shape(speaking: np.ndarray) -> np.ndarray:
+    """How far down the music is, 0 to 1 per frame: down before the word, back up after it, slowly."""
+    bridged = speaking.copy()
+    edges = np.flatnonzero(np.diff(np.r_[0, speaking.astype(np.int8), 0]))
+    starts, ends = edges[::2], edges[1::2]
+    for end, start in zip(ends[:-1], starts[1:], strict=True):
+        if start - end < DUCK_BRIDGE * FRAMES_PER_SECOND:
+            bridged[end:start] = True
+    edges = np.flatnonzero(np.diff(np.r_[0, bridged.astype(np.int8), 0]))
+    shape = np.zeros(len(speaking))
+    frames = np.arange(len(speaking))
+    before, after = DUCK_BEFORE * FRAMES_PER_SECOND, DUCK_AFTER * FRAMES_PER_SECOND
+    hold = DUCK_HOLD * FRAMES_PER_SECOND
+    for start, end in zip(edges[::2], edges[1::2], strict=True):
+        shape = np.maximum(shape, _raised((frames - (start - before)) / before) * _raised(((end + hold + after) - frames) / after))
+    return shape
+
+
+def _mean_db(power: np.ndarray, weight: np.ndarray) -> np.ndarray:
+    """Level over the last and next second, counting only the weighted frames."""
+    kernel = np.ones(DUCK_WINDOW * FRAMES_PER_SECOND + 1)
+    total, count = np.convolve(power * weight, kernel), np.convolve(weight.astype(float), kernel)
+    middle = DUCK_WINDOW * FRAMES_PER_SECOND // 2
+    return 10 * np.log10((total / (count + 1e-9))[middle : middle + len(power)] + 1e-12)
+
+
 def _ride(bed: np.ndarray, voice: np.ndarray, gate_db: float) -> tuple[np.ndarray, float]:
-    """Hold the bed under every word the sidechain let through. Gain only ever comes down.
+    """Duck the bed under speech. Gain only ever comes down, and it moves on a smooth ramp.
 
-    The voice is read with a short peak hold. Read frame by frame, every word tail would pull
-    the music down and the slow release would keep it there, which is audible pumping.
+    The file is known in advance, so the ramp starts before the first word and is finished as it
+    lands. Depth follows the voice and the music over seconds, not syllables, so nothing pumps.
     """
-    hop = int(0.05 * RATE)
-    count = min(len(voice), len(bed)) // hop
-    voice_db = _level_db(voice[: count * hop], hop)
-    held = np.lib.stride_tricks.sliding_window_view(np.pad(voice_db, RIDER_HOLD_FRAMES, mode="edge"), 2 * RIDER_HOLD_FRAMES + 1).max(axis=1)
-    bed_db = _level_db(bed[: count * hop].mean(axis=1), hop)
+    hop = RATE // FRAMES_PER_SECOND
+    count = len(bed) // hop
+    spoken = np.zeros(count * hop)
+    spoken[: min(len(voice), count * hop)] = voice[: count * hop]
+    syllable = np.ones(SYLLABLE_FRAMES) / SYLLABLE_FRAMES
+    voice_power = np.convolve(10 ** (_level_db(spoken, hop) / 10), syllable)[SYLLABLE_FRAMES // 2 : SYLLABLE_FRAMES // 2 + count]
+    bed_power = 10 ** (_level_db(bed[: count * hop].mean(axis=1), hop) / 10)
+    voice_db = 10 * np.log10(voice_power + 1e-12)
     speaking = voice_db > gate_db
-    want = np.where(speaking, np.minimum(0.0, held - RIDER_MARGIN_DB - bed_db), 0.0)
-    want = np.minimum(want, np.minimum(np.r_[want[1:], 0.0], np.r_[0.0, want[:-1]]))
-    attack, release = 1 - np.exp(-0.05 / 0.02), 1 - np.exp(-0.05 / 0.30)
-    gain = np.zeros(count)
-    for i in range(count):
-        previous = gain[i - 1] if i else 0.0
-        gain[i] = previous + (want[i] - previous) * (attack if want[i] < previous else release)
-    times = np.arange(count) * hop + hop / 2
-    curve = 10 ** (np.interp(np.arange(len(bed)), np.r_[times, times[-1] + 0.6 * RATE], np.r_[gain, 0.0]) / 20)  # music comes back after the last word
+    if not speaking.any():
+        return bed, 0.0
+    depth = np.minimum(_mean_db(voice_power, speaking) - DUCK_UNDER_VOICE_DB - _mean_db(bed_power, np.ones(count, dtype=bool)), -DUCK_LEAST_DB)
+    gain_db = depth * _duck_shape(speaking)
+    times = (np.arange(count) + 0.5) * hop
+    curve = 10 ** (np.interp(np.arange(len(bed)), times, gain_db) / 20)
     ridden = bed * curve[:, None]
-    after = _level_db(ridden[: count * hop].mean(axis=1), hop)
-    return ridden, float(np.median((held - after)[speaking])) if speaking.any() else 0.0
+    held = np.lib.stride_tricks.sliding_window_view(np.pad(voice_db, SYLLABLE_HOLD, mode="edge"), 2 * SYLLABLE_HOLD + 1).max(axis=1)
+    after = 10 * np.log10(np.convolve(bed_power * 10 ** (gain_db / 10), syllable)[SYLLABLE_FRAMES // 2 : SYLLABLE_FRAMES // 2 + count] + 1e-12)
+    return ridden, float(np.median((held - after)[speaking]))
 
 
-def _bed(music: Path, voice: Path, samples: np.ndarray, level: float, total: int, folder: Path) -> tuple[np.ndarray, dict[str, Any]]:
+def _trimmed_music(path: Path) -> np.ndarray:
+    """The file as stereo 48 kHz, up to its last sound, so an ending lands on music and not on padding."""
+    samples = _read_stereo(path)
+    hop = RATE // FRAMES_PER_SECOND
+    level = _level_db(samples[: len(samples) // hop * hop].mean(axis=1), hop) if len(samples) >= hop else np.array([-180.0])
+    heard = np.flatnonzero(level > MUSIC_SILENT_DB)
+    if not len(heard):
+        raise AltocueError(f"The music at {path} is silent.", fix="Check the file, or remove it from motion.json.")
+    return samples[: (int(heard[-1]) + 1) * hop]
+
+
+def _looped(track: np.ndarray, total: int) -> tuple[np.ndarray, int]:
+    """Enough of the track to cover `total`, each pass blended into the next. Returns the passes too."""
+    if len(track) >= total:
+        return track, 1
+    blend = min(round(MUSIC_LOOP_BLEND * RATE), len(track) // 4)
+    step = len(track) - blend
+    passes = (total - blend + step - 1) // step
+    out = np.zeros((passes * step + blend, 2))
+    rise, fall = _curve(blend, False)[:, None], _curve(blend, False)[::-1, None]
+    for index in range(passes):
+        piece = track.copy()
+        if index:
+            piece[:blend] *= rise
+        if index < passes - 1:
+            piece[-blend:] *= fall
+        out[index * step : index * step + len(track)] += piece
+    return out, passes
+
+
+def _shaped(track: np.ndarray, total: int, end: str) -> tuple[np.ndarray, int, int]:
+    """The bed for a film of `total` samples, with its head and tail, and where it started in the track."""
+    stream, passes = _looped(track, total)
+    start = len(stream) - total if end == "land" else 0  # backtimed, as an editor would
+    bed = stream[start : start + total].copy()
+    head = min(round(MUSIC_FADE_IN * RATE), total // 4)
+    tail = min(round((MUSIC_LAND_FADE if end == "land" else MUSIC_FADE_OUT) * RATE), total // 3)
+    bed[:head] *= _curve(head, False)[:, None]
+    bed[total - tail :] *= _curve(tail, False)[::-1, None]
+    return bed, start, passes
+
+
+def _bed(music: Path, samples: np.ndarray, level: float, total: int, end: str, folder: Path) -> tuple[np.ndarray, dict[str, Any]]:
     if not music.exists():
         raise AltocueError(f"No music at {music}.", fix="Check the path in motion.json.")
+    if end not in MUSIC_ENDS:
+        raise AltocueError(f"Unknown music ending {end}.", fix=f"Use one of {', '.join(MUSIC_ENDS)}.")
+    path = folder / "music.wav"
+    ffmpeg.run(["-i", str(music), "-vn", "-ar", str(RATE), "-ac", "2", "-c:a", "pcm_s16le", str(path)])
     gain = level - MUSIC_UNDER_VOICE_LU - ffmpeg.loudness(music)["integrated"]
-    seconds = total / RATE
-    fade_out = min(MUSIC_FADE_OUT, seconds / 3)
-    key_level = min(max(10 ** ((VOICE_LUFS - level) / 20), 0.016), 64.0)
-    graph = (
-        f"[0:a]aresample={RATE},aformat=channel_layouts=stereo,aloop=loop=-1:size=2147483647,atrim=0:{seconds:.6f},asetpts=PTS-STARTPTS,"
-        f"afade=t=in:d={MUSIC_FADE_IN},afade=t=out:st={seconds - fade_out:.6f}:d={fade_out:.3f},volume={gain:.2f}dB[music];"
-        f"[1:a]aformat=channel_layouts=stereo,apad=whole_len={total}[key];"
-        f"[music][key]sidechaincompress={DUCK}:level_sc={key_level:.4f},atrim=end_sample={total}[bed]"
-    )
-    path = folder / "bed.wav"
-    ffmpeg.run(
-        ["-i", str(music), "-i", str(voice), "-filter_complex", graph, "-map", "[bed]", "-ar", str(RATE), "-c:a", "pcm_s16le", str(path)]
-    )
-    ducked = _read_stereo(path)
-    bed = np.zeros((total, 2))
-    bed[: min(total, len(ducked))] = ducked[:total]
-    ridden, under = _ride(bed, samples, level - RIDER_GATE_BELOW_VOICE_DB)
-    return ridden, {"file": str(music), "gain_db": round(gain, 2), "under_voice_db": round(under, 1)}
+    bed, start, passes = _shaped(_trimmed_music(path), total, end)
+    ridden, under = _ride(bed * 10 ** (gain / 20), samples, level - RIDER_GATE_BELOW_VOICE_DB)
+    return ridden, {"file": str(music), "gain_db": round(gain, 2), "under_voice_db": round(under, 1), "end": end, "starts_at": round(start / RATE, 3), "loops": passes}
 
 
 def _effect(cue: dict[str, Any], index: int, level: float, total: int, folder: Path) -> tuple[np.ndarray, int, dict[str, Any]]:
@@ -384,13 +457,21 @@ def _room_tail(room: Path, start: int, total: int) -> np.ndarray | None:
 
 
 def mix_bed(
-    voice: str | Path, dest: str | Path, music: str | Path | None = None, sfx: Any = (), tail: float = 0.0, room: str | Path | None = None
+    voice: str | Path,
+    dest: str | Path,
+    music: str | Path | None = None,
+    sfx: Any = (),
+    tail: float = 0.0,
+    room: str | Path | None = None,
+    music_end: str = "land",
 ) -> Path:
     """Mix voice, ducked music and effects to stereo 48 kHz, running `tail` seconds past the voice.
 
     Each entry in `sfx` is `{"name": "pop", "at": 1.2}` or `{"file": path, "at": 1.2}`, with an
     optional `under_db` from 8 to 12. `room` is the loop from `mix_voice`, which fills the tail.
-    The numbers land in a `.json` beside the mix.
+    `music_end` is "land", which backtimes the track so its own end falls on the film's last
+    sample, or "fade", which starts at the top of the track and fades out. The numbers land in a
+    `.json` beside the mix.
     """
     voice, dest = Path(voice), Path(dest)
     if not voice.exists():
@@ -410,7 +491,7 @@ def mix_bed(
     with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
         folder = Path(scratch)
         if music:
-            bed, report["music"] = _bed(Path(music), voice, samples, level, total, folder)
+            bed, report["music"] = _bed(Path(music), samples, level, total, music_end, folder)
             out += bed
         for index, cue in enumerate(sfx):
             placed, start, entry = _effect(cue, index, level, total, folder)

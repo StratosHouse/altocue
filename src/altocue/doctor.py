@@ -16,7 +16,7 @@ from . import ffmpeg
 from .errors import AltocueError
 from .locks import memory_gb, render_workers
 
-REQUIRED_FILTERS = ("lut3d", "loudnorm", "overlay", "alimiter", "acompressor", "sidechaincompress", "perspective", "ebur128", "blackdetect", "freezedetect")
+REQUIRED_FILTERS = ("lut3d", "loudnorm", "overlay", "alimiter", "acompressor", "deesser", "perspective", "ebur128", "blackdetect", "freezedetect")
 NODE_MINIMUM = 22
 MEMORY_NEEDED = 12  # GB
 
