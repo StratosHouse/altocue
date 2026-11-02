@@ -116,6 +116,7 @@ def test_a_fresh_cut_saves_the_old_one(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cut, "refuse", lambda project, edl: None)
     monkeypatch.setattr(cut, "write_report", lambda project, edl: "r")
     monkeypatch.setattr(cut, "write_review", lambda project, edl: "v")
+    monkeypatch.setattr(cut, "write_script", lambda project, edl: "s")
     assert cut.run(argparse.Namespace(project=str(project.root), remove=None, apply_review=None, reason="")) == 0
     assert (project.work / "edl-previous.json").exists()
     assert "earlier cut" in capsys.readouterr().out

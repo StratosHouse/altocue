@@ -21,6 +21,7 @@ from statistics import median
 import cv2
 import numpy as np
 
+from .cut.hand import hand_set
 from .errors import AltocueError
 from .ffmpeg import require
 from .models import Clip, Edl, Segment
@@ -411,8 +412,16 @@ def up_to_date(project: Project) -> bool:
     return path.exists() and json.loads(path.read_text()).get("fingerprint") == _fingerprint(project, project.edl(), project.size)
 
 
+def fits_shape(crop: list[float] | None, target: tuple[int, int]) -> bool:
+    """A crop chosen for another shape would stretch, so that one is solved again."""
+    return crop is None or abs(crop[2] / crop[3] - target[0] / target[1]) < 0.02
+
+
 def frame_project(project: Project, force: bool = False) -> Edl:
-    """Write crops and zooms into the EDL. A re-run with the same cut keeps hand edits."""
+    """Write crops and zooms into the EDL. Hand edits stay, through a re-cut too, until `force` clears them.
+
+    The report keeps what was solved, not what was held, because the difference is how a hand edit is known.
+    """
     edl = project.edl()
     if not project.setting("frame", "enabled", True):
         return edl
@@ -429,6 +438,7 @@ def frame_project(project: Project, force: bool = False) -> Edl:
             f"The cut names clips that are not in this project: {', '.join(missing)}.", fix="Run `altocue ingest`, then `altocue cut`."
         )
 
+    edits = {} if force else hand_set(project, edl)
     punch = float(project.setting("frame", "punch_in", PUNCH_ZOOM))
     push = float(project.setting("frame", "push_in", 0.0))
     zooms = plan_zooms(edl.segments, edl.fps)
@@ -451,17 +461,23 @@ def frame_project(project: Project, force: bool = False) -> Edl:
             last_crop[segment.clip] = frame_box
             crop = frame_box
         level = safe_zoom(frame_box, subject, punch) if zoom > 1 else 1.0
-        segment.crop = crop
-        segment.zoom_from = round(level, 4)
-        segment.zoom_to = round(level + push, 4)
+        solved_from, solved_to = round(level, 4), round(level + push, 4)
+        hand = edits.get(segment.id, {})
+        if "crop" in hand and not fits_shape(hand["crop"], target):
+            hand = {name: value for name, value in hand.items() if name != "crop"}
+        segment.crop = hand.get("crop", crop)
+        segment.zoom_from, segment.zoom_to = hand.get("zoom", (solved_from, solved_to))
+        segment.held = sorted(hand)
         moved = bool(subject and subject.spread > DEAD_ZONE * frame_box[2])
         rows.append(
             {
                 "id": segment.id,
                 "clip": segment.clip,
+                "start": segment.start,
+                "end": segment.end,
                 "crop": crop,
-                "zoom_from": segment.zoom_from,
-                "zoom_to": segment.zoom_to,
+                "zoom_from": solved_from,
+                "zoom_to": solved_to,
                 "faces": direct.faces if direct else 0,
                 "moved": moved,
             }

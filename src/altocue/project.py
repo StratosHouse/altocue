@@ -143,6 +143,10 @@ class Project:
         return self.root / "edl.json"
 
     @property
+    def script_path(self) -> Path:
+        return self.root / "script.md"
+
+    @property
     def timeline_path(self) -> Path:
         return self.root / "timeline.json"
 
