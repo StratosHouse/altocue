@@ -46,7 +46,9 @@ true_peak = -1.5        # dBTP
 
 [grade]
 enabled = true          # off still converts HDR, so nothing goes out washed out
-look = "natural"        # natural, warm, cool, punchy or filmic
+look = "natural"        # natural, warm, cool, punchy, filmic, or a film look: `altocue grade --compare`
+look_strength = 1.0     # how much of the look or LUT, from 0 to 1
+lut = ""                # your own .cube file, in place of a look
 
 [frame]
 enabled = true
