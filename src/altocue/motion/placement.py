@@ -11,6 +11,7 @@ from PIL import Image, ImageFont
 
 from .. import ffmpeg, frame
 from ..brand import Brand
+from . import formats
 from .html import geometry
 
 FULL_SCREEN = {"title", "endcard"}
@@ -40,6 +41,9 @@ def estimated_height(item: dict[str, Any], width: int, height: int, brand: Brand
     geo = geometry(width, height)
     scale, area = geo["scale"], width - 2 * geo["gutter"] - geo["rail"]
     kind = item["type"]
+    fmt = formats.find(kind)
+    if fmt:
+        return fmt.tall * scale
     if kind == "hook":
         eyebrow = 78 * scale if item.get("eyebrow") else 0
         return eyebrow + line_count(item["text"], 104 * scale, area, brand) * 102 * scale
@@ -112,7 +116,7 @@ def place(items: list[dict[str, Any]], picture: Path | None, size: tuple[int, in
     geo = geometry(*size)
     placed = []
     for item in items:
-        if item["type"] in FULL_SCREEN or "y" in item:
+        if item["type"] in FULL_SCREEN or formats.full_screen(item["type"]) or "y" in item:
             placed.append(item)
             continue
         faces = faces_during(picture, item["start"], item["end"], size)

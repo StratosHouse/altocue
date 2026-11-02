@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import AltocueError
+from ..motion import formats
 
 TEXT_FIELDS = ("eyebrow", "text", "title", "subtitle", "value", "label", "by", "headline", "cta")
 FUZZY_FROM = 6  # shorter words differ by one letter too often to fuzzy match
@@ -120,9 +121,8 @@ def on_screen(timeline: dict[str, Any]) -> list[dict[str, Any]]:
             {"layer": "captions", "text": " ".join(w["text"] for w in page["words"]), "start": page["start"], "end": page["end"]}
         )
     for item in timeline.get("items", []):
-        for name in TEXT_FIELDS:
-            if item.get(name) not in (None, ""):
-                strings.append({"layer": item["type"], "text": _clean(item[name]), "start": item["start"], "end": item["end"]})
+        texts = formats.strings(item) if formats.find(item.get("type")) else [item[name] for name in TEXT_FIELDS if item.get(name) not in (None, "")]
+        strings += [{"layer": item["type"], "text": _clean(text), "start": item["start"], "end": item["end"]} for text in texts]
         for step in item.get("items", []) if item.get("type") == "steps" else []:
             strings.append({"layer": "steps", "text": _clean(step["text"]), "start": step.get("at", item["start"]), "end": item["end"]})
     return strings

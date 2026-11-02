@@ -8,6 +8,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..brand import Brand
+from . import formats
 from .html import geometry
 from .layer import Layer
 
@@ -93,9 +94,10 @@ def card_frame(size: tuple[int, int], item: dict[str, Any], brand: Brand) -> Ima
     canvas = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
     kind = item["type"]
-    if kind in {"title", "endcard"}:
+    extra = formats.strings(item)
+    if kind in {"title", "endcard"} or formats.full_screen(kind):
         draw.rectangle((0, 0, width, height), fill=_rgba(colors["panel"]))
-        text = (item.get("text") or item.get("headline") or "").replace("*", "")
+        text = (item.get("text") or item.get("headline") or (extra[0] if extra else "")).replace("*", "")
         font = _font(brand, int(100 * scale), 600)
         lines = _wrap(draw, text.split(), font, width - 2 * geo["gutter"], 100 * scale * 0.26)
         words = text.split()
@@ -109,8 +111,8 @@ def card_frame(size: tuple[int, int], item: dict[str, Any], brand: Brand) -> Ima
             small = _font(brand, int(36 * scale), 500)
             draw.text(((width - draw.textlength(cta, font=small)) / 2, y + 34 * scale), cta, font=small, fill=colors["accent"])
         return canvas
-    primary = str(item.get("title") or item.get("text") or item.get("value") or "").replace("*", "").replace("\n", " ")
-    secondary = str(item.get("subtitle") or item.get("label") or item.get("by") or item.get("eyebrow") or "")
+    primary = str(item.get("title") or item.get("text") or item.get("value") or (extra[0] if extra else "")).replace("*", "").replace("\n", " ")
+    secondary = str(item.get("subtitle") or item.get("label") or item.get("by") or item.get("eyebrow") or (extra[1] if len(extra) > 1 else ""))
     if kind == "steps":
         secondary = "  ·  ".join(step["text"] for step in item.get("items", []))
     large = _font(brand, int((64 if kind in {"hook", "stat"} else 42) * scale), 600)

@@ -8,6 +8,7 @@ from typing import Any
 
 from . import caption, ffmpeg, frame, mix, motion, plate
 from . import timeline as timelines
+from .motion import formats
 from .project import Project
 
 
@@ -21,6 +22,9 @@ def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
     """House sound for graphics: a pop on arrival, a tick per step, a whoosh to the end card."""
     cues: list[dict[str, Any]] = []
     for item in timeline["items"]:
+        fmt = formats.find(item["type"])
+        if fmt and fmt.sound:
+            cues.append({"name": fmt.sound, "at": item["start"]})
         if item["type"] in {"lower_third", "steps", "stat", "quote"}:
             cues.append({"name": "pop", "at": item["start"]})
         if item["type"] == "steps":

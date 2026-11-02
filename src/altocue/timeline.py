@@ -9,12 +9,11 @@ from typing import Any
 from . import brand as brands
 from . import cut, ffmpeg
 from .errors import AltocueError
-from .motion import placement
+from .motion import formats, placement
 from .project import Project, write_json
 
 END_HOLD_TYPES = {"endcard"}
 DEFAULT_LENGTHS = {"hook": 2.6, "chip": 2.4, "lower_third": 3.2, "stat": 2.8, "quote": 3.6, "steps": 6.0, "title": 2.4, "endcard": 2.6}
-KNOWN_TYPES = set(DEFAULT_LENGTHS)
 STILL_TYPES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
@@ -41,10 +40,12 @@ def resolve_items(raw: list[dict[str, Any]], words: list[dict[str, Any]], durati
     items, tail = [], 0.0
     for entry in raw:
         kind = entry.get("type")
-        if kind not in KNOWN_TYPES:
-            raise AltocueError(f"Unknown graphic type {kind}.", fix=f"Use one of {', '.join(sorted(KNOWN_TYPES))}.")
+        fmt = formats.find(kind)
+        if kind not in DEFAULT_LENGTHS and fmt is None:
+            raise AltocueError(f"Unknown graphic type {kind}.", fix="Run `altocue library search <what you want>` to find a format.")
         item = dict(entry)
-        length = float(entry.get("duration", DEFAULT_LENGTHS[kind]))
+        formats.check(item)
+        length = float(entry.get("duration", fmt.seconds if fmt else DEFAULT_LENGTHS[kind]))
         if kind in END_HOLD_TYPES:
             item["start"] = duration
             item["end"] = duration + length
@@ -52,8 +53,9 @@ def resolve_items(raw: list[dict[str, Any]], words: list[dict[str, Any]], durati
         else:
             item["start"] = resolve_time(entry.get("start", 0), words)
             item["end"] = resolve_time(entry["end"], words) if "end" in entry else item["start"] + length
-        if kind == "steps":
-            item["items"] = [{**step, "at": resolve_time(step["at"], words)} for step in entry.get("items", [])]
+        for key, value in entry.items():
+            if isinstance(value, list) and any(isinstance(row, dict) and "at" in row for row in value):
+                item[key] = [{**row, "at": resolve_time(row["at"], words)} if isinstance(row, dict) and "at" in row else row for row in value]
         items.append(item)
     return sorted(items, key=lambda i: i["start"]), tail
 

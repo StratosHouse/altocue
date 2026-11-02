@@ -6,6 +6,8 @@ from html import escape
 from typing import Any
 
 from ..brand import Brand
+from . import formats
+from .formats import kit
 
 CSS = """
 @font-face{font-family:"Brand";src:url("%(font)s");font-weight:100 900}
@@ -116,12 +118,12 @@ def _attrs(start: float, end: float, track: int) -> str:
 
 
 def _style(item: dict[str, Any], *, leave: bool = False) -> str:
-    """Inline settings for one graphic: where it sits, and when it starts to leave."""
+    """Inline settings for one graphic: where it sits, how long it runs, and when it starts to leave."""
     parts = []
     if "y" in item:
         parts.append(f"top:{float(item['y']):g}px")
     if leave:
-        parts.append(f"--leave:{max(item['end'] - item['start'] - 0.2, 0):.3f}s")
+        parts.append(f"--dur:{max(item['end'] - item['start'], 0.04):.3f}s;--leave:{max(item['end'] - item['start'] - 0.2, 0):.3f}s")
     return f'style="{";".join(parts)}"' if parts else ""
 
 
@@ -146,14 +148,13 @@ def _hook_lines(text: str) -> str:
     return "".join(f'<span class="line"><span style="animation-delay:{i * 0.07:.2f}s">{_emphasis(line)}</span></span>' for i, line in enumerate(lines))
 
 
-def _emphasis(text: str) -> str:
-    """`*word*` in copy becomes the accent colour."""
-    parts = escape(text).split("*")
-    return "".join(f"<em>{part}</em>" if i % 2 else part for i, part in enumerate(parts))
+_emphasis = kit.emphasis
 
 
 def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
     kind, attrs = item["type"], _attrs(item["start"], item["end"], track)
+    if formats.find(kind):
+        return formats.render(item, attrs, _style(item, leave=True))
     if kind == "hook":
         eyebrow = f'<div class="eyebrow rise"><i></i>{escape(item["eyebrow"])}</div>' if item.get("eyebrow") else ""
         return f'<div class="clip hook leave" {attrs} {_style(item, leave=True)}>{eyebrow}<h1>{_hook_lines(item["text"])}</h1></div>'
@@ -208,7 +209,7 @@ def compose(timeline: dict[str, Any], brand: Brand) -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
-<style>{css}</style></head>
+<style>{css}{formats.stylesheet(timeline["items"])}</style></head>
 <body>
 <div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
 {captions}

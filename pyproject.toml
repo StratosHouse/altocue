@@ -59,6 +59,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/altocue/motion/html.py" = ["E501"]
+"src/altocue/motion/formats/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
