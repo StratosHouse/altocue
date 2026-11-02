@@ -31,12 +31,13 @@ def clip_id(path: Path, taken: set[str]) -> str:
     return name
 
 
-def ingest(project: Project) -> list[Clip]:
-    clips = []
-    for link in sorted(project.sources.iterdir()):
-        if link.name.startswith("."):
-            continue
-        clips.append(ffmpeg.probe_clip(link, clip_id=link.stem))
+def ingest(project: Project, order: list[str] | None = None) -> list[Clip]:
+    """Clips play in the order given. Later runs keep it, and a clip added since goes last."""
+    if order is None and project.media_path.exists():
+        order = [clip.id for clip in project.clips()]
+    ranks = {name: rank for rank, name in enumerate(order or [])}
+    links = [link for link in project.sources.iterdir() if not link.name.startswith(".")]
+    clips = [ffmpeg.probe_clip(link, clip_id=link.stem) for link in sorted(links, key=lambda link: (ranks.get(link.stem, len(ranks)), link.name))]
     if not clips:
         raise AltocueError("No clips in sources/.", fix="Add video files with `altocue new`.")
     project.save_clips(clips)
@@ -66,12 +67,13 @@ def run(args: argparse.Namespace) -> int:
             raise AltocueError(f"Not found: {', '.join(missing)}")
         project = Project.create(args.folder, aspect=args.aspect)
         taken: set[str] = set()
-        for source in inputs:
-            (project.sources / f"{clip_id(source, taken)}{source.suffix.lower()}").symlink_to(source)
+        order = [clip_id(source, taken) for source in inputs]
+        for name, source in zip(order, inputs, strict=True):
+            (project.sources / f"{name}{source.suffix.lower()}").symlink_to(source)
         (project.root / "brief.md").write_text(f"# Brief\n\n{args.brief}\n")
     else:
-        project = Project.open(args.project)
-    for clip in ingest(project):
+        project, order = Project.open(args.project), None
+    for clip in ingest(project, order):
         print(describe(clip))
     print(f"Project ready at {project.root}")
     return 0
