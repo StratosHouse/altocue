@@ -337,3 +337,43 @@ def test_a_dip_through_black_the_edit_asked_for_is_not_a_fault(monkeypatch):
     monkeypatch.setattr(gates, "black_runs", lambda file, end: [(3.1, 3.3)])
     assert gates.gate_black(gate_context({"transitions": [{"start": 3.0, "end": 3.4}]})).passed
     assert not gates.gate_black(gate_context({"transitions": []})).passed
+
+
+def test_a_slow_zoom_carries_on_through_a_transition(tmp_path):
+    moving = Segment(id="s1", clip="a", start=0, end=seconds(30), zoom_from=1.0, zoom_to=1.2)
+    project, edl = picture_project(tmp_path, moving, TWO[1])
+    assert "(in+5)/29" in plate.push_filter(C, 30, 1.0, 1.2, 5)
+    done = plate.assemble(project, edl, C, layout([30, 30], [blend(1, 10)], []), tmp_path / "parts", tmp_path / "out.mp4")
+    assert len(levels(done)) == 60
+
+
+def test_a_name_this_ffmpeg_lacks_says_so(tmp_path, monkeypatch):
+    def fails(args):
+        raise AltocueError("ffmpeg failed:\nNo such transition")
+
+    monkeypatch.setattr(transitions.ffmpeg, "run", fails)
+    with pytest.raises(AltocueError) as caught:
+        transitions.blend(tmp_path / "a.mp4", tmp_path / "b.mp4", "coverleft", 10, 30, [], tmp_path / "c.mp4")
+    assert "update ffmpeg" in caught.value.fix
+
+
+def test_library_add_fetches_a_shader_and_records_it(tmp_path, monkeypatch, capsys):
+    from altocue import library
+    from altocue.cli import main
+    from altocue.generate import http
+
+    project = Project.create(tmp_path / "video")
+    monkeypatch.setattr(http, "call", lambda method, url, **kwargs: http.Response(200, SHADER.encode()))
+    assert main(["library", "add", "gl-wind", "--project", str(project.root)]) == 0
+    assert (project.root / "motion" / "fetched" / "gl-wind.glsl").exists()
+    lock = json.loads((project.root / library.LOCK_FILE).read_text())
+    assert lock["items"]["gl-wind"]["licence"] == "MIT"
+    assert '"type": "gl-wind"' in capsys.readouterr().out
+
+
+def test_library_add_says_a_bundled_shader_needs_no_fetch(tmp_path, capsys):
+    from altocue.cli import main
+
+    project = Project.create(tmp_path / "video")
+    assert main(["library", "add", "gl-cross-zoom", "--project", str(project.root)]) == 0
+    assert "ships with Altocue" in capsys.readouterr().out

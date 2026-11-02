@@ -94,11 +94,11 @@ def source(project: Project | None, name: str) -> str:
     return text
 
 
-def fetch(project: Project, name: str) -> dict[str, Any]:
+def fetch(project: Project, name: str, file: str | None = None) -> dict[str, Any]:
     """Copy one shader into the project. Its header stays with it, and the licence is checked before it is kept."""
     from ..generate import http
 
-    url = FETCH_URL.format(version=PACKAGE_VERSION, file=file_name(name))
+    url = FETCH_URL.format(version=PACKAGE_VERSION, file=file or file_name(name))
     reply = http.call("GET", url, timeout=30, attempts=3)
     if not reply.ok:
         raise AltocueError(f"Could not fetch {name}: HTTP {reply.status}.", fix="Check the name with `altocue library search shader`.")

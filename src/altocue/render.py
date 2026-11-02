@@ -106,8 +106,8 @@ def bake_insert(project: Project, insert: dict[str, Any], picture: Path, c: plat
     leave = max(2, round(insert["out"]["duration"] * c.fps)) if insert.get("out") else 0
     if arrive + leave > frames:
         raise AltocueError(f"The insert {insert['file']} is too short for its transitions.", fix="Shorten them, or lengthen the insert.")
-    plate_stamp = picture.stat()
-    recipe = {"plate": [plate_stamp.st_size, plate_stamp.st_mtime_ns], "insert": {k: insert.get(k) for k in ("file", "start", "end", "in", "out")}, "canvas": repr(c)}
+    stamps = [[path.stat().st_size, path.stat().st_mtime_ns] for path in (picture, source)]
+    recipe = {"files": stamps, "insert": {key: insert.get(key) for key in ("file", "start", "end", "in", "out")}, "canvas": repr(c)}
     key = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()[:16]
     work = folder / key
     dest = folder / f"insert-{key}.mp4"

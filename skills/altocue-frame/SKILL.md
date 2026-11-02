@@ -1,6 +1,6 @@
 ---
 name: altocue-frame
-description: Reframes video to 9:16, 16:9, 1:1 or 4:5 with face-aware crops per shot, and adds punch-ins to hide jump cuts. Use when the user wants vertical from horizontal, a reframe, a crop, or zooms between cuts. Part of Altocue.
+description: Reframes video to any aspect, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9, with face-aware crops per shot, and adds punch-ins to hide jump cuts. Use when the user wants vertical from horizontal, a reframe, a crop, or zooms between cuts. Part of Altocue.
 license: MIT
 compatibility: Requires the altocue CLI.
 ---

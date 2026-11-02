@@ -49,7 +49,10 @@ def blend(outgoing: Path, incoming: Path, name: str, frames: int, fps: int, enco
     """Two clips of `frames` frames become one. The first frame is all outgoing and the last nearly all incoming."""
     mix = f"[0:v][1:v]xfade=transition={RENAMED.get(name, name)}:duration={frames / fps:.6f}:offset=0,format=yuv420p[v]"
     temp = dest.with_suffix(".part.mp4")
-    ffmpeg.run(["-i", str(outgoing), "-i", str(incoming), "-filter_complex", mix, "-map", "[v]", "-frames:v", str(frames), *encode, str(temp)])
+    try:
+        ffmpeg.run(["-i", str(outgoing), "-i", str(incoming), "-filter_complex", mix, "-map", "[v]", "-frames:v", str(frames), *encode, str(temp)])
+    except AltocueError as error:  # the set grew over ffmpeg's versions, and this machine's may stop short of this name
+        raise AltocueError(str(error), fix=f"If this ffmpeg lacks {name}, use dissolve or update ffmpeg. {ffmpeg.INSTALL_FIX}") from error
     temp.rename(dest)
     return dest
 
