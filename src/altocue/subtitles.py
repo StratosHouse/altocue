@@ -23,7 +23,7 @@ PAUSE = 0.6  # a silence this long inside a shot starts a new cue
 GAP_FRAMES = 2
 CLAUSE_END = ",;:"
 BREAK_BEFORE = {"and", "but", "or", "so", "because", "that", "which", "who", "when", "to", "of", "in", "on", "at", "for", "with", "from", "by"}
-KEEP_WITH_NEXT = {"a", "an", "the", "my", "your", "his", "her", "its", "our", "their", "this", "these", "those", "i", "we", "you", "they", "he", "she"}
+KEEP_WITH_NEXT = {"a", "an", "the", "my", "your", "his", "her", "its", "our", "their", "this", "these", "those", "i", "we", "you", "they", "he", "she", "it"}
 
 
 @dataclass
@@ -169,7 +169,7 @@ def reading_report(cues: list[Cue]) -> dict[str, Any]:
         "cues": len(cues),
         "fastest_cps": round(max(speeds, default=0.0), 1),
         "limit_cps": READING,
-        "over_limit": sum(speed > READING for speed in speeds),
+        "over_limit": sum(round(speed, 1) > READING for speed in speeds),
         "longest_line": max((len(line) for c in cues for line in c.lines), default=0),
         "limit_line": LINE,
     }

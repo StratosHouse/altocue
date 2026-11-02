@@ -82,6 +82,7 @@ def test_deliver_writes_subtitles_a_soft_track_and_a_report(finished, capsys):
     assert vtt.startswith("WEBVTT\n\n00:00:00.100 --> ")
     subtitle = next(s for s in streams(folder / "film.mp4") if s["codec_type"] == "subtitle")
     assert subtitle["codec_name"] == "mov_text" and subtitle["tags"]["language"] == "eng"
+    assert subtitle["disposition"]["default"] == 0  # the captions are burned in, so a player must not double them
     report = json.loads((folder / "deliver.json").read_text())
     assert report["subtitles"]["reading"]["cues"] >= 2 and report["film"]["file"] == "film.mp4"
     assert "subtitles.srt" in capsys.readouterr().out

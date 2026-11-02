@@ -11,14 +11,17 @@ import copy
 import json
 import os
 import shutil
+import struct
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from . import brand as brands
 from . import cut, ffmpeg, locks, master, motion, platforms, render, subtitles, thumbnails
 from . import timeline as timelines
 from .errors import AltocueError
+from .generate.store import generated_dir
 from .models import Edl, GateResult
 from .motion.html import layout
 from .platforms import Platform
@@ -53,8 +56,6 @@ VERSION_GATES = (
     (("face_clear",), gates.gate_face_clear),
     (("format",), gates.gate_format),
 )
-SHARED_WORK = {"words", "audio", "luts", "media.json", "versions"}
-OWN_WORK = {"segments", "segments-draft", "layers", "plate.mp4", "plate-draft.mp4", "voice.wav", "mix.wav", "mix.json", "captions.json", "frame.json"}
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -220,6 +221,44 @@ def _spoken_as(found: dict[str, Any]) -> str:
 # The soft copy
 
 
+def _boxes(handle: BinaryIO, start: int, end: int) -> Iterator[tuple[bytes, int, int]]:
+    """MP4 boxes between two offsets, as name, body start and end."""
+    at = start
+    while at + 8 <= end:
+        handle.seek(at)
+        size, kind = struct.unpack(">I4s", handle.read(8))
+        body = at + 8
+        if size == 1:
+            size = struct.unpack(">Q", handle.read(8))[0]
+            body = at + 16
+        elif size == 0:
+            size = end - at
+        yield kind, body, at + size
+        at += size
+
+
+def subtitles_off_by_default(path: Path) -> None:
+    """Captions are already burned in, so a player must not add the soft track unasked.
+
+    ffmpeg's MP4 muxer always enables the first subtitle track, whatever its disposition says,
+    so the flag is cleared here. Only that one bit in the track header changes.
+    """
+    with path.open("r+b") as handle:
+        for name, body, end in _boxes(handle, 0, path.stat().st_size):
+            if name != b"moov":
+                continue
+            for trak in [box for box in _boxes(handle, body, end) if box[0] == b"trak"]:
+                parts = {kind: (start, stop) for kind, start, stop in _boxes(handle, trak[1], trak[2])}
+                media = {kind: start for kind, start, _ in _boxes(handle, *parts[b"mdia"])}
+                handle.seek(media[b"hdlr"] + 8)
+                if handle.read(4) == b"sbtl":
+                    flags_at = parts[b"tkhd"][0] + 3
+                    handle.seek(flags_at)
+                    flags = handle.read(1)[0]
+                    handle.seek(flags_at)
+                    handle.write(bytes([flags & ~1]))
+
+
 def package(base: Path, dest: Path, srt: Path | None, chapters: list[dict[str, Any]], language: str) -> None:
     """Add the subtitle track and chapter marks to a copy. Picture and sound pass through untouched."""
     inputs, maps = ["-i", str(base)], ["-map", "0"]
@@ -238,6 +277,8 @@ def package(base: Path, dest: Path, srt: Path | None, chapters: list[dict[str, A
     part = dest.with_name(f".{dest.stem}.part{dest.suffix}")
     try:
         ffmpeg.run([*inputs, *maps, "-map_metadata", "0", "-c", "copy", *extra, "-movflags", "+faststart", str(part)])
+        if srt:
+            subtitles_off_by_default(part)
         os.replace(part, dest)
     finally:
         part.unlink(missing_ok=True)
@@ -329,8 +370,11 @@ def _share_cached_segments(project: Project, home: Path) -> None:
     """The same aspect means the same encodes, so hard links save the work. A cache miss still encodes, in its own folder."""
     folder = home / "segments"
     folder.mkdir(exist_ok=True)
-    for segment in (project.work / "segments").glob("*.mp4"):
-        os.link(segment, folder / segment.name)
+    try:
+        for segment in (project.work / "segments").glob("*.mp4"):
+            os.link(segment, folder / segment.name)
+    except OSError:
+        pass  # no hard links on this disk, so the segments encode again
 
 
 def open_version(project: Project, platform: Platform, target: dict[str, Any], *, reuse: bool) -> Version:
@@ -339,9 +383,8 @@ def open_version(project: Project, platform: Platform, target: dict[str, Any], *
     shutil.rmtree(home, ignore_errors=True)
     (home / "out").mkdir(parents=True)
     (home / "review").mkdir()
-    for child in project.work.iterdir():
-        if child.name not in SHARED_WORK | OWN_WORK:
-            (home / child.name).symlink_to(child)
+    if generated_dir(project).exists():  # the one folder under work/ a render reads and never writes
+        (home / generated_dir(project).name).symlink_to(generated_dir(project))
     same_shape = platform.aspect == project.setting("output", "aspect")
     config = copy.deepcopy(project.config)
     config["output"] = {**config.get("output", {}), "aspect": platform.aspect, "platform": platform.name, "fps": project.fps}

@@ -17,7 +17,7 @@ You are the director and the editor. Nothing ships that you have not verified fr
 
 ## The pipeline, never skip a stage
 
-1. **Story first.** Pick one story shape and one point. Write the logline in one sentence and the beats with timings before any prompt. A reel that cannot be summed up in one line is two reels.
+1. **Story first.** Pick one story shape and one point. Write the logline in one sentence and the beats with timings before any prompt. A reel that cannot be summed up in one line is two reels. Save the beats in `beats.json` as `{"beats": [{"name": "Hook", "start": 0}]}`, with `start` in output seconds or on a spoken word, and `altocue deliver` turns them into chapters.
 2. **Asset lock.** Every recurring character, location or prop gets a reference image before shot work.
 3. **Keyframes.** Every shot starts as a still. Stills are cheap, video is not. Build depth into the keyframe: foreground, midground, background.
 4. **Motion prompts.** One primary camera move with an endpoint. Action as a chain of concrete verbs. Secondary motion one level deep. Do not re-describe what the start frame shows.

@@ -88,6 +88,10 @@ def test_wrap_never_strands_an_article_at_the_end_of_a_line():
     assert all(len(line) <= subtitles.LINE for line in lines)
 
 
+def test_wrap_keeps_a_pronoun_with_its_verb():
+    assert wrap("It reads every word and it cuts the pauses, the ums, and")[0].split()[-1] != "it"
+
+
 def test_srt_is_numbered_with_comma_milliseconds():
     assert to_srt([Cue(1.5, 3.25, ["Hello there"], "s001"), Cue(3661.0, 3662.0, ["One", "Two"], "s002")]) == (
         "1\n00:00:01,500 --> 00:00:03,250\nHello there\n\n2\n01:01:01,000 --> 01:01:02,000\nOne\nTwo\n"
@@ -100,6 +104,10 @@ def test_vtt_has_its_header_and_point_milliseconds():
 
 def test_vtt_escapes_what_would_break_a_cue():
     assert "Fish &amp; chips &lt;3" in to_vtt([Cue(0, 1, ["Fish & chips <3"], "s001")])
+
+
+def test_a_cue_at_the_limit_after_rounding_is_not_over_it():
+    assert reading_report([Cue(0.0, 2.797, ["x" * 56], "s001")])["over_limit"] == 0
 
 
 def test_the_report_says_how_fast_the_fastest_cue_reads():

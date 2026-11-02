@@ -18,7 +18,8 @@ from .models import Clip
 
 CANDIDATES = 6
 MOST = 60  # frames read at most, so a long film takes no longer than a short one
-PER_SHOT = 3
+PER_SHOT = 6
+SAMPLE_EVERY = 0.4  # seconds, close enough to step past a blink
 CUT_MARGIN = 0.15  # motion blur and zooms land on the cut
 MIN_APART = 1.0  # seconds between candidates, so the options differ
 SHARP_SIDE = 160
@@ -85,7 +86,7 @@ def moments(shots: list[tuple[float, float]]) -> list[float]:
         span = end - start - 2 * CUT_MARGIN
         if span <= 0:
             continue
-        count = min(PER_SHOT, max(1, round(span / 0.5)))
+        count = min(PER_SHOT, max(1, round(span / SAMPLE_EVERY)))
         times += [round(start + CUT_MARGIN + span * (index + 0.5) / count, 3) for index in range(count)]
     if len(times) > MOST:
         times = [times[index * len(times) // MOST] for index in range(MOST)]

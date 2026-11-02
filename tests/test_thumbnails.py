@@ -55,6 +55,10 @@ def test_moments_stay_away_from_the_cuts():
     assert times and all(min(abs(t - c) for c in (0.0, 2.0, 4.0)) >= thumbnails.CUT_MARGIN for t in times)
 
 
+def test_a_short_shot_gets_enough_looks_to_miss_a_blink():
+    assert len(moments([(0.0, 2.5)])) >= 5
+
+
 def test_moments_cover_a_long_film_without_reading_every_frame():
     times = moments([(float(i), float(i + 1)) for i in range(400)])
     assert len(times) <= thumbnails.MOST and times[0] < 10 and times[-1] > 390
