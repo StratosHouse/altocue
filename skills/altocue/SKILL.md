@@ -24,6 +24,9 @@ Run `altocue doctor --json`.
 - **Never overwrite a source.** Sources are links. Everything is rebuilt from them.
 - **Never spend money or upload footage without a yes.** Name the provider, what goes to it and the cost. Do this every time.
 - **A generated person may not claim experience.** No fake testimonials, with or without a label. See `altocue-ugc`.
+- **A generated persona is never an expert.** No health, legal, financial or political advice from one. See `altocue-ugc`.
+- **Keep the proof real.** Every number, quote, logo, review and rank on screen comes from the user or the speech. A placeholder never ships as a claim.
+- **Three flashes a second at most,** from any source. See `altocue-transitions`.
 - **Never claim a check you did not run.** If you could not see or hear something, say so.
 - **Never call a video finished until QA passes and the Editor in Chief has given a verdict.**
 
@@ -41,8 +44,8 @@ Run `altocue doctor --json`.
 6. **Add graphics.** Write `motion.json` from what is actually said (`altocue-motion`). Captions are automatic (`altocue-caption`).
 7. **Draft.** `altocue render --draft`. Check the frames at every cut before spending time on a final.
 8. **Final.** `altocue render`, then `altocue master`, then `altocue qa`.
-9. **Review.** `altocue review` (see `altocue-review`). Make every fix it asks for. At most two rounds, then hand the open list to the user.
-10. **Deliver.** Give the path to `out/final.mp4`, the verdict, and anything you could not check.
+9. **Review.** `altocue review` (see `altocue-review`). Make every fix it asks for, as one specific change at a time, with everything else left alone. At most two rounds, then hand the open list to the user.
+10. **Deliver.** Give the path to `out/final.mp4`, the verdict, and anything you could not check. `altocue deliver` makes subtitles, chapters, thumbnails and platform versions (`altocue-deliver`).
 11. **Measure.** `altocue facts` is free and needs no key (see `altocue-data`). The review report carries the same numbers after scoring.
 
 `altocue run` does steps 3 to 8 with defaults. Use it for a quick first pass, then refine.
@@ -67,6 +70,9 @@ Run `altocue doctor --json`.
 | A hosted effect or command, and what it costs | `altocue recipes` |
 | A verdict before publishing | `altocue-review` |
 | Facts about the film, benchmarks, learning from results | `altocue-data` |
+| Subtitles, chapters, thumbnails, versions for each app, a dub | `altocue-deliver` |
+| To see the edit on a timeline | `altocue timeline`, in the HyperFrames studio |
+| A series, a generated host, or a film on someone else's footage | [the platform rules](references/platform-rules.md) |
 
 ## Project files
 
@@ -77,5 +83,6 @@ Run `altocue doctor --json`.
 - `work/`: everything derived. Safe to delete.
 - `out/`: `draft.mp4`, `render.mp4`, `final.mp4`.
 - `review/`: QA and the Editor in Chief's report.
+- `deliver/`: subtitles, chapters, thumbnails and platform versions.
 
 Every stage is safe to re-run. Only what changed is rebuilt. `altocue cut` with no flags is the exception: it starts a fresh proposal and saves the old one to `work/edl-previous.json`.

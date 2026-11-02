@@ -56,6 +56,14 @@ altocue library add gl-wind
 - **A shader that needs a texture input is refused** by `altocue library add`.
 - **With no renderer installed,** a shader cut becomes a `dissolve`, and the run says so.
 
+## Flashes are a safety limit
+
+- **[evidence] Three flashes or fewer in any one second.** WCAG 2.2, criterion 2.3.1, Level A. It is a web standard, and it is the floor here because a film can reach someone with photosensitive epilepsy.
+- **A flash is a quick swing from bright to dark and back** over a large part of the frame. Saturated red has a stricter limit, so avoid it.
+- **Watch these:** `fadewhite`, `white_flash`, `gl-film-burn`, `gl-overexposure`, `gl-glitch-memories`, a run of very short cuts, and any hosted effect that strobes.
+- **One dip to white is one flash.** The danger is a run of them.
+- **No gate measures this yet.** Look at frames across every fast run, and say in the delivery that the check was by eye.
+
 ## Timing: what moves and what does not
 
 Nothing that QA measures moves. A transition or a freeze changes picture only.

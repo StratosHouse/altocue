@@ -23,4 +23,11 @@ compatibility: Requires the altocue CLI.
 ## When to change it
 
 - A slow push-in on a key line: set `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06.
-- Keep it rare. One or two a minute.
+- Keep it rare. These are rules of thumb, not findings.
+- A bolder jump: raise `[frame] punch_in`, then run `altocue frame`. That solves again and replaces hand edits.
+
+## After every reframe
+
+- **Recheck captions, the product and the safe area.** [source] `altocue qa` covers `safe_zone`, `face_clear` and `graphics_clear`. No gate looks for the product, so open the frames.
+- **A new shape is a new layout, not a crop.** `altocue deliver --for reels,youtube` re-renders the graphics for each shape. See `altocue-deliver`.
+- **A hosted reframe paints new edges.** See `reframe` in `altocue recipes show reframe`. A crop is free, so try it first.
