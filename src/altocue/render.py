@@ -10,6 +10,7 @@ from . import caption, ffmpeg, frame, mix, motion, plate
 from . import timeline as timelines
 from .motion import formats
 from .project import Project
+from .stock import credits
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -85,6 +86,7 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
     picture, voice = plate.build(project, draft=draft)
     caption.build(project)
     timeline = timelines.build(project)
+    credits.write_txt(project)
     layer = motion.render_layers(project, renderer=renderer, draft=draft)
     audio = project.work / "mix.wav"
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
