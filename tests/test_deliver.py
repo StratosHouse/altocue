@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from conftest import make_clip
 
-from altocue import cut, deliver, ffmpeg, master, platforms, render
+from altocue import cut, deliver, ffmpeg, frame, master, platforms, render
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.ingest import ingest
@@ -257,13 +257,13 @@ def test_one_edit_becomes_a_file_per_platform_and_the_master_is_untouched(finish
 
 def test_a_version_uses_the_frame_stage_not_a_blind_crop(finished, monkeypatch):
     seen = []
-    real = deliver.frame.frame_project
+    real = frame.frame_project
 
     def spy(project, force=False):
         seen.append(project.size)
         return real(project, force=force)
 
-    monkeypatch.setattr(deliver.frame, "frame_project", spy)
+    monkeypatch.setattr(frame, "frame_project", spy)
     main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
     assert (1080, 1080) in seen
 
