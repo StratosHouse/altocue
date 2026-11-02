@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import cut, ffmpeg, overlays, platforms, transitions
+from . import cut, ffmpeg, mix, overlays, platforms, transitions
 from .errors import AltocueError
 from .models import Edl
 from .motion import compositions, formats, placement
@@ -23,7 +23,7 @@ def bare(word: str) -> str:
     return word.replace("\u2019", "'").strip(" .,!?;:\"'").lower()
 
 
-def resolve_time(value: Any, words: list[dict[str, Any]]) -> float:
+def resolve_time(value: Any, words: list[dict[str, Any]], what: str = "Graphic") -> float:
     """A time is seconds, or `{"word": "...", "occurrence": 1, "offset": 0}` to follow speech."""
     if isinstance(value, int | float):
         return float(value)
@@ -33,7 +33,7 @@ def resolve_time(value: Any, words: list[dict[str, Any]]) -> float:
     occurrence = int(value.get("occurrence", 1))
     hits = [w for w in words if bare(w["text"]) == wanted]
     if occurrence < 1 or len(hits) < occurrence:
-        raise AltocueError(f'Graphic is anchored to "{value["word"]}", which is not in the cut.', fix="Pick a word that is still spoken, or use a time in seconds.")
+        raise AltocueError(f'{what} is anchored to "{value["word"]}", which is not in the cut.', fix="Pick a word that is still spoken, or use a time in seconds.")
     return hits[occurrence - 1]["start"] + float(value.get("offset", 0))
 
 
@@ -112,6 +112,40 @@ def resolve_items(raw: list[dict[str, Any]], words: list[dict[str, Any]], durati
     return sorted(items, key=lambda i: i["start"]), tail
 
 
+def resolve_sfx(raw: Any, words: list[dict[str, Any]], total: float, root: Path) -> tuple[bool, list[dict[str, Any]]]:
+    """Whether the house sounds play, and the project's own cues in plain seconds.
+
+    `sfx` is true or false for the house sounds, a list of cues to add to them, or
+    `{"house": false, "cues": [...]}` to hear only the cues.
+    """
+    if raw is None or isinstance(raw, bool):
+        return raw is not False, []
+    house, cues = (raw.get("house", True), raw.get("cues", [])) if isinstance(raw, dict) else (True, raw)
+    if not isinstance(cues, list):
+        raise AltocueError(f"Cannot read the sfx setting {raw!r}.", fix='Use true, false, or a list such as [{"name": "whoosh", "at": {"word": "next"}}].')
+    return bool(house), [_resolve_cue(cue, words, total, root) for cue in cues]
+
+
+def _resolve_cue(cue: dict[str, Any], words: list[dict[str, Any]], total: float, root: Path) -> dict[str, Any]:
+    if "at" not in cue:
+        raise AltocueError(f"Effect {cue} has no time.", fix='Add "at": seconds, or {"word": "..."}.')
+    if "name" in cue:
+        mix.sfx_path(cue["name"])
+    elif "file" in cue:
+        path = (root / cue["file"]).resolve()
+        if not path.exists():
+            raise AltocueError(f"No effect at {path}.", fix="Check the path. It is relative to the project folder.")
+        cue = {**cue, "file": str(path)}
+    else:
+        raise AltocueError(f"Effect {cue} has no sound.", fix=f'Add "file", or a "name" from {", ".join(mix.sfx_names())}.')
+    at = resolve_time(cue["at"], words, "Effect")
+    if not 0 <= at < total:
+        raise AltocueError(f"Effect at {at:.2f}s is outside the {total:.2f}s film.", fix="Move it inside the film, or remove it.")
+    if not mix.SFX_UNDER_RANGE[0] <= float(cue.get("under_db", mix.SFX_UNDER_DB)) <= mix.SFX_UNDER_RANGE[1]:
+        raise AltocueError(f"Effect level {cue['under_db']:g} dB under the voice is out of range.", fix="Use 8 to 12 dB under the voice.")
+    return {**cue, "at": at}
+
+
 def resolve_inserts(project: Project, raw: list[dict[str, Any]], words: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """An insert is a file or a generated shot id, placed by time or by a spoken word."""
     inserts = []
@@ -163,6 +197,7 @@ def build(project: Project) -> dict[str, Any]:
     picture = next((path for path in (project.work / "plate.mp4", project.work / "plate-draft.mp4") if path.exists()), None)
     zone = platforms.zone_of(project)
     items = placement.place(items, picture, (width, height), brand, zone)
+    house, cues = resolve_sfx(motion.get("sfx"), words, duration + tail, project.root)
     timeline = {
         "width": width,
         "height": height,
@@ -175,7 +210,8 @@ def build(project: Project) -> dict[str, Any]:
         "captions": captions,
         "items": items,
         "music": motion.get("music"),
-        "sfx": motion.get("sfx", True),
+        "sfx": house,
+        "cues": cues,
         "inserts": sorted(resolve_inserts(project, motion.get("inserts", []), words) + chosen_broll(project), key=lambda i: i["start"]),
         "transitions": edits["transitions"],
         "freezes": edits["freezes"],

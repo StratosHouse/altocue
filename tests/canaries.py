@@ -178,6 +178,11 @@ CANARIES = [
         "disclosure",
         Recipe(performer=HOST_PROMPT, items=[{**LABEL_ITEM, "end": 0.5}], burn_text=[(LABEL, 0.12, 0.0, 0.5)]),
     ),
+    Case(
+        "graphic gone before it can be read",
+        "text_readable",
+        Recipe(items=[{"type": "quote", "text": "Twelve whole words sit in this quote and it leaves after one second", "start": 1.0, "end": 2.0}]),
+    ),
 ]
 
 CONTROLS = [
@@ -202,6 +207,11 @@ CONTROLS = [
     Case("clean, labelled synthetic host", "", Recipe(performer=HOST_PROMPT, items=[LABEL_ITEM], burn_text=[LABEL_BURN])),
     Case("clean, recorded exemption", "", Recipe(performer=HOST_PROMPT, exempt="Audio-only ad, the picture is a placeholder.")),
     Case("clean, a real speaker may say what they tried", "", Recipe(expected=CLAIMING, heard=CLAIMING)),
+    Case(
+        "clean, graphic held long enough to read",
+        "",
+        Recipe(items=[{"type": "quote", "text": "Twelve whole words sit in this quote and it stays for five seconds", "start": 0.5, "end": 5.5}]),
+    ),
 ]
 
 

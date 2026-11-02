@@ -24,6 +24,7 @@ from ..motion import formats
 
 TEXT_FIELDS = ("eyebrow", "text", "title", "subtitle", "value", "label", "by", "headline", "cta")
 FUZZY_FROM = 6  # shorter words differ by one letter too often to fuzzy match
+READING_WPS = 3.0  # 180 words a minute, the top of the 160 to 180 Ofcom recommends for subtitles. A subtitle figure, not a phone study
 
 
 @dataclass
@@ -129,6 +130,44 @@ def on_screen(timeline: dict[str, Any]) -> list[dict[str, Any]]:
         for step in item.get("items", []) if item.get("type") == "steps" else []:
             strings.append({"layer": "steps", "text": _clean(step["text"]), "start": step.get("at", item["start"]), "end": item["end"]})
     return strings
+
+
+def _word_count(text: str) -> int:
+    return sum(1 for word in text.split() if any(ch.isalnum() for ch in word))
+
+
+def _read_through(item: dict[str, Any]) -> list[str]:
+    """A format's text is read in full. Its lists and charts are scanned, so only the longest row counts."""
+    fmt = formats.find(item["type"])
+    texts = [_clean(item[slot.name]) for slot in fmt.slots if slot.kind == "text" and item.get(slot.name)] if fmt else []
+    rows = [text for text in map(_clean, formats.strings(item)) if text not in texts]
+    return texts + ([max(rows, key=_word_count)] if rows else [])
+
+
+def reading_time(timeline: dict[str, Any], wps: float = READING_WPS) -> list[dict[str, Any]]:
+    """How long each graphic's words stay up, against how long they take to read.
+
+    Strings shown together share their time. Captions are left out, because they echo what is
+    being said, and BBC R&D found viewers keep up with accurate subtitles well past guideline speed.
+    """
+    groups: dict[tuple[str, float, float], list[str]] = {}
+    plain = [item for item in timeline.get("items", []) if not formats.find(item.get("type"))]
+    for item in on_screen({"items": plain}):
+        groups.setdefault((item["layer"], item["start"], item["end"]), []).append(item["text"])
+    for item in timeline.get("items", []):
+        if formats.find(item.get("type")):
+            groups[(item["type"], item["start"], item["end"])] = _read_through(item)
+    close = timeline.get("total")
+    rows = []
+    for (layer, start, end), texts in sorted(groups.items(), key=lambda entry: entry[0][1]):
+        words = sum(_word_count(text) for text in texts)
+        if not words:
+            continue
+        shown = round((min(end, close) if close else end) - start, 3)
+        needed = round(words / wps, 3)
+        short = round(max(needed - shown, 0), 3)
+        rows.append({"layer": layer, "text": " ".join(texts), "start": start, "words": words, "shown": shown, "needed": needed, "short_by": short})
+    return rows
 
 
 def _spoken_at(rule: dict[str, Any], spoken: list[dict[str, Any]]) -> list[tuple[float, float]]:

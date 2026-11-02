@@ -12,7 +12,7 @@ Write `motion.json` in the project root. Times are seconds in the finished video
 ```json
 {
   "items": [
-    { "type": "hook", "eyebrow": "For first-time founders", "text": "Three numbers\n*every founder* gets wrong", "start": 0, "duration": 2.6 },
+    { "type": "hook", "eyebrow": "For first-time founders", "text": "Three numbers\n*every founder* gets wrong", "start": 0, "duration": 3.0 },
     { "type": "lower_third", "title": "Sam Rivera", "subtitle": "Founder, Northlight", "start": { "word": "hello" } },
     { "type": "chip", "text": "Number one", "start": { "word": "first" } },
     { "type": "stat", "value": "41%", "label": "of runway goes to tools nobody uses", "start": { "word": "runway" } },
@@ -23,9 +23,11 @@ Write `motion.json` in the project root. Times are seconds in the finished video
     { "type": "endcard", "headline": "Run the *check* this week", "cta": "yoursite.com", "duration": 2.6 }
   ],
   "music": { "path": "music/bed.mp3" },
-  "sfx": true
+  "sfx": [{ "name": "whoosh", "at": { "word": "next" } }]
 }
 ```
+
+`sfx` is `true` for the house sounds, `false` for none, or a list of cues to add to them. See `altocue-clean` for cues and for how music ends.
 
 ## Types
 
@@ -38,10 +40,13 @@ Write `motion.json` in the project root. Times are seconds in the finished video
 
 ## Rules of taste
 
-- **The hook lands in the first frame.** 6 to 8 words.
+Rules of thumb, not findings, apart from reading time.
+
+- **The hook lands in the first frame.** About 7 words, eyebrow included, in the default 2.6 seconds. Longer copy needs a longer `duration`.
 - **On-screen points quote the speaker's words, in the order spoken.** Never get ahead of them.
 - **One graphic at a time** in the same area. Graphics under 40% of runtime.
-- **Something changes every 2 to 4 seconds** after the hook, but a cut counts.
+- **Hold text long enough to read.** QA fails a graphic that shows more than 3 words for each second on screen, the top of what Ofcom recommends for subtitles. Lists and charts count only their longest row, because they are scanned. A format's default length does not always fit its copy, so set `duration`. Set `reading_wps` under `[qa]` for a slower audience.
+- **Keep the picture moving, about every 2 to 4 seconds after the hook,** and a cut counts. No study shows viewers leave if nothing changes that often, so pace to the content.
 - **End on the last useful point.** Keep the end card short.
 
 ## Brand

@@ -43,6 +43,7 @@ Run `altocue doctor --json`.
 8. **Final.** `altocue render`, then `altocue master`, then `altocue qa`.
 9. **Review.** `altocue review` (see `altocue-review`). Make every fix it asks for. At most two rounds, then hand the open list to the user.
 10. **Deliver.** Give the path to `out/final.mp4`, the verdict, and anything you could not check.
+11. **Measure.** `altocue facts` is free and needs no key (see `altocue-data`). The review report carries the same numbers after scoring.
 
 `altocue run` does steps 3 to 8 with defaults. Use it for a quick first pass, then refine.
 
@@ -65,6 +66,7 @@ Run `altocue doctor --json`.
 | A UGC-style ad, a generated host, an AI actor | `altocue-ugc` |
 | A hosted effect or command, and what it costs | `altocue recipes` |
 | A verdict before publishing | `altocue-review` |
+| Facts about the film, benchmarks, learning from results | `altocue-data` |
 
 ## Project files
 

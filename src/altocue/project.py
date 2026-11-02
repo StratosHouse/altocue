@@ -45,6 +45,11 @@ remove_fillers = true
 
 [audio]
 denoise = true
+denoiser = "auto"       # auto, apple, deep-filter or afftdn
+level_phrases = true    # level phrase by phrase, so a quiet aside and a loud line sit together
+deess = "light"         # off, light, normal or strong
+breaths = 0             # dB to turn breaths down. They are never cut
+room_tone = true        # fill what cuts leave with the clip's own room, so nothing drops to digital silence
 loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast
 true_peak = -1.5        # dBTP
 
@@ -74,6 +79,8 @@ exempt = ""             # why no label is needed, in your words. Recorded, never
 
 [ugc]
 label_text = []         # words printed on the real product, so `qa --check ugc` does not call them baked in
+[qa]
+reading_wps = 3.0       # words a second for the text_readable gate. Slower for children or second-language viewers
 
 [review]
 reviewer = "auto"       # auto, gemini, codex or pack

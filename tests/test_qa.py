@@ -19,6 +19,7 @@ from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.generate import import_asset
 from altocue.models import Clip, GateResult, Word
+from altocue.motion import formats
 from altocue.project import Project
 from altocue.qa import gates, ocr, rules
 from altocue.review import rubric
@@ -649,3 +650,96 @@ def test_qa_check_ugc_runs_only_those_checks_and_saves_them(tmp_path, capsys):
     assert "speech_rate" in out and "lip_closure" in out and "black_frames" not in out
     saved = json.loads((built.project.review_dir / "qa-ugc.json").read_text())
     assert {g["id"] for g in saved["gates"]} == {"speech_rate", "cold_open", "baked_text", "lip_closure"}
+
+
+# Reading time
+
+
+def test_reading_time_counts_words_and_seconds():
+    timeline = {
+        "total": 10.0,
+        "captions": [{"start": 0, "end": 1, "words": [{"text": "said", "start": 0, "end": 1}]}],
+        "items": [{"type": "chip", "text": "Four short words here", "start": 1.0, "end": 2.0}],
+    }
+    assert rules.reading_time(timeline, 3.0) == [
+        {"layer": "chip", "text": "Four short words here", "start": 1.0, "words": 4, "shown": 1.0, "needed": 1.333, "short_by": 0.333}
+    ]
+
+
+def test_every_string_in_one_graphic_shares_its_time():
+    timeline = {"items": [{"type": "stat", "value": "41%", "label": "of runway goes to tools", "start": 0.0, "end": 2.0}]}
+    row = rules.reading_time(timeline, 3.0)[0]
+    assert row["words"] == 6 and row["needed"] == 2.0 and row["short_by"] == 0
+
+
+def test_time_past_the_end_of_the_film_is_not_reading_time():
+    timeline = {"total": 2.0, "items": [{"type": "chip", "text": "Six words in this little chip", "start": 1.0, "end": 9.0}]}
+    assert rules.reading_time(timeline, 3.0)[0]["shown"] == 1.0
+
+
+def test_punctuation_is_not_a_word():
+    timeline = {"items": [{"type": "chip", "text": "One - two", "start": 0.0, "end": 1.0}]}
+    assert rules.reading_time(timeline, 3.0)[0]["words"] == 2
+
+
+def test_a_list_or_chart_is_scanned_so_only_its_longest_row_counts():
+    """Nobody reads a chart label by label, and a gate that says so would fail a third of the formats."""
+    timeline = {
+        "items": [
+            {
+                "type": "stepped_list",
+                "title": "Three moves",
+                "items": ["Cancel what has no goal", "Cap the rest at twenty five minutes", "Write the decision down"],
+                "start": 0.0,
+                "end": 4.0,
+            }
+        ]
+    }
+    assert rules.reading_time(timeline, 3.0)[0]["words"] == 2 + 7
+
+
+def test_a_format_with_long_copy_still_has_to_be_held_long_enough():
+    timeline = {"items": [{"type": "vocab_card", **formats.find("vocab_card").example, "start": 0.0, "end": 3.0}]}
+    assert rules.reading_time(timeline, 3.0)[0]["short_by"] > 0
+
+
+def test_captions_are_left_out_of_the_reading_gate():
+    """A caption echoes what is being said, so a fast talker is not a reading fault."""
+    timeline = {
+        "captions": [{"start": 0, "end": 0.4, "words": [{"text": w, "start": 0, "end": 0.4} for w in ("far", "too", "many", "words")]}],
+        "items": [],
+    }
+    assert rules.reading_time(timeline, 3.0) == []
+
+
+def context_with(timeline, reading=None):
+    project = SimpleNamespace(setting=lambda section, key, default=None: reading if reading and key == "reading_wps" else default)
+    return SimpleNamespace(timeline=timeline, project=project)
+
+
+def test_reading_gate_states_its_speed_and_names_the_graphic():
+    timeline = {"items": [{"type": "chip", "text": "Four short words here", "start": 1.0, "end": 2.0}]}
+    gate = gates.gate_text_readable(context_with(timeline))
+    assert not gate.passed and gate.value == 1 and gate.threshold == "3 words a second"
+    assert "chip at 00:01.00" in gate.detail and "4 words" in gate.detail
+
+
+def test_reading_gate_passes_at_exactly_the_stated_speed():
+    timeline = {"items": [{"type": "chip", "text": "Three short words", "start": 1.0, "end": 2.0}]}
+    assert gates.gate_text_readable(context_with(timeline)).passed
+
+
+def test_a_project_can_state_a_slower_reader():
+    timeline = {"items": [{"type": "chip", "text": "Three short words", "start": 1.0, "end": 2.0}]}
+    gate = gates.gate_text_readable(context_with(timeline, reading=2.0))
+    assert not gate.passed and gate.threshold == "2 words a second"
+
+
+def test_reading_gate_with_no_timeline_is_skipped_not_passed():
+    gate = gates.gate_text_readable(context_with(None))
+    assert gate.skipped and not gate.passed and gate.value != gates.NOT_APPLICABLE
+
+
+def test_reading_gate_with_only_captions_does_not_apply():
+    gate = gates.gate_text_readable(context_with({"captions": [], "items": []}))
+    assert gate.skipped and gate.value == gates.NOT_APPLICABLE

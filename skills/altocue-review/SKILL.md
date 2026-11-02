@@ -24,5 +24,6 @@ The editor never signs off their own work.
 - **Never argue with a verdict in the report.** Fix it, or tell the user why you disagree.
 - **Never edit `verdict.json`.**
 - **Never show the reviewer your reasoning.** It gets the file, the brief, the rubric and the numbers. That keeps its read fresh.
+- **Never show the reviewer facts, benchmarks or results.** `review/facts.json`, `bench/`, `results/` and `director-notes.md` stay out of its sight, and out of the brief. Numbers like these would anchor its hook and pacing scores. Facts reach the report only after scoring.
 - **If the reviewer shares a vendor with you, say so.** The report labels it.
 - **Always pass on the section "What this review could not see or hear".**

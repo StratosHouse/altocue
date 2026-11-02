@@ -127,9 +127,10 @@ def write_wav(path: str | Path, samples: np.ndarray, rate: int) -> Path:
     return Path(path)
 
 
-def loudness(path: str | Path) -> dict[str, float]:
-    """Integrated loudness, range and true peak, measured with `ebur128`."""
-    done = run(["-i", str(path), "-af", "ebur128=peak=true:framelog=quiet", "-f", "null", "-"])
+def loudness(path: str | Path, *, seconds: float | None = None) -> dict[str, float]:
+    """Integrated loudness, range and true peak, measured with `ebur128`. `seconds` stops early."""
+    limit = ["-t", f"{seconds:.3f}"] if seconds else []
+    done = run([*limit, "-i", str(path), "-af", "ebur128=peak=true:framelog=quiet", "-f", "null", "-"])
     text = done.stderr
     found = {
         "integrated": re.search(r"I:\s+(-?[\d.]+) LUFS", text),

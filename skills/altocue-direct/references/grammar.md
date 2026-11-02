@@ -1,16 +1,19 @@
 # Motion grammar: how to write shots that models obey
 
 Sources: Higgsfield official Seedance guides, ByteDance formula, fal.ai
-guides, the OSideMedia community skill (battle-tested failure catalog),
-Higgsfield's own faceless pipeline. Verified against our own renders.
+guides, the OSideMedia community skill, Higgsfield's own faceless pipeline.
+Everything here is **[source]**, a vendor's or community's claim, or
+**[thumb]**, a rule of thumb. None of it was tested at scale. The labels are
+defined in story.md.
 
 ## Prompt anatomy (the seven slots, in this order)
 
 1. **Camera**: named move + endpoint ("slow dolly in from medium to medium
-   close-up, ending on her hands"). Community finding: camera lands best in
-   3rd position overall; the working order is subject, action, camera,
-   setting/style, lighting, audio, constraints. Missing 3+ slots correlates
-   with filter rejection; all-slots-present almost never gets flagged.
+   close-up, ending on her hands"). **[source]** A community claim, untested
+   here: camera lands best in 3rd position overall, and the working order is
+   subject, action, camera, setting/style, lighting, audio, constraints.
+   **[source]** The same community reports that missing three or more slots
+   draws filter rejections.
 2. **Subject**: identity, position, frame occupancy. FOR IMAGE-TO-VIDEO,
    THE MOST IMPORTANT RULE IN THIS FILE: do not re-describe what the start
    frame already shows. Long appearance description fights the image and
@@ -35,9 +38,10 @@ hardest.
 
 ## Camera vocabulary, by reliability
 
-- **Near-certain**: push in / dolly in · pull back wide · static/locked-off
-  · pan · tilt · orbit ("slow orbit around...") · crane up/down · handheld
-  follow · aerial glide. Single-vector moves execute almost every time.
+- **[source] Most reliable**: push in / dolly in · pull back wide ·
+  static/locked-off · pan · tilt · orbit ("slow orbit around...") · crane
+  up/down · handheld follow · aerial glide. Single-vector moves are reported
+  to land most often.
 - **Reliable with care**: tracking ("tracks alongside at chest height,
   matching pace"; always name WHO is followed and the start/end points) ·
   dolly zoom · whip pan · dutch angle · FPV.
@@ -72,8 +76,8 @@ hardest.
   multiple actions within one second.
 - **Impact beats.** Every clip lands at least one physical accent (a stamp,
   a catch, a door closing, a lantern lighting) named in the shot text and
-  echoed in the audio line. Reference-grade work lands an accent roughly
-  every 3 seconds.
+  echoed in the audio line. **[thumb]** About one every 3 seconds. No study
+  shows viewers leave if nothing changes that often.
 - **What over-specification breaks**: several simultaneous actions = mush;
   frame-accurate timing = ignored; choreographing every limb = anatomy
   errors; long dialogue = lip-sync drift.
@@ -147,7 +151,9 @@ advert.
 ## Iteration economics
 
 Prototype at 720p silent; rerun the identical winning prompt at 1080p+ with
-audio for the final. One well-written prompt at 720p beats five vague
-prompts at 1080p. Duration sweet spots: under 8s while iterating a single
+audio for the final. **[source]** One guide warns that a fresh high-resolution
+run makes a different video, and upscales the approved draft instead.
+**[thumb]** One well-written prompt at 720p beats five vague prompts at 1080p.
+Duration sweet spots: under 8s while iterating a single
 shot; 10-15s for finals and montages; identity drift compounds with
 duration and motion magnitude.
