@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
-from .. import ffmpeg
+from .. import ffmpeg, master, platforms
 from ..errors import AltocueError
 from ..models import Clip, Edl, GateResult, Word
 from ..project import Project
@@ -261,8 +261,8 @@ def log_of(args: list[str]) -> str:
 def gate_loudness(c: Context) -> list[GateResult]:
     if c.stage == "draft":
         return [not_applicable(g, "Drafts are not mastered, so this waits for the final.") for g in ("loudness", "true_peak")]
-    target = float(c.project.setting("audio", "loudness", -14.0))
-    ceiling = float(c.project.setting("audio", "true_peak", -1.5)) + PEAK_TOLERANCE
+    target, peak_target = master.project_target(c.project)
+    ceiling = peak_target + PEAK_TOLERANCE
     band = f"{target:g} LUFS +/- {LOUDNESS_TOLERANCE:g}"
     try:
         had_sound = any(clip.has_audio for clip in c.project.clips())
@@ -528,6 +528,9 @@ def word_gates(c: Context) -> list[GateResult]:
 def zone_for(c: Context) -> dict[str, float]:
     if c.rules and c.rules.safe_zone:
         return c.rules.safe_zone
+    named = platforms.zone_of(c.project)
+    if named:
+        return named
     width, height = c.project.size
     return TALL_ZONE if height > width else FLAT_ZONE
 

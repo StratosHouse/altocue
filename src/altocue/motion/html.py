@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import math
 from html import escape
 from typing import Any
 
 from ..brand import Brand
 from . import compositions, formats
 from .formats import kit
+
+CAPTION_LINES = 2  # four words rarely wrap further, and a third line shows in the safe zone gate
+LINE_HEIGHT = 1.14
 
 CSS = """
 @font-face{font-family:"Brand";src:url("%(font)s");font-weight:100 900}
@@ -113,6 +117,24 @@ def geometry(width: int, height: int) -> dict[str, float]:
     }
 
 
+def caption_size(width: int, height: int, brand: Brand) -> float:
+    return int(brand.caption["size"]) * (geometry(width, height)["scale"] if width > height else 1)
+
+
+def layout(width: int, height: int, brand: Brand, zone: dict[str, float] | None = None) -> dict[str, float]:
+    """`geometry`, moved only as far as a platform's safe zone needs. Text never leaves the zone for the sake of the layout."""
+    geo = geometry(width, height)
+    if not zone:
+        return geo
+    geo["gutter"] = max(geo["gutter"], math.ceil(round(zone["left"] * width, 6)))
+    geo["rail"] = max(geo["rail"], math.ceil(round((1 - zone["right"]) * width, 6)) - geo["gutter"])
+    geo["top"] = max(geo["top"], math.ceil(round(zone["top"] * height, 6)))
+    rise = max(geo["cap_y"] - math.floor(zone["bottom"] * height - CAPTION_LINES * caption_size(width, height, brand) * LINE_HEIGHT), 0)
+    geo["cap_y"] -= rise
+    geo["lt_y"] -= rise
+    return geo
+
+
 def _attrs(start: float, end: float, track: int) -> str:
     return f'data-start="{start:.3f}" data-duration="{max(end - start, 0.04):.3f}" data-track-index="{track}"'
 
@@ -188,7 +210,7 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
 
 def compose(timeline: dict[str, Any], brand: Brand) -> str:
     width, height = timeline["width"], timeline["height"]
-    geo = geometry(width, height)
+    geo = layout(width, height, brand, timeline.get("zone"))
     colors = brand.colors
     css = CSS % {
         "font": brand.font_file.name,
@@ -203,7 +225,7 @@ def compose(timeline: dict[str, Any], brand: Brand) -> str:
         "height": height,
     }
     items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
-    size = int(brand.caption["size"]) * (geo["scale"] if width > height else 1)
+    size = caption_size(width, height, brand)
     tokens = f'--cap-y:{geo["cap_y"]}px;--cap-size:{size};--top:{geo["top"]}px;--lt-y:{geo["lt_y"]}px;--rail:{geo["rail"]}px'
     style = brand.caption["style"]
     upper = brand.caption.get("uppercase")

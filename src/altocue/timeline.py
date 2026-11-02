@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import cut, ffmpeg
+from . import cut, ffmpeg, platforms
 from .errors import AltocueError
 from .motion import compositions, formats, placement
 from .project import Project, write_json
@@ -103,10 +103,12 @@ def build(project: Project) -> dict[str, Any]:
     width, height = project.size
     brand = brands.load(project)
     picture = next((path for path in (project.work / "plate.mp4", project.work / "plate-draft.mp4") if path.exists()), None)
-    items = placement.place(items, picture, (width, height), brand)
+    zone = platforms.zone_of(project)
+    items = placement.place(items, picture, (width, height), brand, zone)
     timeline = {
         "width": width,
         "height": height,
+        "zone": zone,
         "fps": edl.fps,
         "duration": duration,
         "tail": tail,

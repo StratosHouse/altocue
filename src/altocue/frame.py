@@ -57,6 +57,7 @@ class Face:
     h: float
     score: float = 1.0
     eye_y: float = 0.0
+    eyes: tuple[tuple[float, float], ...] = ()
 
     @property
     def area(self) -> float:
@@ -67,7 +68,8 @@ class Face:
         return (self.x + self.w / 2, self.y + self.h / 2)
 
     def scaled(self, factor: float) -> Face:
-        return Face(self.x * factor, self.y * factor, self.w * factor, self.h * factor, self.score, self.eye_y * factor)
+        eyes = tuple((x * factor, y * factor) for x, y in self.eyes)
+        return Face(self.x * factor, self.y * factor, self.w * factor, self.h * factor, self.score, self.eye_y * factor, eyes)
 
 
 @dataclass(frozen=True)
@@ -139,7 +141,8 @@ def _detect_at(image: np.ndarray, side: int) -> list[Face]:
     for row in rows:
         x, y, w, h = (float(v) for v in row[:4])
         eye_y = float(row[5] + row[7]) / 2
-        found.append(Face(x, y, w, h, float(row[14]), eye_y).scaled(width / size[0]))
+        eyes = ((float(row[4]), float(row[5])), (float(row[6]), float(row[7])))
+        found.append(Face(x, y, w, h, float(row[14]), eye_y, eyes).scaled(width / size[0]))
     return found
 
 
@@ -400,6 +403,12 @@ def _fingerprint(project: Project, edl: Edl, target: tuple[int, int]) -> str:
 
 def _report_path(project: Project) -> Path:
     return project.work / "frame.json"
+
+
+def up_to_date(project: Project) -> bool:
+    """True when the saved framing was solved for this cut, aspect and these settings."""
+    path = _report_path(project)
+    return path.exists() and json.loads(path.read_text()).get("fingerprint") == _fingerprint(project, project.edl(), project.size)
 
 
 def frame_project(project: Project, force: bool = False) -> Edl:

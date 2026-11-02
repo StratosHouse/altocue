@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from ..brand import Brand
 from ..errors import AltocueError
 from . import formats
-from .html import geometry
+from .html import layout
 from .layer import Layer
 
 ENTRY = 0.12
@@ -50,9 +50,9 @@ def _shadowed(canvas: Image.Image, paint: Image.Image, radius: int, alpha: float
     canvas.alpha_composite(paint)
 
 
-def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, brand: Brand) -> Image.Image:
+def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, brand: Brand, zone: dict[str, float] | None = None) -> Image.Image:
     width, height = size
-    geo = geometry(width, height)
+    geo = layout(width, height, brand, zone)
     style = brand.caption
     px = int(int(style["size"]) * (geo["scale"] if width > height else 1) * (0.76 if style["style"] == "rail" else 1))
     font = _font(brand, px, 800 if style["style"] == "bold" else 700)
@@ -86,10 +86,10 @@ def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, bran
     return canvas
 
 
-def card_frame(size: tuple[int, int], item: dict[str, Any], brand: Brand) -> Image.Image:
+def card_frame(size: tuple[int, int], item: dict[str, Any], brand: Brand, zone: dict[str, float] | None = None) -> Image.Image:
     """Every graphic reduced to one clean panel, for machines with no browser."""
     width, height = size
-    geo = geometry(width, height)
+    geo = layout(width, height, brand, zone)
     scale = geo["scale"]
     colors = brand.colors
     canvas = Image.new("RGBA", size, (0, 0, 0, 0))
@@ -159,8 +159,8 @@ class BasicRenderer:
                 start = page["start"] if index == 0 else word["start"]
                 end = page["end"] if index == len(words) - 1 else words[index + 1]["start"]
                 if end > start:
-                    states.append((start, end, caption_frame(size, page, index, brand)))
-        cards = [(item["start"], item["end"], card_frame(size, item, brand)) for item in timeline["items"]]
+                    states.append((start, end, caption_frame(size, page, index, brand, timeline.get("zone"))))
+        cards = [(item["start"], item["end"], card_frame(size, item, brand, timeline.get("zone"))) for item in timeline["items"]]
         return Layer(path=self._write(states, cards, timeline["total"], stage), renderer=self.id, concat=True)
 
     @staticmethod

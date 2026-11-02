@@ -9,7 +9,7 @@ from typing import Any
 from . import caption, ffmpeg, frame, locks, mix, motion, plate
 from . import timeline as timelines
 from .motion import formats
-from .project import Project
+from .project import Project, write_json
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -93,6 +93,8 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         dest = project.out / ("draft.mp4" if draft else "render.mp4")
         dest.parent.mkdir(parents=True, exist_ok=True)
         ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
+    if not draft:
+        write_json(project.work / "render.json", {"cut": project.cut_mark()})
     return dest
 
 

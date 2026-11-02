@@ -24,6 +24,7 @@ DEFAULT_CONFIG = """\
 [output]
 aspect = "{aspect}"     # 9:16, 16:9, 1:1 or 4:5
 fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
+# platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
 
 [brand]
 name = "default"        # a preset name or a path to a brand.json
@@ -41,7 +42,7 @@ remove_fillers = true
 
 [audio]
 denoise = true
-loudness = -14.0        # integrated LUFS
+loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast
 true_peak = -1.5        # dBTP
 
 [grade]

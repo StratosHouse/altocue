@@ -664,6 +664,15 @@ def _stamp(project: Project, clips: list[Clip], look: str, enabled: bool, ranges
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
+def up_to_date(project: Project) -> bool:
+    """True when `altocue grade` would keep the LUTs it has."""
+    path = project.lut_dir / "report.json"
+    if not path.exists():
+        return False
+    stamp = _stamp(project, project.clips(), project.setting("grade", "look", "natural"), bool(project.setting("grade", "enabled", True)), _kept_ranges(project))
+    return json.loads(path.read_text()).get("stamp") == stamp
+
+
 def grade_project(project: Project, force: bool = False, look: str | None = None) -> dict[str, Any]:
     """Bake one LUT per clip and write `work/luts/report.json`."""
     chosen = look or project.setting("grade", "look", "natural")
