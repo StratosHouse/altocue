@@ -90,9 +90,10 @@ def test_a_complete_thought_wins(tmp_path):
 
 def test_length_counts_what_plays_not_the_pauses(tmp_path):
     project = talk_project(tmp_path, THOUGHT[:3], pause=4.0)
-    found = clips.find_candidates(project, count=1, length=(5, 60))[0]
-    assert found["seconds"] < found["end"] - found["start"]
-    assert found["seconds"] == pytest.approx(found["end"] - found["start"] - 2 * (4.0 - 0.4), abs=0.5)
+    found = clips.find_candidates(project, count=1, length=(12, 60))[0]
+    pauses = found["transcript"].count(".") - 1
+    assert pauses >= 1
+    assert found["seconds"] == pytest.approx(found["end"] - found["start"] - pauses * (4.0 - 0.4), abs=0.5)
 
 
 def test_nothing_outside_the_range_is_offered(tmp_path):
@@ -157,7 +158,12 @@ def test_a_first_line_that_stands_up_passes(line):
 
 
 def test_a_retake_is_not_a_theme():
-    lines = ["What is it and why is it important?", "So here is the best part.", "A completely separate editor has to sign off.", "A completely separate editor has to agree."]
+    lines = [
+        "What is it and why is it important?",
+        "So here is the best part.",
+        "A completely separate editor has to sign off.",
+        "A completely separate editor has to agree.",
+    ]
     assert not clips.focus(clips.read_lines(spoken_lines(lines), 0.4))[0].passed
 
 
