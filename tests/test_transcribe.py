@@ -544,7 +544,7 @@ def test_memory_goes_back_after_every_piece(tmp_path, monkeypatch):
 
 def test_a_piece_fits_inside_the_engines_own_chunk():
     assert transcribe.PIECE + transcribe.REACH <= transcribe.Parakeet.chunk
-    assert transcribe.PIECE * 1.5 <= 180
+    assert transcribe.PIECE * 1.5 <= transcribe.Parakeet.chunk
 
 
 def fake_mlx(monkeypatch) -> SimpleNamespace:

@@ -24,7 +24,7 @@ Long to shorts is for the user's own recordings, or footage they have the rights
 
 ## Steps
 
-1. `altocue new talk --input talk.mp4 --aspect 16:9`, then `altocue transcribe -p talk`. A long file goes to the engine in pieces.
+1. `altocue new talk --input talk.mp4 --aspect 16:9`, then `altocue transcribe -p talk`. Local engines take the recording a minute at a time, so memory does not grow with its length. It refuses to start with under about 4 GB of memory free, or too little disk.
 2. `altocue clips find -p talk --count 8 --length 30-60`. This reads the transcript and nothing else. It writes `clips/candidates.md` and `clips/candidates.json`.
 3. Read every candidate in full, the transcript as well as the checks. Pick the ones a person would finish watching.
 4. `altocue clips cut -p talk --pick 1,3,5`. Each pick becomes a project in `clips/`, on the shape you ask for with `--aspect`, 9:16 by default.

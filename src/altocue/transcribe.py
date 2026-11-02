@@ -43,10 +43,10 @@ SPREAD_MAX = 0.4
 GHOST_MARGIN = 0.3  # a word with no speech this close to it was never said
 LOOP_FILLER, LOOP_WORD, LOOP_PHRASE = 3, 6, 4
 STOCK_CONFIDENCE = 0.5
-PIECE = 100.0  # speech goes to a local engine in pieces this long, so its memory follows the piece and not the file
-REACH = 15.0  # how far either side of a mark to look for the quietest moment
+PIECE = 60.0  # speech goes to a local engine in pieces this long, so its memory follows the piece and not the file
+REACH = 10.0  # how far either side of a mark to look for the quietest moment
 MLX_CACHE_BYTES = 256 * 2**20  # MLX keeps freed buffers, and by default that cache may grow past the machine's memory
-MLX_LIMIT_BYTES = 7 * 2**30
+MLX_LIMIT_BYTES = 5 * 2**30  # a 60 second piece peaks near 3 GB
 MIN_FREE_DISK_GB = 5.0  # swap lives on this disk too, and a full disk with no swap took a 16 GB Mac down
 WAV_BYTES_PER_SECOND = 2 * RATE
 QUIET_WINDOW = 25  # envelope frames that must be quiet together, so a split lands in a pause and not between syllables
@@ -393,7 +393,7 @@ def scribe_words(data: dict[str, Any]) -> list[Word]:
 
 
 ENGINES: dict[str, Transcriber] = {
-    "parakeet": Parakeet("parakeet", "parakeet_mlx", "parakeet", download="about 2.5 GB", needs_gb=6.0),
+    "parakeet": Parakeet("parakeet", "parakeet_mlx", "parakeet", download="about 2.5 GB", needs_gb=4.0),
     "mlx-whisper": MlxWhisper("mlx-whisper", "mlx_whisper", "mlx-whisper", download="about 460 MB"),
     "faster-whisper": FasterWhisper("faster-whisper", "faster_whisper", "faster-whisper", download="about 480 MB"),
     "elevenlabs": ElevenLabs(),
