@@ -22,6 +22,8 @@ XFADE = (
     "fadeslow", "hlwind", "hrwind", "vuwind", "vdwind", "coverleft", "coverright", "coverup", "coverdown",
     "revealleft", "revealright", "revealup", "revealdown",
 )  # fmt: skip
+RENAMED = {"dissolve": "fade", "stipple": "dissolve"}  # ffmpeg's `dissolve` is a pixel stipple. To an editor, a dissolve is a smooth mix.
+NAMES = (*XFADE, "stipple")
 DEFAULT_SECONDS = 0.4
 SHORTEST = 0.04
 LONGEST = 2.0
@@ -35,8 +37,8 @@ def parse(raw: Any) -> dict[str, Any]:
     if not isinstance(entry, dict) or not isinstance(entry.get("type"), str):
         raise AltocueError(f"Cannot read the transition {raw!r}.", fix='Use a name, or {"type": "dissolve", "duration": 0.4}.')
     name = entry["type"]
-    if name not in XFADE and not name.startswith(SHADER_PREFIX):
-        raise AltocueError(f"Unknown transition {name}.", fix=f"Use a shader named gl-..., or one of {', '.join(XFADE)}.")
+    if name not in NAMES and not name.startswith(SHADER_PREFIX):
+        raise AltocueError(f"Unknown transition {name}.", fix=f"Use a shader named gl-..., or one of {', '.join(NAMES)}.")
     length = float(entry.get("duration", DEFAULT_SECONDS))
     if not SHORTEST <= length <= LONGEST:
         raise AltocueError(f"A {name} of {length:g} s cannot be played.", fix=f"Use {SHORTEST} to {LONGEST} seconds. Most want 0.2 to 0.6.")
@@ -45,7 +47,7 @@ def parse(raw: Any) -> dict[str, Any]:
 
 def blend(outgoing: Path, incoming: Path, name: str, frames: int, fps: int, encode: list[str], dest: Path) -> Path:
     """Two clips of `frames` frames become one. The first frame is all outgoing and the last nearly all incoming."""
-    mix = f"[0:v][1:v]xfade=transition={name}:duration={frames / fps:.6f}:offset=0,format=yuv420p[v]"
+    mix = f"[0:v][1:v]xfade=transition={RENAMED.get(name, name)}:duration={frames / fps:.6f}:offset=0,format=yuv420p[v]"
     temp = dest.with_suffix(".part.mp4")
     ffmpeg.run(["-i", str(outgoing), "-i", str(incoming), "-filter_complex", mix, "-map", "[v]", "-frames:v", str(frames), *encode, str(temp)])
     temp.rename(dest)
@@ -67,6 +69,6 @@ def join(outgoing: Path, incoming: Path, name: str, frames: int, c: Any, encode:
     dest = folder / f"join-{key}.mp4"
     if dest.exists():
         return dest
-    if route in XFADE:
+    if route in NAMES:
         return blend(outgoing, incoming, route, frames, c.fps, encode, dest)
     return shaders.render(route, text, outgoing, incoming, frames, c, encode, dest)

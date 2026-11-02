@@ -47,6 +47,17 @@ def test_all_fifty_eight_names_are_ffmpegs_own():
     assert len(transitions.XFADE) == 58 and set(transitions.XFADE) == theirs
 
 
+def test_a_dissolve_is_a_smooth_mix_and_the_stipple_keeps_a_name(tmp_path):
+    a, b = counting_clip(tmp_path / "a.mp4", 10, base=40), counting_clip(tmp_path / "b.mp4", 10, base=200)
+
+    def middle(name: str) -> float:
+        dest = transitions.blend(a, b, name, 10, 30, plate.encode_args(C), tmp_path / f"{name}.mp4")
+        done = subprocess.run(["ffmpeg", "-v", "error", "-i", str(dest), "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True, check=True)
+        return float(np.frombuffer(done.stdout, np.uint8).reshape(-1, 96, 96)[5].std())
+
+    assert middle("dissolve") < 2 < middle("stipple")
+
+
 def test_a_name_alone_takes_the_default_length():
     assert transitions.parse("dissolve") == {"type": "dissolve", "duration": transitions.DEFAULT_SECONDS}
 

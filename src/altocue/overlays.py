@@ -18,7 +18,7 @@ from .project import Project
 
 KINDS = ("grain", "light_leak", "dust", "vignette", "paper")
 DEFAULT_AMOUNT = 0.25
-VERSION = 1
+VERSION = 2
 SEED = 4177
 LEAK_SECONDS = 8  # One slow drift, then it loops without a seam.
 LEAK_SCALE = 8
@@ -90,7 +90,7 @@ def paper_frame(width: int, height: int) -> np.ndarray:
     rng = np.random.default_rng(SEED)
     scale = max(width, height) / 1920
     field = np.zeros((height, width), np.float32)
-    for sigma, weight in ((1.2, 0.6), (5.0, 0.9), (24.0, 1.0)):
+    for sigma, weight in ((0.9, 1.0), (3.0, 0.5), (30.0, 0.22)):
         layer = cv2.GaussianBlur(rng.normal(0, 1, (height, width)).astype(np.float32), (0, 0), sigma * max(scale, 0.25))
         field += weight * layer / max(float(layer.std()), 1e-6)
     fibres = np.zeros((height, width), np.float32)
@@ -99,7 +99,7 @@ def paper_frame(width: int, height: int) -> np.ndarray:
         angle, length = rng.uniform(0, np.pi), rng.uniform(8, 40) * scale
         tip = (int(x + np.cos(angle) * length), int(y + np.sin(angle) * length))
         cv2.line(fibres, (int(x), int(y)), tip, float(rng.choice([-1.0, 1.0])), 1, cv2.LINE_AA)
-    mixed = GREY + field * 7 + cv2.GaussianBlur(fibres, (0, 0), 0.7) * 14
+    mixed = GREY + field * 6 + cv2.GaussianBlur(fibres, (0, 0), 0.7) * 16
     return np.clip(mixed, 0, 255).astype(np.uint8)
 
 
