@@ -16,7 +16,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     if name == "new":
         parser.add_argument("folder", help="Project folder to create")
         parser.add_argument("--input", "-i", nargs="+", required=True, help="Source video files")
-        parser.add_argument("--aspect", default="9:16", help="9:16, 16:9, 1:1 or 4:5")
+        parser.add_argument("--aspect", default="9:16", help="Any W:H, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9")
         parser.add_argument("--brief", default="", help="The goal and audience, in your words")
     else:
         parser.add_argument("--project", "-p", default=".", help="Project folder")

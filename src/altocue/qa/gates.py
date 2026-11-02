@@ -343,8 +343,13 @@ def silent_runs(file: Path, end: float) -> list[tuple[float, float]]:
     return [(max(start, 0.0), ends[i] if i < len(ends) else end) for i, start in enumerate(starts)]
 
 
+def asked_for(c: Context, *kinds: str) -> list[tuple[float, float]]:
+    """Transitions and freezes the edit asked for. A dip through black or a held frame there is the plan."""
+    return [(float(item["start"]), float(item["end"])) for kind in kinds for item in (c.timeline or {}).get(kind, [])]
+
+
 def gate_black(c: Context) -> GateResult:
-    bad = c.unplanned(black_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS + ("black",)), *c.inserts()])
+    bad = c.unplanned(black_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS + ("black",)), *c.inserts(), *asked_for(c, "transitions")])
     return GateResult(
         id="black_frames",
         passed=not bad,
@@ -355,7 +360,7 @@ def gate_black(c: Context) -> GateResult:
 
 
 def gate_frozen(c: Context) -> GateResult:
-    bad = c.unplanned(frozen_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS, HOLD_ITEMS), *c.inserts()])
+    bad = c.unplanned(frozen_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS, HOLD_ITEMS), *c.inserts(), *asked_for(c, "freezes", "transitions")])
     return GateResult(
         id="frozen_frames",
         passed=not bad,

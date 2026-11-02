@@ -27,11 +27,23 @@ Write `motion.json` in the project root. Times are seconds in the finished video
 }
 ```
 
-`sfx` is `true` for the house sounds, `false` for none, or a list of cues to add to them. See `altocue-clean` for cues and for how music ends.
+`sfx` is `true` for the house sounds, `false` for none, or a list of cues to add to them. See `altocue-clean` for cues and for how music ends. Name only a sound `altocue sfx list` shows, or a file in the project. Never invent one. No sound is a fine answer.
 
 ## Types
 
-`hook`, `chip`, `lower_third`, `stat`, `quote`, `steps`, `title`, `endcard`. In copy, `*word*` takes the accent colour. In a hook, a new line is a new line of the headline.
+`hook`, `chip`, `lower_third`, `stat`, `quote`, `steps`, `title`, `endcard`, and `composition` for a fetched or hand-written HyperFrames page. In copy, `*word*` takes the accent colour. In a hook, a new line is a new line of the headline.
+
+## Formats
+
+Every built-in format goes in `"type"`, with its own slots and copy limits, and copy that cannot fit is an error before the render. Search first with `altocue library search <what you want> --kind motion`, then `altocue library show <id>`. Places to start, by job:
+
+- **Hook:** `word_slam`, `mask_rise`, `typewriter`, `word_swap`, `spotlight`.
+- **Prove:** `count_up`, `bar_build`, `waffle`, `receipt_print`, `doc_highlight`.
+- **Explain:** `stepped_list`, `flowchart`, `split_compare`, `whiteboard`, `cursor_walk`.
+- **Close:** `recap_check`, `logo_sting`, `follow_prompt`.
+- **Move between sections:** `chapter_card`, `iris`, `torn_wipe`.
+- **Real proof only:** `testimonial_card`, `star_fill`, `logo_wall`, `press_strip`, `comment_card`, `avatar_cloud`, `before_after`. Fill these from what the user gave you. A placeholder never ships.
+- **`white_flash` is a flash.** See the limit in `altocue-transitions`.
 
 ## Follow the speech
 
@@ -42,22 +54,48 @@ Write `motion.json` in the project root. Times are seconds in the finished video
 
 Rules of thumb, not findings, apart from reading time.
 
-- **The hook lands in the first frame.** About 7 words, eyebrow included, in the default 2.6 seconds. Longer copy needs a longer `duration`.
+- **The hook lands in the first frame.** No logo and no intro. Open on the peak. About 7 words, eyebrow included, in the default 2.6 seconds. Longer copy needs a longer `duration`.
 - **On-screen points quote the speaker's words, in the order spoken.** Never get ahead of them.
 - **One graphic at a time** in the same area. Graphics under 40% of runtime.
-- **Hold text long enough to read.** QA fails a graphic that shows more than 3 words for each second on screen, the top of what Ofcom recommends for subtitles. Lists and charts count only their longest row, because they are scanned. A format's default length does not always fit its copy, so set `duration`. Set `reading_wps` under `[qa]` for a slower audience.
-- **Keep the picture moving, about every 2 to 4 seconds after the hook,** and a cut counts. No study shows viewers leave if nothing changes that often, so pace to the content.
+- **Hold text long enough to read.** QA fails a graphic that shows more than 3 words for each second on screen, the top of what Ofcom recommends for subtitles. That is a subtitle guideline, not a phone study. Lists and charts count only their longest row, because they are scanned. A format's default length does not always fit its copy, so set `duration`. Set `reading_wps` under `[qa]` for a slower audience.
+- **Keep the picture moving.** `altocue facts` reports the longest static stretch. There is no target: no study shows viewers leave if nothing changes for a set time, so pace to the content.
 - **End on the last useful point.** Keep the end card short.
 
-## Make it feel alive
+## Timing
 
-For drawn figures, cursors and cameras:
+These hold in any look. Formats mostly follow them already, so they matter most in a composition you write.
 
-- **Never teleport.** Everything arrives from somewhere and leaves for somewhere.
-- **Parts turn on real pivots.** An arm swings from the shoulder, and the forearm follows from the elbow.
-- **Trailing parts lag.** Offset each joint by a couple of frames, so a limb bends through a move.
-- **One main action, two or three small idle loops.** A breath, a blink, a slow sway. Keep them small, or they read as a tremble.
-- **Do not stop at a pose.** Ordinary eased keys stop dead at each one. `kit.flow` in `motion/formats/kit.py` draws a curve through several poses with its speed intact, and `kit.flow_easing` gives the same curve as a CSS `linear()` easing. It never overshoots a pose. The film camera uses this.
+- **Anything important stays up about 1.5 seconds,** or its reading time if that is longer. [source]
+- **A count-up lasts about a second.** [source]
+- **Arrivals take about half a second, and departures go faster.** [thumb]
+- **Stagger related items by a few frames,** and let an item land before its check appears. [thumb]
+
+## What belongs to the look
+
+Sources disagree on these because they are choices, not craft. Pick per film and hold to it.
+
+- **Overshoot.** A clean, glassy look settles with no bounce. A playful look may overshoot.
+- **Movement at rest.** The camera may keep a slow drift, but held text stays sharp and still, with no shimmer. A static shot is fully still, not almost still.
+
+## Something drawn that should feel alive
+
+For a hand-written composition. These come from one builder's method, so treat them as [source].
+
+- **Never teleport.** Everything travels. Nothing snaps from one drawing to another.
+- **Parts turn on real pivots,** and trailing parts lag behind what leads them.
+- **One main action, plus two or three small idle loops.** Keep amplitudes small, and halve them when unsure.
+- **A cursor travels on arcs.** Each click gets a small press and a visible result.
+- **Do not stop at a pose.** Ordinary eased keys stop dead at each one. `kit.flow` in `motion/formats/kit.py` draws a curve through several poses with its speed intact and never overshoots, and `kit.flow_easing` gives the same curve as a CSS `linear()` easing. The film camera uses this.
+- **Every frame is a pure function of time.** No clocks and no unseeded randomness, so a frame reads the same forwards and backwards.
+
+## Check it by eye
+
+For a film from a storyboard, `altocue film qa` measures frame 0, pops, dead air and phone size. Anywhere else, look at frames from `altocue render --draft`.
+
+- **Frame 0 is not empty,** and the opening is not flat.
+- **No single-frame pops,** and no stretch that dies by accident.
+- **Read it at phone size.** Scale frames to 360 pixels wide and read them without zooming. [source] One builder fails text under about 6.7 pixels at that width.
+- **Cover the words.** If a plain ground is all that is left, the shot is a slide. [source]
 
 ## Brand
 

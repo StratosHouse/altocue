@@ -32,6 +32,7 @@ text-wrap:balance;text-shadow:0 0 3px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.62),0
 .cap.enter{animation:capin .13s var(--ease) both}
 .cap b{font-weight:inherit;display:inline-block}
 .cap b.on{color:var(--accent);transform:scale(1.07)}
+.cap .who{flex:0 0 100%%;font-style:normal;font-size:.5em;font-weight:600;letter-spacing:0;line-height:1.3}
 .cap.bold{text-transform:uppercase;font-weight:800;letter-spacing:-.01em;line-height:1.04;
 text-shadow:0 0 2px #000,0 4px 0 rgba(0,0,0,.65),0 8px 30px rgba(0,0,0,.5)}
 .cap.boxed{text-shadow:none;left:auto;right:auto;width:100%%;padding:0 var(--gutter)}
@@ -107,7 +108,7 @@ background:radial-gradient(90%% 60%% at 50%% 42%%,color-mix(in srgb,var(--surfac
 def geometry(width: int, height: int) -> dict[str, float]:
     """Layout per canvas. Tall video keeps clear of the app's own buttons."""
     tall = height > width
-    scale = 1.0 if tall else 0.9 if width > height else 0.86
+    scale = (1.0 if tall else 0.9 if width > height else 0.86) * min(1.0, min(width, height) / 1080)
     return {
         "scale": scale,
         "gutter": 72 if tall else 96,
@@ -167,9 +168,11 @@ def caption_html(page: dict[str, Any], style: str, track: int) -> str:
         if end - start < 0.02:
             continue
         spans = "".join(f'<b class="on">{escape(w["text"])}</b>' if i == index else f"<b>{escape(w['text'])}</b>" for i, w in enumerate(words))
-        body = f'<span class="plate">{spans}</span>' if style == "boxed" else spans
+        who = f'<i class="who">{escape(page["name"])}</i>' if page.get("name") else ""
+        body = f'<span class="plate">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
         enter = " enter" if index == 0 and style != "rail" else ""
-        out.append(f'<div class="clip cap {style}{enter}" {_attrs(start, end, track)}>{body}</div>')
+        tint = f' style="color:{escape(page["colour"], quote=True)}"' if page.get("colour") else ""
+        out.append(f'<div class="clip cap {style}{enter}"{tint} {_attrs(start, end, track)}>{body}</div>')
     return "\n".join(out)
 
 

@@ -28,7 +28,7 @@ from altocue.frame import (
     settle_crop,
 )
 from altocue.models import Edl, Segment
-from altocue.project import Project
+from altocue.project import Project, size_for
 
 
 def draw_face(image: np.ndarray, cx: int, cy: int, s: int, skin: tuple[int, int, int] = (205, 150, 120)) -> None:
@@ -330,3 +330,25 @@ def test_a_fresh_cut_of_the_same_ranges_gets_its_framing_back(tmp_path, landscap
     assert framed
     project.save_edl(Edl(fps=30, segments=[Segment(id="s1", clip="wide", start=0, end=1)]))
     assert frame_project(project).segments[0].crop == framed
+
+
+@pytest.mark.parametrize(
+    ("aspect", "size"),
+    [("9:16", (1080, 1920)), ("16:9", (1920, 1080)), ("1:1", (1080, 1080)), ("4:5", (1080, 1350)), ("4:3", (1440, 1080)), ("3:4", (1080, 1440)), ("2:3", (1080, 1620)),
+     ("21:9", (1920, 822)), ("2.39:1", (1920, 804)), ("32:18", (1920, 1080)), ("4:1", (1920, 480))],
+)  # fmt: skip
+def test_any_aspect_gets_a_size_on_even_numbers(aspect, size):
+    assert size_for(aspect) == size and size[0] % 2 == 0 and size[1] % 2 == 0
+
+
+@pytest.mark.parametrize("aspect", ["wide", "0:9", "16:0", "5:1", "1:5", "16x9", ""])
+def test_an_aspect_that_cannot_be_framed_is_refused(aspect):
+    with pytest.raises(AltocueError) as caught:
+        size_for(aspect)
+    assert "W:H" in caught.value.fix
+
+
+def test_a_new_aspect_works_for_a_project_and_centres_a_crop(tmp_path):
+    project = Project.create(tmp_path / "video", aspect="21:9")
+    assert project.size == (1920, 822)
+    assert 'aspect = "21:9"' in (project.root / "altocue.toml").read_text()

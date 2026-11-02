@@ -62,6 +62,7 @@ class Word(Model):
     end: float
     confidence: float = 1.0
     kind: WordKind = "word"
+    speaker: str = ""  # such as S1. Empty until `altocue transcribe --speakers` has run
 
 
 @dataclass
@@ -79,6 +80,7 @@ class Segment(Model):
     crop: list[float] | None = None
     no_snap_in: bool = False
     no_snap_out: bool = False
+    held: list[str] = field(default_factory=list)  # gain, crop or zoom set by hand: `frame` leaves these, and a re-cut carries them
 
 
 @dataclass
@@ -101,6 +103,7 @@ class Edl(Model):
     fps: int
     segments: list[Segment] = field(default_factory=list)
     removed: list[Removed] = field(default_factory=list)
+    lost: list[str] = field(default_factory=list)  # hand edits the last re-cut could not keep
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -108,6 +111,7 @@ class Edl(Model):
             fps=data["fps"],
             segments=[Segment.from_dict(s) for s in data.get("segments", [])],
             removed=[Removed.from_dict(r) for r in data.get("removed", [])],
+            lost=data.get("lost", []),
         )
 
     @property
