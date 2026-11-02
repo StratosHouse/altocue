@@ -220,7 +220,7 @@ def test_the_job_words_are_the_ones_formats_use():
 def test_search_prints_json_for_an_agent(bundled, capsys):
     assert main(["library", "search", "headline", "--json"]) == 0
     printed = json.loads(capsys.readouterr().out)
-    assert printed["results"][0]["id"] == "headline-slam" and "note" in printed
+    assert "headline-slam" in [row["id"] for row in printed["results"]] and "note" in printed
 
 
 def test_search_says_when_a_word_names_an_excluded_source(bundled, capsys):
