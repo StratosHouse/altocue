@@ -38,10 +38,13 @@ Write `motion.json` in the project root. Times are seconds in the finished video
 
 ## Rules of taste
 
+Rules of thumb, not findings, apart from reading time.
+
 - **The hook lands in the first frame.** 6 to 8 words.
 - **On-screen points quote the speaker's words, in the order spoken.** Never get ahead of them.
 - **One graphic at a time** in the same area. Graphics under 40% of runtime.
-- **Something changes every 2 to 4 seconds** after the hook, but a cut counts.
+- **Hold text long enough to read.** QA fails a graphic under 3 words a second of screen time, the top of what Ofcom recommends for subtitles. Set `reading_wps` under `[qa]` for a slower audience.
+- **Keep the picture moving, about every 2 to 4 seconds after the hook,** and a cut counts. No study shows viewers leave if nothing changes that often, so pace to the content.
 - **End on the last useful point.** Keep the end card short.
 
 ## Brand

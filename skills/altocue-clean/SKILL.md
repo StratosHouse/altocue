@@ -22,7 +22,7 @@ compatibility: Requires the altocue CLI. `deep-filter` gives the best result and
 ## Targets
 
 - Default master: -14 LUFS, -1.5 dBTP. Change them in `altocue.toml`.
-- No major platform publishes a loudness number. -14 is the safest single file.
+- -14 LUFS is a rule of thumb for one file on every platform, not a platform's published target.
 
 ## Be honest
 
