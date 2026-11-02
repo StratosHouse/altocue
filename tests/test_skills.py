@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import importlib
 import importlib.util
-import json
 import re
 import tomllib
 from pathlib import Path
@@ -50,6 +49,8 @@ BARE_FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]*")
 TYPE_VALUE = re.compile(r'"type":\s*"([\w-]+)"')
 PATHISH = re.compile(r"^[\w./-]+\.(?:json|md|toml|txt|jpg|png|mp4|mov|csv|cube|srt|vtt|html|mp3|wav|ttf)$")
 NAMEISH = re.compile(r"^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$")
+AMERICAN = re.compile(r"\b(?!(?:re)?sized?\b|prized?\b|seized?\b)\w+(?:ize|ized|izing|ization)\b")
+SEGMENT_ID = re.compile(r"^s\d{3}$")
 
 
 def source_text() -> str:
@@ -89,7 +90,8 @@ def subcommands(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentP
 
 def actions_named(parser: argparse.ArgumentParser) -> tuple[str, ...]:
     """Some stages take their action as a plain positional with choices, such as `altocue recipes list`."""
-    return next((tuple(action.choices) for action in parser._actions if not action.option_strings and action.choices and not isinstance(action, argparse._SubParsersAction)), ())
+    plain = [action for action in parser._actions if not action.option_strings and action.choices]
+    return next((tuple(action.choices) for action in plain if not isinstance(action, argparse._SubParsersAction)), ())
 
 
 def options_of(parser: argparse.ArgumentParser) -> dict[str, argparse.Action]:
@@ -157,6 +159,14 @@ def catalog_ids() -> set[str]:
     return {row["id"] for row in library.current()["entries"]}
 
 
+def removed_segments(words: list[str]) -> list[str]:
+    """The ids after `altocue cut --remove`, up to the next flag."""
+    if words[0] != "cut" or "--remove" not in words:
+        return []
+    named = words[words.index("--remove") + 1 :]
+    return [word for word in named[: next((i for i, w in enumerate(named) if w.startswith("-")), len(named))] if not placeholder(word)]
+
+
 def problems_in(text: str, *, flags: set[str], stages: dict[str, argparse.ArgumentParser | None]) -> list[str]:
     """Every name in one page that this checkout does not have."""
     problems: list[str] = []
@@ -166,7 +176,10 @@ def problems_in(text: str, *, flags: set[str], stages: dict[str, argparse.Argume
         problems += check_command(words, stages)
         if words[:2] in (["library", "show"], ["library", "add"]) and len(words) > 2 and not placeholder(words[2]) and words[2] not in catalog_ids():
             problems.append(f"altocue {words[0]} {words[1]} {words[2]}: not in the catalog")
+        problems += [f"altocue {words[0]} --remove {word}: segment ids look like s007" for word in removed_segments(words) if not SEGMENT_ID.fullmatch(word)]
     for span in spans:
+        if COMMAND.search(span):
+            continue  # already read against its own stage, which is the stricter check
         for flag in BARE_FLAG.findall(span):
             if flag not in flags:
                 problems.append(f"{flag}: no stage has this flag")
@@ -225,7 +238,7 @@ def test_a_skill_links_real_pages(path):
 def test_a_skill_names_real_ids(path):
     """A skill name, gate, setting, look, recipe or field: anything hyphenated or snake case must be something the code knows."""
     spans = code_of(path.read_text())[1]
-    stray = [span for span in spans if NAMEISH.fullmatch(span) and span not in OWN_SKILLS | ARRIVING_SKILLS and span not in SOURCE]
+    stray = [span for span in spans if NAMEISH.fullmatch(span) and span not in OWN_SKILLS | ARRIVING_SKILLS | catalog_ids() and span not in SOURCE]
     assert not stray, f"Nothing in this checkout knows: {', '.join(sorted(set(stray)))}"
 
 
@@ -272,9 +285,9 @@ def test_nothing_points_at_a_third_party_editor(path):
 @pytest.mark.parametrize("path", EVERY, ids=lambda p: str(p.relative_to(SKILLS)))
 def test_house_style(path):
     text = path.read_text()
-    assert "—" not in text and "–" not in text, f"{path}: em or en dash"
+    assert "\u2014" not in text and "\u2013" not in text, f"{path}: em or en dash"
     prose = SPAN.sub("", FENCE.sub("", text))
-    assert not re.search(r"\b\w+(?:ize|ization|izing|ized)\b(?<!size)(?<!prize)(?<!seize)", prose.replace("resized", "")), f"{path}: American spelling"
+    assert not AMERICAN.search(prose), f"{path}: American spelling: {AMERICAN.search(prose)}"
     labels = set(re.findall(r"\[([a-z]+)\](?!\()", prose))
     assert labels <= LABELS, f"{path}: unknown evidence label {labels - LABELS}"
 
@@ -317,6 +330,15 @@ def test_a_missing_flag_is_caught_on_its_own_stage():
     assert planted("Run `altocue cut --look warm`.") == ["altocue cut --look: no such flag"]
 
 
+def test_a_wrong_segment_id_is_caught():
+    assert planted('`altocue cut --remove s7 --reason "drags"`') == ["altocue cut --remove s7: segment ids look like s007"]
+    assert planted('`altocue cut --remove s007 s012 --reason "drags"`') == []
+
+
+def test_a_real_spelling_is_not_called_american():
+    assert not AMERICAN.search("a human-sized reaction, resized once") and AMERICAN.search("it will normalize the level")
+
+
 def test_a_bad_choice_is_caught():
     assert planted("`altocue clean --deess loud`") == ["altocue clean --deess loud: not a choice"]
 
@@ -351,5 +373,3 @@ def test_a_format_list_catches_a_stranger():
     assert formats_section("## Formats\n\n- `word_slam`, `nonsense_format`\n\n## Next\n\n- `other`\n") == ["word_slam", "nonsense_format"]
 
 
-def test_the_catalog_loads_for_these_checks():
-    assert "word_slam" in catalog_ids() and json.dumps(sorted(shader_names()))

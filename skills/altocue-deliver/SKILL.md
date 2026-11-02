@@ -34,6 +34,8 @@ The master is only ever read. Everything lands in `deliver/`, so `out/` and `edl
 - **Each version is checked** for level, length, safe zone, faces, graphics and format. Reading time and words are not rechecked. After any reframe, also look at captions and whether the product is still seen. [source]
 - **Safe zones are estimates.** Most come from ad guidance, because the apps publish little for organic posts. A project can override one in `rules.json`.
 - **To cut for one app from the start,** set `[output] platform`.
+- **A tall take makes a tight wide version.** Captions can land on the face, and the gates will say so. A wider source is the fix, not a setting.
+- **B-roll in a version gets a centre crop,** with no face awareness. Look at each insert in a new shape.
 
 ## Thumbnails and titles
 

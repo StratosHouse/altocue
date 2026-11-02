@@ -32,7 +32,7 @@ compatibility: Requires the altocue CLI. On macOS 13 or later with the Xcode com
 
 - **Phrase levelling is on.** Each phrase is brought toward the clip's level, by at most 9 dB up and 6 dB down. A noisy room gets less boost, because the room rises with the voice.
 - **Pauses are left exactly alone,** so room tone and breaths are not pumped.
-- **Only one part of a clip wrong:** set `gain` on those segments in `edl.json`.
+- **Only one part of a clip wrong, or a quiet speaker beside a loud one:** set `gain` on those segments in `edl.json`, after the cut is final.
 - **Breaths stay unless asked.** `altocue clean --breaths 9` turns them down 9 dB. They are never cut. The finder has not been checked against labelled breaths, so listen.
 - **De-essing has four settings:** `off`, `light`, `normal`, `strong`, through `--deess`. Light is the default. Too much makes a lisp, so go up one step at a time.
 
@@ -78,8 +78,8 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 
 ## Targets
 
-- Default master: -14 LUFS, -1.5 dBTP. Change them in `altocue.toml`.
-- -14 LUFS is a rule of thumb for one file on every platform, not a platform's published target.
+- **Default master: -14 LUFS, -1.5 dBTP.** Change them in `altocue.toml`, or name a target: `altocue master --loudness podcast`.
+- **-14 is a house default.** No short-video platform publishes a loudness number. Spotify, Apple Podcasts and EBU R 128 publish theirs, and naming one prints its source.
 
 ## Be honest
 

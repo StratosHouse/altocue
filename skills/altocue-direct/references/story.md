@@ -73,7 +73,7 @@ Never open with an establishing wide, a character waving hello, or any "let me t
 
 - Engagement-bait calls to action, such as "comment YES". **[source]** Platforms are said to suppress these.
 - Proof made up for the film: case numbers, reviews, customer counts, prices. A placeholder never ships as a claim.
-- A format with no new idea in it. See Batches in `altocue-direct`.
+- A format with no new idea in it. See Batches and series in `altocue-direct`.
 
 ## Post text and calls to action
 

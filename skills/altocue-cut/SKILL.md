@@ -31,10 +31,11 @@ The cut is the edit. Everything else is finish.
 
 ## Changing the cut
 
-- **One stretch:** `altocue cut --remove s7 --reason "drags"`. Segment ids are in `work/cut-report.md`.
+- **One stretch:** `altocue cut --remove s007 --reason "drags"`. Segment ids are in `work/cut-report.md`.
 - **The whole film tighter:** lower `[cut] max_pause` from its 0.4 default. [source] One guide cuts pauses over about a third of a second. Then run `altocue cut` and rule again.
 - **`altocue cut` with no flags starts over.** Your earlier cut and rulings go to `work/edl-previous.json`.
-- **New order:** segments play in the order they sit in `edl.json`, so move them by hand. `--remove` and a fresh proposal rebuild the order, so do this last.
+- **New order:** segments play in the order they sit in `edl.json`, so move them by hand.
+- **Hand edits come last.** `--remove`, `--apply-review` and a fresh proposal rebuild the segments. That resets their order and clears `crop`, `zoom_from`, `zoom_to` and `gain`.
 - **Every cut change moves B-roll.** See `altocue-broll`.
 
 Long video into shorts belongs to `altocue-clips` when it is installed.

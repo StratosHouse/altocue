@@ -14,7 +14,7 @@ Most cuts stay hard. A hard cut is invisible, and a transition is a statement th
 - **Talking head, same take, same thought:** hard cut. Hide a jump with a punch-in (`altocue-frame`) or B-roll (`altocue-broll`). A dissolve across a jump cut shows two mouths at once.
 - **A real change of time, place or topic:** a transition earns its place. `dissolve` says time passed. `fadeblack` closes a chapter.
 - **One style per film.** Two kinds at most. The same one each time reads as grammar, and a new one each time reads as a demo.
-- **Short.** 0.2 to 0.6 seconds. Under speech, keep it near a pause.
+- **Short.** 0.2 to 0.6 seconds, as a rule of thumb. Under speech, keep it near a pause.
 - **If you are unsure, leave the cut hard.**
 
 ## Transitions
@@ -96,7 +96,7 @@ Texture made in code, drawn on the picture and under the captions and graphics. 
 ```
 
 - **Types:** `grain`, `light_leak`, `dust`, `vignette`, `paper`. One overlay, or a list that stacks in order.
-- **`amount` runs from 0 to 1.** Most films want 0.1 to 0.3. If a viewer notices it, it is too much.
+- **`amount` runs from 0 to 1.** As a rule of thumb, most films want 0.1 to 0.3. If a viewer notices it, it is too much.
 - **Add `start` and `end`,** in seconds or on a word, to run one for part of the film. A timed light leak fades in and out.
 - **Grain costs file size.** Heavy grain under a low bitrate on a platform's re-encode turns to mush, so stay low for social.
 

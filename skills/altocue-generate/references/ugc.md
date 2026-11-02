@@ -1,6 +1,6 @@
 # Footage that reads as filmed on a phone
 
-Craft notes for generated clips that should look shot on a phone. They are in our own words, drawn from public guidance on AI-made creator footage and from platform ad advice. Treat the numbers as starting points. Only the speech rate, the cold open and baked text are measured, by `altocue qa --check ugc`.
+Craft notes for generated clips that should look shot on a phone. They are in our own words, drawn from public guidance on AI-made creator footage and from platform ad advice. Treat all of it as [source], and the numbers as starting points. Only the speech rate, the cold open and baked text are measured, by `altocue qa --check ugc`.
 
 ## Honesty comes first
 

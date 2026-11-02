@@ -29,7 +29,7 @@ compatibility: Requires the altocue CLI, plus FAL_KEY for fal.ai, or the Higgsfi
 4. Check every result: `altocue direct --check <file>` extracts frames and scores motion. Open the frames, edges included. Generated phone footage can carry a strip of fake interface along one edge. Punch in past it with `zoom_from` and `zoom_to` in `edl.json`. Never crop away a real AI label or watermark. If you cannot tell which it is, leave it and ask.
 5. Place it. Over a B-roll spot, use `altocue broll --pick b1=shot:shot-1` (see `altocue-broll`). Anywhere else, use `motion.json`:
    ```json
-   { "inserts": [{ "file": "work/generated/shot-1.mp4", "start": 12.4, "end": 15.0 }] }
+   { "inserts": [{ "shot": "shot-1", "start": 12.4, "end": 15.0 }] }
    ```
 
 ## Using the Higgsfield MCP server
@@ -74,13 +74,12 @@ Do not vendor Higgsfield's own skills into a project. They tell agents not to pr
 - **Patch or regenerate.** [source] Regenerate when the performance, length, shot structure, object scale or contact changes. Otherwise edit. One failed check is a patch, and two or more is a new take.
 - **Retry from the original clip,** never from the damaged one. [source]
 - **Keep it ordinary if it sits beside real footage.** Over-polished generated scenes stand out, and slightly ordinary references match better. [source]
-- **Say how a brand name is pronounced** in the prompt. [source]
 
 `altocue-direct` has the named fixes.
 
 ## Inserts in an edit
 
-- Land on the exact phrase. 2 to 3 seconds each. Under 40% of runtime.
+- Land on the exact phrase. An insert runs 2.5 seconds unless you set `duration` or `end`. QA fails more than 40% of runtime.
 - **Lay it over the real sound.** Voice keeps playing underneath, and you slip the insert by frames to fit. [source]
 - **Cut a generated clip to the real length of its line.** Never stretch it with slow motion. [source]
 - **Written cut times inside a clip are approximate.** [source] One author counted hard cuts landing 0.2 to 0.6 seconds off on one model. Altocue does not detect cuts inside a clip, so look at the frames around each one before anchoring anything to it.

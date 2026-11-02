@@ -32,7 +32,7 @@ A film with no footage at all, such as a launch film, has its own skill when `al
 4. **Asset lock.** Every recurring character, location or prop gets a reference image before shot work.
 5. **Keyframes.** Every shot starts as a still. Stills are cheap, video is not. Build depth into the keyframe: foreground, midground, background. Leave a named empty zone where text will go in the edit.
 6. **Motion prompts.** One primary camera move with an endpoint. Action as a chain of concrete verbs. Secondary motion one level deep. Do not re-describe what the start frame shows.
-7. **Shot list.** Write `shots.json`, then run `altocue direct` to check it and cost it.
+7. **Shot list.** Write `shots.json`, then run `altocue direct` to check it and cost it. `placement` is checked, not applied. To place a shot, add it under `inserts` in `motion.json`.
 8. **Generate and verify.** Test the hardest shot first [source], and make one of each kind of shot before batching. See `altocue-generate`. A clip is a rush until it passes.
 9. **Edit.** Generated clips go through the same cut, grade and review as footage.
 

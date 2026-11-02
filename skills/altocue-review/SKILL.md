@@ -45,11 +45,11 @@ The gates catch what code can measure. These are yours. Most are [source], from 
 
 ## Fix vocabulary
 
-Turn each note into one named fix: one sentence, one change, everything else left alone. [source] The note's dimension says where to look. After any change to `edl.json`, run `altocue render --draft` and look again. A changed cut also needs `altocue broll` if the film has B-roll.
+Turn each note into one named fix: one sentence, one change, everything else left alone. [source] The note's dimension says where to look. After any change to `edl.json`, run `altocue render --draft` and look again. A changed cut also needs `altocue broll` if the film has B-roll. Do cut fixes first: they rebuild the segments and clear any order, `zoom_from`, `zoom_to` or `gain` set by hand.
 
 | Say | For a note on | Change |
 |---|---|---|
-| Tighter cut | `pacing` | `altocue cut --remove s7 --reason "drags"` for one stretch. For the whole film, lower `[cut] max_pause`, then `altocue cut` and rule again |
+| Tighter cut | `pacing` | `altocue cut --remove s007 --reason "drags"` for one stretch. For the whole film, lower `[cut] max_pause`, then `altocue cut` and rule again |
 | Harder hook | `hook` | Move the strongest self-contained line to the top of `segments` in `edl.json`, then set the `hook` item's `text` in `motion.json` to its promise, with `start` at 0 |
 | Match pacing | `pacing` | Measure the reference in its own project: `altocue new ref --input reference.mp4`, then `altocue facts -p ref --file <that file>`. Compare `scene_changes_per_10s` and `longest_static_s` with this film's, then use the rows above and below. Never aim at the number |
 | Hide the jump | `pacing`, `picture` | `altocue broll --pick b1=c2`, or raise `[frame] punch_in` and run `altocue frame` |
