@@ -1,0 +1,45 @@
+{
+  "id": "iwltbap",
+  "name": "IWLTBAP",
+  "url": "https://luts.iwltbap.com/",
+  "classes": [
+    "lut"
+  ],
+  "holds": "Free LUTs from a small publisher.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://luts.iwltbap.com/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://luts.iwltbap.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "No licence text was found on its pages."
+}

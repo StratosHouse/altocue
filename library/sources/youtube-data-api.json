@@ -1,0 +1,46 @@
+{
+  "id": "youtube-data-api",
+  "name": "YouTube Data API",
+  "url": "https://developers.google.com/youtube/v3",
+  "classes": [
+    "data"
+  ],
+  "holds": "Official public video data, on your own key.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "youtube-api-terms",
+    "url": "https://developers.google.com/youtube/terms/developer-policies",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://developers.google.com/youtube/v3",
+    "key": "free",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": "10,000 units a day"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Your own key only. Its policies bar custom scores and ratios by default, so a Studio CSV you export is the cleaner route."
+}

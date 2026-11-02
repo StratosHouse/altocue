@@ -133,18 +133,18 @@ def submit(url: str, *, headers: dict[str, str], body: Any, timeout: float = 120
     return reply
 
 
-def download(url: str, dest: Path, timeout: float = 300) -> Path:
-    """Stream to a part file, then rename, so a crash never leaves half an asset."""
+def download(url: str, dest: Path, timeout: float = 300, limit: int = MAX_DOWNLOAD, headers: dict[str, str] | None = None) -> Path:
+    """Stream to a part file, then rename, so a crash never leaves half an asset. Redirects keep `headers`, so a key never goes here."""
     check_download_url(url)
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
     written = 0
     try:
-        with _fetcher.open(url, timeout=timeout) as reply, part.open("wb") as out:
+        with _fetcher.open(urllib.request.Request(url, headers=headers or {}), timeout=timeout) as reply, part.open("wb") as out:
             while chunk := reply.read(1 << 20):
                 written += len(chunk)
-                if written > MAX_DOWNLOAD:
-                    raise AltocueError(f"The file at {url} is over {MAX_DOWNLOAD // 1_000_000_000} GB.")
+                if written > limit:
+                    raise AltocueError(f"The file at {url} is over {limit:,} bytes.")
                 out.write(chunk)
     except AltocueError:
         part.unlink(missing_ok=True)

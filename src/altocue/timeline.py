@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import cut, ffmpeg, mix
+from . import cut, ffmpeg, mix, platforms
 from .errors import AltocueError
 from .motion import compositions, formats, placement
 from .project import Project, write_json
@@ -133,15 +133,17 @@ def build(project: Project) -> dict[str, Any]:
     motion = json.loads(motion_file.read_text()) if motion_file.exists() else {}
     duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
     items, tail = resolve_items(motion.get("items", []), words, duration)
-    items = [compositions.resolve(project, item) if item["type"] == "composition" else item for item in items]
+    items = [compositions.resolve(project, item) if item["type"] == "composition" else formats.place_images(project.root, item) for item in items]
     width, height = project.size
     brand = brands.load(project)
     picture = next((path for path in (project.work / "plate.mp4", project.work / "plate-draft.mp4") if path.exists()), None)
-    items = placement.place(items, picture, (width, height), brand)
+    zone = platforms.zone_of(project)
+    items = placement.place(items, picture, (width, height), brand, zone)
     house, cues = resolve_sfx(motion.get("sfx"), words, duration + tail, project.root)
     timeline = {
         "width": width,
         "height": height,
+        "zone": zone,
         "fps": edl.fps,
         "duration": duration,
         "tail": tail,

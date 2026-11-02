@@ -21,7 +21,7 @@ from ..errors import AltocueError
 from ..project import Project
 from . import http
 from .base import Asset, Cost, CostLine, GenRequest, JobRef, JobStatus, Moderated, State, SubmitUnknown
-from .catalog import Catalog
+from .catalog import Catalog, credit_rate
 
 INSTALL_FIX = "Run: brew install higgsfield-ai/tap/higgsfield, or: npm install -g @higgsfield/cli. Then run: higgsfield auth login"
 LOGIN_FIX = "Run: higgsfield auth login"
@@ -114,8 +114,7 @@ class HiggsfieldProvider:
         config = catalog.provider(self.id)
         self.poll_seconds = float(config.get("poll_seconds", 3.0))
         self.destination = str(config["destination"])
-        chosen = project.setting("generate", "usd_per_credit", None) if project else None
-        self.usd_per_credit = float(chosen if chosen is not None else config["usd_per_credit"])
+        self.usd_per_credit = float(credit_rate(catalog, self.id, project) or 0)
         self.rate_as_of = str(config.get("usd_per_credit_as_of", ""))
 
     def preflight(self) -> None:

@@ -1,0 +1,50 @@
+{
+  "id": "lucide-animated",
+  "name": "lucide-animated",
+  "url": "https://github.com/pqoqubbw/icons",
+  "classes": [
+    "animation",
+    "icon"
+  ],
+  "holds": "468 animated icons for React.",
+  "size": {
+    "count": 468,
+    "unit": "icons",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/pqoqubbw/icons/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://lucide-animated.com/r/registry.json",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Selected icons could be ported to plain SVG with the notice kept."
+}

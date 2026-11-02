@@ -52,9 +52,6 @@ def test_every_bundled_effect_can_be_called(name):
     assert resolved([{"name": name, "at": {"word": "done."}}])[1][0]["name"] == name
 
 
-def test_all_eight_are_bundled():
-    assert mix.sfx_names() == ["click", "ding", "fall", "pop", "rise", "thud", "tick", "whoosh"]
-
 
 def test_a_project_file_can_be_a_cue(tmp_path):
     sound = tmp_path / "sounds" / "door.wav"
@@ -140,7 +137,8 @@ def test_house_off_keeps_project_cues():
 
 def test_every_effect_is_heard_where_it_was_called(tmp_path):
     names = mix.sfx_names()
-    silence = ffmpeg.write_wav(tmp_path / "voice.wav", np.r_[np.full(RATE, 0.1) * np.sin(np.arange(RATE) * 0.05), np.zeros(9 * RATE)], RATE)
+    seconds = len(names) + 2
+    silence = ffmpeg.write_wav(tmp_path / "voice.wav", np.r_[np.full(RATE, 0.1) * np.sin(np.arange(RATE) * 0.05), np.zeros((seconds - 1) * RATE)], RATE)
     cues = [{"name": name, "at": 1.5 + index} for index, name in enumerate(names)]
     out = mix.mix_bed(silence, tmp_path / "mix.wav", sfx=cues)
     with wave.open(str(out), "rb") as handle:

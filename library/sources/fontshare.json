@@ -1,0 +1,51 @@
+{
+  "id": "fontshare",
+  "name": "Fontshare",
+  "url": "https://www.fontshare.com/",
+  "classes": [
+    "font"
+  ],
+  "holds": "A hundred fonts under two different licences.",
+  "size": {
+    "count": 100,
+    "unit": "fonts",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "per_set",
+    "id": "itf-ffl",
+    "url": "https://www.fontshare.com/licenses/itf-ffl",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.fontshare.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "per_item",
+    "tool_use": false,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "64 fonts sit under a licence that bars shipping them in an application and bars subsetting. The other 36 are OFL. People may fetch them for themselves."
+}

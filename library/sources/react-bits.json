@@ -1,0 +1,47 @@
+{
+  "id": "react-bits",
+  "name": "React Bits",
+  "url": "https://github.com/DavidHDev/react-bits",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A large set of animated React components.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT-Commons-Clause",
+    "url": "https://github.com/DavidHDev/react-bits/blob/main/LICENSE.md",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/DavidHDev/react-bits",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "MIT with Commons Clause. It bars redistribution alone, in a bundle or as a port."
+}

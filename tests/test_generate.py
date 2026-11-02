@@ -252,7 +252,7 @@ def test_packaged_catalog_loads_and_covers_every_tier():
 
 def test_every_catalog_entry_is_dated_and_cited():
     for entry in load_catalog().entries:
-        assert entry.as_of == "2026-10-30", entry.model
+        assert entry.as_of >= "2026-10-30", entry.model
         assert entry.source_url.startswith("https://"), entry.model
         assert entry.capability in CAPABILITIES
         assert entry.tier in TIERS
@@ -1070,6 +1070,7 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     (hf_project.root / "key.png").write_bytes(PNG)
     (hf_project.root / "ref.png").write_bytes(PNG)
     write_shots(hf_project, shot(tier="standard", first_frame="key.png", refs=["ref.png"]))
+    assert go(hf_project, "--allow-upload", "higgsfield") == 0
     assert go(hf_project, "--yes") == 0
 
     create = higgsfield.creates()[0]
@@ -1295,6 +1296,439 @@ def test_generated_asset_for_an_unknown_shot(project):
         generated_asset(project, "ghost")
     assert caught.value.fix
     assert generated_asset(project, "ghost", missing_ok=True) is None
+
+
+# Reservations: the cap on the MCP route
+
+
+def reservations(project: Project) -> list[dict]:
+    path = project.work / "generated" / "reservations.json"
+    return json.loads(path.read_text())["reservations"] if path.exists() else []
+
+
+def capped(tmp_path: Path, fal: FakeFal, cap: float) -> Project:
+    return configure(Project.create(tmp_path / "capped"), cap=cap, fal_url=fal.url)
+
+
+def sidecar_of(project: Project, shot_id: str = "s01") -> dict:
+    asset = generated_asset(project, shot_id)
+    return json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+
+
+def test_reserve_over_the_cap_is_refused_before_any_mcp_spend(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 5.0)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 1  # 100 credits at $0.08 is $8
+    err = capsys.readouterr().err
+    assert "cap" in err and "8.00" in err
+    assert reservations(project) == []
+
+
+def test_the_mcp_route_cannot_outrun_the_cap(tmp_path, fal, capsys):
+    """Each clip fits the cap alone. Before this, nothing added them up, so all three were paid for."""
+    project = capped(tmp_path, fal, 10.0)
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    for name in ("s01", "s02"):
+        assert go(project, "--reserve", name, "--credits", "50", "--yes") == 0
+        assert go(project, "--import", str(source), "--shot", name, "--prompt", "p", "--model", "m", "--credits", "50") == 0
+    capsys.readouterr()
+    assert go(project, "--reserve", "s03", "--credits", "50", "--yes") == 1  # $4 + $4 + $4 against $10
+    err = capsys.readouterr().err
+    assert "8.00" in err and "10.00" in err
+    assert [r["shot"] for r in reservations(project)] == ["s01", "s02"]
+
+
+def test_open_reservations_count_before_anything_is_imported(tmp_path, fal):
+    project = capped(tmp_path, fal, 10.0)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0  # $8 fits
+    assert go(project, "--reserve", "s02", "--credits", "100", "--yes") == 1  # $16 does not
+    assert [(r["shot"], r["state"]) for r in reservations(project)] == [("s01", "open")]
+
+
+def test_reserve_books_credits_and_the_rate(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "189", "--yes") == 0
+    row = reservations(project)[0]
+    assert row["shot"] == "s01"
+    assert row["state"] == "open"
+    assert row["credits"] == 189
+    assert row["usd_per_credit"] == 0.08
+    assert row["usd"] == pytest.approx(15.12)
+    assert "15.12" in capsys.readouterr().out
+
+
+def test_reserve_uses_the_project_credit_rate(project):
+    text = (project.root / "altocue.toml").read_text().replace("usd_per_credit = 0.08", "usd_per_credit = 0.033")
+    (project.root / "altocue.toml").write_text(text)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0
+    assert reservations(project)[0]["usd"] == pytest.approx(3.3)
+
+
+def test_reserve_needs_a_yes(project, monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False, raising=False)
+    assert go(project, "--reserve", "s01", "--credits", "10") == 1
+    assert "yes" in capsys.readouterr().err.lower()
+    assert reservations(project) == []
+
+
+def test_a_cap_of_zero_blocks_every_reservation(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 0.0)
+    assert go(project, "--reserve", "s01", "--credits", "1", "--yes") == 1
+    assert "spend_cap_usd" in capsys.readouterr().err
+
+
+def test_reserve_needs_a_price(project, capsys):
+    assert go(project, "--reserve", "s01", "--yes") == 1
+    assert "--credits" in capsys.readouterr().err
+
+
+def test_reserve_refuses_a_shot_already_reserved(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "10", "--yes") == 0
+    assert go(project, "--reserve", "s01", "--credits", "10", "--yes") == 1
+    assert "--release" in capsys.readouterr().err
+
+
+def test_a_dollar_provider_reserves_in_dollars(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "10", "--from", "fal", "--yes") == 1
+    assert "--cost" in capsys.readouterr().err
+    assert go(project, "--reserve", "s01", "--cost", "1.5", "--from", "fal", "--yes") == 0
+    assert reservations(project)[0]["usd"] == 1.5
+
+
+def test_release_gives_the_money_back(tmp_path, fal):
+    project = capped(tmp_path, fal, 10.0)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0
+    assert go(project, "--reserve", "s02", "--credits", "100", "--yes") == 1
+    assert go(project, "--release", "s01") == 0
+    assert go(project, "--reserve", "s02", "--credits", "100", "--yes") == 0
+    assert [r["state"] for r in reservations(project)] == ["released", "open"]
+
+
+def test_release_with_nothing_open_is_explained(project, capsys):
+    assert go(project, "--release", "s01") == 1
+    assert "s01" in capsys.readouterr().err
+
+
+def test_a_generate_run_counts_open_reservations(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 10.0)
+    write_shots(project, shot())
+    assert go(project, "--reserve", "other", "--credits", "120", "--yes") == 0  # $9.60 of $10 is booked
+    assert go(project, "--yes") == 1
+    assert "cap" in capsys.readouterr().err
+    assert fal.submits == []
+
+
+def test_a_generate_run_counts_what_the_project_already_spent(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 1.0)
+    write_shots(project, shot(), shot(id="s02", prompt=PROMPT + " Again."))
+    assert go(project, "--only", "s01", "--yes") == 0  # $0.77 of $1
+    assert len(fal.submits) == 1
+    assert go(project, "--only", "s02", "--yes") == 1
+    assert len(fal.submits) == 1
+
+
+def test_import_settles_its_reservation(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--reserve", "s01", "--credits", "189", "--yes") == 0
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--credits", "180") == 0
+    row = reservations(project)[0]
+    assert row["state"] == "settled"
+    assert row["actual_credits"] == 180
+    assert row["actual_usd"] == pytest.approx(14.4)
+    sidecar = sidecar_of(project)
+    assert sidecar["unreserved"] is False
+    assert sidecar["reserved_credits"] == 189
+    assert sidecar["credits"] == 180
+    assert sidecar["usd_per_credit"] == 0.08
+    assert sidecar["usd_per_credit_as_of"]
+    assert sidecar["cost_usd"] == pytest.approx(14.4)
+    assert spend(project)[-1]["credits"] == 180
+    assert spend(project)[-1].get("unreserved") is False
+
+
+def test_an_import_over_its_reservation_keeps_the_real_figure_and_says_so(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0
+    capsys.readouterr()
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--credits", "150") == 0
+    assert "over" in capsys.readouterr().out
+    assert reservations(project)[0]["over_usd"] == pytest.approx(4.0)
+    assert sidecar_of(project)["over_reservation_usd"] == pytest.approx(4.0)
+    assert spend(project)[-1]["usd"] == pytest.approx(12.0)
+
+
+def test_an_import_with_no_reservation_works_and_is_marked(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert imported(project, source) == 0
+    assert "no reservation" in capsys.readouterr().out
+    assert sidecar_of(project)["unreserved"] is True
+    assert spend(project)[-1]["unreserved"] is True
+
+
+def test_an_unreserved_import_still_counts_against_the_cap(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 2.0)
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert imported(project, source) == 0  # $1.25 of $2
+    assert go(project, "--reserve", "s02", "--credits", "10", "--yes") == 1  # $0.80 more
+    assert "cap" in capsys.readouterr().err
+
+
+def test_the_report_shows_unreserved_imports(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert imported(project, source, "--job-id", "job-9") == 0
+    assert go(project, "--reserve", "s02", "--credits", "10", "--yes") == 0
+    capsys.readouterr()
+    assert go(project, "--report") == 0
+    out = capsys.readouterr().out
+    assert "no reservation" in out and "s01" in out and "1.25" in out
+    assert "s02" in out and "0.80" in out
+
+
+def test_import_needs_a_cost_or_credits(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m") == 1
+    err = capsys.readouterr().err
+    assert "--cost" in err and "--credits" in err
+
+
+def test_reserve_refuses_a_line_a_generated_person_cannot_say(project, capsys):
+    write_shots(project, shot(synthetic=["person"], script="I bought this last week."))
+    assert go(project, "--reserve", "s01", "--credits", "5", "--yes") == 1
+    assert "i bought" in capsys.readouterr().err.lower()
+    assert reservations(project) == []
+
+
+def test_a_run_refuses_a_line_a_generated_person_cannot_say(project, fal, capsys):
+    write_shots(project, shot(synthetic=["person"], script="I bought this last week."))
+    assert go(project, "--yes") == 1
+    assert "claims" in capsys.readouterr().err
+    assert fal.submits == []
+
+
+# Provenance through --import
+
+
+def full_import(project: Project, source: Path, *extra: str) -> int:
+    base = ["--import", str(source), "--shot", "s01", "--prompt", PROMPT, "--model", "seedance_2_5", "--credits", "180"]
+    return go(project, *base, "--surface", "mcp", "--job-id", "job-7", *extra)
+
+
+def test_import_keeps_every_field_per_asset(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    (project.root / "approved.json").write_text(json.dumps(["Holds 500 ml"]))
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    args = ["--recipe", "ugc-video", "--upstream", "job-1,job-2", "--synthetic", "person,voice"]
+    assert full_import(project, source, *args, "--claims", "approved.json", "--consent", "none-generated-adult") == 0
+    sidecar = sidecar_of(project)
+    assert sidecar["credits"] == 180
+    assert sidecar["surface"] == "mcp"
+    assert sidecar["recipe"] == "ugc-video"
+    assert sidecar["upstream"] == ["job-1", "job-2"]
+    assert sidecar["synthetic"] == ["person", "voice"]
+    assert sidecar["claims"]["file"] == "approved.json"
+    assert len(sidecar["claims"]["sha256"]) == 64
+    assert sidecar["consent"] == "none-generated-adult"
+    assert sidecar["job_id"] == "job-7"
+    entry = json.loads((project.work / "generated" / "manifest.json").read_text())["shots"]["s01"]
+    assert entry["synthetic"] == ["person", "voice"] and entry["recipe"] == "ugc-video" and entry["unreserved"] is True
+
+
+def test_claims_can_be_a_statement_instead_of_a_file(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--claims", "observable-only") == 0
+    assert sidecar_of(project)["claims"] == "observable-only"
+
+
+def test_import_stamps_the_terms_it_was_made_under(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source) == 0
+    assert sidecar_of(project)["terms_as_of"] == load_catalog().provider("higgsfield")["terms_as_of"]
+
+
+def test_import_never_touches_the_providers_marks(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    with source.open("ab") as handle:
+        handle.write(b"\x00c2pa.claim bytes\x00")
+    assert full_import(project, source) == 0
+    assert generated_asset(project, "s01").read_bytes() == source.read_bytes()
+    sidecar = sidecar_of(project)
+    assert sidecar["marks"]["c2pa"] is True
+    assert "label" in sidecar["marks"]["keep"].lower()
+
+
+def test_a_clean_file_records_no_mark(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source) == 0
+    assert sidecar_of(project)["marks"]["c2pa"] is False
+
+
+def test_an_unknown_synthetic_flag_is_refused(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--synthetic", "person,ghost") == 1
+    assert "ghost" in capsys.readouterr().err
+
+
+def test_an_mcp_import_needs_its_job_id(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--credits", "5", "--surface", "mcp") == 1
+    assert "--job-id" in capsys.readouterr().err
+
+
+def test_a_person_with_no_consent_note_is_called_out(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--synthetic", "person") == 0
+    assert "--consent" in capsys.readouterr().out
+
+
+def test_generated_shots_carry_their_flags_too(project, fal):
+    write_shots(project, shot(synthetic=["person"], script="This bottle holds half a litre."))
+    assert go(project, "--yes") == 0
+    sidecar = sidecar_of(project)
+    assert sidecar["synthetic"] == ["person"]
+    assert sidecar["script"] == "This bottle holds half a litre."
+    assert sidecar["terms_as_of"] == load_catalog().provider("fal")["terms_as_of"]
+
+
+def test_import_takes_the_flags_from_the_shot_list(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    write_shots(project, shot(synthetic=["person"]))
+    assert full_import(project, source) == 0
+    assert sidecar_of(project)["synthetic"] == ["person"]
+
+
+# Uploads to Higgsfield
+
+
+def test_allow_upload_prints_the_named_warning_and_records_the_terms(project, capsys):
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    out = capsys.readouterr().out
+    assert "Higgsfield" in out and "train" in out and "2026-10-23" in out and "Enterprise" in out
+    record = json.loads((project.root / "consent.json").read_text())["uploads"]["higgsfield"]
+    assert record["terms_as_of"] == "2026-10-23"
+    assert "train" in record["warning"]
+
+
+def test_allow_upload_for_a_provider_with_no_gate_says_so(project, capsys):
+    assert go(project, "--allow-upload", "fal") == 0
+    assert "no opt-in" in capsys.readouterr().out
+    assert not (project.root / "consent.json").exists()
+
+
+def test_a_recipe_that_uploads_is_refused_at_reserve(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    err = capsys.readouterr().err
+    assert "train" in err and "--allow-upload higgsfield" in err
+    assert reservations(project) == []
+
+
+def test_a_recipe_that_uploads_is_refused_at_import(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--recipe", "text-behind") == 1
+    assert "--allow-upload higgsfield" in capsys.readouterr().err
+    assert generated_asset(project, "s01", missing_ok=True) is None
+
+
+def test_a_free_recipe_still_needs_the_opt_in_because_the_clip_still_leaves(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    args = ["--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "0", "--recipe", "tier-list"]
+    assert go(project, *args) == 1
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert go(project, *args) == 0
+
+
+def test_the_opt_in_opens_both_doors(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 0
+    assert full_import(project, source, "--recipe", "reframe") == 0
+    assert reservations(project)[0]["recipe"] == "reframe"
+
+
+def test_a_recipe_that_stays_here_needs_no_opt_in(project):
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "faceless-video", "--yes") == 0
+
+
+def test_a_recipe_used_through_its_fal_fallback_needs_no_higgsfield_opt_in(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "1", "--from", "fal", "--recipe", "dubbing") == 0
+
+
+def test_an_unknown_recipe_is_refused(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "ghost", "--yes") == 1
+    assert "altocue recipes list" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", ["katana", "sync-agents", "virality-score"])
+def test_an_excluded_recipe_is_refused_at_reserve(project, capsys, name):
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", name, "--yes") == 1
+    assert "excluded" in capsys.readouterr().err.lower()
+
+
+def test_an_excluded_recipe_is_refused_at_import(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert full_import(project, source, "--recipe", "katana") == 1
+    assert "excluded" in capsys.readouterr().err.lower()
+
+
+def test_new_terms_lapse_the_opt_in(project, capsys):
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    local = project.root / "models.local.toml"
+    local.write_text(local.read_text().replace('terms_as_of = "2026-10-23"', 'terms_as_of = "2027-01-01"'))
+    capsys.readouterr()
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    assert "2027-01-01" in capsys.readouterr().err
+
+
+def test_a_stale_catalog_cannot_switch_the_gate_off(project, capsys):
+    local = project.root / "models.local.toml"
+    text = local.read_text()
+    start, end = text.index("upload_warning"), text.index("poll_seconds = 3.0\ndestination = \"Higgsfield")
+    local.write_text(text[:start] + text[end:])
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    assert "train" in capsys.readouterr().err
+
+
+def test_a_recipe_sets_the_flags_the_honesty_gates_read(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert full_import(project, source, "--recipe", "ugc-video") == 0
+    assert sidecar_of(project)["synthetic"] == ["person", "voice"]
+
+
+def test_quote_names_the_block(project, capsys):
+    assert main(["recipes", "quote", "reframe", "--project", str(project.root)]) == 0
+    assert "--allow-upload higgsfield" in capsys.readouterr().out
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    capsys.readouterr()
+    assert main(["recipes", "quote", "reframe", "--project", str(project.root)]) == 0
+    assert "--allow-upload" not in capsys.readouterr().out
+
+
+def test_a_cli_run_will_not_send_project_files_without_the_opt_in(hf_project, higgsfield, capsys):
+    (hf_project.root / "key.png").write_bytes(PNG)
+    write_shots(hf_project, shot(first_frame="key.png"))
+    assert go(hf_project, "--yes") == 1
+    err = capsys.readouterr().err
+    assert "train" in err and "--allow-upload higgsfield" in err
+    assert higgsfield.creates() == []
+
+
+def test_a_dry_run_names_the_block_and_sends_nothing(hf_project, higgsfield, capsys):
+    (hf_project.root / "key.png").write_bytes(PNG)
+    write_shots(hf_project, shot(first_frame="key.png"))
+    assert go(hf_project, "--dry-run") == 0
+    assert "--allow-upload higgsfield" in capsys.readouterr().out
+    assert higgsfield.creates() == []
+
+
+def test_a_cli_run_with_nothing_to_upload_needs_no_opt_in(hf_project, higgsfield):
+    write_shots(hf_project, shot())
+    assert go(hf_project, "--yes") == 0
+
+
+def test_a_still_made_in_this_run_is_not_the_projects_footage(hf_project, higgsfield):
+    write_shots(hf_project, still(id="key"), shot(id="s02", first_frame="@key"))
+    assert go(hf_project, "--yes") == 0
 
 
 # Command plumbing

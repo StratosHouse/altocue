@@ -1,4 +1,4 @@
-"""Run every stage in order, stopping wherever a person or agent must decide."""
+"""Run ingest to QA in order, stopping wherever a person or agent must decide. B-roll, direct and generate stay separate steps."""
 
 from __future__ import annotations
 

@@ -284,6 +284,24 @@ def test_failed_gate_is_fix_with_no_model_call(clip, stub, monkeypatch, capsys):
     assert "FIX" in text and "loudness" in text and "What this review could not see or hear" in text
 
 
+NOT_RUN = [*PASSING, GateResult(id="words", passed=False, skipped=True, detail="no transcriber")]
+
+
+def test_a_gate_that_did_not_run_stops_before_a_paid_reviewer(clip, stub, monkeypatch, capsys):
+    stub["gates"] = NOT_RUN
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    monkeypatch.setattr(gemini, "review", lambda *a, **k: pytest.fail("no paid call on a film that cannot ship"))
+    assert main(argv(clip, "--reviewer", "gemini", "--upload", "--paid-key")) == 1
+    assert "Not checked: words" in capsys.readouterr().err
+    assert rounds.load(clip.project)["rounds"] == []
+
+
+def test_a_gate_that_did_not_run_can_still_go_to_the_free_pack(clip, stub):
+    stub["gates"] = NOT_RUN
+    assert main(argv(clip, "--reviewer", "pack")) == 0
+    assert (clip.project.review_dir / "PACK.md").exists()
+
+
 def test_pack_reviewer_stops_for_an_agent(clip, stub, capsys):
     assert main(argv(clip, "--reviewer", "pack")) == 0
     assert (clip.project.review_dir / "PACK.md").exists()
@@ -320,6 +338,20 @@ def test_ingest_scores_and_writes_the_report(clip, stub, capsys):
     assert saved["reviewer"]["independent"] is False
     text = (clip.project.review_dir / "REPORT.md").read_text()
     assert "independent: false" in text.lower() and "What this review could not see or hear" in text
+
+
+def test_report_names_spend_the_cap_never_saw(clip, stub):
+    from altocue.generate import store
+
+    store.log_spend(clip.project, {"run": "import", "shot": "s01", "provider": "higgsfield", "model": "m", "usd": 1.25, "state": "succeeded", "unreserved": True})
+    assert main(argv(clip, "--ingest", str(verdict_file(clip)))) == 0
+    text = (clip.project.review_dir / "REPORT.md").read_text()
+    assert "## Spend" in text and "no reservation" in text and "s01" in text
+
+
+def test_report_has_no_spend_section_when_nothing_was_spent(clip, stub):
+    assert main(argv(clip, "--ingest", str(verdict_file(clip)))) == 0
+    assert "## Spend" not in (clip.project.review_dir / "REPORT.md").read_text()
 
 
 def test_ingest_relative_to_the_project(clip, stub):

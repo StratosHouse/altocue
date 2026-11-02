@@ -1,0 +1,48 @@
+{
+  "id": "pixabay",
+  "name": "Pixabay",
+  "url": "https://pixabay.com/",
+  "classes": [
+    "video",
+    "photo"
+  ],
+  "holds": "Free stock video, photos, illustrations and vectors.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "pixabay-content",
+    "url": "https://pixabay.com/service/license-summary/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://pixabay.com/api/docs/",
+    "key": "free",
+    "key_env": "PIXABAY_API_KEY",
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "100 per 60 seconds. Results must be cached for 24 hours"
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "no_redistribution",
+    "people_release"
+  ],
+  "adapter": "altocue.broll",
+  "test": null,
+  "notes": "The best route for generic B-roll. The API asks you to show the source in results. Its terms bar scraping, bulk use and collecting data for machine learning."
+}

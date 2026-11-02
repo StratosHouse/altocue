@@ -1,0 +1,49 @@
+{
+  "id": "vecteezy",
+  "name": "Vecteezy",
+  "url": "https://www.vecteezy.com/",
+  "classes": [
+    "video",
+    "photo",
+    "illustration"
+  ],
+  "holds": "Stock photos, video and vectors with a paid API.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "vecteezy",
+    "url": "https://www.vecteezy.com/licensing-agreement",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.vecteezy.com/developers",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": "Free 500 downloads a month"
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution",
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Its free tier needs credit, and its terms say you may not download or stockpile."
+}

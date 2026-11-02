@@ -1,0 +1,44 @@
+{
+  "id": "kaykit",
+  "name": "KayKit",
+  "url": "https://kaylousberg.itch.io/",
+  "classes": [
+    "3d"
+  ],
+  "holds": "CC0 stylised 3D packs.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://kaylousberg.itch.io/",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://kaylousberg.itch.io/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "CC0 per its listings on itch.io and OpenGameArt."
+}

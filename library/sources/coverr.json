@@ -1,0 +1,49 @@
+{
+  "id": "coverr",
+  "name": "Coverr",
+  "url": "https://coverr.co/",
+  "classes": [
+    "video",
+    "music"
+  ],
+  "holds": "Free stock video and music under a custom licence.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "coverr",
+    "url": "https://coverr.co/license",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://api.coverr.co/docs/",
+    "key": "free",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_tools",
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its terms bar video editing services by name, and Altocue is one."
+}

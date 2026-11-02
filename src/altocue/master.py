@@ -7,6 +7,7 @@ import json
 import math
 import os
 import subprocess
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -32,15 +33,76 @@ AUDIO_CODECS = {".wav": ["-c:a", "pcm_s16le"], ".flac": ["-c:a", "flac"]}
 AAC = ["-c:a", "aac", "-b:a", "192k"]
 
 
-def _loudness_arg(value: str) -> float:
-    return HOT_LOUDNESS if value == "hot" else float(value)
+@dataclass(frozen=True)
+class Target:
+    """A named loudness target, and where its numbers come from. `primary` is False when no first-hand source publishes them."""
+
+    name: str
+    loudness: float
+    true_peak: float
+    source: str
+    primary: bool
+
+
+TARGETS = {
+    "streaming": Target(
+        "streaming",
+        -14.0,
+        -1.0,
+        "Spotify for Artists: tracks are adjusted to -14 dB LUFS, and masters should stay below -1 dB true peak. "
+        "https://support.spotify.com/us/artists/article/loudness-normalization/",
+        True,
+    ),
+    "podcast": Target(
+        "podcast",
+        -16.0,
+        -1.0,
+        "Apple Podcasts audio requirements: around -16 dB LKFS, +/- 1 dB, true peak no higher than -1 dBFS. "
+        "https://podcasters.apple.com/support/893-audio-requirements",
+        True,
+    ),
+    "broadcast": Target(
+        "broadcast",
+        -23.0,
+        -1.0,
+        "EBU R 128 (2023): programme loudness -23.0 LUFS, true peak no higher than -1 dBTP. https://tech.ebu.ch/docs/r/r128.pdf",
+        True,
+    ),
+    "social": Target(
+        "social",
+        LOUDNESS,
+        TRUE_PEAK,
+        "No primary source. TikTok, Instagram, YouTube and LinkedIn publish no loudness target, so this is Altocue's own default.",
+        False,
+    ),
+    "hot": Target("hot", HOT_LOUDNESS, TRUE_PEAK, "No primary source. Altocue's loud option, for films that must compete on a phone speaker.", False),
+}
+
+
+def named_target(name: str) -> Target:
+    if name not in TARGETS:
+        raise AltocueError(f"Unknown loudness target {name}.", fix=f"Use {', '.join(TARGETS)}, or a number in LUFS.")
+    return TARGETS[name]
+
+
+def loudness_arg(value: str) -> float | Target:
+    return TARGETS[value] if value in TARGETS else float(value)
+
+
+def project_target(project: Project) -> tuple[float, float]:
+    """The project's `[audio]` target. `loudness` is a number or a name, and a set `true_peak` wins."""
+    chosen = project.setting("audio", "loudness", LOUDNESS)
+    if isinstance(chosen, str):
+        named = named_target(chosen)
+        return named.loudness, float(project.setting("audio", "true_peak", named.true_peak))
+    return float(chosen), float(project.setting("audio", "true_peak", TRUE_PEAK))
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--input", "-i", help="File to master. Default is the project's out/render.mp4")
     parser.add_argument("--output", "-o", help="Where to write it. Default is the project's out/final.mp4")
-    parser.add_argument("--loudness", type=_loudness_arg, help="Integrated LUFS, or `hot` for -12")
+    parser.add_argument("--loudness", type=loudness_arg, help=f"Integrated LUFS, or a named target: {', '.join(TARGETS)}")
     parser.add_argument("--true-peak", type=float, help="True-peak ceiling in dBTP")
 
 
@@ -200,12 +262,14 @@ def run(args: argparse.Namespace) -> int:
         src, dest = project.out / "render.mp4", project.out / "final.mp4"
         if not src.exists():
             raise AltocueError(f"No render at {src}.", fix="Run `altocue render` first.")
-    loudness = (
-        args.loudness if args.loudness is not None else float(project.setting("audio", "loudness", LOUDNESS)) if project else LOUDNESS
-    )
-    true_peak = (
-        args.true_peak if args.true_peak is not None else float(project.setting("audio", "true_peak", TRUE_PEAK)) if project else TRUE_PEAK
-    )
+    loudness, true_peak = project_target(project) if project else (LOUDNESS, TRUE_PEAK)
+    named = args.loudness if isinstance(args.loudness, Target) else None
+    if named:
+        loudness, true_peak = named.loudness, named.true_peak
+        print(f"Target {named.name}: {loudness:g} LUFS, {true_peak:g} dBTP. {named.source}")
+    elif args.loudness is not None:
+        loudness = args.loudness
+    true_peak = args.true_peak if args.true_peak is not None else true_peak
     silent_film = bool(project) and no_sound_in(project)
     result = master_file(src, dest, loudness=loudness, true_peak=true_peak, silent_film=silent_film)
     if project:

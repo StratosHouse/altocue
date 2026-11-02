@@ -1,0 +1,45 @@
+{
+  "id": "uppbeat",
+  "name": "Uppbeat",
+  "url": "https://uppbeat.io/pricing",
+  "classes": [
+    "music"
+  ],
+  "holds": "Music with a small free allowance.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://uppbeat.io/pricing",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://uppbeat.io/pricing",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": "unknown",
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its terms page refused every read, so nothing could be verified."
+}

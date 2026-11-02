@@ -1,0 +1,49 @@
+{
+  "id": "google-fonts",
+  "name": "Google Fonts repository",
+  "url": "https://github.com/google/fonts",
+  "classes": [
+    "font"
+  ],
+  "holds": "The open fonts behind Google Fonts, with a licence per family.",
+  "size": {
+    "count": 1959,
+    "unit": "families",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://github.com/google/fonts",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/google/fonts",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Fonts with a Reserved Font Name cannot keep that name once subset, so check before subsetting. The hosted API needs a key, the git repo does not."
+}

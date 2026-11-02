@@ -1,0 +1,48 @@
+{
+  "id": "yue",
+  "name": "YuE",
+  "url": "https://github.com/multimodal-art-projection/YuE",
+  "classes": [
+    "music",
+    "generate"
+  ],
+  "holds": "An open AI music model with an unclear company licence.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://github.com/multimodal-art-projection/YuE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "local",
+    "docs": "https://github.com/multimodal-art-projection/YuE",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Company commercial use needs a direct contact, while the repo header still reads Apache-2.0."
+}

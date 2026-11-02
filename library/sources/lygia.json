@@ -1,0 +1,47 @@
+{
+  "id": "lygia",
+  "name": "LYGIA",
+  "url": "https://raw.githubusercontent.com/patriciogonzalezvivo/lygia/main/LICENSE.md",
+  "classes": [
+    "transition"
+  ],
+  "holds": "A shader library under a commercial-trial licence.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "Prosperity-3.0.0",
+    "url": "https://raw.githubusercontent.com/patriciogonzalezvivo/lygia/main/LICENSE.md",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://lygia.xyz/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "noncommercial"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Prosperity licence, with only a 30-day commercial trial for a whole company."
+}

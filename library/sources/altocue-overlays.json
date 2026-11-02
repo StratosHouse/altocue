@@ -1,0 +1,44 @@
+{
+  "id": "altocue-overlays",
+  "name": "Overlays generated in code",
+  "url": "https://github.com/StratosHouse/altocue",
+  "classes": [
+    "overlay"
+  ],
+  "holds": "Grain, light leaks, dust and gradients drawn by ffmpeg recipes.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/StratosHouse/altocue/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "code",
+    "docs": "https://ffmpeg.org/ffmpeg-filters.html",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": true
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "No CC0 pack of grain or leaks was found, so code draws them."
+}

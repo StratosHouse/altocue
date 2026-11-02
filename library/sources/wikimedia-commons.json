@@ -1,0 +1,71 @@
+{
+  "id": "wikimedia-commons",
+  "name": "Wikimedia Commons",
+  "url": "https://commons.wikimedia.org/",
+  "classes": [
+    "video",
+    "photo",
+    "music",
+    "sfx"
+  ],
+  "holds": "Openly licensed media, with a licence on every file.",
+  "size": {
+    "count": 150311313,
+    "unit": "files",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": "{title} by {author}, {licence}, {url}"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.mediawiki.org/wiki/API:Search",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": true,
+    "rate_limit": "Action API one request at a time, under 5 per second. Media two at a time, 25 Mbps"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "per_item"
+  },
+  "item_filter": {
+    "default": [
+      "Cc-zero",
+      "PD-USGov-NASA",
+      "PD-USGov"
+    ],
+    "with_credit": [
+      "Cc-by-4.0"
+    ],
+    "refuse": [
+      "share_alike",
+      "noncommercial"
+    ]
+  },
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "ocean filetype:video",
+    "results": 16876,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "Files are WebM. Filter on the page with hastemplate, because haslicense returns nothing. Refuse share-alike by default."
+}

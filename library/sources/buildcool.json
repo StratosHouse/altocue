@@ -1,0 +1,51 @@
+{
+  "id": "buildcool",
+  "name": "Buildcoolshit",
+  "url": "https://buildcool.sh/",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A curated directory of 102 design and development resources.",
+  "size": {
+    "count": 102,
+    "unit": "resources",
+    "as_of": "2026-11-02",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://buildcool.sh/terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://buildcool.sh/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Link only, useful as a lead list. It has no content licence, so go to each original maker directly."
+}

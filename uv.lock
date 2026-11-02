@@ -26,6 +26,9 @@ faster-whisper = [
 mlx-whisper = [
     { name = "mlx-whisper", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
+parakeet = [
+    { name = "parakeet-mlx", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -42,9 +45,10 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0" },
     { name = "opencv-python-headless", specifier = ">=4.10" },
     { name = "parakeet-mlx", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", specifier = ">=0.5.3,<0.6" },
+    { name = "parakeet-mlx", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'parakeet'", specifier = ">=0.5.3,<0.6" },
     { name = "pillow", specifier = ">=11" },
 ]
-provides-extras = ["mlx-whisper", "faster-whisper"]
+provides-extras = ["parakeet", "mlx-whisper", "faster-whisper"]
 
 [package.metadata.requires-dev]
 dev = [

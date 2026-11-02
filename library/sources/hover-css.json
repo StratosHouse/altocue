@@ -1,0 +1,45 @@
+{
+  "id": "hover-css",
+  "name": "Hover.css",
+  "url": "https://github.com/IanLunn/Hover",
+  "classes": [
+    "animation"
+  ],
+  "holds": "CSS hover effects.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "hover-css",
+    "url": "https://github.com/IanLunn/Hover",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/IanLunn/Hover",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Commercial use needs a paid licence."
+}

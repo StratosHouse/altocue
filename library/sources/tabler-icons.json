@@ -1,0 +1,49 @@
+{
+  "id": "tabler-icons",
+  "name": "Tabler Icons",
+  "url": "https://github.com/tabler/tabler-icons",
+  "classes": [
+    "icon"
+  ],
+  "holds": "More than 6,000 open icons.",
+  "size": {
+    "count": 6257,
+    "unit": "icons",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/tabler/tabler-icons/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/tabler/tabler-icons",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "A hand-picked subset is the bundling plan."
+}

@@ -1,0 +1,48 @@
+{
+  "id": "suno",
+  "name": "Suno",
+  "url": "https://suno.com/",
+  "classes": [
+    "music",
+    "generate"
+  ],
+  "holds": "Hosted AI music on paid plans.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "suno",
+    "url": "https://suno.com/",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://suno.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "noncommercial"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "It has no public API, and its free plan is non-commercial."
+}

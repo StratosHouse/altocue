@@ -1,0 +1,47 @@
+{
+  "id": "opengameart",
+  "name": "OpenGameArt",
+  "url": "https://opengameart.org/",
+  "classes": [
+    "sfx",
+    "music",
+    "illustration",
+    "3d"
+  ],
+  "holds": "Game audio and art with a licence on every asset.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://opengameart.org/content/faq",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://opengameart.org/content/faq",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Mixes CC0, CC BY, CC BY-SA and GPL, so check each asset."
+}

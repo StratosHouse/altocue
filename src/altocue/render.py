@@ -6,10 +6,11 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from . import caption, ffmpeg, frame, mix, motion, plate
+from . import caption, ffmpeg, frame, locks, mix, motion, plate
 from . import timeline as timelines
 from .motion import formats
-from .project import Project
+from .project import Project, write_json
+from .stock import credits
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -90,18 +91,23 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
 
 
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:
-    frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
-    picture, voice = plate.build(project, draft=draft)
-    caption.build(project)
-    timeline = timelines.build(project)
-    layer = motion.render_layers(project, renderer=renderer, draft=draft)
-    audio = project.work / "mix.wav"
-    music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
-    room = voice.with_name(f"{voice.stem}-room.wav")
-    music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
-    mix.mix_bed(voice, audio, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end)
-    dest = project.out / ("draft.mp4" if draft else "render.mp4")
-    ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
+    with locks.heavy("rendering"):
+        frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
+        picture, voice = plate.build(project, draft=draft)
+        caption.build(project)
+        timeline = timelines.build(project)
+        credits.write_txt(project)
+        layer = motion.render_layers(project, renderer=renderer, draft=draft)
+        audio = project.work / "mix.wav"
+        music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
+        room = voice.with_name(f"{voice.stem}-room.wav")
+        music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
+        mix.mix_bed(voice, audio, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end)
+        dest = project.out / ("draft.mp4" if draft else "render.mp4")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
+    if not draft:
+        write_json(project.work / "render.json", {"cut": project.cut_mark()})
     return dest
 
 

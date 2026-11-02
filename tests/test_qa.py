@@ -10,13 +10,18 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from canaries import CONTROLS, SCRIPT, Case, Recipe, build, fakes, fired, planted
+from canaries import CLAIMING, CONTROLS, HOST_PROMPT, LABEL_ITEM, SCRIPT, Case, Recipe, build, fakes, fired, freeze, planted
+from conftest import make_clip
+from PIL import Image
 
-from altocue import qa
+from altocue import claims, qa
 from altocue.cli import main
 from altocue.errors import AltocueError
-from altocue.models import GateResult
+from altocue.generate import import_asset
+from altocue.models import Clip, GateResult, Word
+from altocue.project import Project
 from altocue.qa import gates, ocr, rules
+from altocue.review import rubric
 
 CLEAN = CONTROLS[0]
 
@@ -383,3 +388,264 @@ def test_word_checks_work_in_any_alphabet():
     said, heard = ["\u043f\u0440\u0438\u0432\u0435\u0442", "\u043c\u0438\u0440"], ["\u0441\u043e\u0432\u0441\u0435\u043c", "\u0434\u0440\u0443\u0433\u043e\u0435"]
     assert match_rate(said, heard) == 0.0
     assert match_rate(["\u0633\u0644\u0627\u0645"], ["\u0633\u0644\u0627\u0645"]) == 1.0
+
+
+# Honesty gates. Not legal advice: these read what is said, not what is lawful.
+
+
+def synthetic(tmp_path: Path, **recipe):
+    return build(Case("host", "", Recipe(performer=HOST_PROMPT, **recipe)), tmp_path / "host")
+
+
+def fresh(tmp_path: Path):
+    """The shared clean project must stay clean, so anything that changes a project gets its own."""
+    return build(CLEAN, tmp_path / "fresh")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "I bought this last week",
+        "I tried it for a month",
+        "this changed my life",
+        "my results speak for themselves",
+        "Verified buyer",
+        "I've been using it every morning",
+        "it worked for me",
+        "my skin has never looked better",
+        "after two weeks of using it",
+        "I can't live without it",
+        "see my before and after photos",
+        "real customer review",
+    ],
+)
+def test_experience_claims_are_found(line):
+    assert claims.experience(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "This bottle holds half a litre.",
+        "Twist the cap and pour.",
+        "You can try it on at home.",
+        "It ships in two days and returns are free within 30 days.",
+        "The label lists every ingredient.",
+        "Wash your hands before and after use.",
+    ],
+)
+def test_plain_description_is_not_a_claim(line):
+    assert not claims.experience(line)
+
+
+def test_curly_quotes_and_capitals_do_not_hide_a_claim():
+    assert claims.experience("I\u2019VE BEEN USING IT")
+
+
+def test_the_honesty_gates_have_nothing_to_do_without_a_synthetic_person(clean):
+    context = gates.Context.open(clean.project, clean.file)
+    with planted(clean):
+        assert gates.gate_claims(context).value == gates.NOT_APPLICABLE
+        assert gates.gate_disclosure(context).value == gates.NOT_APPLICABLE
+
+
+def test_a_failed_claim_is_a_failed_gate_so_review_says_fix(tmp_path):
+    built = synthetic(tmp_path, heard=CLAIMING, expected=CLAIMING)
+    with planted(built):
+        results = qa.run_gates(built.project, built.file)
+    gate = by_id(results, "claims")
+    assert gate in qa.failed(results)
+    assert "changed my life" in gate.detail
+    assert rubric.gates_only(results)["verdict"] == "FIX"
+
+
+def test_a_label_does_not_cure_a_claim(tmp_path):
+    built = synthetic(tmp_path, heard=CLAIMING, expected=CLAIMING, items=[LABEL_ITEM])
+    with planted(built):
+        context = gates.Context.open(built.project, built.file)
+        assert gates.gate_disclosure(context).passed
+        assert not gates.gate_claims(context).passed
+
+
+def test_claims_with_no_transcript_are_skipped_not_passed(tmp_path):
+    built = synthetic(tmp_path)
+    timeline = json.loads(built.project.timeline_path.read_text())
+    built.project.timeline_path.write_text(json.dumps({**timeline, "captions": []}))
+    context = gates.Context.open(built.project, built.file)
+    context._heard = (None, "No transcriber here.")
+    context.edl = None
+    gate = gates.gate_claims(context)
+    assert gate.skipped and not gate.passed
+
+
+def test_a_real_speaker_over_a_silent_generated_insert_is_read_only_inside_the_insert(tmp_path):
+    built = build(Case("real", "", Recipe(heard=CLAIMING, expected=CLAIMING)), tmp_path / "real")
+    asset = import_asset(built.project, file=built.file, shot="cut", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    timeline = json.loads(built.project.timeline_path.read_text())
+    timeline["inserts"] = [{"file": str(asset.relative_to(built.project.root)), "start": 5.5, "end": 6.0}]
+    built.project.timeline_path.write_text(json.dumps(timeline))
+    built.project.save_clips([Clip(id="take", path=str(tmp_path / "elsewhere.mp4"), duration=6.0, fps=30, width=1080, height=1920)])
+    with planted(built):
+        assert gates.gate_claims(gates.Context.open(built.project, built.file)).passed
+
+
+def test_a_flagged_take_that_is_not_in_the_cut_is_not_in_the_film(tmp_path):
+    clean = fresh(tmp_path)
+    take = make_clip(tmp_path / "take.mp4", seconds=1.0, audio=False)
+    import_asset(clean.project, file=take, shot="unused", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    with planted(clean):
+        gate = gates.gate_disclosure(gates.Context.open(clean.project, clean.file))
+    assert gate.value == gates.NOT_APPLICABLE
+    assert "unused" in gate.detail
+
+
+def test_with_no_edit_on_disk_a_flagged_take_counts_as_in_the_film(tmp_path):
+    clean = fresh(tmp_path)
+    take = make_clip(tmp_path / "take.mp4", seconds=1.0, audio=False)
+    import_asset(clean.project, file=take, shot="host", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    clean.project.edl_path.unlink()
+    clean.project.timeline_path.unlink()
+    with planted(clean):
+        gate = gates.gate_disclosure(gates.Context.open(clean.project, clean.file))
+    assert gate.skipped or not gate.passed
+    assert gate.value != gates.NOT_APPLICABLE
+
+
+def test_a_flag_in_the_shot_list_counts(tmp_path):
+    clean = fresh(tmp_path)
+    asset = import_asset(clean.project, file=clean.file, shot="host", prompt=HOST_PROMPT, model="m", cost=0, out=lambda _: None)
+    clean.project.save_clips([Clip(id="take", path=str(asset), duration=6.0, fps=30, width=1080, height=1920)])
+    shot = {"id": "host", "purpose": "p", "kind": "video", "tier": "draft", "prompt": HOST_PROMPT, "aspect": "9:16", "duration": 5, "placement": 0, "check": "none"}
+    (clean.project.root / "shots.json").write_text(json.dumps({"shots": [{**shot, "synthetic": ["person"]}]}))
+    with planted(clean):
+        assert not gates.gate_disclosure(gates.Context.open(clean.project, clean.file)).passed
+
+
+def test_a_script_on_the_shot_list_is_read(tmp_path):
+    clean = fresh(tmp_path)
+    asset = import_asset(clean.project, file=clean.file, shot="host", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    clean.project.save_clips([Clip(id="take", path=str(asset), duration=6.0, fps=30, width=1080, height=1920)])
+    shot = {"id": "host", "purpose": "p", "kind": "video", "tier": "draft", "prompt": HOST_PROMPT, "aspect": "9:16", "duration": 5, "placement": 0, "check": "none"}
+    (clean.project.root / "shots.json").write_text(json.dumps({"shots": [{**shot, "script": "I tried it myself."}]}))
+    with planted(clean):
+        gate = gates.gate_claims(gates.Context.open(clean.project, clean.file))
+    assert not gate.passed and "tried" in gate.detail
+
+
+def test_disclosure_says_it_is_not_legal_advice(tmp_path):
+    built = synthetic(tmp_path)
+    with planted(built):
+        context = gates.Context.open(built.project, built.file)
+        assert "not legal advice" in gates.gate_disclosure(context).detail.lower()
+
+
+def test_a_project_can_name_its_own_label(tmp_path):
+    item = {"type": "chip", "text": "Played by a digital double", "start": 0.0, "end": 6.0}
+    built = synthetic(tmp_path, items=[item])
+    config = built.project.root / "altocue.toml"
+    config.write_text(config.read_text().replace('label = "AI-generated actor"', 'label = "digital double"'))
+    with planted(built):
+        assert gates.gate_disclosure(gates.Context.open(Project.open(built.project.root), built.file)).passed
+
+
+def test_an_exemption_is_recorded_in_the_detail(tmp_path):
+    built = build(Case("exempt", "", Recipe(performer=HOST_PROMPT, exempt="Audio-only ad.")), tmp_path / "exempt")
+    with planted(built):
+        gate = gates.gate_disclosure(gates.Context.open(built.project, built.file))
+    assert gate.passed and gate.value == "exempt" and "Audio-only ad." in gate.detail
+
+
+# UGC checks
+
+
+def ugc(tmp_path: Path, **recipe) -> dict[str, GateResult]:
+    built = build(Case("ugc", "", Recipe(**recipe)), tmp_path / "ugc")
+    with planted(built):
+        results = gates.run_ugc(gates.Context.open(built.project, built.file))
+    return {gate.id: gate for gate in results}
+
+
+CALM = SCRIPT[:14]
+
+
+def test_speech_over_the_ceiling_fails(tmp_path):
+    found = ugc(tmp_path)  # the whole script in 6 s
+    assert not found["speech_rate"].passed and found["speech_rate"].value > 5
+    assert found["speech_rate"].threshold == gates.SPEECH_CEILING
+
+
+def test_speech_under_the_ceiling_passes(tmp_path):
+    assert ugc(tmp_path, heard=CALM, expected=CALM)["speech_rate"].passed
+
+
+def test_a_cold_open_passes(tmp_path):
+    assert ugc(tmp_path, heard=CALM, expected=CALM)["cold_open"].passed
+
+
+def test_a_slow_first_word_fails_the_cold_open(tmp_path, monkeypatch):
+    built = build(Case("late", "", Recipe(heard=CALM, expected=CALM)), tmp_path / "late")
+    built.heard[0] = Word(text=CALM[0], start=0.9, end=1.1)
+    with planted(built):
+        gate = gates.gate_cold_open(gates.Context.open(built.project, built.file))
+    assert not gate.passed and "0.90" in gate.detail
+
+
+def test_a_static_start_fails_the_cold_open(tmp_path):
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, vf=freeze(0, 20))["cold_open"]
+    assert not gate.passed and "static" in gate.detail
+
+
+def test_baked_text_fails(tmp_path):
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, burn_text=[("LIMITED TIME OFFER", 0.5, 0.0, 6.0)])["baked_text"]
+    assert not gate.passed and not gate.skipped, gate.detail
+    assert "limited" in gate.detail.lower()
+
+
+def test_planned_text_is_not_baked_text(tmp_path):
+    item = {"type": "chip", "text": "Follow this plan", "start": 0.0, "end": 6.0}
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[item], burn_text=[("Follow this plan", 0.2, 0.0, 6.0)])["baked_text"]
+    assert gate.passed, gate.detail
+
+
+def test_the_real_product_label_can_be_allowed(tmp_path):
+    built = build(Case("label", "", Recipe(heard=CALM, expected=CALM, burn_text=[("OAK AND ASH", 0.5, 0.0, 6.0)])), tmp_path / "label")
+    config = built.project.root / "altocue.toml"
+    config.write_text(config.read_text().replace("label_text = []", 'label_text = ["oak and ash"]'))
+    with planted(built):
+        gate = gates.gate_baked_text(gates.Context.open(Project.open(built.project.root), built.file))
+    assert gate.passed, gate.detail
+
+
+def test_no_text_reader_skips_baked_text(tmp_path, monkeypatch):
+    monkeypatch.setattr(ocr, "reader", lambda: (None, ocr.NO_READER))
+    gate = ugc(tmp_path, heard=CALM, expected=CALM)["baked_text"]
+    assert gate.skipped and not gate.passed
+
+
+def test_lip_closure_is_never_passed_and_leaves_a_sheet_for_a_person(tmp_path):
+    words = ["maybe", "people", "buy", "more", "paper", "than", "before"]
+    built = build(Case("lips", "", Recipe(heard=words, expected=words)), tmp_path / "lips")
+    with planted(built):
+        gate = gates.gate_lip_closure(gates.Context.open(built.project, built.file))
+    assert gate.skipped and not gate.passed
+    assert "person" in gate.detail
+    sheet = built.project.review_dir / "lip-sheet.jpg"
+    assert sheet.exists()
+    with Image.open(sheet) as image:
+        assert image.size[0] > 0
+
+
+def test_lip_closure_with_no_such_words_has_nothing_to_look_at(tmp_path):
+    words = ["the", "tiny", "dot", "sat", "still"]
+    assert ugc(tmp_path, heard=words, expected=words)["lip_closure"].value == gates.NOT_APPLICABLE
+
+
+def test_qa_check_ugc_runs_only_those_checks_and_saves_them(tmp_path, capsys):
+    built = build(Case("ugc", "", Recipe()), tmp_path / "ugc")
+    with planted(built):
+        code = main(["qa", "--project", str(built.project.root), "--check", "ugc"])
+    out = capsys.readouterr().out
+    assert code == 1  # 5 words a second
+    assert "speech_rate" in out and "lip_closure" in out and "black_frames" not in out
+    saved = json.loads((built.project.review_dir / "qa-ugc.json").read_text())
+    assert {g["id"] for g in saved["gates"]} == {"speech_rate", "cold_open", "baked_text", "lip_closure"}
