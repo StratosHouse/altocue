@@ -328,7 +328,9 @@ def current() -> dict[str, Any]:
     if not found:
         raise AltocueError("The library catalog is missing.", fix="Reinstall altocue, or run `altocue library update`.")
     chosen = max(found, key=lambda catalog: catalog["generated"])
-    return {**chosen, "entries": builtins() + [row for row in chosen["entries"] if row["tier"] != "built-in"]}
+    own = builtins()
+    taken = {row["id"] for row in own}
+    return {**chosen, "entries": own + [row for row in chosen["entries"] if row["tier"] != "built-in" and row["id"] not in taken]}
 
 
 def _stem(word: str) -> str:

@@ -63,7 +63,7 @@ def test_a_format_is_time_pure_and_self_contained(fmt, brand):
 
 @pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
 def test_animations_sit_on_html_elements(fmt):
-    """HyperFrames 0.8.222 seeks SVG and pseudo-element animations to film time, so they look finished in any clip after 0."""
+    """HyperFrames, measured up to 0.9.5, seeks SVG and pseudo-element animations to film time, so they look finished in any clip after 0."""
     assert not UNSEEKED.search(fmt.css), "Animate an HTML wrapper or a real span instead"
 
 

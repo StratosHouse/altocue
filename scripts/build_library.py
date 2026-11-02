@@ -220,6 +220,12 @@ def format_entries() -> list[dict[str, Any]]:
     return library.builtins()
 
 
+def unclaimed(rows: list[dict[str, Any]], built_in: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    """A built-in format owns its name, so an upstream item called the same could never be fetched."""
+    taken = {row["id"] for row in built_in}
+    return [row for row in rows if row["id"] not in taken], sorted(row["id"] for row in rows if row["id"] in taken)
+
+
 def renderer_version() -> str:
     package = json.loads(library.bundled_path().parent.parent.joinpath("renderer", "package.json").read_text())
     return package["dependencies"]["hyperframes"]
@@ -274,11 +280,12 @@ def write_catalog(catalog: dict[str, Any], path: Path) -> None:
     path.write_text(f"{head}{body}\n}}\n")
 
 
-def report(catalog: dict[str, Any]) -> dict[str, Any]:
+def report(catalog: dict[str, Any], shadowed: list[str]) -> dict[str, Any]:
     return {
         "generated": catalog["generated"],
         "pins": catalog["pins"],
         "entries": len(catalog["entries"]),
+        "named_by_a_built_in": shadowed,
         "refused_by_rule": dict(sorted(Counter(row["rule"] for row in catalog["refused"]).items())),
         "refused": catalog["refused"],
         "excluded_sources": [{"id": record["id"], "reason": record["exclude_reason"]} for record in catalog["sources"] if record["verdict"] == "EXCLUDE"],
@@ -289,14 +296,16 @@ def build() -> dict[str, Any]:
     version = renderer_version()
     previous = json.loads(CATALOG.read_text()) if CATALOG.exists() else None
     sources = read_sources(SOURCES)
+    built_in = format_entries()
     registry, refused = registry_entries(fetch_registry(version), version)
+    registry, shadowed = unclaimed(registry, built_in)
     rows, shader_version = fetch_transitions()
     shaders, shaders_refused = transition_entries(rows, shader_version)
     pins = {"hyperframes": version, "gl-transitions": shader_version}
-    catalog = assemble(format_entries() + registry + shaders + source_entries(sources), sources, refused + shaders_refused, pins, previous)
+    catalog = assemble(built_in + registry + shaders + source_entries(sources), sources, refused + shaders_refused, pins, previous)
     write_catalog(catalog, CATALOG)
     write_catalog(catalog, BUNDLED)
-    REPORT.write_text(json.dumps(report(catalog), indent=2, ensure_ascii=False) + "\n")
+    REPORT.write_text(json.dumps(report(catalog, shadowed), indent=2, ensure_ascii=False) + "\n")
     return catalog
 
 
