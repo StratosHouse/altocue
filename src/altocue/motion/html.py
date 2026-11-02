@@ -6,7 +6,7 @@ from html import escape
 from typing import Any
 
 from ..brand import Brand
-from . import formats
+from . import compositions, formats
 from .formats import kit
 
 CSS = """
@@ -155,6 +155,8 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
     kind, attrs = item["type"], _attrs(item["start"], item["end"], track)
     if formats.find(kind):
         return formats.render(item, attrs, _style(item, leave=True))
+    if kind == "composition":
+        return compositions.mount(item, attrs)
     if kind == "hook":
         eyebrow = f'<div class="eyebrow rise"><i></i>{escape(item["eyebrow"])}</div>' if item.get("eyebrow") else ""
         return f'<div class="clip hook leave" {attrs} {_style(item, leave=True)}>{eyebrow}<h1>{_hook_lines(item["text"])}</h1></div>'
@@ -200,12 +202,12 @@ def compose(timeline: dict[str, Any], brand: Brand) -> str:
         "width": width,
         "height": height,
     }
+    items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
     size = int(brand.caption["size"]) * (geo["scale"] if width > height else 1)
     tokens = f'--cap-y:{geo["cap_y"]}px;--cap-size:{size};--top:{geo["top"]}px;--lt-y:{geo["lt_y"]}px;--rail:{geo["rail"]}px'
     style = brand.caption["style"]
     upper = brand.caption.get("uppercase")
     captions = "\n".join(caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"])
-    items = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
@@ -213,7 +215,7 @@ def compose(timeline: dict[str, Any], brand: Brand) -> str:
 <body>
 <div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
 {captions}
-{items}
+{items_html}
 </div>
 </body></html>
 """

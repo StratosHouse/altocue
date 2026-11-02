@@ -14,7 +14,7 @@ from ..brand import Brand
 from . import formats
 from .html import geometry
 
-FULL_SCREEN = {"title", "endcard"}
+FULL_SCREEN = {"title", "endcard", "composition"}
 FACE_MARGIN = 0.16  # share of a face kept clear on every side
 SAMPLE_WIDTH = 540
 TALL_TOPS = (None, 0.095, 0.30, 0.38, 0.46, 0.50, 0.54)

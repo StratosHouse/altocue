@@ -8,6 +8,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..brand import Brand
+from ..errors import AltocueError
 from . import formats
 from .html import geometry
 from .layer import Layer
@@ -144,6 +145,8 @@ class BasicRenderer:
         return True, ""
 
     def render(self, timeline: dict[str, Any], brand: Brand, dest: Path, *, draft: bool = False) -> Layer:
+        if any(item["type"] == "composition" for item in timeline["items"]):
+            raise AltocueError("Compositions need the full renderer, and the basic one cannot draw them.", fix="Run `altocue setup`.")
         stage = dest / "basic"
         stage.mkdir(parents=True, exist_ok=True)
         for old in stage.glob("*.png"):

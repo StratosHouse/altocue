@@ -9,11 +9,11 @@ from typing import Any
 from . import brand as brands
 from . import cut, ffmpeg
 from .errors import AltocueError
-from .motion import formats, placement
+from .motion import compositions, formats, placement
 from .project import Project, write_json
 
 END_HOLD_TYPES = {"endcard"}
-DEFAULT_LENGTHS = {"hook": 2.6, "chip": 2.4, "lower_third": 3.2, "stat": 2.8, "quote": 3.6, "steps": 6.0, "title": 2.4, "endcard": 2.6}
+DEFAULT_LENGTHS = {"hook": 2.6, "chip": 2.4, "lower_third": 3.2, "stat": 2.8, "quote": 3.6, "steps": 6.0, "title": 2.4, "endcard": 2.6, "composition": 3.0}
 STILL_TYPES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
@@ -99,6 +99,7 @@ def build(project: Project) -> dict[str, Any]:
     motion = json.loads(motion_file.read_text()) if motion_file.exists() else {}
     duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
     items, tail = resolve_items(motion.get("items", []), words, duration)
+    items = [compositions.resolve(project, item) if item["type"] == "composition" else item for item in items]
     width, height = project.size
     brand = brands.load(project)
     picture = next((path for path in (project.work / "plate.mp4", project.work / "plate-draft.mp4") if path.exists()), None)

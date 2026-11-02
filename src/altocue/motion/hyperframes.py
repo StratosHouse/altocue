@@ -11,7 +11,7 @@ from typing import Any
 from ..brand import Brand, data_path
 from ..errors import AltocueError
 from ..locks import heavy, render_workers
-from . import formats
+from . import compositions, formats
 from .html import compose
 from .layer import Layer
 
@@ -54,6 +54,7 @@ class HyperFramesRenderer:
             shutil.copy(brand.logo, stage / brand.logo.name)
         for font in formats.fonts_for(timeline["items"]):
             shutil.copy(data_path("fonts", formats.FONT_FILES[font]), stage / formats.FONT_FILES[font])
+        compositions.install(timeline["items"], stage, install_dir())
         (stage / "index.html").write_text(compose(timeline, brand))
         output = dest / ("overlay-draft.mov" if draft else "overlay.mov")
         fps = 15 if draft else timeline["fps"]

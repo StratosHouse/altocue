@@ -10,10 +10,11 @@ import pytest
 from altocue import brand as brands
 from altocue import render
 from altocue.errors import AltocueError
-from altocue.motion import formats
-from altocue.motion.basic import card_frame
+from altocue.motion import compositions, formats
+from altocue.motion.basic import BasicRenderer, card_frame
 from altocue.motion.html import compose
 from altocue.motion.placement import estimated_height
+from altocue.project import Project
 from altocue.qa import rules
 from altocue.timeline import resolve_items
 
@@ -103,3 +104,59 @@ def test_a_missing_slot_says_which_one():
 def test_only_formats_in_the_film_add_css(brand):
     html = compose({"width": 1080, "height": 1920, "fps": 30, "duration": 8.0, "tail": 0, "total": 8.0, "captions": [], "items": []}, brand)
     assert ".f-word_slam" not in html and "fmt-panel" not in html
+
+
+COMPOSITION = '<html><body><template><div id="root" data-composition-id="demo-card" data-duration="3"><script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script></div></template></body></html>'
+
+
+@pytest.fixture
+def project(tmp_path):
+    made = Project.create(tmp_path / "film")
+    (made.root / "motion").mkdir()
+    (made.root / "motion" / "mine.html").write_text(COMPOSITION)
+    return made
+
+
+def test_a_composition_file_is_found_and_read(project):
+    item = compositions.resolve(project, {"type": "composition", "file": "motion/mine.html", "start": 0, "end": 2})
+    assert item["own_id"] == "demo-card"
+
+
+def test_a_missing_composition_says_how_to_fetch_it(project):
+    with pytest.raises(AltocueError, match="not in this project") as caught:
+        compositions.resolve(project, {"type": "composition", "name": "headline-slam"})
+    assert "altocue library add headline-slam" in caught.value.fix
+
+
+def test_a_composition_cannot_reach_outside_the_project(project):
+    with pytest.raises(AltocueError, match="not in this project"):
+        compositions.resolve(project, {"type": "composition", "file": "../../secret.html"})
+
+
+def test_a_plain_page_is_not_a_composition(project):
+    (project.root / "motion" / "page.html").write_text("<html><body>hi</body></html>")
+    with pytest.raises(AltocueError, match="not a HyperFrames composition"):
+        compositions.resolve(project, {"type": "composition", "file": "motion/page.html"})
+
+
+def test_variables_are_escaped_into_the_mount(project):
+    item = compositions.resolve(project, {"type": "composition", "file": "motion/mine.html", "vars": {"text": '"><b>'}, "start": 0, "end": 2})
+    assert '"><b>' not in compositions.mount(item, 'data-start="0"')
+
+
+def test_gsap_comes_from_the_renderer_so_a_render_needs_no_network(project, tmp_path):
+    vendor = tmp_path / "renderer/node_modules/hyperframes/dist/vendor/npm/gsap@3.15.0/dist"
+    vendor.mkdir(parents=True)
+    (vendor / "gsap.min.js").write_text("// gsap")
+    item = compositions.resolve(project, {"type": "composition", "file": "motion/mine.html", "start": 0, "end": 2})
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    compositions.install([item], stage, tmp_path / "renderer")
+    assert "jsdelivr" not in (stage / "compositions/demo-card.html").read_text() and (stage / "compositions/gsap.min.js").exists()
+
+
+def test_the_basic_renderer_refuses_compositions_plainly(brand, tmp_path):
+    item = {"type": "composition", "start": 0, "end": 1}
+    timeline = {"width": 320, "height": 568, "fps": 30, "duration": 2.0, "tail": 0, "total": 2.0, "captions": [], "items": [item]}
+    with pytest.raises(AltocueError, match="full renderer"):
+        BasicRenderer().render(timeline, brand, tmp_path, draft=True)

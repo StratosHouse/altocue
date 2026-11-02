@@ -121,7 +121,10 @@ def on_screen(timeline: dict[str, Any]) -> list[dict[str, Any]]:
             {"layer": "captions", "text": " ".join(w["text"] for w in page["words"]), "start": page["start"], "end": page["end"]}
         )
     for item in timeline.get("items", []):
-        texts = formats.strings(item) if formats.find(item.get("type")) else [item[name] for name in TEXT_FIELDS if item.get(name) not in (None, "")]
+        if item.get("type") == "composition":
+            texts = [value for value in item.get("vars", {}).values() if isinstance(value, str) and " " in value]
+        else:
+            texts = formats.strings(item) if formats.find(item.get("type")) else [item[name] for name in TEXT_FIELDS if item.get(name) not in (None, "")]
         strings += [{"layer": item["type"], "text": _clean(text), "start": item["start"], "end": item["end"]} for text in texts]
         for step in item.get("items", []) if item.get("type") == "steps" else []:
             strings.append({"layer": "steps", "text": _clean(step["text"]), "start": step.get("at", item["start"]), "end": item["end"]})
