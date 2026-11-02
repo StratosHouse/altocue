@@ -207,14 +207,14 @@
                   "*questions.*"
                 ],
                 "start": -0.3,
-                "duration": 3.9,
+                "duration": 3.65,
                 "zone": "left"
               },
               {
                 "type": "notification_stack",
                 "zone": "right",
                 "start": -0.3,
-                "duration": 4.0,
+                "duration": 3.65,
                 "alerts": [
                   {
                     "text": "Where is my order?",
@@ -241,15 +241,15 @@
               {
                 "type": "marker",
                 "text": "All day, your team *copies and pastes.*",
-                "start": 3.7,
-                "duration": 2.4,
+                "start": 3.35,
+                "duration": 2.35,
                 "zone": "high",
                 "align": "center"
               },
               {
                 "type": "marker",
                 "text": "And the queue *keeps growing.*",
-                "start": 6.1,
+                "start": 5.7,
                 "zone": "high",
                 "align": "center"
               },
@@ -257,7 +257,7 @@
                 "type": "state_gauge",
                 "zone": "low",
                 "align": "center",
-                "start": 3.75,
+                "start": 3.4,
                 "scale": 1.5,
                 "important": false,
                 "rows": [
@@ -267,7 +267,7 @@
                       {
                         "value": "{{tickets}}",
                         "level": 0.62,
-                        "at": 3.75
+                        "at": 3.4
                       },
                       {
                         "value": "419",
