@@ -38,6 +38,15 @@ PHRASE_AT = 12
 PHRASE = ["you", "need", "is"]
 
 
+OWED = {
+    "file": "music/track.mp3",
+    "title": "Night Tide",
+    "kind": "audio",
+    "licence": "CC-BY-4.0",
+    "credit": "Night Tide by Ana, CC BY 4.0, https://example.test/night-tide",
+}
+
+
 def freeze(first: int, last: int) -> str:
     return f"split[fa][fb];[fa][fb]freezeframes=first={first}:last={last}:replace={first}"
 
@@ -72,6 +81,8 @@ class Recipe:
     burn_text: list[tuple[str, float, float, float]] = field(default_factory=list)
     face: bool = True
     plate: bool = False
+    assets: list[dict[str, Any]] = field(default_factory=list)
+    credits_txt: bool = False
 
 
 @dataclass
@@ -103,6 +114,7 @@ CANARIES = [
     Case("no colour tags", "format", Recipe(tags=False)),
     Case("words lost in the render", "words", Recipe(heard=SCRIPT[:20]), also=("doubled_phrase",)),
     Case("caption text invented", "captions_match", Recipe(caption_words=["free", "money", "for", "everyone"] + SCRIPT[4:])),
+    Case("CC BY music with no credits file", "credits", Recipe(assets=[OWED])),
     Case(
         "banned word in a graphic",
         "rules_strings",
@@ -133,6 +145,7 @@ CONTROLS = [
     Case("clean, dark end card", "", Recipe(tail=1.5)),
     Case("clean, planned silent b-roll", "", Recipe(gaps=[(2.0, 4.0)], labels=["", "broll", ""])),
     Case("clean, planned hold", "", Recipe(vf=freeze(62, 118), labels=["", "hold", ""])),
+    Case("clean, credited music", "", Recipe(assets=[OWED], credits_txt=True)),
     Case(
         "clean, rules met",
         "",
@@ -324,8 +337,13 @@ def build(case: Case, root: Path) -> Built:
         project.timeline_path,
         {"width": WIDTH, "height": HEIGHT, "fps": FPS, "duration": recipe.seconds, "tail": recipe.tail,
          "total": recipe.seconds + recipe.tail,
-         "captions": pages, "items": recipe.items, "inserts": []},
+         "captions": pages, "items": recipe.items, "inserts": [],
+         "music": {"path": recipe.assets[0]["file"]} if recipe.assets else None},
     )  # fmt: skip
+    if recipe.assets:
+        write_json(project.root / "credits.json", {"assets": recipe.assets})
+    if recipe.credits_txt:
+        (project.out / "credits.txt").write_text("\n".join(row["credit"] for row in recipe.assets) + "\n")
     if recipe.rules is not None:
         (project.root / "rules.json").write_text(json.dumps(recipe.rules))
     mapped = [

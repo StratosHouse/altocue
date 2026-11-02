@@ -57,6 +57,7 @@ Run `altocue doctor --json`.
 | Titles, lower thirds, stats, steps, end cards | `altocue-motion` |
 | A shot list, story, hook | `altocue-direct` |
 | Cutaways, stock footage, hiding a jump cut | `altocue-broll` |
+| Music, sound effects, credits for stock | `altocue-sound` |
 | Generated shots or images | `altocue-generate` |
 | A format, stock, music, a font, a look or anything else to use | `altocue-library` |
 | A verdict before publishing | `altocue-review` |

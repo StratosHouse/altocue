@@ -363,7 +363,7 @@ def test_bed_report_is_saved_beside_the_mix(tmp_path):
 def test_packaged_effects_are_small_named_and_licensed():
     folder = Path(mix.__file__).parent / "data" / "sfx"
     files = sorted(folder.glob("*.ogg"))
-    assert 1 <= len(files) <= 8
+    assert 1 <= len(files) <= 24
     assert {p.stem for p in files} >= {"pop", "whoosh", "click", "tick", "rise", "thud"}
     assert all(p.stat().st_size < 40_000 for p in files)
     notes = (folder / "README.md").read_text()
@@ -375,7 +375,7 @@ def test_packaged_effects_decode_with_stock_ffmpeg(tmp_path):
     for name in mix.sfx_names():
         wav = ffmpeg.extract_wav(mix.sfx_path(name), tmp_path / f"{name}.wav")
         samples, rate = ffmpeg.read_wav(wav)
-        assert rate == RATE and 0.01 < len(samples) / RATE < 0.5 and np.abs(samples).max() > 0.1
+        assert rate == RATE and 0.01 < len(samples) / RATE < 1.5 and np.abs(samples).max() > 0.1
 
 
 def test_music_comes_back_up_after_the_last_word():

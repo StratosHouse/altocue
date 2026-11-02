@@ -19,6 +19,7 @@ from .. import ffmpeg
 from ..errors import AltocueError
 from ..models import Clip, Edl, GateResult, Word
 from ..project import Project
+from ..stock import credits
 from . import faces, ocr, rules
 
 NOT_APPLICABLE = "n/a"
@@ -673,6 +674,24 @@ def layer_frame(c: Context, at: float, dest: Path) -> bool:
     return dest.exists()
 
 
+def gate_credits(c: Context) -> GateResult:
+    """A film that uses an attribution asset must ship the file that says so. `altocue render` writes it."""
+    if c.timeline is None:
+        return skipped("credits", NO_TIMELINE)
+    used = credits.used(c.project)
+    if not used:
+        return not_applicable("credits", "This film uses nothing downloaded.")
+    path = c.project.out / credits.TEXT
+    text = path.read_text() if path.exists() else ""
+    owed = [row for row in used if credits.owes(row)]
+    missing = [row for row in owed if not row.get("credit") or row["credit"] not in text]
+    if not missing:
+        return GateResult(id="credits", passed=True, value=0, threshold=0, detail=f"{len(used)} downloaded assets, {len(owed)} credited in {credits.TEXT}")
+    names = ", ".join(str(row.get("title") or row["file"])[:60] for row in missing[:5])
+    detail = f"{len(missing)} owed but not in out/{credits.TEXT}: {names}. Run `altocue render`, then `altocue credits`"
+    return GateResult(id="credits", passed=False, value=len(missing), threshold=0, detail=detail)
+
+
 def gate_graphics_clear(c: Context) -> GateResult:
     """Text boxes miss a title across someone's eyes. The layer's own transparency does not."""
     if c.timeline is None:
@@ -835,6 +854,7 @@ def run_all(c: Context) -> list[GateResult]:
         (("face_clear",), gate_face_clear),
         (("graphics_clear",), gate_graphics_clear),
         (("inserts",), gate_inserts),
+        (("credits",), gate_credits),
         (("format",), gate_format),
         (("rules_strings",), gate_rules_strings),
         (("rules_ocr",), gate_rules_ocr),
