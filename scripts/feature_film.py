@@ -477,7 +477,17 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "camera": {"move": "orbit", "turn": 3, "tilt": 3, "amount": 0.03},
             "link": {"type": "pan", "seconds": 0.7, "why": "The same move carries the results on to the checks."},
             "items": [
-                {"type": "count_up", "value": total, "label": "things an editor can use", "start": -0.3, "zone": "left", "run": 1.0, "rate": 9, "important": False},
+                {
+                    "type": "count_up",
+                    "value": total,
+                    "label": "things an editor can use",
+                    "aspects": {"1:1": {"scale": 0.8}},
+                    "start": -0.3,
+                    "zone": "left",
+                    "run": 1.0,
+                    "rate": 9,
+                    "important": False,
+                },
                 {"type": "terminal_run", "text": f'altocue library search "{search_words}"'[:36], "name": "library", "output": found, "start": 0.2, "zone": "right"},
             ],
         },
