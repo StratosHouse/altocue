@@ -11,7 +11,7 @@ compatibility: Requires the altocue CLI.
 
 1. Set the aspect with `altocue new --aspect`, or in `altocue.toml`.
 2. Run `altocue frame` after `altocue cut`. It writes a crop and zoom into each segment of `edl.json`.
-3. Change any crop by hand. `crop` is `[x, y, width, height]` in display pixels. Do this last: `altocue cut --apply-review` and `--remove` rebuild the segments and clear crop, zoom and gain.
+3. Change any crop by hand. `crop` is `[x, y, width, height]` in display pixels. It stays through a re-cut, and `altocue frame --force` clears it.
 
 ## How it decides
 
@@ -22,9 +22,9 @@ compatibility: Requires the altocue CLI.
 
 ## When to change it
 
-- A slow push-in on a key line: set `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06, after the cut is final.
+- A slow push-in on a key line: set `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06. It stays through a re-cut.
 - Keep it rare. These are rules of thumb, not findings.
-- A bolder jump: raise `[frame] punch_in`, then run `altocue frame`. That solves again and replaces hand edits.
+- A bolder jump: raise `[frame] punch_in`, then run `altocue frame`. That solves again around your hand edits. `altocue frame --force` replaces them too.
 
 ## After every reframe
 

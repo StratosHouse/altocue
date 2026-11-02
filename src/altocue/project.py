@@ -39,6 +39,10 @@ language = "en"
 [transcribe.fix]        # names the transcript gets wrong, heard = written
 # "Altoque" = "Altocue"
 
+[speakers]              # needs `altocue transcribe --speakers`
+show = ""               # on captions: colour, name or both. Empty shows nothing
+# S1 = "Ada"            # the name to show
+
 [cut]
 max_pause = 0.4         # seconds of silence kept between words at most
 remove_fillers = true
@@ -166,6 +170,10 @@ class Project:
         return self.root / "edl.json"
 
     @property
+    def script_path(self) -> Path:
+        return self.root / "script.md"
+
+    @property
     def timeline_path(self) -> Path:
         return self.root / "timeline.json"
 
@@ -221,6 +229,9 @@ class Project:
     def corrected(self, word: Word) -> Word:
         fixed = self.fix_text(word.text)
         return word if fixed == word.text else replace(word, text=fixed)
+
+    def engine_of(self, clip_id: str) -> str:
+        return json.loads((self.words_dir / f"{clip_id}.json").read_text()).get("engine", "")
 
     def save_words(self, clip_id: str, words: list[Word], engine: str) -> None:
         write_json(self.words_dir / f"{clip_id}.json", {"engine": engine, "words": [w.to_dict() for w in words]})

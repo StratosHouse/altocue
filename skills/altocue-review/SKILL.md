@@ -45,7 +45,7 @@ The gates catch what code can measure. These are yours. Most are [source], from 
 
 ## Fix vocabulary
 
-Turn each note into one named fix: one sentence, one change, everything else left alone. [source] The note's dimension says where to look. After any change to `edl.json`, run `altocue render --draft` and look again. A changed cut also needs `altocue broll` if the film has B-roll. Do cut fixes first: they rebuild the segments and clear any order, `zoom_from`, `zoom_to` or `gain` set by hand.
+Turn each note into one named fix: one sentence, one change, everything else left alone. [source] The note's dimension says where to look. After any change to `edl.json`, run `altocue render --draft` and look again. A changed cut also needs `altocue broll` if the film has B-roll. A cut fix keeps any order, crop, zoom or gain set by hand. Read its `Could not keep` lines, because an edit on words that left the film goes with them.
 
 | Say | For a note on | Change |
 |---|---|---|

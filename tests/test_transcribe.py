@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from altocue import ffmpeg, transcribe
+from altocue import ffmpeg, locks, transcribe
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import Clip, Word
@@ -461,3 +461,199 @@ def test_a_cue_after_an_apology_counts_mid_sentence():
     words = [transcribe.Word(*item) for item in times]
     kinds = [w.kind for w in transcribe.classify(words)]
     assert kinds == ["word", "word", "cue", "cue", "word"]
+
+
+# Long recordings
+
+
+def steady_wav(path: Path, seconds: float, quiet: list[tuple[float, float]]) -> Path:
+    rate = transcribe.RATE
+    samples = 0.2 * np.sin(2 * np.pi * 200 * np.arange(int(seconds * rate)) / rate).astype(np.float32)
+    for start, end in quiet:
+        samples[int(start * rate) : int(end * rate)] = 0.0
+    return ffmpeg.write_wav(path, samples, rate)
+
+
+def test_the_envelope_reads_a_file_in_blocks_and_measures_the_same(tmp_path, monkeypatch):
+    wav = steady_wav(tmp_path / "a.wav", 61.03, [(3.0, 5.0), (40.0, 41.0)])
+    expected = Envelope.measure(*ffmpeg.read_wav(wav))
+    monkeypatch.setattr(ffmpeg, "read_wav", lambda *a: pytest.fail("the whole file went into memory"))
+    found = Envelope.from_wav(wav)
+    assert np.allclose(found.db, expected.db)
+    assert (found.floor, found.loud, found.threshold) == pytest.approx((expected.floor, expected.loud, expected.threshold))
+
+
+def test_an_empty_wav_still_gives_an_envelope(tmp_path):
+    wav = ffmpeg.write_wav(tmp_path / "a.wav", np.zeros(0, dtype=np.float32), transcribe.RATE)
+    assert len(Envelope.from_wav(wav).db) == 0
+
+
+class Pieces:
+    """Hears one word per second, and says how much it was handed each time."""
+
+    name, hosted = "pieces", False
+
+    def __init__(self) -> None:
+        self.lengths: list[float] = []
+
+    def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
+        seconds = len(ffmpeg.read_wav(wav)[0]) / transcribe.RATE
+        self.lengths.append(seconds)
+        return [Word(text=f"w{at}", start=at + 0.2, end=at + 0.6) for at in range(int(seconds))]
+
+
+def test_a_long_recording_goes_in_pieces_split_where_it_is_quiet(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 10.0)
+    monkeypatch.setattr(transcribe, "REACH", 3.0)
+    wav = steady_wav(tmp_path / "a.wav", 32.0, [(8.5, 9.0), (20.5, 21.0)])
+    engine = Pieces()
+    words = transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 32.0, language="en", prompt="")
+    assert engine.lengths == pytest.approx([8.75, 12.0, 11.25], abs=0.1)
+    assert [word.start for word in words] == sorted(word.start for word in words)
+    assert words[8].start == pytest.approx(8.95, abs=0.1)
+
+
+def test_a_short_recording_stays_whole(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 100.0)
+    wav = steady_wav(tmp_path / "a.wav", 12.0, [(5.0, 6.0)])
+    engine = Pieces()
+    transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 12.0, language="en", prompt="")
+    assert engine.lengths == pytest.approx([12.0], abs=0.05)
+
+
+def test_a_hosted_engine_gets_the_whole_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 10.0)
+    monkeypatch.setattr(transcribe, "REACH", 3.0)
+    wav = steady_wav(tmp_path / "a.wav", 32.0, [(8.5, 9.0), (20.5, 21.0)])
+    engine = Pieces()
+    engine.hosted = True
+    transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 32.0, language="en", prompt="")
+    assert len(engine.lengths) == 1
+
+
+def test_memory_goes_back_after_every_piece(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 10.0)
+    monkeypatch.setattr(transcribe, "REACH", 3.0)
+    wav = steady_wav(tmp_path / "a.wav", 32.0, [(8.5, 9.0), (20.5, 21.0)])
+    freed: list[int] = []
+    engine = Pieces()
+    monkeypatch.setattr(transcribe, "release_memory", lambda: freed.append(len(engine.lengths)))
+    transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 32.0, language="en", prompt="")
+    assert freed == [1, 2, 3]
+
+
+def test_a_piece_fits_inside_the_engines_own_chunk():
+    assert transcribe.PIECE + transcribe.REACH <= transcribe.Parakeet.chunk
+    assert transcribe.PIECE * 1.5 <= transcribe.Parakeet.chunk
+
+
+def fake_mlx(monkeypatch) -> SimpleNamespace:
+    calls = SimpleNamespace(cache=None, memory=None, cleared=0)
+
+    def clear() -> None:
+        calls.cleared += 1
+
+    core = SimpleNamespace(set_cache_limit=lambda v: setattr(calls, "cache", v), set_memory_limit=lambda v: setattr(calls, "memory", v), clear_cache=clear)
+    monkeypatch.setitem(sys.modules, "mlx", SimpleNamespace(core=core))
+    monkeypatch.setitem(sys.modules, "mlx.core", core)
+    return calls
+
+
+def test_mlx_gets_a_ceiling_and_a_small_cache(monkeypatch):
+    calls = fake_mlx(monkeypatch)
+    transcribe.limit_mlx()
+    assert calls.cache == transcribe.MLX_CACHE_BYTES and calls.memory == transcribe.MLX_LIMIT_BYTES
+    assert calls.cache < 2**30 < calls.memory < 8 * 2**30
+
+
+def test_releasing_memory_clears_the_mlx_cache(monkeypatch):
+    calls = fake_mlx(monkeypatch)
+    transcribe.release_memory()
+    assert calls.cleared == 1
+
+
+def test_releasing_memory_needs_no_mlx(monkeypatch):
+    monkeypatch.delitem(sys.modules, "mlx.core", raising=False)
+    transcribe.release_memory()
+
+
+def test_running_out_of_mlx_memory_reads_plainly(monkeypatch, tmp_path):
+    def fail(name):
+        raise AssertionError("no model in this test")
+
+    class Model:
+        def transcribe(self, *args, **kwargs):
+            raise RuntimeError("[metal::malloc] Attempting to allocate 9000000000 bytes")
+
+    monkeypatch.setattr(transcribe, "load_parakeet", lambda name: Model())
+    with pytest.raises(AltocueError, match="ran out of memory") as error:
+        transcribe.ENGINES["parakeet"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert error.value.fix
+
+
+def room(monkeypatch, *, memory: float | None = 40.0, disk: float = 400.0) -> None:
+    monkeypatch.setattr(transcribe, "free_memory_gb", lambda: memory)
+    monkeypatch.setattr(transcribe.shutil, "disk_usage", lambda path: SimpleNamespace(free=int(disk * 2**30)))
+
+
+def test_a_transcribe_will_not_start_short_of_memory(monkeypatch):
+    room(monkeypatch, memory=3.2)
+    with pytest.raises(AltocueError, match=r"3\.2 GB of memory") as error:
+        transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    assert "Close" in str(error.value.fix)
+
+
+def test_a_transcribe_will_not_start_short_of_disk(monkeypatch):
+    room(monkeypatch, disk=2.0)
+    with pytest.raises(AltocueError, match=r"2\.0 GB of disk") as error:
+        transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    assert "swap" in str(error.value)
+
+
+def test_the_disk_check_counts_the_sound_it_will_write(monkeypatch):
+    room(monkeypatch, disk=transcribe.MIN_FREE_DISK_GB + 0.1)
+    transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    with pytest.raises(AltocueError):
+        transcribe.check_room(transcribe.ENGINES["parakeet"], 3600.0 * 3)
+
+
+def test_enough_room_passes(monkeypatch):
+    room(monkeypatch)
+    transcribe.check_room(transcribe.ENGINES["parakeet"], 3600.0)
+
+
+def test_a_hosted_engine_needs_no_memory_of_its_own(monkeypatch):
+    room(monkeypatch, memory=0.5)
+    transcribe.check_room(transcribe.ENGINES["elevenlabs"], 60.0)
+
+
+def test_memory_that_cannot_be_read_does_not_stop_the_job(monkeypatch, capsys):
+    room(monkeypatch, memory=None)
+    transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    assert "free memory" in capsys.readouterr().out
+
+
+def test_nothing_loads_when_the_guard_refuses(tmp_path, monkeypatch):
+    clip = tmp_path / "take.mp4"
+    args = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=64x64:rate=10:duration=1", "-f", "lavfi", "-i", "sine=duration=1"]
+    subprocess.run([*args, "-shortest", str(clip)], check=True)
+    assert main(["new", str(tmp_path / "video"), "--input", str(clip)]) == 0
+    project = Project.open(tmp_path / "video")
+    room(monkeypatch, memory=1.0)
+
+    class Refused(Pieces):
+        needs_gb = 6.0
+
+        def notice(self, seconds: float) -> str:
+            return ""
+
+        def transcribe(self, *args, **kwargs):
+            pytest.fail("the engine ran after the guard refused")
+
+    with pytest.raises(AltocueError, match="memory"):
+        transcribe_project(project, engine=Refused())
+
+
+def test_free_memory_reads_something_here():
+    found = locks.free_memory_gb()
+    assert found is None or 0 < found < locks.memory_gb() * 1.05
