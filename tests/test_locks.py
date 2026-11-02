@@ -78,7 +78,7 @@ def test_the_plate_encodes_under_the_heavy_lock(tmp_path, monkeypatch):
     state = counted_lock(monkeypatch)
     seen = []
     project = small_project(tmp_path)
-    monkeypatch.setattr(plate, "build_segment", lambda *args: seen.append(state["depth"]) or tmp_path / "s.mp4")
+    monkeypatch.setattr(plate, "build_segment", lambda *args, **kwargs: seen.append(state["depth"]) or tmp_path / "s.mp4")
     monkeypatch.setattr(plate.ffmpeg, "run", lambda args: seen.append(state["depth"]))
     monkeypatch.setattr(plate.mix, "mix_voice", lambda *args: None)
     plate.build(project)

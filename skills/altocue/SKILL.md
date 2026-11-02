@@ -53,8 +53,9 @@ Run `altocue doctor --json`.
 |---|---|
 | Remove pauses, ums, retakes | `altocue-cut` |
 | Better sound, less noise, no hum | `altocue-clean` |
-| Better colour, HDR phone footage, matching shots | `altocue-grade` |
+| Better colour, HDR phone footage, matching shots, a film look, your own LUT | `altocue-grade` |
 | Vertical from horizontal, punch-ins | `altocue-frame` |
+| A dissolve, wipe, whip or freeze, film grain and other texture | `altocue-transitions` |
 | Captions and caption style | `altocue-caption` |
 | Titles, lower thirds, stats, steps, end cards | `altocue-motion` |
 | A shot list, story, hook | `altocue-direct` |

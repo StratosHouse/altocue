@@ -584,10 +584,14 @@ def test_add_says_when_a_name_is_not_in_the_library(bundled, project, tmp_path, 
     assert "altocue library update" in capsys.readouterr().err
 
 
-def test_add_explains_a_shader_is_not_a_composition(bundled, project, tmp_path, monkeypatch, capsys):
-    fake_renderer(tmp_path, monkeypatch, html=COMPOSITION)
-    assert main(["library", "add", "gl-wind", "-p", str(project.root)]) == 1
-    assert "not a composition" in capsys.readouterr().err
+def test_add_takes_a_shader_as_text_and_needs_no_renderer(bundled, project, monkeypatch, capsys):
+    from altocue.generate import http
+
+    shader = b"// License: MIT\nvec4 transition(vec2 uv) { return getToColor(uv); }\n"
+    monkeypatch.setattr(http, "call", lambda method, url, **kwargs: http.Response(200, shader))
+    assert main(["library", "add", "gl-wind", "-p", str(project.root)]) == 0
+    assert (project.root / "motion" / "fetched" / "gl-wind.glsl").read_bytes() == shader
+    assert '"type": "gl-wind"' in capsys.readouterr().out
 
 
 def test_add_refuses_a_snippet_and_says_why(bundled, project, tmp_path, monkeypatch, capsys):
