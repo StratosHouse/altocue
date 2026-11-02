@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
-from . import caption, ffmpeg, frame, locks, mix, motion, plate
+from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, transitions
 from . import timeline as timelines
+from .errors import AltocueError
 from .motion import formats
 from .project import Project, write_json
 from .stock import credits
@@ -20,12 +23,16 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
 
 
 def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
-    """House sound for graphics: a pop on arrival, a tick per step, a whoosh to the end card."""
+    """House sound for graphics: a pop on arrival, a tick per step, a whoosh to the end card.
+
+    A wipe sounds at its midpoint, because that is where the cut lands.
+    """
     cues: list[dict[str, Any]] = []
     for item in timeline["items"]:
         fmt = formats.find(item["type"])
         if fmt and fmt.sound:
-            cues.append({"name": fmt.sound, "at": item["start"]})
+            at = (item["start"] + item["end"]) / 2 if fmt.group == "wipe" else item["start"]
+            cues.append({"name": fmt.sound, "at": at})
         if item["type"] in {"lower_third", "steps", "stat", "quote"}:
             cues.append({"name": "pop", "at": item["start"]})
         if item["type"] == "steps":
@@ -33,6 +40,11 @@ def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
         if item["type"] == "endcard":
             cues.append({"name": "whoosh", "at": item["start"]})
     return cues
+
+
+def all_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
+    """The house sounds, unless `sfx` turned them off, and every cue the project asked for."""
+    return (sfx_cues(timeline) if timeline.get("sfx", True) else []) + timeline.get("cues", [])
 
 
 def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Layer, timeline: dict[str, Any], c: plate.Canvas, dest: Path) -> list[str]:
@@ -43,7 +55,7 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
     graph.append(f"[0:v]tpad=stop_mode=clone:stop_duration={tail:.3f}[{base}]" if tail else f"[0:v]null[{base}]")
     next_input = 2
     for index, insert in enumerate(timeline["inserts"]):
-        source = (project.root / insert["file"]).resolve()
+        source = (project.root / insert.get("baked", insert["file"])).resolve()
         first = round(float(insert["start"]) * c.fps)
         frames = round((float(insert["end"]) - float(insert["start"])) * c.fps)
         loop = ["-loop", "1", "-framerate", str(c.fps)] if source.suffix.lower() in timelines.STILL_TYPES else []
@@ -53,6 +65,10 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
         graph.append(f"[{base}][ins{index}]overlay=eof_action=pass:enable='between(n,{first},{first + frames - 1})'[after{index}]")
         base = f"after{index}"
         next_input += 1
+    extra, lines, base = overlays.graph(timeline.get("overlay", []), base, c, next_input)
+    inputs += extra
+    graph += lines
+    next_input += sum(item == "-i" for item in extra)
     if layer.concat:
         inputs += ["-f", "concat", "-safe", "0", "-i", str(layer.path)]
     else:
@@ -81,6 +97,63 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
     ]
 
 
+def _piece(source: Path, first: int, frames: int, c: plate.Canvas, folder: Path, name: str) -> Path:
+    """Copy out whole frames. The seek is half a frame early, so the frame it lands on is never skipped."""
+    dest = folder / f"{name}.mp4"
+    ffmpeg.run(["-ss", f"{max(first - 0.5, 0) / c.fps:.6f}", "-i", str(source), "-an", "-frames:v", str(frames), *plate.encode_args(c), str(dest)])
+    return dest
+
+
+def bake_insert(project: Project, insert: dict[str, Any], picture: Path, c: plate.Canvas, folder: Path) -> str:
+    """An insert with an `in` or `out` becomes one clip for its span, with the plate blended in at those edges.
+
+    The transitions sit inside the span, so the insert never covers more of the film than it was given.
+    """
+    source = (project.root / insert["file"]).resolve()
+    first, frames = round(float(insert["start"]) * c.fps), round((float(insert["end"]) - float(insert["start"])) * c.fps)
+    arrive = max(2, round(insert["in"]["duration"] * c.fps)) if insert.get("in") else 0
+    leave = max(2, round(insert["out"]["duration"] * c.fps)) if insert.get("out") else 0
+    if arrive + leave > frames:
+        raise AltocueError(f"The insert {insert['file']} is too short for its transitions.", fix="Shorten them, or lengthen the insert.")
+    stamps = [[path.stat().st_size, path.stat().st_mtime_ns] for path in (picture, source)]
+    recipe = {"files": stamps, "insert": {key: insert.get(key) for key in ("file", "start", "end", "in", "out")}, "canvas": repr(c)}
+    key = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()[:16]
+    work = folder / key
+    dest = folder / f"insert-{key}.mp4"
+    if dest.exists():
+        return str(dest)
+    work.mkdir(parents=True, exist_ok=True)
+    loop = ["-loop", "1", "-framerate", str(c.fps)] if source.suffix.lower() in timelines.STILL_TYPES else []
+    fit = f"scale={c.width}:{c.height}:force_original_aspect_ratio=increase,crop={c.width}:{c.height},fps={c.fps},setsar=1,tpad=stop_mode=clone:stop=-1"
+    fitted = work / "fitted.mp4"
+    ffmpeg.run([*loop, "-i", str(source), "-an", "-vf", fit, "-frames:v", str(frames), *plate.encode_args(c), str(fitted)])
+    parts = []
+    if arrive:
+        before, after = _piece(picture, first, arrive, c, work, "in-a"), _piece(fitted, 0, arrive, c, work, "in-b")
+        parts.append(transitions.join(before, after, insert["in"]["type"], arrive, c, plate.encode_args(c), work, project))
+    if frames > arrive + leave:
+        parts.append(_piece(fitted, arrive, frames - arrive - leave, c, work, "middle"))
+    if leave:
+        before, after = _piece(fitted, frames - leave, leave, c, work, "out-a"), _piece(picture, first + frames - leave, leave, c, work, "out-b")
+        parts.append(transitions.join(before, after, insert["out"]["type"], leave, c, plate.encode_args(c), work, project))
+    listing = work / "list.ffconcat"
+    listing.write_text("ffconcat version 1.0\n" + "\n".join(f"file '{p.resolve()}'" for p in parts) + "\n")
+    ffmpeg.run(["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", str(dest)])
+    return str(dest)
+
+
+def bake_edges(project: Project, timeline: dict[str, Any], picture: Path, c: plate.Canvas, *, draft: bool) -> dict[str, Any]:
+    """Only the copy used for this composite changes. `timeline.json` keeps what was asked for."""
+    folder = project.work / ("inserts-draft" if draft else "inserts")
+    baked = []
+    for insert in timeline["inserts"]:
+        if insert.get("in") or insert.get("out"):
+            folder.mkdir(parents=True, exist_ok=True)
+            insert = {**insert, "baked": bake_insert(project, insert, picture, c, folder)}
+        baked.append(insert)
+    return {**timeline, "inserts": baked, "overlay": overlays.prepare(project, timeline.get("overlay", []), c)}
+
+
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:
     with locks.heavy("rendering"):
         frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
@@ -91,10 +164,14 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         layer = motion.render_layers(project, renderer=renderer, draft=draft)
         audio = project.work / "mix.wav"
         music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
-        mix.mix_bed(voice, audio, music=music, sfx=sfx_cues(timeline) if timeline.get("sfx", True) else [], tail=timeline["tail"])
+        room = voice.with_name(f"{voice.stem}-room.wav")
+        music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
+        mix.mix_bed(voice, audio, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end)
         dest = project.out / ("draft.mp4" if draft else "render.mp4")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
+        c = plate.canvas(project, draft=draft)
+        timeline = bake_edges(project, timeline, picture, c, draft=draft)
+        ffmpeg.run(compose_args(project, picture, audio, layer, timeline, c, dest))
     if not draft:
         write_json(project.work / "render.json", {"cut": project.cut_mark()})
     return dest

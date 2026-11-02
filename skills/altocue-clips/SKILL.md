@@ -13,8 +13,14 @@ One statement from a long recording, cut so it makes sense alone.
 
 Long to shorts is for the user's own recordings, or footage they have the rights to. Ask before you start if it is not clear.
 
-- **Permission is not the whole answer.** YouTube's reused content rule applies even with the creator's permission. Named examples include show clips edited together with little narrative. Substantive editing with added commentary or story is allowed.
+- **Permission is not the whole answer.** [evidence] YouTube's reused content rule applies even with the creator's permission. Named examples include show clips edited together with little narrative and shorts compiled from other sites. Substantive editing with added commentary or story is allowed. See [the platform rules](../altocue/references/platform-rules.md).
 - **Copyright still applies separately.** A clip does not become fair to use by being short.
+
+## Two films, not one
+
+- **A long episode and its vertical cut are different films.** [source] If both are wanted, plan both from the start, in the brief and on the shoot.
+- **A clip must work for someone who never saw the episode.** That is what the checks below test. A clip that only makes sense as a trailer needs a line that says so, which is the hook's job.
+- **Treat what this makes as a first cut of a new film.** Frame, caption, sound and review it as its own project.
 
 ## Steps
 
@@ -30,11 +36,11 @@ Run `clips find` on the raw talk. It needs no cut, no clean and no grade.
 
 Each candidate carries five checks in plain words. None of them forecasts how a clip will do, and there is no score to rank by.
 
-- **Opens:** it starts a thought. A pause or a change of subject comes before it, and it does not lean on the line before with "And", "But" or "That is why".
+- **Opens:** it starts a thought. A pause or a change of subject comes before it. It does not lean on the line before with "And" or "That is why", answer a question with "Yeah" or "Sure", or say "it" or "those" before naming anything.
 - **Closes:** it ends on a full stop with a pause after. It does not stop on a question, on "let me show you", or just before "But".
 - **Hook:** the first line is short and has a question, a number, a direct "you" or a claim in it.
 - **Stands alone:** nothing points outside it, such as "as I said", "this slide" or "second" with no "first".
-- **Stays on topic:** a word of substance comes back through the clip.
+- **Stays on topic:** a word of substance from the first half carries into the second. A word said twice in one place is a retake, not a theme.
 
 A candidate that passes all five can still be dull. One that fails a check can still be the best moment in the talk. Read them. The checks are there so you do not have to find these faults by ear.
 
@@ -63,7 +69,7 @@ Each clip is a normal project, so every other skill works on it. Its transcript 
 
 - **Trim a soft opening.** A clip that fails Opens on "So" often stands up without it. Strike the word in the clip's `script.md`, then `altocue cut --from-script`. See `altocue-cut`.
 - **Reach a little past the edge.** Each clip holds a second or so of what came before and after, struck out in `script.md`. Take the `~~` off to bring a word back.
-- **Tell the sound and picture apart from the talk.** Clean, grade, frame, captions and QA all run on the clip alone, so a three hour source costs nothing here.
+- **Each clip stands alone.** Clean, grade, frame, captions and QA all run on the clip's own short file, so the length of the source costs nothing here.
 
 ## Interviews
 

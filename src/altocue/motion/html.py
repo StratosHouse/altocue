@@ -108,7 +108,7 @@ background:radial-gradient(90%% 60%% at 50%% 42%%,color-mix(in srgb,var(--surfac
 def geometry(width: int, height: int) -> dict[str, float]:
     """Layout per canvas. Tall video keeps clear of the app's own buttons."""
     tall = height > width
-    scale = 1.0 if tall else 0.9 if width > height else 0.86
+    scale = (1.0 if tall else 0.9 if width > height else 0.86) * min(1.0, min(width, height) / 1080)
     return {
         "scale": scale,
         "gutter": 72 if tall else 96,

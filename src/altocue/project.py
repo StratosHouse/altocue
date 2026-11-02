@@ -17,12 +17,15 @@ CONFIG = "altocue.toml"
 
 SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080), "4:5": (1080, 1350)}
 OUTPUT_RATES = (24, 25, 30, 50, 60)
+LONG_SIDE, SHORT_SIDE = 1920, 1080
+WIDEST = 4.0  # Past 4:1 each way there is no room for a face, a caption or a safe zone.
+ASPECT = re.compile(r"(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)")
 
 DEFAULT_CONFIG = """\
 # Altocue project settings. Every value here can be changed and re-run.
 
 [output]
-aspect = "{aspect}"     # 9:16, 16:9, 1:1 or 4:5
+aspect = "{aspect}"     # any W:H, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9
 fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
 # platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
 
@@ -46,12 +49,19 @@ remove_fillers = true
 
 [audio]
 denoise = true
+denoiser = "auto"       # auto, apple, deep-filter or afftdn
+level_phrases = true    # level phrase by phrase, so a quiet aside and a loud line sit together
+deess = "light"         # off, light, normal or strong
+breaths = 0             # dB to turn breaths down. They are never cut
+room_tone = true        # fill what cuts leave with the clip's own room, so nothing drops to digital silence
 loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast
 true_peak = -1.5        # dBTP
 
 [grade]
 enabled = true          # off still converts HDR, so nothing goes out washed out
-look = "natural"        # natural, warm, cool, punchy or filmic
+look = "natural"        # natural, warm, cool, punchy, filmic, or a film look: `altocue grade --compare`
+look_strength = 1.0     # how much of the look or LUT, from 0 to 1
+lut = ""                # your own .cube file, in place of a look
 
 [frame]
 enabled = true
@@ -73,10 +83,24 @@ exempt = ""             # why no label is needed, in your words. Recorded, never
 
 [ugc]
 label_text = []         # words printed on the real product, so `qa --check ugc` does not call them baked in
+[qa]
+reading_wps = 3.0       # words a second for the text_readable gate. Slower for children or second-language viewers
 
 [review]
 reviewer = "auto"       # auto, gemini, codex or pack
 """
+
+
+def size_for(aspect: str) -> tuple[int, int]:
+    """The four house sizes, or any `W:H` fitted inside them: 1920 on the long side, 1080 on the short, on even numbers."""
+    if aspect in SIZES:
+        return SIZES[aspect]
+    found = ASPECT.fullmatch(str(aspect).strip())
+    wide, tall = (float(found.group(1)), float(found.group(2))) if found else (0.0, 0.0)
+    if not wide or not tall or not 1 / WIDEST <= wide / tall <= WIDEST:
+        raise AltocueError(f"Unknown aspect {aspect}.", fix=f"Use W:H between 1:{WIDEST:g} and {WIDEST:g}:1, such as {', '.join(SIZES)}, 4:3 or 21:9.")
+    scale = min(LONG_SIDE / max(wide, tall), SHORT_SIDE / min(wide, tall))
+    return (round(wide * scale / 2) * 2, round(tall * scale / 2) * 2)
 
 
 def nearest_rate(fps: float) -> int:
@@ -98,8 +122,7 @@ class Project:
 
     @classmethod
     def create(cls, path: str | Path, *, aspect: str = "9:16") -> Project:
-        if aspect not in SIZES:
-            raise AltocueError(f"Unknown aspect {aspect}.", fix=f"Use one of {', '.join(SIZES)}.")
+        size_for(aspect)
         root = Path(path).resolve()
         if (root / CONFIG).exists():
             raise AltocueError(f"{root} is already an Altocue project.")
@@ -160,7 +183,7 @@ class Project:
 
     @property
     def size(self) -> tuple[int, int]:
-        return SIZES[self.config["output"]["aspect"]]
+        return size_for(self.config["output"]["aspect"])
 
     def setting(self, section: str, key: str, default: Any = None) -> Any:
         return self.config.get(section, {}).get(key, default)

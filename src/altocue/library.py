@@ -591,6 +591,25 @@ def fetch_item(project: Project, row: dict[str, Any]) -> dict[str, Any]:
     return record
 
 
+def _add_shader(project: Project, row: dict[str, Any]) -> int:
+    """A shader is text with its licence in its header, so it comes straight from the pinned package."""
+    from .motion import compositions, shaders
+
+    name = row["id"]
+    use = json.dumps({"at": {"word": "..."}, "type": name, "duration": 0.5})
+    if name in shaders.bundled():
+        print(f'{name} ships with Altocue, so there is nothing to fetch. Add to "transitions" in motion.json:\n{use}')
+        return 0
+    record = {**shaders.fetch(project, name, row.get("title")), "fetched_on": date.today().isoformat()}
+    path = project.root / LOCK_FILE
+    lock = json.loads(path.read_text()) if path.exists() else {"schema": SCHEMA, "items": {}}
+    lock["items"][name] = record
+    write_json(path, lock)
+    print(f"Fetched {name} into {compositions.FOLDER}/{name}.glsl, licence {record['licence']}, gl-transitions {record['version']}.")
+    print(f'Recorded in {LOCK_FILE}. Add to "transitions" in motion.json:\n{use}')
+    return 0
+
+
 def _add(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     catalog = current()
@@ -603,6 +622,8 @@ def _add(args: argparse.Namespace) -> int:
         raise AltocueError(f"{name} is not in the library.", fix="Run `altocue library search <what you want>`, or `altocue library update` for the latest catalog.")
     if row["tier"] == "built-in":
         raise AltocueError(f"{name} is built in, so there is nothing to fetch.", fix=f"Use it directly. See `altocue library show {name}`.")
+    if row["tier"] == "fetch" and row.get("source") == "gl-transitions":
+        return _add_shader(project, row)
     if row["tier"] != "fetch" or row.get("source") != "hyperframes":
         raise AltocueError(f"{name} is not a composition this command can fetch.", fix=f"See `altocue library show {name}` for how to use it.")
     found = refusal(name, row["title"], row["summary"], row["tags"])

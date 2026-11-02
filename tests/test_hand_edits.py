@@ -278,6 +278,15 @@ def test_a_recut_of_the_same_ranges_still_solves_what_is_blank(tmp_path, landsca
     assert done.segments[1].crop == solved[1]
 
 
+def test_a_new_punch_in_solves_around_hand_edits(tmp_path, landscape):
+    project = framed_project(tmp_path, landscape)
+    edl = frame_project(project)
+    edl.segments[0].crop = [10.0, 0.0, 406.0, 720.0]
+    project.save_edl(edl)
+    project.config["frame"]["punch_in"] = 1.2
+    assert frame_project(project).segments[0].crop == [10.0, 0.0, 406.0, 720.0]
+
+
 def test_force_clears_what_was_held(tmp_path, landscape):
     project = framed_project(tmp_path, landscape)
     edl = frame_project(project)

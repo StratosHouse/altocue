@@ -44,9 +44,27 @@ The lines choose the words. The edges come from the same code as every other cut
 - **Keep the best delivery if the last take trails off.**
 - **Never join two halves of different sentences** to save a second, unless the join reads naturally.
 - **Keep a breath before a key line.** Pacing is not the same as speed.
+- **Let a big picture run.** [source] A large sequence can hold several seconds with no narration.
+- **In dialogue, cut on the last syllable,** or about 0.3 seconds after it in a fast scene. [source] One author.
+- **Interleave shot types** rather than grouping them. [source]
 - **Cut a filler only when the sentence survives.** "So" that starts a story can stay.
 - **Moving a line can change what it means.** Read the new order aloud. Keep the speaker's meaning intact, and ask the user if a move changes it.
 - **Ask the user** when two takes say different things. That is a choice about the message.
+
+## Changing the cut
+
+- **One stretch:** `altocue cut --remove s007 --reason "drags"`. Segment ids are in `work/cut-report.md`.
+- **The whole film tighter:** lower `[cut] max_pause` from its 0.4 default. [source] One guide cuts pauses over about a third of a second. Then run `altocue cut` and rule again.
+- **`altocue cut` with no flags starts over.** Your earlier cut and rulings go to `work/edl-previous.json`.
+- **New order:** move lines in `script.md`, or segments in `edl.json`. Either way the order stays through a re-cut.
+- **Hand edits stay.** `--remove`, `--apply-review` and `--from-script` keep `crop`, `zoom_from`, `zoom_to`, `gain` and order. See below.
+- **Every cut change moves B-roll.** See `altocue-broll`.
+
+Long video into shorts belongs to `altocue-clips`.
+
+## Whose footage
+
+Own footage by default. [evidence] YouTube treats clips of someone else's show, or shorts compiled from other sites, as reused content even with permission. Substantive editing with commentary or story is allowed. A permission note does not clear it, and copyright applies separately. See [the platform rules](../altocue/references/platform-rules.md).
 
 ## What the code guarantees
 

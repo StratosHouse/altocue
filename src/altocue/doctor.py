@@ -22,8 +22,12 @@ REQUIRED_FILTERS = (
     "overlay",
     "alimiter",
     "acompressor",
-    "sidechaincompress",
     "perspective",
+    "xfade",
+    "tpad",
+    "blend",
+    "noise",
+    "vignette",
     "ebur128",
     "blackdetect",
     "freezedetect",
@@ -97,11 +101,15 @@ def check_transcriber() -> Check:
 
 
 def check_denoiser() -> Check:
-    from .clean import find_deep_filter
+    """Which engine `altocue clean` will use on this machine, and the step up if there is one."""
+    from .clean import choose_denoiser, isolator_model
 
-    found = find_deep_filter()
-    detail = str(found) if found else "not found: afftdn will be used"
-    return Check("deep-filter", bool(found), False, detail, "" if found else "Run `altocue setup` for better noise removal.")
+    name, binary, _ = choose_denoiser()
+    if name == "apple":
+        return Check("denoiser", True, False, f"Apple voice isolation, {isolator_model()} model, built into this Mac")
+    if name == "deep-filter":
+        return Check("denoiser", True, False, f"deep-filter at {binary}")
+    return Check("denoiser", False, False, "afftdn: stock ffmpeg, the plainest of the three", "Run `altocue setup` for better noise removal.")
 
 
 def check_speakers() -> Check:
