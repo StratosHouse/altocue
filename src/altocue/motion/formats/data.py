@@ -106,9 +106,12 @@ def _strip(texts: list[str], run: float, wait: float) -> str:
     return f'<span class="ct"><span class="st" data-layout-allow-overflow data-layout-allow-overlap style="--n:{len(texts) - 1};--r:{run:.3f}s;--w:{wait:.3f}s">{cells}</span></span>'
 
 
-def _count(final: float, places: int = 0, prefix: str = "", suffix: str = "", run: float = 1.0, wait: float = 0.0, linear: bool = False) -> str:
-    """A number that climbs from zero. Each row is the value at one frame, so thousands separators and decimals stay true."""
-    frames = max(round(run * FPS), 6)
+def _count(final: float, places: int = 0, prefix: str = "", suffix: str = "", run: float = 1.0, wait: float = 0.0, linear: bool = False, rate: float = 0.0) -> str:
+    """A number that climbs from zero. Each row is the value at one frame, so thousands separators and decimals stay true.
+
+    A full-screen number changing every frame reads as a flicker. `rate` slows the changes, in values a second.
+    """
+    frames = max(round(run * (rate or FPS)), 6)
     texts = [_show(final * (k / frames if linear else _out(k / frames)), places, prefix, suffix) for k in range(frames)]
     return _strip([*texts, _show(final, places, prefix, suffix)], run, wait)
 
@@ -376,7 +379,7 @@ def _count_up(item: dict[str, Any]) -> str:
     run = float(item.get("run") or min(kit.seconds(item) * 0.55, 1.7))
     width = len(_show(value, places, prefix, suffix))
     size = min(236, 1400 / max(width, 1))
-    number = _count(value, places, prefix, suffix, run, 0.1)
+    number = _count(value, places, prefix, suffix, run, 0.1, rate=float(item.get("rate") or 0))
     return (
         f'<div class="wrap" style="--r:{run:.3f}s"><div class="fig"><div class="num" style="font-size:calc({size:.0f}px * var(--scale))">{number}</div>'
         f'<i class="rule"></i></div><p class="lab">{kit.emphasis(item["label"])}</p></div>'
@@ -923,7 +926,7 @@ FORMATS = (
         summary="A big number climbs to its value while a rule draws beneath it.",
         group="data",
         jobs=("hook", "prove"),
-        slots=(Slot("value", kind="number"), Slot("label", limit=70), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False), Slot("run", kind="number", required=False)),
+        slots=(Slot("value", kind="number"), Slot("label", limit=70), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False), Slot("run", kind="number", required=False), Slot("rate", kind="number", required=False)),
         example={"value": 1284, "label": "Sample orders shipped last *quarter*"},
         draw=_count_up,
         seconds=3.0,

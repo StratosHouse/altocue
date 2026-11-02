@@ -24,6 +24,7 @@ SLOW_SAMPLES = 6  # keys a second on a slow drift
 FAST_SAMPLES = 30  # keys a second through a link
 FAST_STRETCH = 1.2  # seconds. Anything shorter between poses counts as fast
 SOFT_DRIFT = 0.018
+LAST_HOLD = 0.5
 WORLD_DRIFT = 0.012  # scale added each scene, so the backdrop never settles
 WORLD_KICK = 0.05  # and a little more when the camera goes through a cut
 SHUTTER = 180
@@ -53,7 +54,7 @@ ZONES = {
     "square": {
         "center": (0.08, 0.12, 0.92, 0.88),
         "left": (0.07, 0.06, 0.93, 0.4),
-        "right": (0.07, 0.42, 0.93, 0.95),
+        "right": (0.07, 0.4, 0.93, 0.88),
         "top": (0.07, 0.06, 0.93, 0.46),
         "bottom": (0.07, 0.52, 0.93, 0.94),
         "full": (0.05, 0.06, 0.95, 0.94),
@@ -398,6 +399,8 @@ def compose(line: dict[str, Any], brand: Brand) -> str:
                 continue
             track += 1
             shown = {**item, "end": tail(scene, spans["lap_out"])} if item.get("hold") else item
+            if shown["end"] >= total - 1 / line["fps"]:
+                shown = {**shown, "end": total + LAST_HOLD}  # the last thing on screen stays up, so the film does not end on a fade
             inner.append(_clip(shown, brand, track))
         seconds = spans["last"] - spans["first"]
         style = f"transform-origin:{fx * 100:.2f}% {fy * 100:.2f}%;animation:cam-{scene['id']} {seconds:.3f}s linear {max(spans['first'], 0):.3f}s both"
