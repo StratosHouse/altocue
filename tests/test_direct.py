@@ -458,3 +458,35 @@ def test_direct_json_output_is_machine_readable(project, capsys):
     report = json.loads(capsys.readouterr().out)
     assert report["ok"] is True
     assert report["cost"]["usd"] == pytest.approx(0.7735)
+
+
+# Generated people
+
+
+def test_a_generated_person_may_not_claim_experience():
+    review = validate({"shots": [shot(synthetic=["person"], script="I tried this and it changed my life.")]})
+    assert "claims" in rules(review, "error")
+    assert not review.ok
+
+
+def test_a_claim_in_the_prompt_counts_too():
+    prompt = GOOD_PROMPT + ' She says: "I bought two of these."'
+    assert "claims" in rules(validate({"shots": [shot(synthetic=["person"], prompt=prompt)]}), "error")
+
+
+def test_a_host_who_describes_what_can_be_seen_is_fine():
+    assert "claims" not in rules(validate({"shots": [shot(synthetic=["person", "voice"], script="This bottle holds half a litre.")]}))
+
+
+def test_a_real_person_may_say_what_they_tried():
+    assert "claims" not in rules(validate({"shots": [shot(script="I tried this for a month.")]}))
+
+
+def test_a_synthetic_flag_outside_the_list_is_an_error():
+    assert "synthetic" in rules(validate({"shots": [shot(synthetic=["ghost"])]}), "error")
+    assert "synthetic" in rules(validate({"shots": [shot(synthetic="person")]}), "error")
+
+
+def test_a_character_with_no_flag_is_asked_about():
+    assert "synthetic-flag" in rules(validate({"shots": [shot(characters=["maya"])]}), "warning")
+    assert "synthetic-flag" not in rules(validate({"shots": [shot(characters=["maya"], synthetic=["person"])]}))

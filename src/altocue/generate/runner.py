@@ -290,6 +290,14 @@ def priced_call(project: Project, provider: str, *, cost: float | None, credits:
     return (float(cost) if cost is not None else round(credits * rate, 6)), rate, as_of
 
 
+def _refuse_claims(project: Project, shot: str, shots_file: str) -> None:
+    """Money must not be booked for a line QA will always send back."""
+    path = project.root / shots_file
+    found = [f for f in load_shots(path).errors if f.shot == shot and f.rule == "claims"] if path.exists() else []
+    if found:
+        raise AltocueError(found[0].message, fix="Rewrite the line, then reserve again.")
+
+
 def reserve(
     project: Project,
     shot: str,
@@ -305,6 +313,7 @@ def reserve(
     """Book money against the cap before an agent spends it through a provider's MCP server."""
     if recipe:
         recipes.require_usable(project, recipe, catalog_for(project), provider)
+    _refuse_claims(project, shot, shots_file)
     if credits is None and cost is None:
         raise AltocueError("--reserve needs --credits, or --cost for a provider that bills dollars.", fix="Quote it first: altocue recipes quote <id>")
     if (credits or 0) < 0 or (cost or 0) < 0:

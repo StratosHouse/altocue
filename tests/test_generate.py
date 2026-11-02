@@ -1489,6 +1489,20 @@ def test_import_needs_a_cost_or_credits(project, tmp_path, capsys):
     assert "--cost" in err and "--credits" in err
 
 
+def test_reserve_refuses_a_line_a_generated_person_cannot_say(project, capsys):
+    write_shots(project, shot(synthetic=["person"], script="I bought this last week."))
+    assert go(project, "--reserve", "s01", "--credits", "5", "--yes") == 1
+    assert "i bought" in capsys.readouterr().err.lower()
+    assert reservations(project) == []
+
+
+def test_a_run_refuses_a_line_a_generated_person_cannot_say(project, fal, capsys):
+    write_shots(project, shot(synthetic=["person"], script="I bought this last week."))
+    assert go(project, "--yes") == 1
+    assert "claims" in capsys.readouterr().err
+    assert fal.submits == []
+
+
 # Provenance through --import
 
 
@@ -1663,6 +1677,15 @@ def test_new_terms_lapse_the_opt_in(project, capsys):
     capsys.readouterr()
     assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
     assert "2027-01-01" in capsys.readouterr().err
+
+
+def test_a_stale_catalog_cannot_switch_the_gate_off(project, capsys):
+    local = project.root / "models.local.toml"
+    text = local.read_text()
+    start, end = text.index("upload_warning"), text.index("poll_seconds = 3.0\ndestination = \"Higgsfield")
+    local.write_text(text[:start] + text[end:])
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    assert "train" in capsys.readouterr().err
 
 
 def test_a_recipe_sets_the_flags_the_honesty_gates_read(project, tmp_path):

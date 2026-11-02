@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
-from . import ffmpeg
+from . import claims, ffmpeg
 from .errors import AltocueError
 from .models import GateResult, Model
 from .project import Project
@@ -236,6 +236,21 @@ def _character_findings(shots: list[Shot]) -> list[Finding]:
     return found
 
 
+def _honesty_findings(shots: list[Shot]) -> list[Finding]:
+    """A claim the film can never ship is money wasted for certain, so this one stops the run."""
+    found: list[Finding] = []
+    for shot in shots:
+        said = claims.experience(f"{shot.script}\n{shot.prompt}") if "person" in shot.synthetic else []
+        if said:
+            quoted = ", ".join(f'"{phrase}"' for phrase in said[:3])
+            why = f"A generated person cannot say {quoted}. A label does not cure this. Show what can be seen, or film a real customer."
+            found.append(Finding("error", shot.id, "claims", why))
+        if shot.characters and not shot.synthetic:
+            why = "A character with no synthetic flag. The honesty gates read that flag. Set it to person if this figure is generated."
+            found.append(Finding("warning", shot.id, "synthetic-flag", why))
+    return found
+
+
 def lint_prompt(shot: Shot) -> list[Finding]:
     """The craft rules that can be read off one shot's prompt."""
     prompt = shot.prompt
@@ -310,6 +325,7 @@ def validate(data: dict[str, Any], root: Path | None = None) -> Review:
             review.shots.append(Shot.from_dict(item))
     review.findings += _media_findings(review.shots, root)
     review.findings += _character_findings(review.shots)
+    review.findings += _honesty_findings(review.shots)
     for shot in review.shots:
         review.findings += lint_prompt(shot)
     return review

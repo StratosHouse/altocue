@@ -13,7 +13,7 @@ from typing import Any
 from ..errors import AltocueError
 from ..project import Project, write_json
 from . import store
-from .catalog import Catalog
+from .catalog import Catalog, load_catalog
 
 CONSENT = "consent.json"
 
@@ -23,8 +23,9 @@ def consent_path(project: Project) -> Path:
 
 
 def warning(catalog: Catalog, provider: str) -> str:
-    """The named warning. Only a provider with one in models.toml is gated at all."""
-    return str(catalog.providers.get(provider, {}).get("upload_warning", ""))
+    """The named warning. A project's own catalog can add one, and an old copy cannot switch one off."""
+    own = catalog.providers.get(provider, {}).get("upload_warning")
+    return str(own or load_catalog().providers.get(provider, {}).get("upload_warning", ""))
 
 
 def agreed(project: Project, provider: str) -> dict[str, Any] | None:

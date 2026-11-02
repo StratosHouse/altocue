@@ -33,6 +33,8 @@ GATE_ACTIONS = {
     "format": "Re-render with the project's output settings.",
     "rules_strings": "Change the on-screen text. A human decides how.",
     "rules_ocr": "Look at the frames named. A human decides how to fix them.",
+    "claims": "Rewrite the line so the host shows what can be seen, or film a real customer who consents. A label does not cure this.",
+    "disclosure": "Add an on-screen label in motion.json, such as AI-generated actor, and flip the platform's AI toggle. See altocue-ugc.",
 }
 
 
