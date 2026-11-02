@@ -33,6 +33,8 @@ DRAFT_FPS = 30
 STILL_AT = 0.62  # share of a scene where everything has landed and nothing has left
 SHEET_WIDTH = 480
 PROOF_FRAMES = 30
+COUNTER = re.compile(r'"[\d,.%]+"')
+MOST_WORKERS = 2  # a full frame at 60 fps with motion blur holds far more memory than a graphics layer
 REAL_FOOTAGE = (
     (
         "Reference Reel",
@@ -333,7 +335,7 @@ def stage_for(project: Project, line: dict[str, Any], brand: brands.Brand, place
 def render_picture(stage: Path, output: Path, *, fps: int, draft: bool, total: float) -> Path:
     """The whole frame, painted by the renderer. A film has no plate under it."""
     command = [str(hyperframes.binary()), "render", str(stage), "--format", "mp4", "--output", str(output), "--fps", str(fps), "--quiet"]
-    command += ["--quality", "draft" if draft else "delivery", "--workers", str(hyperframes.render_workers())]
+    command += ["--quality", "draft" if draft else "delivery", "--workers", str(min(hyperframes.render_workers(), MOST_WORKERS))]
     if draft:
         command += ["--page-motion-blur", "off"]
     with locks.heavy("rendering the film"):
@@ -598,6 +600,8 @@ def layout_issues(found: dict[str, Any]) -> list[dict[str, Any]]:
     keep = []
     for section in ("runtime", "layout", "motion", "craft"):
         for row in (found.get(section) or {}).get("findings") or []:
+            if row.get("code") == "film_silent" or (row.get("code") == "line_unread" and COUNTER.match(str(row.get("message", "")))):
+                continue  # the sound is mixed after the picture, and a counter's values pass by on purpose
             if row.get("severity") in ("warning", "error"):
                 keep.append(
                     {

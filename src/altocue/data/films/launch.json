@@ -154,7 +154,15 @@
                 "align": "center",
                 "scale": 1.2,
                 "run": 1.0,
-                "role": "hook"
+                "role": "hook",
+                "aspects": {
+                  "9:16": {
+                    "scale": 1.6
+                  },
+                  "1:1": {
+                    "scale": 1.75
+                  }
+                }
               }
             ],
             "sound": [
@@ -354,7 +362,7 @@
                 "type": "word_slam",
                 "text": "{{product}} answers *first.*",
                 "start": -0.2,
-                "duration": 6.1,
+                "duration": 6.3,
                 "zone": "left",
                 "important": true
               },

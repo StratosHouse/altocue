@@ -1053,9 +1053,9 @@ $ .name h1{margin:0;font-size:124u;font-weight:600;line-height:1.02;letter-spaci
 $ .c{display:inline-block;animation:pd-letter .52s var(--ease) calc(.42s + var(--i) * .026s) both}
 $ .word{display:inline-block;white-space:nowrap}
 $ .name p{margin:12u 0 0;font-size:42u;letter-spacing:-.016em;color:var(--soft);animation:rise .5s var(--ease) .72s both}
-$ .call{flex-basis:100%;display:flex;justify-content:center;animation:rise .55s var(--ease) 1.05s both}
+$ .call{flex:none;display:flex;justify-content:center;animation:rise .55s var(--ease) 1.05s both}
 $ .call span{position:relative;display:inline-block;overflow:hidden;padding:20u 46u 22u;border-radius:99u;font-size:42u;font-weight:600;letter-spacing:-.02em;color:var(--panel);background:var(--accent)}
-@container (min-aspect-ratio:5/4){$ .lock{flex-direction:row;flex-wrap:wrap;gap:34u 50u;align-content:center}$ .name{text-align:left}}
+@container (min-aspect-ratio:5/4){$ .lock{flex-direction:row;flex-wrap:wrap;gap:34u 50u;align-content:center}$ .name{text-align:left}$ .call{flex:0 0 100%}}
 @keyframes pd-turn{from{transform:rotate(-150deg) scale(.7)}to{transform:none}}
 @keyframes pd-arc{from{stroke-dashoffset:.74}to{stroke-dashoffset:0}}
 @keyframes pd-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}

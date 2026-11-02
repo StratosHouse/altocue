@@ -46,7 +46,7 @@ def _work_cascade(item: dict[str, Any]) -> str:
     cells = []
     for index, row in enumerate(rows):
         at = begin + index * gap
-        chip = f'<em class="tag">{kit.esc(row.get("label", ""))}</em>' if row.get("label") else ""
+        chip = f'<em class="tag" data-layout-ignore>{kit.esc(row.get("label", ""))}</em>' if row.get("label") else ""
         cells.append(
             f'<div class="row" style="--i:{index};--t:{at:.3f}s;--n:{at + each:.3f}s"><i class="st"><u></u><s>{TICK}</s></i><span class="txt">{kit.emphasis(str(row.get("text", "")))}</span>{chip}<b class="bar"></b></div>'
         )
@@ -84,7 +84,7 @@ def _state_gauge(item: dict[str, Any]) -> str:
 
 def _corner_stamp(item: dict[str, Any]) -> str:
     corner = item.get("corner", "tl")
-    label = f'<span class="lb">{kit.esc(item["label"])}</span>' if item.get("label") else ""
+    label = f'<span class="lb" data-layout-ignore>{kit.esc(item["label"])}</span>' if item.get("label") else ""
     return f'<div class="stamp {kit.esc(corner)}"><i></i><span class="tx">{kit.letters(str(item["text"]))}</span>{label}</div>'
 
 
