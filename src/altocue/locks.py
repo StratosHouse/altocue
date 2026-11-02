@@ -1,9 +1,10 @@
-"""Speech models and browser renders are heavy. Run one at a time, per machine, across projects."""
+"""Speech models, browser renders and video encodes are heavy. Run one at a time, per machine, across projects."""
 
 from __future__ import annotations
 
 import fcntl
 import os
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,10 +13,18 @@ GB = 1024**3
 MEMORY_PER_WORKER = 5  # GB of machine memory set aside for each browser worker
 MOST_WORKERS = 4
 
+_held = threading.local()
+
 
 @contextmanager
 def heavy(label: str) -> Iterator[None]:
-    """Wait for any other heavy Altocue job on this machine, then hold the lock."""
+    """Wait for any other heavy Altocue job on this machine, then hold the lock.
+
+    A job that holds it can call a step that asks for it again. `flock` would wait on itself.
+    """
+    if getattr(_held, "yes", False):
+        yield
+        return
     path = Path.home() / ".altocue" / "heavy.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as handle:
@@ -24,9 +33,11 @@ def heavy(label: str) -> Iterator[None]:
         except BlockingIOError:
             print(f"Waiting for another Altocue job to finish before {label}.", flush=True)
             fcntl.flock(handle, fcntl.LOCK_EX)
+        _held.yes = True
         try:
             yield
         finally:
+            _held.yes = False
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
