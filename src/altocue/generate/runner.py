@@ -20,7 +20,7 @@ from .. import __version__, ffmpeg
 from ..direct import IMAGE_SUFFIXES, SYNTHETIC, Review, Shot, full_prompt, load_shots, require_valid, run_check
 from ..errors import AltocueError
 from ..project import Project
-from . import store
+from . import recipes, store, uploads
 from .base import TERMINAL, Cost, CostLine, GenProvider, GenRequest, JobRef, JobStatus, Moderated, SubmitUnknown
 from .catalog import Catalog, catalog_for, credit_rate, load_catalog
 from .fal import FalProvider
@@ -200,6 +200,12 @@ def build_plan(
     return plan
 
 
+def _own_files(plan: list[Planned], root: Path) -> list[str]:
+    """Project files a run would send. A still made in an earlier shot is the provider's own output, not the project's footage."""
+    paths = [path for item in plan if item.status == "new" for path in filter(None, [item.req.first_frame, item.req.last_frame, *item.req.refs])]
+    return [os.path.relpath(path, root) for path in paths if not str(path).startswith("@")]
+
+
 def _uploads(plan: list[Planned], root: Path) -> list[str]:
     names = []
     for item in plan:
@@ -291,10 +297,14 @@ def reserve(
     credits: float | None = None,
     cost: float | None = None,
     provider: str = "higgsfield",
+    recipe: str = "",
+    shots_file: str = "shots.json",
     yes: bool = False,
     out: Out = print,
 ) -> dict[str, Any]:
     """Book money against the cap before an agent spends it through a provider's MCP server."""
+    if recipe:
+        recipes.require_usable(project, recipe, catalog_for(project), provider)
     if credits is None and cost is None:
         raise AltocueError("--reserve needs --credits, or --cost for a provider that bills dollars.", fix="Quote it first: altocue recipes quote <id>")
     if (credits or 0) < 0 or (cost or 0) < 0:
@@ -307,7 +317,8 @@ def reserve(
             fix = f"Import against it, or free it first with: altocue generate --release {shot}"
             raise AltocueError(f"{shot} already has an open reservation.", fix=fix)
         spend_gate(project, Cost(usd=usd), provider, yes=yes)
-        row = {"shot": shot, "state": "open", "provider": provider, "credits": credits, "usd": usd, "usd_per_credit": rate, "rate_as_of": as_of, "at": store.now()}
+        row = {"shot": shot, "state": "open", "provider": provider, "recipe": recipe, "credits": credits, "usd": usd}
+        row |= {"usd_per_credit": rate, "rate_as_of": as_of, "at": store.now()}
         store.save_reservations(project, [*store.read_reservations(project), row])
     amount = f"{credits:g} credits, ${usd:.2f}" if credits is not None else f"${usd:.2f}"
     out(f"{shot}: reserved {amount}. Spend it, then register the result with --import, or free it with --release.")
@@ -611,6 +622,8 @@ def generate_shots(
             fix=f"Check {chosen.id} for the job. If it is not there, run `altocue generate --resubmit {names}`.",
         )
     total = show_plan(plan, chosen, project.root, out)
+    if _own_files(plan, project.root) and not uploads.allowed(project, chosen.catalog, chosen.id):
+        out(f"Blocked until the project agrees to uploads, after reading the warning: altocue generate --allow-upload {chosen.id}")
     outcome = Outcome()
     outcome.moderated = [item.shot.id for item in plan if item.status == "moderated"]
     outcome.done = [item.shot.id for item in plan if item.status == "done"]
@@ -624,6 +637,8 @@ def generate_shots(
             store.record_asset(
                 project, item.shot.id, asset=project.root / item.record["asset"], digest=item.hash, imported=False, check_passed=passed
             )
+    if _own_files(plan, project.root):
+        uploads.require(project, chosen.catalog, chosen.id, "This run")
     if any(item.status == "new" for item in plan):
         spend_gate(project, total, chosen.id, yes=yes)
     run = Run(project, chosen, timeout_s=timeout_s, out=out)
@@ -684,6 +699,7 @@ def import_asset(
     if surface == "mcp" and not job_id:
         raise AltocueError("An MCP import needs --job-id.", fix="Keep every job id from the run. It is how a charge is traced to a file.")
     usd, rate, rate_as_of = priced_call(project, provider, cost=cost, credits=credits)
+    used = recipes.require_usable(project, recipe, catalog_for(project), provider) if recipe else None
     probe = ffmpeg.probe_json(source)
     known = None
     if (project.root / shots_file).exists():
@@ -695,7 +711,7 @@ def import_asset(
     catalog = catalog_for(project)
     config = catalog.providers.get(provider, {})
     terms = terms_url or str(catalog.provider(provider)["terms_url"])
-    flags = sorted({*(known.synthetic if known else ()), *synthetic})
+    flags = sorted({*(known.synthetic if known else ()), *(used.synthetic if used else ()), *synthetic})
     digest = store.sha256(source)[:12]
     asset = store.generated_dir(project) / f"{shot}-{digest}{source.suffix.lower()}"
     asset.parent.mkdir(parents=True, exist_ok=True)

@@ -1070,6 +1070,7 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     (hf_project.root / "key.png").write_bytes(PNG)
     (hf_project.root / "ref.png").write_bytes(PNG)
     write_shots(hf_project, shot(tier="standard", first_frame="key.png", refs=["ref.png"]))
+    assert go(hf_project, "--allow-upload", "higgsfield") == 0
     assert go(hf_project, "--yes") == 0
 
     create = higgsfield.creates()[0]
@@ -1499,6 +1500,7 @@ def full_import(project: Project, source: Path, *extra: str) -> int:
 def test_import_keeps_every_field_per_asset(project, tmp_path):
     source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
     (project.root / "approved.json").write_text(json.dumps(["Holds 500 ml"]))
+    assert go(project, "--allow-upload", "higgsfield") == 0
     args = ["--recipe", "ugc-video", "--upstream", "job-1,job-2", "--synthetic", "person,voice"]
     assert full_import(project, source, *args, "--claims", "approved.json", "--consent", "none-generated-adult") == 0
     sidecar = sidecar_of(project)
@@ -1576,6 +1578,134 @@ def test_import_takes_the_flags_from_the_shot_list(project, tmp_path):
     write_shots(project, shot(synthetic=["person"]))
     assert full_import(project, source) == 0
     assert sidecar_of(project)["synthetic"] == ["person"]
+
+
+# Uploads to Higgsfield
+
+
+def test_allow_upload_prints_the_named_warning_and_records_the_terms(project, capsys):
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    out = capsys.readouterr().out
+    assert "Higgsfield" in out and "train" in out and "2026-10-23" in out and "Enterprise" in out
+    record = json.loads((project.root / "consent.json").read_text())["uploads"]["higgsfield"]
+    assert record["terms_as_of"] == "2026-10-23"
+    assert "train" in record["warning"]
+
+
+def test_allow_upload_for_a_provider_with_no_gate_says_so(project, capsys):
+    assert go(project, "--allow-upload", "fal") == 0
+    assert "no opt-in" in capsys.readouterr().out
+    assert not (project.root / "consent.json").exists()
+
+
+def test_a_recipe_that_uploads_is_refused_at_reserve(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    err = capsys.readouterr().err
+    assert "train" in err and "--allow-upload higgsfield" in err
+    assert reservations(project) == []
+
+
+def test_a_recipe_that_uploads_is_refused_at_import(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert full_import(project, source, "--recipe", "text-behind") == 1
+    assert "--allow-upload higgsfield" in capsys.readouterr().err
+    assert generated_asset(project, "s01", missing_ok=True) is None
+
+
+def test_a_free_recipe_still_needs_the_opt_in_because_the_clip_still_leaves(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    args = ["--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "0", "--recipe", "tier-list"]
+    assert go(project, *args) == 1
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert go(project, *args) == 0
+
+
+def test_the_opt_in_opens_both_doors(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 0
+    assert full_import(project, source, "--recipe", "reframe") == 0
+    assert reservations(project)[0]["recipe"] == "reframe"
+
+
+def test_a_recipe_that_stays_here_needs_no_opt_in(project):
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "faceless-video", "--yes") == 0
+
+
+def test_a_recipe_used_through_its_fal_fallback_needs_no_higgsfield_opt_in(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "1", "--from", "fal", "--recipe", "dubbing") == 0
+
+
+def test_an_unknown_recipe_is_refused(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "ghost", "--yes") == 1
+    assert "altocue recipes list" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", ["katana", "sync-agents", "virality-score"])
+def test_an_excluded_recipe_is_refused_at_reserve(project, capsys, name):
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", name, "--yes") == 1
+    assert "excluded" in capsys.readouterr().err.lower()
+
+
+def test_an_excluded_recipe_is_refused_at_import(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert full_import(project, source, "--recipe", "katana") == 1
+    assert "excluded" in capsys.readouterr().err.lower()
+
+
+def test_new_terms_lapse_the_opt_in(project, capsys):
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    local = project.root / "models.local.toml"
+    local.write_text(local.read_text().replace('terms_as_of = "2026-10-23"', 'terms_as_of = "2027-01-01"'))
+    capsys.readouterr()
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    assert "2027-01-01" in capsys.readouterr().err
+
+
+def test_a_recipe_sets_the_flags_the_honesty_gates_read(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert full_import(project, source, "--recipe", "ugc-video") == 0
+    assert sidecar_of(project)["synthetic"] == ["person", "voice"]
+
+
+def test_quote_names_the_block(project, capsys):
+    assert main(["recipes", "quote", "reframe", "--project", str(project.root)]) == 0
+    assert "--allow-upload higgsfield" in capsys.readouterr().out
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    capsys.readouterr()
+    assert main(["recipes", "quote", "reframe", "--project", str(project.root)]) == 0
+    assert "--allow-upload" not in capsys.readouterr().out
+
+
+def test_a_cli_run_will_not_send_project_files_without_the_opt_in(hf_project, higgsfield, capsys):
+    (hf_project.root / "key.png").write_bytes(PNG)
+    write_shots(hf_project, shot(first_frame="key.png"))
+    assert go(hf_project, "--yes") == 1
+    err = capsys.readouterr().err
+    assert "train" in err and "--allow-upload higgsfield" in err
+    assert higgsfield.creates() == []
+
+
+def test_a_dry_run_names_the_block_and_sends_nothing(hf_project, higgsfield, capsys):
+    (hf_project.root / "key.png").write_bytes(PNG)
+    write_shots(hf_project, shot(first_frame="key.png"))
+    assert go(hf_project, "--dry-run") == 0
+    assert "--allow-upload higgsfield" in capsys.readouterr().out
+    assert higgsfield.creates() == []
+
+
+def test_a_cli_run_with_nothing_to_upload_needs_no_opt_in(hf_project, higgsfield):
+    write_shots(hf_project, shot())
+    assert go(hf_project, "--yes") == 0
+
+
+def test_a_still_made_in_this_run_is_not_the_projects_footage(hf_project, higgsfield):
+    write_shots(hf_project, still(id="key"), shot(id="s02", first_frame="@key"))
+    assert go(hf_project, "--yes") == 0
 
 
 # Command plumbing

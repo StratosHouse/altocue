@@ -7,8 +7,9 @@ import argparse
 from ..direct import TIERS
 from ..errors import AltocueError
 from ..project import Project
+from . import uploads
 from .base import CAPABILITIES, TERMINAL, Asset, Cost, CostLine, GenProvider, GenRequest, JobRef, JobStatus, Moderated, SubmitUnknown
-from .catalog import Catalog, ModelEntry, capability_of, load_catalog
+from .catalog import Catalog, ModelEntry, capability_of, catalog_for, load_catalog
 from .runner import cancel_shot, estimate, generate_shots, get_provider, import_asset, release, reserve, spend_report
 from .store import generated_asset
 
@@ -60,6 +61,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--reserve", metavar="SHOT", help="Book money against the cap before spending through a provider's MCP server")
     parser.add_argument("--release", metavar="SHOT", help="Give back a reservation that will not be spent")
     parser.add_argument("--report", action="store_true", help="Show the cap, the spend, open reservations and unreserved imports")
+    parser.add_argument("--allow-upload", metavar="PROVIDER", help="Let this project send its own files to a provider, after its warning")
     parser.add_argument("--credits", type=float, help="With --reserve or --import: the credits. Dollars follow from usd_per_credit")
     parser.add_argument("--cost", type=float, help="With --reserve or --import: the price in USD")
     parser.add_argument("--seed", type=int, help="With --import: the seed, if known")
@@ -72,6 +74,19 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--synthetic", default="", help="With --import: what is generated: person, voice, scene, product, comma separated")
     parser.add_argument("--claims", default="", help="With --import: a file of approved claims, or a statement such as observable-only")
     parser.add_argument("--consent", default="", help="With --import: whose likeness or voice this is, such as none-generated-adult")
+
+
+def _allow(project: Project, provider: str) -> int:
+    catalog = catalog_for(project)
+    warning = uploads.warning(catalog, provider)
+    if not warning:
+        print(f"{provider} needs no opt-in. Its uploads are named before they happen.")
+        return 0
+    entry = uploads.allow(project, catalog, provider)
+    print(f"Warning: {warning}")
+    print(f"This project now allows uploads to {provider}, under terms dated {entry['terms_as_of']}. New terms will ask again.")
+    print(f"Recorded in {uploads.CONSENT}. Delete that entry to take it back.")
+    return 0
 
 
 def _listed(value: str) -> list[str]:
@@ -114,8 +129,10 @@ def run(args: argparse.Namespace) -> int:
     if args.report:
         print("\n".join(spend_report(project)))
         return 0
+    if args.allow_upload:
+        return _allow(project, args.allow_upload)
     if args.reserve:
-        reserve(project, args.reserve, credits=args.credits, cost=args.cost, provider=args.source, yes=args.yes)
+        reserve(project, args.reserve, credits=args.credits, cost=args.cost, provider=args.source, recipe=args.recipe, shots_file=args.shots, yes=args.yes)
         return 0
     if args.release:
         release(project, args.release)

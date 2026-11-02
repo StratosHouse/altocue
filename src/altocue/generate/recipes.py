@@ -13,6 +13,7 @@ from typing import Any
 
 from ..errors import AltocueError
 from ..project import CONFIG, Project
+from . import uploads
 from .catalog import Catalog, catalog_for, credit_rate, load_catalog
 
 PACKAGED = Path(__file__).parents[1] / "data" / "recipes.toml"
@@ -132,6 +133,16 @@ def get(name: str) -> Recipe:
     return found
 
 
+def require_usable(project: Project, name: str, catalog: Catalog, provider: str = HOST) -> Recipe:
+    """A recipe that is left out stays out, and one that sends project files waits for the project's yes."""
+    recipe = get(name)
+    if recipe.excluded:
+        raise AltocueError(f"{recipe.id} is excluded by default. {recipe.excluded}", fix="Pick another recipe: altocue recipes list")
+    if recipe.uploads_footage:
+        uploads.require(project, catalog, provider, f"The {recipe.id} recipe")
+    return recipe
+
+
 def quote(recipe: Recipe, *, seconds: float | None = None, resolution: str | None = None, count: int = 1, rate: float | None = None) -> Quote:
     """What a job would cost, and how far to trust the figure. An unknown price stays unknown."""
     base = {"recipe": recipe.id, "rate": rate, "basis": recipe.basis, "as_of": recipe.as_of, "firm": recipe.firm}
@@ -186,7 +197,7 @@ def _basis_line(recipe: Recipe) -> str:
     return f"{said} {recipe.cost_note}".rstrip()
 
 
-def _print_quote(recipe: Recipe, result: Quote, *, seconds: float | None, resolution: str | None) -> None:
+def _print_quote(recipe: Recipe, result: Quote, *, seconds: float | None, resolution: str | None, blocked: bool) -> None:
     length = f"{seconds:g} s at {resolution}" if result.credits is not None and recipe.per_second else ""
     print(f"{recipe.id}: {recipe.title}{f', {length}' if length else ''}")
     if result.credits is not None:
@@ -201,6 +212,8 @@ def _print_quote(recipe: Recipe, result: Quote, *, seconds: float | None, resolu
         print("  Cost: unknown")
     print(f"  Basis: {_basis_line(recipe)}")
     print(f"  Footage: {_where(recipe)}")
+    if blocked:
+        print(f"  Blocked until the project agrees to uploads, after reading the warning: altocue generate --allow-upload {HOST}")
     print(f"  {MCP_WARNING}")
     if result.credits:
         print(f"  Reserve first: altocue generate --reserve <shot> --credits {math.ceil(result.credits)} --recipe {recipe.id}")
@@ -307,5 +320,6 @@ def run(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(asdict(result), indent=2))
     else:
-        _print_quote(recipe, result, seconds=args.seconds, resolution=args.resolution)
+        blocked = recipe.uploads_footage and not (project and uploads.allowed(project, catalog, HOST))
+        _print_quote(recipe, result, seconds=args.seconds, resolution=args.resolution, blocked=blocked)
     return 0
