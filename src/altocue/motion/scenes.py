@@ -118,6 +118,8 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     left, top, right, bottom = zone_box(zone, size)
     width, height = size
     box = f"left:{left * width:.0f}px;right:{(1 - right) * width:.0f}px;top:{top * height:.0f}px;bottom:{(1 - bottom) * height:.0f}px"
+    if item["type"] == "footage":
+        return {**item, "place": f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"}
     if area == "full":
         return {**item, "place": box}
     scale = fit_scale(fmt, zone, size, float(item.get("scale", 1.0)))
@@ -396,9 +398,11 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
 
 def _below(item: dict[str, Any]) -> str:
     """A footage label sits across the foot of its picture."""
-    place = str(item.get("place") or "")
-    found = dict(part.split(":", 1) for part in place.split(";") if ":" in part)
-    return f' style="left:{found.get("left", "0")};right:{found.get("right", "0")};bottom:{found.get("bottom", "0")};padding-bottom:1.1em"' if found else ""
+    found = dict(part.split(":", 1) for part in str(item.get("place") or "").split(";") if ":" in part)
+    if not found:
+        return ""
+    foot = float(found["top"].removesuffix("px")) + float(found["height"].removesuffix("px"))
+    return f' style="left:{found["left"]};width:{found["width"]};top:{foot - 92:.0f}px"'
 
 
 def tail(scene: dict[str, Any], lap: float) -> float:

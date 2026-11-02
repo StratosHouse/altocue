@@ -364,7 +364,7 @@ def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -
         wav.parent.mkdir(parents=True, exist_ok=True)
         ffmpeg.extract_wav(path, wav)
         line, _ = ffmpeg.read_wav(wav)
-        begin = round(starts[scene["id"]] * mix.RATE)
+        begin = max(round((starts[scene["id"]] + float(scene.get("voice_offset", 0))) * mix.RATE), 0)
         end = min(begin + len(line), count)
         track[begin:end] += line[: end - begin]
     dest = project.work / "film" / "voice.wav"

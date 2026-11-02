@@ -304,7 +304,7 @@ $ .pair{position:relative;width:100%;aspect-ratio:9/12;max-height:100%;margin:0 
 $ img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 22%;display:block}
 $ .over{position:absolute;inset:0;animation:swsweep var(--dur) cubic-bezier(.65,0,.3,1) both}
 $ .bar{position:absolute;top:0;bottom:0;left:0;width:5u;background:var(--accent);box-shadow:0 0 22u var(--accent);animation:swline var(--dur) cubic-bezier(.65,0,.3,1) both}
-$ .tag{position:absolute;bottom:22u;padding:8u 20u;border-radius:99u;font-size:30u;font-weight:600;color:var(--panel);background:var(--ink)}
+$ .tag{position:absolute;bottom:22u;padding:8u 24u;border-radius:99u;font-size:44u;font-weight:600;color:var(--panel);background:var(--ink)}
 $ .lf{left:22u}
 $ .rt{right:22u;background:var(--accent)}
 @keyframes swsweep{0%{clip-path:inset(0 0 0 96%)}34%,44%{clip-path:inset(0 0 0 22%)}72%,80%{clip-path:inset(0 0 0 72%)}100%{clip-path:inset(0 0 0 46%)}}

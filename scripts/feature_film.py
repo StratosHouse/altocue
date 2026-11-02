@@ -41,7 +41,7 @@ def envelope(path: Path, bars: int = 72) -> list[float]:
     done = subprocess.run([ffmpeg.require(), "-v", "error", "-i", str(path), "-ac", "1", "-ar", "8000", "-f", "f32le", "-"], capture_output=True, check=True)
     samples = np.frombuffer(done.stdout, np.float32)
     parts = np.array_split(samples, bars)
-    return [round(float(min(max(np.sqrt(np.mean(part**2)) * 5.2, 0.02), 1.0)), 3) for part in parts]
+    return [round(float(min(max(np.sqrt(np.mean(part**2)) * 3.2, 0.02), 1.0)), 3) for part in parts]
 
 
 def matched_frames(raw: Path, final: Path, folder: Path) -> tuple[Path, Path]:
@@ -146,7 +146,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
     frame_raw, frame_graded = matched_frames(raw_a, final_a, assets)
     crops = look_crops(looks, assets)
     clip = stock_clip(project, "ocean waves aerial") if stock else None
-    search_words = "route on a map"
+    search_words = "route map"
     found = search_rows(catalog, search_words)
     chart = sorted(groups.items(), key=lambda pair: -pair[1])[:6]
     names = {
@@ -197,7 +197,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
     }
 
     def stamp(text: str) -> dict[str, Any]:
-        return {"type": "corner_stamp", "text": text, "corner": "tl", "start": 0.0}
+        return {"type": "corner_stamp", "text": text, "corner": "tr", "start": 0.0}
 
     scenes: list[dict[str, Any]] = [
         {
@@ -223,12 +223,13 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "carry": "the same speaker keeps talking",
             "shows": ["raw take to finished cut"],
             "voice": "assets/voice/final-a.wav",
+            "voice_offset": -0.4,
             "camera": {"move": "drift"},
             "link": {"type": "pan", "seconds": 0.7, "why": "The same sideways move carries us to the next take."},
             "items": [
                 {"type": "mask_rise", "lines": ["Raw take", "*to finished cut*"], "start": 0.0, "zone": "left"},
                 {"type": "footage", "file": "assets/raw-a.mp4", "zone": "phone_a", "label": f"Raw, {raw_seconds:.1f} s", "start": -0.4, "important": False},
-                {"type": "footage", "file": "assets/final-a.mp4", "zone": "phone_b", "label": f"Cut, {cut_seconds:.1f} s", "start": 0.0, "important": False},
+                {"type": "footage", "file": "assets/final-a.mp4", "zone": "phone_b", "label": f"Cut, {cut_seconds:.1f} s", "start": -0.4, "important": False},
             ],
         },
         {
@@ -240,6 +241,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "carry": "the words move to the colour",
             "shows": ["captions"],
             "voice": "assets/voice/final-b.wav",
+            "voice_offset": -0.3,
             "camera": {"move": "push", "amount": 0.04},
             "link": {"type": "through", "seconds": 0.7, "why": "We push through the face into the same frame, corrected."},
             "items": [
@@ -382,7 +384,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "carry": "the wipe",
             "shows": ["paper"],
             "link": {"type": "shutter", "label": "Shutter", "why": "Each format hands over with a wipe from the library."},
-            "items": [stamp("PAPER"), {"type": "torn_scraps", "text": "Cut paper, *in motion*", "label": "Paper formats", "start": 0.1, "zone": "center"}],
+            "items": [stamp("PAPER"), {"type": "torn_scraps", "text": "Cut paper, in motion", "label": "Paper formats", "start": 0.1, "zone": "center"}],
         },
         {
             "id": "iso",
@@ -504,6 +506,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "rows": gate_rows(qa),
                     "start": -0.3,
                     "zone": "center",
+                    "align": "center",
                 },
             ],
             "sound": [{"name": "tick", "at": 1.5}, {"name": "tick", "at": 2.4}, {"name": "tick", "at": 3.3}],
