@@ -333,6 +333,41 @@ def test_a_slot_in_the_wrong_shape_fails_the_check_not_the_render():
     assert any("cannot be drawn" in text or "needs" in text for text in errors(storyboard.check(brief(), made, film.load_type("launch"))))
 
 
+def test_a_film_past_its_cap_fails_the_check():
+    found = errors(storyboard.check(brief(cap_seconds=29.5), board(), film.load_type("launch")))
+    assert any("past its cap" in text for text in found)
+
+
+def test_a_film_exactly_on_its_cap_passes():
+    assert not any("past its cap" in text for text in errors(storyboard.check(brief(cap_seconds=30.0), board(), film.load_type("launch"))))
+
+
+def test_a_finished_file_past_its_cap_is_refused(tmp_path, renderer, capsys, monkeypatch):
+    project = small_film(tmp_path / "film")
+    path = project.root / "brief.json"
+    made = json.loads(path.read_text())
+    made["cap_seconds"] = 15.0
+    path.write_text(json.dumps(made))
+    real = ffmpeg.probe_clip
+
+    def long(file, **kwargs):
+        clip = real(file, **kwargs)
+        clip.duration = 15.5
+        return clip
+
+    monkeypatch.setattr(ffmpeg, "probe_clip", long)
+    assert altocue("film", "render", "-p", str(project.root), "--draft") == 1
+    assert "past its cap" in capsys.readouterr().err
+
+
+def test_footage_keeps_its_place_and_its_label():
+    made = board()
+    made["scenes"][0]["items"].append({"type": "footage", "file": "assets/take.mp4", "zone": "phone_a", "label": "Raw take", "start": 0.2, "duration": 3})
+    line = timeline_for(made)
+    page = scenes.compose(line, default_brand())
+    assert "<video" in page and "muted" in page and "Raw take" in page
+
+
 def test_example_copy_left_in_is_a_warning():
     warned = [p.message for p in storyboard.check(brief(example=True), board(), film.load_type("launch")) if p.level == "warning"]
     assert any("invented" in text for text in warned)

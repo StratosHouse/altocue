@@ -480,6 +480,9 @@ def check(
     wanted = brief.get("length")
     if number(wanted) and abs(done["total"] - float(wanted)) > wanted * LENGTH_SLACK:
         add("error", "storyboard", f"The film runs {done['total']:.1f} s and the brief asks for {wanted:g} s.", "Change a scene's seconds, or the brief.")
+    cap = brief.get("cap_seconds")
+    if number(cap) and done["total"] > float(cap):
+        add("error", "storyboard", f"The film runs {done['total']:.2f} s, past its cap of {float(cap):.2f} s.", "Cut seconds from a scene. The cap never moves to suit the cut.")
     if record.get("route_required") and board.get("route") not in ROUTES:
         add("warning", "storyboard", "No route stated.", f'Set "route" to one of {", ".join(ROUTES)}.')
     clock = board.get("clock")

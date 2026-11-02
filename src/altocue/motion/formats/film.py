@@ -134,6 +134,40 @@ def _silhouette_act(item: dict[str, Any]) -> str:
     return f'<div class="stagefield {pose}"><div class="floor"></div>{body}{caption}</div>'
 
 
+def _stage_strip(item: dict[str, Any]) -> str:
+    """Real pictures in a row, each landing in turn with its name. Stage icons, or frames from a real run."""
+    rows = kit.rows(item, "stages")
+    seconds = kit.seconds(item)
+    gap = min(seconds * 0.5 / max(len(rows), 1), 0.45)
+    cells = []
+    for index, row in enumerate(rows):
+        picture = f'<img src="{kit.esc(row["image"])}" alt="">' if row.get("image") else ""
+        cells.append(f'<figure style="--t:{0.2 + index * gap:.3f}s">{picture}<figcaption>{kit.esc(row.get("text", ""))}</figcaption></figure>')
+    title = f"<h2>{kit.emphasis(str(item['title']))}</h2>" if item.get("title") else ""
+    return f'{title}<div class="strip {kit.esc(item.get("size", "icons"))}">{"".join(cells)}</div>'
+
+
+def _split_wipe(item: dict[str, Any]) -> str:
+    """One real frame, before and after, with a divider that sweeps across and back so the change is seen, not claimed."""
+    rows = kit.rows(item, "frames")
+    before, after = rows[0], rows[-1]
+    return (
+        f'<div class="pair"><img class="under" src="{kit.esc(before.get("image", ""))}" alt=""><div class="over"><img src="{kit.esc(after.get("image", ""))}" alt=""></div>'
+        f'<i class="bar"></i><b class="tag lf">{kit.esc(before.get("text", ""))}</b><b class="tag rt">{kit.esc(after.get("text", ""))}</b></div>'
+    )
+
+
+def _waveform(item: dict[str, Any]) -> str:
+    """Sound measured from a real file, drawn as bars, with its numbers beside it."""
+    made = []
+    for index, row in enumerate(item.get("rows") or []):
+        values = [max(min(float(value), 1.0), 0.02) for value in row.get("values") or []]
+        bars = "".join(f'<i style="--v:{value:.3f};--i:{position}"></i>' for position, value in enumerate(values))
+        made.append(f'<div class="track{" hot" if row.get("hot") else ""}" style="--r:{index}"><p><span>{kit.esc(row.get("text", ""))}</span><b>{kit.esc(row.get("note", ""))}</b></p><div class="bars">{bars}</div></div>')
+    title = f"<h2>{kit.emphasis(str(item['title']))}</h2>" if item.get("title") else ""
+    return f'<div class="waves">{title}{"".join(made)}</div>'
+
+
 CASCADE_CSS = """
 $ .board{position:relative;width:880u;max-width:100%;padding:34u 34u 30u;border-radius:40u;background:color-mix(in srgb,var(--surface) 88%,var(--panel));box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 12%,transparent) inset,0 2u 0 color-mix(in srgb,var(--ink) 9%,transparent) inset,0 60u 140u rgba(0,0,0,.55);animation:wcin .62s cubic-bezier(.16,1,.3,1) both}
 $ header{display:flex;align-items:center;justify-content:space-between;gap:20u;padding:4u 8u 26u}
@@ -255,7 +289,90 @@ $ .point .a1 .fore{animation:none;transform:rotate(-8deg)}
 @keyframes sapoint{from{transform:rotate(20deg)}to{transform:rotate(-98deg)}}
 """
 
+STRIP_CSS = """
+$ h2{margin:0 0 34u;font-size:64u;font-weight:600;letter-spacing:-.03em;text-align:center;animation:rise .5s var(--ease) both}
+$ .strip{display:flex;flex-wrap:wrap;justify-content:center;gap:26u}
+$ figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:12u;animation:stland .5s cubic-bezier(.2,1.3,.4,1) var(--t) both}
+$ .icons img{display:block;width:118u;height:118u}
+$ .looks img{display:block;width:190u;height:338u;object-fit:cover;border-radius:18u;box-shadow:0 18u 44u rgba(0,0,0,.45)}
+$ figcaption{font-size:30u;font-weight:500;letter-spacing:-.01em;color:var(--ink)}
+@keyframes stland{from{opacity:0;transform:translateY(34u) scale(.9)}to{opacity:1;transform:none}}
+"""
+
+WIPE_CSS = """
+$ .pair{position:relative;width:100%;aspect-ratio:9/12;max-height:100%;margin:0 auto;border-radius:28u;overflow:hidden;box-shadow:0 40u 90u rgba(0,0,0,.5);animation:rise .5s var(--ease) both}
+$ img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 22%;display:block}
+$ .over{position:absolute;inset:0;animation:swsweep var(--dur) cubic-bezier(.65,0,.3,1) both}
+$ .bar{position:absolute;top:0;bottom:0;left:0;width:5u;background:var(--accent);box-shadow:0 0 22u var(--accent);animation:swline var(--dur) cubic-bezier(.65,0,.3,1) both}
+$ .tag{position:absolute;bottom:22u;padding:8u 20u;border-radius:99u;font-size:30u;font-weight:600;color:var(--panel);background:var(--ink)}
+$ .lf{left:22u}
+$ .rt{right:22u;background:var(--accent)}
+@keyframes swsweep{0%{clip-path:inset(0 0 0 96%)}34%,44%{clip-path:inset(0 0 0 22%)}72%,80%{clip-path:inset(0 0 0 72%)}100%{clip-path:inset(0 0 0 46%)}}
+@keyframes swline{0%{left:96%}34%,44%{left:22%}72%,80%{left:72%}100%{left:46%}}
+"""
+
+WAVE_CSS = """
+$ .waves{width:100%;padding:34u 38u;border-radius:30u;background:color-mix(in srgb,var(--surface) 84%,transparent);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 12%,transparent) inset,0 40u 100u rgba(0,0,0,.45);animation:rise .5s var(--ease) both}
+$ h2{margin:0 0 22u;font-size:50u;font-weight:600;letter-spacing:-.03em}
+$ .track{margin-top:26u}
+$ p{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 12u;font-size:36u;font-weight:500}
+$ p b{font-weight:600;font-variant-numeric:tabular-nums}
+$ .hot p b{color:var(--accent)}
+$ .bars{display:flex;align-items:center;gap:3u;height:150u}
+$ .bars i{flex:1;height:calc(var(--v) * 100%);border-radius:9u;background:color-mix(in srgb,var(--ink) 40%,transparent);transform:scaleY(0);animation:wvup .4s cubic-bezier(.2,1.2,.4,1) calc(.2s + var(--r) * .5s + var(--i) * .018s) both}
+$ .hot .bars i{background:var(--accent)}
+@keyframes wvup{to{transform:none}}
+"""
+
 FORMATS = (
+    Format(
+        id="stage_strip",
+        title="Stage strip",
+        summary="Real pictures land in a row, each with its name, one after another.",
+        group="film",
+        jobs=("explain", "prove"),
+        slots=(Slot("stages", kind="list", limit=10, each=16), Slot("title", limit=44, required=False), Slot("size", kind="choice", required=False, choices=("icons", "looks"))),
+        example={"title": "Every *stage* in one place", "stages": [{"text": "Cut"}, {"text": "Clean"}, {"text": "Grade"}, {"text": "Caption"}]},
+        draw=_stage_strip,
+        seconds=4.0,
+        shortest=2.0,
+        longest=12.0,
+        tall=520,
+        sound="pop",
+        css=scoped("stage_strip", STRIP_CSS),
+    ),
+    Format(
+        id="split_wipe",
+        title="Split wipe",
+        summary="A divider sweeps across one real frame, so before and after are seen side by side.",
+        group="film",
+        jobs=("prove",),
+        slots=(Slot("frames", kind="list", limit=2, each=14),),
+        example={"frames": [{"text": "Raw"}, {"text": "Graded"}]},
+        draw=_split_wipe,
+        seconds=5.0,
+        shortest=3.0,
+        longest=10.0,
+        tall=900,
+        sound="whoosh",
+        css=scoped("split_wipe", WIPE_CSS),
+    ),
+    Format(
+        id="waveform",
+        title="Waveform",
+        summary="Sound measured from a real file rises as bars, with its numbers beside it.",
+        group="film",
+        jobs=("prove", "explain"),
+        slots=(Slot("rows", kind="list", limit=3, each=20), Slot("title", limit=40, required=False)),
+        example={"title": "Sample sound", "rows": [{"text": "Raw", "note": "-21 LUFS", "values": [0.2, 0.5, 0.3, 0.6, 0.2, 0.4]}, {"text": "Mastered", "note": "-14 LUFS", "hot": True, "values": [0.4, 0.8, 0.6, 0.9, 0.5, 0.7]}]},
+        draw=_waveform,
+        seconds=5.0,
+        shortest=2.5,
+        longest=12.0,
+        tall=620,
+        sound=None,
+        css=scoped("waveform", WAVE_CSS),
+    ),
     Format(
         id="work_cascade",
         title="Work cascade",

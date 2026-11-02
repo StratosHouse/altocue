@@ -487,6 +487,12 @@ def render_film(project: Project, *, board: dict[str, Any], name: str, aspect: s
         "score": report,
     }
     rows["flash"] = flash.measure(dest) if not _stub(picture) else None
+    cap = film.brief.get("cap_seconds")
+    length = ffmpeg.probe_clip(dest).duration
+    if storyboard.number(cap) and length > float(cap):
+        raise AltocueError(
+            f"{dest.name} runs {length:.2f} s, past its cap of {float(cap):.2f} s.", fix="Shorten the storyboard and render again. Nothing past the cap ships."
+        )
     write_json(project.review_dir / f"film-{name.replace('/', '-')}.json", rows)
     return dest
 

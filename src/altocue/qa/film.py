@@ -392,7 +392,7 @@ def gate_rows(path: Path, line: dict[str, Any]) -> list[dict[str, Any]]:
         rows.append({"id": name, "passed": passed, "value": value, "threshold": threshold, "detail": detail})
 
     def absent(name: str, why: str) -> None:
-        rows.append({"id": name, "passed": True, "value": "n/a", "threshold": None, "detail": why, "skipped": True})
+        rows.append({"id": name, "passed": False, "value": "n/a", "threshold": None, "detail": why, "skipped": True})
 
     zero = found["frame_zero"] or {"mean": 0, "contrast": 0}
     gate(

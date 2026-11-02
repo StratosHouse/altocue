@@ -40,6 +40,9 @@ ZONES = {
         "full": (0.05, 0.06, 0.95, 0.94),
         "low": (0.14, 0.62, 0.86, 0.94),
         "high": (0.14, 0.06, 0.86, 0.5),
+        "phone_a": (0.47, 0.13, 0.705, 0.87),
+        "phone_b": (0.725, 0.13, 0.96, 0.87),
+        "phone": (0.62, 0.07, 0.885, 0.93),
     },
     "tall": {
         "center": (0.07, 0.2, 0.93, 0.78),
@@ -50,6 +53,9 @@ ZONES = {
         "full": (0.05, 0.12, 0.95, 0.8),
         "low": (0.07, 0.58, 0.93, 0.8),
         "high": (0.07, 0.13, 0.93, 0.55),
+        "phone_a": (0.05, 0.36, 0.49, 0.8),
+        "phone_b": (0.51, 0.36, 0.95, 0.8),
+        "phone": (0.2, 0.3, 0.8, 0.82),
     },
     "square": {
         "center": (0.08, 0.12, 0.92, 0.88),
@@ -60,6 +66,9 @@ ZONES = {
         "full": (0.05, 0.06, 0.95, 0.94),
         "low": (0.08, 0.62, 0.92, 0.94),
         "high": (0.08, 0.06, 0.92, 0.5),
+        "phone_a": (0.14, 0.33, 0.48, 0.93),
+        "phone_b": (0.52, 0.33, 0.86, 0.93),
+        "phone": (0.34, 0.33, 0.66, 0.9),
     },
 }
 
@@ -70,7 +79,10 @@ FILM_CSS = """
 .zone{display:flex;flex-direction:column;justify-content:center}
 .zone.mid{align-items:center;text-align:center}
 .zone.mid>*{margin-left:auto;margin-right:auto}
-.footage{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.footage{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--panel)}
+.footage.framed{border-radius:calc(30px * var(--scale));box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 16%,transparent),0 34px 90px #00000080}
+.footnote{display:flex;justify-content:center;font-size:calc(34px * var(--scale));font-weight:600;letter-spacing:-.01em;color:var(--ink);text-shadow:0 2px 14px rgba(0,0,0,.7)}
+.footnote span{padding:.28em .7em;border-radius:99px;background:color-mix(in srgb,var(--panel) 72%,transparent)}
 """
 
 
@@ -364,11 +376,29 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
     if item["type"] == "footage":
         attrs = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track}"'
         name = escape(formats.stage_name(item["file"]))
-        tag = "video muted playsinline" if Path(item["file"]).suffix.lower() in (".mp4", ".mov", ".webm") else "img"
-        return f'<{tag} id="footage-{track}" class="clip footage" {attrs} src="{name}"' + ("></video>" if tag.startswith("video") else ' alt="">')
+        place = f' style="{item["place"]}"' if item.get("place") else ""
+        look = "clip footage framed" if item.get("zone") else "clip footage"
+        trim = f' data-media-start="{float(item["from"]):.3f}"' if item.get("from") else ""
+        moving = Path(item["file"]).suffix.lower() in (".mp4", ".mov", ".webm")
+        tag = (
+            f'<video id="footage-{track}" class="{look}" {attrs}{trim}{place} src="{name}" muted playsinline></video>'
+            if moving
+            else f'<img id="footage-{track}" class="{look}" {attrs}{place} src="{name}" alt="">'
+        )
+        if not item.get("label"):
+            return tag
+        note = f'<div class="clip footnote" data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 1000}"{_below(item)}><span>{escape(str(item["label"]))}</span></div>'
+        return f"{tag}\n{note}"
     made = item_html(item, brand, track)
     extra = item.get("zone_class")
     return made.replace('class="clip ', f'class="clip {extra} ', 1) if extra else made
+
+
+def _below(item: dict[str, Any]) -> str:
+    """A footage label sits across the foot of its picture."""
+    place = str(item.get("place") or "")
+    found = dict(part.split(":", 1) for part in place.split(";") if ":" in part)
+    return f' style="left:{found.get("left", "0")};right:{found.get("right", "0")};bottom:{found.get("bottom", "0")};padding-bottom:1.1em"' if found else ""
 
 
 def tail(scene: dict[str, Any], lap: float) -> float:
