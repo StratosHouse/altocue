@@ -22,7 +22,7 @@ from ..errors import AltocueError
 from ..project import Project
 from . import store
 from .base import TERMINAL, Cost, CostLine, GenProvider, GenRequest, JobRef, JobStatus, Moderated, SubmitUnknown
-from .catalog import Catalog, load_catalog
+from .catalog import Catalog, credit_rate, load_catalog
 from .fal import FalProvider
 from .higgsfield import HiggsfieldProvider
 
@@ -249,8 +249,8 @@ def show_plan(plan: list[Planned], provider: GenProvider, root: Path, out: Out) 
     return total
 
 
-def spend_gate(project: Project, cost: Cost, provider: GenProvider, *, yes: bool) -> None:
-    """Nothing paid happens unless it is priced, under the cap and agreed to."""
+def spend_gate(project: Project, cost: Cost, provider: str, *, yes: bool) -> None:
+    """Nothing paid happens unless it is priced, under the cap and agreed to. The cap is one budget for the whole project."""
     if cost.unpriced:
         fix = "Make the provider quote this shot, then run again."
         raise AltocueError(f"{', '.join(cost.unpriced)} could not be priced, so nothing was spent.", fix=fix)
@@ -260,17 +260,100 @@ def spend_gate(project: Project, cost: Cost, provider: GenProvider, *, yes: bool
             f"The spend cap is $0, so every paid call is blocked. This run needs ${cost.usd:.2f}.",
             fix=f"Set spend_cap_usd to at least {math.ceil(cost.usd * 100) / 100:.2f} under [generate] in altocue.toml.",
         )
-    if cost.usd > cap:
+    committed = store.committed_usd(project)
+    if committed + cost.usd > cap:
+        booked = f" ${committed:.2f} is already spent or reserved." if committed else ""
         raise AltocueError(
-            f"This run would cost ${cost.usd:.2f} and the cap is ${cap:.2f}.",
-            fix="Raise spend_cap_usd under [generate] in altocue.toml, use a cheaper tier, or pick shots with --only.",
+            f"This would cost ${cost.usd:.2f} and the cap is ${cap:.2f}.{booked}",
+            fix="Raise spend_cap_usd under [generate] in altocue.toml, use a cheaper tier, pick shots with --only, or release a reservation.",
         )
     if yes:
         return
     if not sys.stdin.isatty():
         raise AltocueError("Paid generation needs a yes.", fix="Run again with --yes, or run it in a terminal and answer the question.")
-    if input(f"Spend up to ${cost.usd:.2f} on {provider.id}? [y/N] ").strip().lower() not in {"y", "yes"}:
+    if input(f"Spend up to ${cost.usd:.2f} on {provider}? [y/N] ").strip().lower() not in {"y", "yes"}:
         raise AltocueError("Stopped. Nothing was spent.")
+
+
+def priced_call(project: Project, provider: str, *, cost: float | None, credits: float | None) -> tuple[float, float | None, str]:
+    """Dollars, with the rate behind them. Credits are the record and dollars derive from them, so a new rate never rewrites history."""
+    if credits is None:
+        return float(cost or 0), None, ""
+    catalog = catalog_for(project)
+    rate = credit_rate(catalog, provider, project)
+    if rate is None:
+        raise AltocueError(f"{provider} bills dollars, not credits.", fix="Pass --cost in US dollars.")
+    as_of = str(catalog.provider(provider).get("usd_per_credit_as_of", ""))
+    return (float(cost) if cost is not None else round(credits * rate, 6)), rate, as_of
+
+
+def reserve(
+    project: Project,
+    shot: str,
+    *,
+    credits: float | None = None,
+    cost: float | None = None,
+    provider: str = "higgsfield",
+    yes: bool = False,
+    out: Out = print,
+) -> dict[str, Any]:
+    """Book money against the cap before an agent spends it through a provider's MCP server."""
+    if credits is None and cost is None:
+        raise AltocueError("--reserve needs --credits, or --cost for a provider that bills dollars.", fix="Quote it first: altocue recipes quote <id>")
+    if (credits or 0) < 0 or (cost or 0) < 0:
+        raise AltocueError("A reservation cannot be negative.")
+    usd, rate, as_of = priced_call(project, provider, cost=cost, credits=credits)
+    if usd <= 0:
+        raise AltocueError("Nothing to reserve: this costs nothing.", fix="Skip --reserve for a free job, and import the result as usual.")
+    with store.booking(project):
+        if store.open_reservation(project, shot):
+            fix = f"Import against it, or free it first with: altocue generate --release {shot}"
+            raise AltocueError(f"{shot} already has an open reservation.", fix=fix)
+        spend_gate(project, Cost(usd=usd), provider, yes=yes)
+        row = {"shot": shot, "state": "open", "provider": provider, "credits": credits, "usd": usd, "usd_per_credit": rate, "rate_as_of": as_of, "at": store.now()}
+        store.save_reservations(project, [*store.read_reservations(project), row])
+    amount = f"{credits:g} credits, ${usd:.2f}" if credits is not None else f"${usd:.2f}"
+    out(f"{shot}: reserved {amount}. Spend it, then register the result with --import, or free it with --release.")
+    return row
+
+
+def release(project: Project, shot: str, *, out: Out = print) -> None:
+    """Give a reservation back, because the job was dropped or never ran."""
+    with store.booking(project):
+        rows = store.read_reservations(project)
+        row = next((item for item in rows if item["shot"] == shot and item["state"] == "open"), None)
+        if row is None:
+            raise AltocueError(f"{shot} has no open reservation.")
+        row |= {"state": "released", "closed": store.now()}
+        store.save_reservations(project, rows)
+    out(f"{shot}: released ${row['usd']:.2f}.")
+
+
+def settle(project: Project, shot: str, *, usd: float, credits: float | None, job_id: str) -> dict[str, Any] | None:
+    """Close a reservation against what was really spent. The ledger keeps the real figure, whatever was booked."""
+    with store.booking(project):
+        rows = store.read_reservations(project)
+        row = next((item for item in rows if item["shot"] == shot and item["state"] == "open"), None)
+        if row is None:
+            return None
+        over = round(max(usd - row["usd"], 0.0), 6)
+        row |= {"state": "settled", "actual_usd": usd, "actual_credits": credits, "job_id": job_id, "over_usd": over, "closed": store.now()}
+        store.save_reservations(project, rows)
+    return row
+
+
+def spend_report(project: Project) -> list[str]:
+    """Where the money went. An import with no reservation is named, because the cap never saw it coming."""
+    cap = float(project.setting("generate", "spend_cap_usd", 0) or 0)
+    spent, flying, booked = store.spent_usd(project), store.in_flight_usd(project), store.reserved_usd(project)
+    lines = [f"Cap ${cap:.2f}. Spent ${spent:.2f}. Running ${flying:.2f}. Reserved ${booked:.2f}. Left ${cap - spent - flying - booked:.2f}."]
+    rows = store.read_reservations(project)
+    lines += [f"Reserved, not imported yet: {r['shot']}, ${r['usd']:.2f}." for r in rows if r["state"] == "open"]
+    lines += [f"Over its reservation: {r['shot']}, ${r['actual_usd']:.2f} against ${r['usd']:.2f}." for r in rows if r.get("over_usd")]
+    path = store.ledger_path(project)
+    ledger = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    lines += [f"Imported with no reservation: {r['shot']}, ${r['usd']:.2f}, job {r.get('job_id') or 'unknown'}." for r in ledger if r.get("unreserved")]
+    return lines
 
 
 def _ready(project: Project, item: Planned) -> bool:
@@ -541,7 +624,7 @@ def generate_shots(
                 project, item.shot.id, asset=project.root / item.record["asset"], digest=item.hash, imported=False, check_passed=passed
             )
     if any(item.status == "new" for item in plan):
-        spend_gate(project, total, chosen, yes=yes)
+        spend_gate(project, total, chosen.id, yes=yes)
     run = Run(project, chosen, timeout_s=timeout_s, out=out)
     run.outcome = outcome
     return run.drive(plan)
@@ -570,19 +653,22 @@ def import_asset(
     shot: str,
     prompt: str,
     model: str,
-    cost: float,
+    cost: float | None = None,
+    credits: float | None = None,
     provider: str = "higgsfield",
     seed: int | None = None,
     job_id: str = "",
     terms_url: str | None = None,
     shots_file: str = "shots.json",
+    out: Out = print,
 ) -> Path:
     """Register a file that was generated elsewhere, such as through a provider's MCP server."""
     source = Path(file).expanduser().resolve()
     if not source.is_file():
         raise AltocueError(f"Not found: {source}")
-    if cost < 0:
-        raise AltocueError("--cost cannot be negative.")
+    if (cost or 0) < 0 or (credits or 0) < 0:
+        raise AltocueError("--cost and --credits cannot be negative.")
+    usd, rate, rate_as_of = priced_call(project, provider, cost=cost, credits=credits)
     ffmpeg.probe_json(source)
     known = None
     if (project.root / shots_file).exists():
@@ -597,10 +683,34 @@ def import_asset(
     asset.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, asset)
     check = run_check(known.check if known else "none", asset, store.generated_dir(project) / "checks" / shot)
-    extra = {"job_id": job_id, "imported_from": source.name, "check": check}
-    data = _provenance(known, prompt=prompt, provider=provider, model=model, seed=seed, cost=cost, terms=terms, route="import", extra=extra)
+    held = settle(project, shot, usd=usd, credits=credits, job_id=job_id)
+    extra = {
+        "job_id": job_id,
+        "imported_from": source.name,
+        "check": check,
+        "credits": credits,
+        "usd_per_credit": rate,
+        "usd_per_credit_as_of": rate_as_of,
+        "unreserved": held is None,
+    }
+    if held:
+        extra |= {"reserved_usd": held["usd"], "reserved_credits": held["credits"], "over_reservation_usd": held["over_usd"]}
+    data = _provenance(known, prompt=prompt, provider=provider, model=model, seed=seed, cost=usd, terms=terms, route="import", extra=extra)
     store.write_provenance(asset, {**data, "shot": shot, "kind": kind})
     store.record_asset(project, shot, asset=asset, digest=digest, imported=True, check_passed=check["passed"])
-    row = {"run": "import", "shot": shot, "provider": provider, "model": model, "usd": cost}
+    row = {"run": "import", "shot": shot, "provider": provider, "model": model, "usd": usd, "credits": credits, "unreserved": held is None}
     store.log_spend(project, {**row, "state": "succeeded", "basis": "import", "job_id": job_id})
+    _report_import(project, shot, usd, held, out)
     return asset
+
+
+def _report_import(project: Project, shot: str, usd: float, held: dict[str, Any] | None, out: Out) -> None:
+    if held is None:
+        out(f"{shot}: imported with no reservation, so the cap never saw this ${usd:.2f}. Next time run --reserve before spending.")
+    elif held["over_usd"]:
+        out(f"{shot}: ${usd:.2f} is ${held['over_usd']:.2f} over its reservation. The ledger holds the real figure.")
+    else:
+        out(f"{shot}: settled ${usd:.2f} against the ${held['usd']:.2f} reserved.")
+    cap, committed = float(project.setting("generate", "spend_cap_usd", 0) or 0), store.committed_usd(project)
+    if committed > cap:
+        out(f"Warning: this project has now committed ${committed:.2f} against a cap of ${cap:.2f}. Further reservations will be refused.")

@@ -322,6 +322,20 @@ def test_ingest_scores_and_writes_the_report(clip, stub, capsys):
     assert "independent: false" in text.lower() and "What this review could not see or hear" in text
 
 
+def test_report_names_spend_the_cap_never_saw(clip, stub):
+    from altocue.generate import store
+
+    store.log_spend(clip.project, {"run": "import", "shot": "s01", "provider": "higgsfield", "model": "m", "usd": 1.25, "state": "succeeded", "unreserved": True})
+    assert main(argv(clip, "--ingest", str(verdict_file(clip)))) == 0
+    text = (clip.project.review_dir / "REPORT.md").read_text()
+    assert "## Spend" in text and "no reservation" in text and "s01" in text
+
+
+def test_report_has_no_spend_section_when_nothing_was_spent(clip, stub):
+    assert main(argv(clip, "--ingest", str(verdict_file(clip)))) == 0
+    assert "## Spend" not in (clip.project.review_dir / "REPORT.md").read_text()
+
+
 def test_ingest_relative_to_the_project(clip, stub):
     verdict_file(clip)
     assert main(argv(clip, "--ingest", "review/verdict.json")) == 0

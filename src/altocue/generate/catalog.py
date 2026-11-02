@@ -141,6 +141,15 @@ class Catalog:
         return f"Nothing in models.toml does this. Change the shot, or add a route to {self.path}."
 
 
+def credit_rate(catalog: Catalog, provider: str, project: Any = None) -> float | None:
+    """Dollars per credit: the project's own figure, else the catalog's. None for a provider that bills dollars."""
+    config = catalog.provider(provider)
+    if "usd_per_credit" not in config:
+        return None
+    chosen = project.setting("generate", "usd_per_credit", None) if project else None
+    return float(chosen if chosen is not None else config["usd_per_credit"])
+
+
 def priced(catalog: Catalog, provider: str, shot: str, req: GenRequest) -> Cost:
     """A catalog price for one request."""
     entry = catalog.resolve(provider, req)

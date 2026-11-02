@@ -1297,6 +1297,197 @@ def test_generated_asset_for_an_unknown_shot(project):
     assert generated_asset(project, "ghost", missing_ok=True) is None
 
 
+# Reservations: the cap on the MCP route
+
+
+def reservations(project: Project) -> list[dict]:
+    path = project.work / "generated" / "reservations.json"
+    return json.loads(path.read_text())["reservations"] if path.exists() else []
+
+
+def capped(tmp_path: Path, fal: FakeFal, cap: float) -> Project:
+    return configure(Project.create(tmp_path / "capped"), cap=cap, fal_url=fal.url)
+
+
+def sidecar_of(project: Project, shot_id: str = "s01") -> dict:
+    asset = generated_asset(project, shot_id)
+    return json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+
+
+def test_reserve_over_the_cap_is_refused_before_any_mcp_spend(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 5.0)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 1  # 100 credits at $0.08 is $8
+    err = capsys.readouterr().err
+    assert "cap" in err and "8.00" in err
+    assert reservations(project) == []
+
+
+def test_the_mcp_route_cannot_outrun_the_cap(tmp_path, fal, capsys):
+    """Each clip fits the cap alone. Before this, nothing added them up, so all three were paid for."""
+    project = capped(tmp_path, fal, 10.0)
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    for name in ("s01", "s02"):
+        assert go(project, "--reserve", name, "--credits", "50", "--yes") == 0
+        assert go(project, "--import", str(source), "--shot", name, "--prompt", "p", "--model", "m", "--credits", "50") == 0
+    capsys.readouterr()
+    assert go(project, "--reserve", "s03", "--credits", "50", "--yes") == 1  # $4 + $4 + $4 against $10
+    err = capsys.readouterr().err
+    assert "8.00" in err and "10.00" in err
+    assert [r["shot"] for r in reservations(project)] == ["s01", "s02"]
+
+
+def test_open_reservations_count_before_anything_is_imported(tmp_path, fal):
+    project = capped(tmp_path, fal, 10.0)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0  # $8 fits
+    assert go(project, "--reserve", "s02", "--credits", "100", "--yes") == 1  # $16 does not
+    assert [(r["shot"], r["state"]) for r in reservations(project)] == [("s01", "open")]
+
+
+def test_reserve_books_credits_and_the_rate(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "189", "--yes") == 0
+    row = reservations(project)[0]
+    assert row["shot"] == "s01"
+    assert row["state"] == "open"
+    assert row["credits"] == 189
+    assert row["usd_per_credit"] == 0.08
+    assert row["usd"] == pytest.approx(15.12)
+    assert "15.12" in capsys.readouterr().out
+
+
+def test_reserve_uses_the_project_credit_rate(project):
+    text = (project.root / "altocue.toml").read_text().replace("usd_per_credit = 0.08", "usd_per_credit = 0.033")
+    (project.root / "altocue.toml").write_text(text)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0
+    assert reservations(project)[0]["usd"] == pytest.approx(3.3)
+
+
+def test_reserve_needs_a_yes(project, monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False, raising=False)
+    assert go(project, "--reserve", "s01", "--credits", "10") == 1
+    assert "yes" in capsys.readouterr().err.lower()
+    assert reservations(project) == []
+
+
+def test_a_cap_of_zero_blocks_every_reservation(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 0.0)
+    assert go(project, "--reserve", "s01", "--credits", "1", "--yes") == 1
+    assert "spend_cap_usd" in capsys.readouterr().err
+
+
+def test_reserve_needs_a_price(project, capsys):
+    assert go(project, "--reserve", "s01", "--yes") == 1
+    assert "--credits" in capsys.readouterr().err
+
+
+def test_reserve_refuses_a_shot_already_reserved(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "10", "--yes") == 0
+    assert go(project, "--reserve", "s01", "--credits", "10", "--yes") == 1
+    assert "--release" in capsys.readouterr().err
+
+
+def test_a_dollar_provider_reserves_in_dollars(project, capsys):
+    assert go(project, "--reserve", "s01", "--credits", "10", "--from", "fal", "--yes") == 1
+    assert "--cost" in capsys.readouterr().err
+    assert go(project, "--reserve", "s01", "--cost", "1.5", "--from", "fal", "--yes") == 0
+    assert reservations(project)[0]["usd"] == 1.5
+
+
+def test_release_gives_the_money_back(tmp_path, fal):
+    project = capped(tmp_path, fal, 10.0)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0
+    assert go(project, "--reserve", "s02", "--credits", "100", "--yes") == 1
+    assert go(project, "--release", "s01") == 0
+    assert go(project, "--reserve", "s02", "--credits", "100", "--yes") == 0
+    assert [r["state"] for r in reservations(project)] == ["released", "open"]
+
+
+def test_release_with_nothing_open_is_explained(project, capsys):
+    assert go(project, "--release", "s01") == 1
+    assert "s01" in capsys.readouterr().err
+
+
+def test_a_generate_run_counts_open_reservations(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 10.0)
+    write_shots(project, shot())
+    assert go(project, "--reserve", "other", "--credits", "120", "--yes") == 0  # $9.60 of $10 is booked
+    assert go(project, "--yes") == 1
+    assert "cap" in capsys.readouterr().err
+    assert fal.submits == []
+
+
+def test_a_generate_run_counts_what_the_project_already_spent(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 1.0)
+    write_shots(project, shot(), shot(id="s02", prompt=PROMPT + " Again."))
+    assert go(project, "--only", "s01", "--yes") == 0  # $0.77 of $1
+    assert len(fal.submits) == 1
+    assert go(project, "--only", "s02", "--yes") == 1
+    assert len(fal.submits) == 1
+
+
+def test_import_settles_its_reservation(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--reserve", "s01", "--credits", "189", "--yes") == 0
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--credits", "180") == 0
+    row = reservations(project)[0]
+    assert row["state"] == "settled"
+    assert row["actual_credits"] == 180
+    assert row["actual_usd"] == pytest.approx(14.4)
+    sidecar = sidecar_of(project)
+    assert sidecar["unreserved"] is False
+    assert sidecar["reserved_credits"] == 189
+    assert sidecar["credits"] == 180
+    assert sidecar["usd_per_credit"] == 0.08
+    assert sidecar["usd_per_credit_as_of"]
+    assert sidecar["cost_usd"] == pytest.approx(14.4)
+    assert spend(project)[-1]["credits"] == 180
+    assert spend(project)[-1].get("unreserved") is False
+
+
+def test_an_import_over_its_reservation_keeps_the_real_figure_and_says_so(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 0
+    capsys.readouterr()
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--credits", "150") == 0
+    assert "over" in capsys.readouterr().out
+    assert reservations(project)[0]["over_usd"] == pytest.approx(4.0)
+    assert sidecar_of(project)["over_reservation_usd"] == pytest.approx(4.0)
+    assert spend(project)[-1]["usd"] == pytest.approx(12.0)
+
+
+def test_an_import_with_no_reservation_works_and_is_marked(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert imported(project, source) == 0
+    assert "no reservation" in capsys.readouterr().out
+    assert sidecar_of(project)["unreserved"] is True
+    assert spend(project)[-1]["unreserved"] is True
+
+
+def test_an_unreserved_import_still_counts_against_the_cap(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 2.0)
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert imported(project, source) == 0  # $1.25 of $2
+    assert go(project, "--reserve", "s02", "--credits", "10", "--yes") == 1  # $0.80 more
+    assert "cap" in capsys.readouterr().err
+
+
+def test_the_report_shows_unreserved_imports(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert imported(project, source, "--job-id", "job-9") == 0
+    assert go(project, "--reserve", "s02", "--credits", "10", "--yes") == 0
+    capsys.readouterr()
+    assert go(project, "--report") == 0
+    out = capsys.readouterr().out
+    assert "no reservation" in out and "s01" in out and "1.25" in out
+    assert "s02" in out and "0.80" in out
+
+
+def test_import_needs_a_cost_or_credits(project, tmp_path, capsys):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m") == 1
+    err = capsys.readouterr().err
+    assert "--cost" in err and "--credits" in err
+
+
 # Command plumbing
 
 

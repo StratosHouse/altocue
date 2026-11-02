@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +16,7 @@ from ..errors import AltocueError
 from ..project import Project
 
 GENERATED = "generated"
+BILLED_STATES = {"submitting", "queued", "running", "succeeded"}  # paid for and not yet on the ledger
 
 
 def now() -> str:
@@ -122,3 +126,56 @@ def log_spend(project: Project, row: dict[str, Any]) -> None:
                 return
     with path.open("a") as ledger:
         ledger.write(json.dumps({"t": now(), **row}, ensure_ascii=False) + "\n")
+
+
+def spent_usd(project: Project) -> float:
+    path = ledger_path(project)
+    return sum(float(json.loads(line).get("usd") or 0) for line in path.read_text().splitlines()) if path.exists() else 0.0
+
+
+def in_flight_usd(project: Project) -> float:
+    """Jobs that were paid for and have not reached the ledger, because it records them when they end."""
+    folder = JobStore(project).folder
+    if not folder.exists():
+        return 0.0
+    records = [json.loads(path.read_text()) for path in folder.glob("*.json")]
+    return sum(float(record.get("cost_usd") or 0) for record in records if record.get("state") in BILLED_STATES)
+
+
+def reservations_path(project: Project) -> Path:
+    return generated_dir(project) / "reservations.json"
+
+
+def read_reservations(project: Project) -> list[dict[str, Any]]:
+    path = reservations_path(project)
+    return json.loads(path.read_text())["reservations"] if path.exists() else []
+
+
+def save_reservations(project: Project, rows: list[dict[str, Any]]) -> None:
+    atomic_json(reservations_path(project), {"reservations": rows})
+
+
+def open_reservation(project: Project, shot: str) -> dict[str, Any] | None:
+    return next((row for row in read_reservations(project) if row["shot"] == shot and row["state"] == "open"), None)
+
+
+def reserved_usd(project: Project) -> float:
+    return sum(float(row["usd"]) for row in read_reservations(project) if row["state"] == "open")
+
+
+def committed_usd(project: Project) -> float:
+    """Everything the cap has to count: spent, running, and promised to a reservation."""
+    return round(spent_usd(project) + in_flight_usd(project) + reserved_usd(project), 6)
+
+
+@contextmanager
+def booking(project: Project) -> Iterator[None]:
+    """Check and book as one step, so two agents cannot both take the last of the cap."""
+    path = generated_dir(project) / ".booking.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
