@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from . import caption, ffmpeg, frame, mix, motion, plate
+from . import caption, ffmpeg, frame, locks, mix, motion, plate
 from . import timeline as timelines
 from .motion import formats
 from .project import Project
@@ -81,16 +81,18 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
 
 
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:
-    frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
-    picture, voice = plate.build(project, draft=draft)
-    caption.build(project)
-    timeline = timelines.build(project)
-    layer = motion.render_layers(project, renderer=renderer, draft=draft)
-    audio = project.work / "mix.wav"
-    music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
-    mix.mix_bed(voice, audio, music=music, sfx=sfx_cues(timeline) if timeline.get("sfx", True) else [], tail=timeline["tail"])
-    dest = project.out / ("draft.mp4" if draft else "render.mp4")
-    ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
+    with locks.heavy("rendering"):
+        frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
+        picture, voice = plate.build(project, draft=draft)
+        caption.build(project)
+        timeline = timelines.build(project)
+        layer = motion.render_layers(project, renderer=renderer, draft=draft)
+        audio = project.work / "mix.wav"
+        music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
+        mix.mix_bed(voice, audio, music=music, sfx=sfx_cues(timeline) if timeline.get("sfx", True) else [], tail=timeline["tail"])
+        dest = project.out / ("draft.mp4" if draft else "render.mp4")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
     return dest
 
 

@@ -8,7 +8,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from . import ffmpeg, grade, mix
+from . import ffmpeg, grade, locks, mix
 from .errors import AltocueError
 from .models import Clip, Segment
 from .project import Project
@@ -114,11 +114,12 @@ def build(project: Project, *, draft: bool = False) -> tuple[Path, Path]:
     clips = {clip.id: clip for clip in project.clips()}
     folder = project.work / ("segments-draft" if draft else "segments")
     folder.mkdir(parents=True, exist_ok=True)
-    parts = [build_segment(project, clips[s.clip], s, c, folder) for s in edl.segments]
-    listing = folder / "list.ffconcat"
-    listing.write_text("ffconcat version 1.0\n" + "\n".join(f"file '{p.name}'" for p in parts) + "\n")
-    picture = project.work / ("plate-draft.mp4" if draft else "plate.mp4")
-    ffmpeg.run(["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(picture)])
+    with locks.heavy("building the picture"):
+        parts = [build_segment(project, clips[s.clip], s, c, folder) for s in edl.segments]
+        listing = folder / "list.ffconcat"
+        listing.write_text("ffconcat version 1.0\n" + "\n".join(f"file '{p.name}'" for p in parts) + "\n")
+        picture = project.work / ("plate-draft.mp4" if draft else "plate.mp4")
+        ffmpeg.run(["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(picture)])
     voice = project.work / "voice.wav"
     mix.mix_voice(project, edl, voice)
     return picture, voice
