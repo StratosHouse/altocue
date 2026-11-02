@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from test_grade import make_project, scene, write_clip
+from test_grade import bars_hdr, make_project, scene, write_clip, write_hdr
 
 from altocue import grade, looks
 from altocue.cli import main
@@ -167,6 +167,15 @@ def test_a_lut_named_in_the_config_is_read_from_the_project(tmp_path):
     text = (project.root / "altocue.toml").read_text().replace('lut = ""', 'lut = "show.cube"', 1)
     (project.root / "altocue.toml").write_text(text)
     assert grade.grade_project(Project.open(project.root))["look"] == "lut:show.cube"
+
+
+def test_a_look_bakes_on_hdr_footage(tmp_path):
+    project = make_project(tmp_path, [write_hdr(tmp_path / "a.mov", bars_hdr())])
+    report = grade.grade_project(project, look="bleach_bypass")
+    table = grade.read_cube(project.lut_dir / "a.cube")
+    assert report["clips"]["a"]["changes"]["hdr"] and report["look"] == "bleach_bypass"
+    plain = grade.hdr_to_sdr(grade.identity_grid(grade.LUT_SIZE), "arib-std-b67")
+    assert len(table) == grade.LUT_SIZE**3 and not np.allclose(table, plain, atol=0.01)
 
 
 def test_the_comparison_sheet_is_written(tmp_path):
