@@ -11,10 +11,11 @@ B-roll covers the picture while the voice keeps playing. Use it to show what is 
 
 ## Rules
 
-- **Show what is said.** An insert illustrates its phrase. Never use one as decoration.
+- **Show what is said.** An insert illustrates its phrase. Never use one as decoration. Show a detail as the narrator names it, and hold it long enough to inspect. [source] Weak support: 61% of sampled interaction peaks in online course videos sat at visual transitions (Kim et al., 2014). Learners, not scrollers.
 - **Meet the speaker first.** Spots start after 3 seconds. QA fails anything before 2 seconds.
 - **Keep the speaker on screen.** `[broll] share` defaults to 0.3 of the runtime. QA fails anything over 0.4.
 - **Real footage beats stock.** Search the user's own clips first.
+- **Own footage by default.** Stock and the user's clips sit inside an edit they made. [evidence] Someone else's show, or shorts from other sites, stay reused content on YouTube even with permission. See [the platform rules](../altocue/references/platform-rules.md).
 - **Look before you pick.** Open `work/broll/sheet.jpg`. Never choose from a title.
 - **Get a yes before searching stock.** The search words go to the stock site, and they come from the transcript. Footage never leaves the machine.
 - **Read the licence before you pick.** `work/broll-review.md` shows each option's licence and whether a credit is owed.

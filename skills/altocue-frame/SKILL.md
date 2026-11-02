@@ -11,7 +11,7 @@ compatibility: Requires the altocue CLI.
 
 1. Set the aspect with `altocue new --aspect`, or in `altocue.toml`.
 2. Run `altocue frame` after `altocue cut`. It writes a crop and zoom into each segment of `edl.json`.
-3. Change any crop by hand. `crop` is `[x, y, width, height]` in display pixels.
+3. Change any crop by hand. `crop` is `[x, y, width, height]` in display pixels. Do this last: `altocue cut --apply-review` and `--remove` rebuild the segments and clear crop, zoom and gain.
 
 ## How it decides
 
@@ -22,5 +22,12 @@ compatibility: Requires the altocue CLI.
 
 ## When to change it
 
-- A slow push-in on a key line: set `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06.
-- Keep it rare. One or two a minute.
+- A slow push-in on a key line: set `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06, after the cut is final.
+- Keep it rare. These are rules of thumb, not findings.
+- A bolder jump: raise `[frame] punch_in`, then run `altocue frame`. That solves again and replaces hand edits.
+
+## After every reframe
+
+- **Recheck captions, the product and the safe area.** [source] `altocue qa` covers `safe_zone`, `face_clear` and `graphics_clear`. No gate looks for the product, so open the frames.
+- **A new shape is a new layout, not a crop.** `altocue deliver --for reels,youtube` re-renders the graphics for each shape. See `altocue-deliver`.
+- **A hosted reframe paints new edges.** See `altocue recipes show reframe`. A crop is free, so try it first.

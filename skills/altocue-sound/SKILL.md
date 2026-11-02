@@ -7,7 +7,7 @@ compatibility: Requires the altocue CLI. Music needs no key. FREESOUND_API_KEY i
 
 # Altocue sound
 
-Music sits under the voice and effects land on a moment. Both come after the cut. Silence is a fine choice: many talking heads need neither.
+Music sits under the voice and effects land on a moment. Both come after the cut. Silence is a fine choice: many talking heads need neither. Treat music as punctuation, not a bed every scene must have. [source]
 
 ## Rules
 
