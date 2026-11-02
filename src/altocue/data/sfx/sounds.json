@@ -1,0 +1,318 @@
+[
+  {
+    "name": "pop",
+    "use": "An element appears",
+    "tags": [
+      "ui",
+      "appear",
+      "pop"
+    ],
+    "seconds": 0.09,
+    "source_file": "drop_002.ogg",
+    "pack": "Interface Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "click",
+    "use": "A small, dry hit",
+    "tags": [
+      "ui",
+      "click",
+      "tap"
+    ],
+    "seconds": 0.06,
+    "source_file": "click3.ogg",
+    "pack": "UI Audio",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/ui-audio",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "tick",
+    "use": "A counter or a list step",
+    "tags": [
+      "ui",
+      "tick",
+      "count",
+      "step"
+    ],
+    "seconds": 0.03,
+    "source_file": "tick_002.ogg",
+    "pack": "Interface Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "whoosh",
+    "use": "A noise sweep for a transition",
+    "tags": [
+      "transition",
+      "whoosh",
+      "swish"
+    ],
+    "seconds": 0.31,
+    "source_file": "open_003.ogg",
+    "pack": "Interface Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "rise",
+    "use": "A short pitch rise",
+    "tags": [
+      "ui",
+      "rise",
+      "up"
+    ],
+    "seconds": 0.26,
+    "source_file": "maximize_001.ogg",
+    "pack": "Interface Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "fall",
+    "use": "A short pitch fall",
+    "tags": [
+      "ui",
+      "fall",
+      "down"
+    ],
+    "seconds": 0.26,
+    "source_file": "minimize_001.ogg",
+    "pack": "Interface Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "thud",
+    "use": "A low hit",
+    "tags": [
+      "hit",
+      "low",
+      "thud"
+    ],
+    "seconds": 0.14,
+    "source_file": "error_005.ogg",
+    "pack": "Interface Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "ding",
+    "use": "A bright single note",
+    "tags": [
+      "ding",
+      "bell",
+      "bright",
+      "notify"
+    ],
+    "seconds": 0.19,
+    "source_file": "glass_001.ogg",
+    "pack": "Interface Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "punch",
+    "use": "A heavy body hit for a big reveal",
+    "tags": [
+      "hit",
+      "impact",
+      "punch",
+      "reveal"
+    ],
+    "seconds": 0.46,
+    "source_file": "impactPunch_heavy_002.ogg",
+    "pack": "Impact Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "clang",
+    "use": "A metal hit",
+    "tags": [
+      "hit",
+      "impact",
+      "metal",
+      "clang"
+    ],
+    "seconds": 0.36,
+    "source_file": "impactMetal_heavy_001.ogg",
+    "pack": "Impact Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "bell",
+    "use": "A struck bell",
+    "tags": [
+      "hit",
+      "bell",
+      "ring",
+      "impact"
+    ],
+    "seconds": 0.66,
+    "source_file": "impactBell_heavy_003.ogg",
+    "pack": "Impact Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "chime",
+    "use": "A three-note digital sign",
+    "tags": [
+      "digital",
+      "notify",
+      "alert",
+      "tone",
+      "chime"
+    ],
+    "seconds": 0.77,
+    "source_file": "threeTone1.ogg",
+    "pack": "Digital Audio",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/digital-audio",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "powerup",
+    "use": "A short rising digital sweep",
+    "tags": [
+      "digital",
+      "rise",
+      "up",
+      "success",
+      "level"
+    ],
+    "seconds": 0.37,
+    "source_file": "powerUp5.ogg",
+    "pack": "Digital Audio",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/digital-audio",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "boom",
+    "use": "A crunching explosion",
+    "tags": [
+      "hit",
+      "explosion",
+      "boom",
+      "impact",
+      "sci-fi"
+    ],
+    "seconds": 0.78,
+    "source_file": "explosionCrunch_000.ogg",
+    "pack": "Sci-fi Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/sci-fi-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "sub",
+    "use": "A low-frequency drop",
+    "tags": [
+      "hit",
+      "low",
+      "bass",
+      "sub",
+      "drop",
+      "sci-fi"
+    ],
+    "seconds": 1.01,
+    "source_file": "lowFrequency_explosion_001.ogg",
+    "pack": "Sci-fi Sounds",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/sci-fi-sounds",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "page",
+    "use": "A page turning",
+    "tags": [
+      "paper",
+      "page",
+      "book",
+      "flip",
+      "turn"
+    ],
+    "seconds": 0.44,
+    "source_file": "bookFlip2.ogg",
+    "pack": "RPG Audio",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "whoosh3",
+    "use": "A recorded whoosh for a transition",
+    "tags": [
+      "transition",
+      "whoosh",
+      "swish"
+    ],
+    "seconds": 0.83,
+    "source_file": "1795.ogg",
+    "pack": "BigSoundBank",
+    "author": "Joseph Sardin",
+    "url": "https://bigsoundbank.com/whoosh-3-s1795.html",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "whoosh4",
+    "use": "A recorded whoosh for a transition",
+    "tags": [
+      "transition",
+      "whoosh",
+      "swish"
+    ],
+    "seconds": 0.89,
+    "source_file": "1796.ogg",
+    "pack": "BigSoundBank",
+    "author": "Joseph Sardin",
+    "url": "https://bigsoundbank.com/whoosh-4-s1796.html",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "whoosh7",
+    "use": "A recorded whoosh for a transition",
+    "tags": [
+      "transition",
+      "whoosh",
+      "swish"
+    ],
+    "seconds": 0.73,
+    "source_file": "1800.ogg",
+    "pack": "BigSoundBank",
+    "author": "Joseph Sardin",
+    "url": "https://bigsoundbank.com/whoosh-7-s1800.html",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "whoosh8",
+    "use": "A recorded whoosh for a transition",
+    "tags": [
+      "transition",
+      "whoosh",
+      "swish"
+    ],
+    "seconds": 0.63,
+    "source_file": "1801.ogg",
+    "pack": "BigSoundBank",
+    "author": "Joseph Sardin",
+    "url": "https://bigsoundbank.com/whoosh-8-s1801.html",
+    "licence": "CC0-1.0"
+  }
+]
