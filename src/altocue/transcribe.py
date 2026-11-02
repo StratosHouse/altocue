@@ -5,12 +5,15 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import functools
+import gc
 import importlib.util
 import json
 import math
 import os
 import platform
 import re
+import shutil
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -24,7 +27,7 @@ import numpy as np
 
 from . import ffmpeg
 from .errors import AltocueError
-from .locks import heavy
+from .locks import free_memory_gb, heavy
 from .models import Clip, Word
 from .project import Project
 
@@ -40,8 +43,12 @@ SPREAD_MAX = 0.4
 GHOST_MARGIN = 0.3  # a word with no speech this close to it was never said
 LOOP_FILLER, LOOP_WORD, LOOP_PHRASE = 3, 6, 4
 STOCK_CONFIDENCE = 0.5
-PIECE = 900.0  # a recording past this goes to the engine in pieces of about this many seconds
-REACH = 60.0  # how far either side of a mark to look for the quietest moment
+PIECE = 100.0  # speech goes to a local engine in pieces this long, so its memory follows the piece and not the file
+REACH = 15.0  # how far either side of a mark to look for the quietest moment
+MLX_CACHE_BYTES = 256 * 2**20  # MLX keeps freed buffers, and by default that cache may grow past the machine's memory
+MLX_LIMIT_BYTES = 7 * 2**30
+MIN_FREE_DISK_GB = 5.0  # swap lives on this disk too, and a full disk with no swap took a 16 GB Mac down
+WAV_BYTES_PER_SECOND = 2 * RATE
 QUIET_WINDOW = 25  # envelope frames that must be quiet together, so a split lands in a pause and not between syllables
 ENVELOPE_BLOCK = 5000  # envelope frames read from disk at once
 
@@ -195,6 +202,7 @@ class LocalEngine:
     hosted: bool = False
     download: str = ""
     model: str = ""
+    needs_gb: float = 3.0
 
     def available(self) -> bool:
         return importlib.util.find_spec(self.module) is not None
@@ -214,6 +222,7 @@ class MlxWhisper(LocalEngine):
         import mlx_whisper  # pyright: ignore[reportMissingImports]
 
         repo = self.model or (self.english if language == "en" else self.multilingual)
+        limit_mlx()
         result = mlx_whisper.transcribe(
             str(wav),
             path_or_hf_repo=repo,
@@ -260,7 +269,12 @@ class Parakeet(LocalEngine):
     chunk, overlap = 120.0, 15.0
 
     def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
-        result = load_parakeet(self.model or self.repo).transcribe(str(wav), chunk_duration=self.chunk, overlap_duration=self.overlap)
+        try:
+            result = load_parakeet(self.model or self.repo).transcribe(str(wav), chunk_duration=self.chunk, overlap_duration=self.overlap)
+        except RuntimeError as error:
+            if "alloc" not in str(error).lower() and "memory" not in str(error).lower():
+                raise
+            raise AltocueError(f"{self.name} ran out of memory.", fix="Close other apps, or wait for other jobs to finish, then run this again.") from error
         return words_from_tokens(result.tokens)
 
 
@@ -270,7 +284,26 @@ def load_parakeet(name: str) -> Any:
     os.environ.setdefault("HF_HUB_VERBOSITY", "error")
     from parakeet_mlx import from_pretrained  # pyright: ignore[reportMissingImports]
 
-    return from_pretrained(name)
+    limit_mlx()
+    model = from_pretrained(name)
+    release_memory()
+    return model
+
+
+def limit_mlx() -> None:
+    """Without this, a 61 minute recording held 10 GB on a 16 GB Mac, because nothing gave the cache back."""
+    import mlx.core as mx  # pyright: ignore[reportMissingImports]
+
+    mx.set_cache_limit(MLX_CACHE_BYTES)
+    mx.set_memory_limit(MLX_LIMIT_BYTES)
+
+
+def release_memory() -> None:
+    """Hand back what the last piece held. Only an engine that has loaded MLX has anything to clear."""
+    gc.collect()
+    core = sys.modules.get("mlx.core")
+    if core is not None:
+        core.clear_cache()
 
 
 def words_from_tokens(tokens: list[Any]) -> list[Word]:
@@ -360,7 +393,7 @@ def scribe_words(data: dict[str, Any]) -> list[Word]:
 
 
 ENGINES: dict[str, Transcriber] = {
-    "parakeet": Parakeet("parakeet", "parakeet_mlx", "parakeet", download="about 2.5 GB"),
+    "parakeet": Parakeet("parakeet", "parakeet_mlx", "parakeet", download="about 2.5 GB", needs_gb=6.0),
     "mlx-whisper": MlxWhisper("mlx-whisper", "mlx_whisper", "mlx-whisper", download="about 460 MB"),
     "faster-whisper": FasterWhisper("faster-whisper", "faster_whisper", "faster-whisper", download="about 480 MB"),
     "elevenlabs": ElevenLabs(),
@@ -544,7 +577,7 @@ def prompt_for(project: Project, *, engine: str) -> str:
 
 
 def quiet_marks(envelope: Envelope, duration: float) -> list[float]:
-    """Where to split a long recording: the quietest pause near each mark, so no word is cut in two."""
+    """Where to split a recording: the quietest pause near each mark, so no word is cut in two."""
     if duration <= PIECE * 1.5 or not len(envelope.db):
         return []
     held = np.convolve(envelope.db, np.ones(QUIET_WINDOW) / QUIET_WINDOW, "same")
@@ -558,21 +591,40 @@ def quiet_marks(envelope: Envelope, duration: float) -> list[float]:
 
 
 def in_pieces(engine: Transcriber, wav: Path, envelope: Envelope, duration: float, *, language: str, prompt: str) -> list[Word]:
-    """Hand the engine a long recording a piece at a time, so its memory follows the piece and not the file."""
-    marks = quiet_marks(envelope, duration)
-    if not marks:
-        return engine.transcribe(wav, language=language, prompt=prompt)
+    """Hand a local engine the recording a piece at a time, clearing up after each, so memory stays flat however long it runs."""
+    marks = [] if engine.hosted else quiet_marks(envelope, duration)
     words: list[Word] = []
     edges = [0.0, *marks, duration]
     for start, end in zip(edges, edges[1:], strict=False):
-        piece = ffmpeg.extract_wav(wav, wav.with_name("piece.wav"), rate=RATE, start=start, end=end)
+        piece = ffmpeg.extract_wav(wav, wav.with_name("piece.wav"), rate=RATE, start=start, end=end) if marks else wav
         heard = engine.transcribe(piece, language=language, prompt=prompt)
         words += [dataclasses.replace(word, start=word.start + start, end=word.end + start) for word in heard]
-        piece.unlink()
+        release_memory()
     return words
 
 
+def check_room(engine: Transcriber, seconds: float) -> None:
+    """Refuse before anything loads, because running out halfway can take the whole machine down."""
+    needs = float(getattr(engine, "needs_gb", 0.0))
+    free = free_memory_gb() if needs and not engine.hosted else 0.0
+    if free is None:
+        print("Could not read free memory here, so this runs without that check.")
+    elif needs and not engine.hosted and free < needs:
+        raise AltocueError(
+            f"Only {free:.1f} GB of memory is free, and {engine.name} needs about {needs:g} GB.",
+            fix="Close other apps, or wait for other jobs to finish, then run this again.",
+        )
+    disk = shutil.disk_usage(tempfile.gettempdir()).free / 2**30
+    wanted = MIN_FREE_DISK_GB + seconds * WAV_BYTES_PER_SECOND / 2**30
+    if disk < wanted:
+        raise AltocueError(
+            f"Only {disk:.1f} GB of disk is free, and this needs about {wanted:.1f} GB, part of it held back for swap.",
+            fix="Free some disk space, then run this again.",
+        )
+
+
 def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: str, cues: list[str]) -> list[Word]:
+    check_room(engine, clip.duration)
     with tempfile.TemporaryDirectory() as folder:
         wav = ffmpeg.extract_wav(clip.path, Path(folder) / "audio.wav", rate=RATE)
         envelope = Envelope.from_wav(wav)

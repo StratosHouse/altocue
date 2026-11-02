@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from test_cut import silent_project, timed
 
-from altocue import brand, caption, cut, doctor, setup, speakers
+from altocue import brand, caption, cut, doctor, locks, setup, speakers
 from altocue import transcribe as transcribing
 from altocue.cli import main
 from altocue.errors import AltocueError
@@ -26,10 +26,13 @@ from altocue.speakers import Turn, assign
 
 
 @pytest.fixture(autouse=True)
-def no_waiting(monkeypatch):
-    """A long render elsewhere can hold the real lock, and nothing here is heavy."""
+def no_waiting(request, monkeypatch):
+    """A long render elsewhere can hold the real lock, and nothing here is heavy. So a real speech model fails the test."""
+    if request.node.get_closest_marker("slow"):
+        return
     monkeypatch.setattr(speakers.locks, "heavy", lambda label: nullcontext())
     monkeypatch.setattr(transcribing, "heavy", lambda label: nullcontext())
+    monkeypatch.setattr(transcribing, "load_parakeet", lambda name: pytest.fail("a test with no lock must not load the speech model"))
 
 
 def said(*spans: tuple[str, float, float]) -> list[Word]:
@@ -336,7 +339,8 @@ def test_two_voices_come_apart(tmp_path):
         truth.append((at, at + len(samples) / 16000, turn % 2))
         at += len(samples) / 16000 + 0.5
     wav = ffmpeg.write_wav(tmp_path / "both.wav", np.concatenate(parts), 16000)
-    found = speakers.select().turns(wav, count=2)
+    with locks.heavy("telling two voices apart"):
+        found = speakers.select().turns(wav, count=2)
     assert len({turn.speaker for turn in found}) == 2
     middle = [word.speaker for word in assign([Word(text="x", start=(a + b) / 2, end=(a + b) / 2 + 0.2) for a, b, _ in truth], found)]
     assert middle[0] == middle[2] == middle[4] != middle[1] == middle[3] == middle[5]
