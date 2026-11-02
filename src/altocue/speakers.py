@@ -26,7 +26,7 @@ from .project import Project, write_json
 
 RATE = 16000
 NEAREST = 0.5  # a word this close to a turn, and overlapping none, belongs to it
-CLUSTER_THRESHOLD = 0.6  # with the number of speakers unknown. 0.5 split one voice in two and 0.7 merged two, on recordings with known counts
+CLUSTER_THRESHOLD = 0.6  # with the speaker count unknown. Right on four real recordings; 0.5 split one voice in two, 0.7 merged two. Give the count when known
 MIN_TURN, MIN_GAP = 0.3, 0.5
 DOWNLOADS = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
 

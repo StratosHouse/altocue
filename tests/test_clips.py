@@ -122,6 +122,49 @@ def test_an_opening_that_needs_what_came_before_fails(tmp_path):
     assert not candidate["checks"]["opens"]["passed"]
 
 
+def first_of(text: str) -> clips.Said:
+    return clips.read_lines(spoken_lines([text]), 0.4)[0]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "What is it and why is it important?",
+        "Now in those days the thing was huge.",
+        "Sure.",
+        "Yeah, we tried that for a year.",
+        "That one change doubled our pricing.",
+        "Why does that matter to anyone?",
+    ],
+)
+def test_a_first_line_that_answers_or_points_back_fails(line):
+    assert not clips.opening(first_of(line), False).passed
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Most people get it wrong.",
+        "This year we doubled our prices.",
+        "The Navy sent me to the first big computer.",
+        "Why do most launches fail?",
+        "No one tells you about hiring.",
+        "There are three rules here.",
+    ],
+)
+def test_a_first_line_that_stands_up_passes(line):
+    assert clips.opening(first_of(line), False).passed
+
+
+def test_a_retake_is_not_a_theme():
+    lines = ["What is it and why is it important?", "So here is the best part.", "A completely separate editor has to sign off.", "A completely separate editor has to agree."]
+    assert not clips.focus(clips.read_lines(spoken_lines(lines), 0.4))[0].passed
+
+
+def test_a_one_word_line_is_no_hook():
+    assert not clips.first_line(first_of("Stop.")).passed
+
+
 def test_a_later_ordinal_needs_its_first(tmp_path):
     lone = clips.dangling(["Second you need a plan for the launch."])
     paired = clips.dangling(["First you need a list of buyers.", "Second you need a plan for the launch."])
@@ -415,3 +458,15 @@ def test_candidates_from_an_older_transcript_are_refused(tmp_path, capsys):
     project.save_words("talk", timed("Different words now."), "test")
     assert main(["clips", "cut", "-p", str(project.root), "--pick", "1"]) == 1
     assert "transcript changed" in capsys.readouterr().err
+
+
+def test_a_codec_mov_cannot_hold_goes_in_mkv(tmp_path):
+    webm = tmp_path / "talk.webm"
+    args = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15:duration=3", "-f", "lavfi", "-i", "sine=frequency=220:duration=3"]
+    made = subprocess.run([*args, "-c:v", "libvpx-vp9", "-b:v", "200k", "-c:a", "libopus", str(webm)], capture_output=True)
+    if made.returncode:
+        pytest.skip("this ffmpeg has no VP9 or Opus encoder")
+    clip = ffmpeg.probe_clip(webm, clip_id="talk")
+    dest, offset = clips.copy_stretch(clip, 1.0, 2.0, tmp_path)
+    assert dest.suffix == ".mkv" and offset >= 0
+    assert ffmpeg.probe_clip(dest).duration > 1.0

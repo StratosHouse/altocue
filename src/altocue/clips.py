@@ -35,9 +35,8 @@ RIGHTS_NOTE = "Long to shorts is for your own recordings, or footage you have th
 OUTSIDE = "Outside this clip."
 
 CLEAR_PAUSE = 0.35  # seconds of quiet that read as a break in the thought
-HOOK_WORDS = 18  # a first line past this is a run-up, not an opening
+HOOK_LEAST, HOOK_WORDS = 3, 18  # shorter says nothing alone, and longer is a run-up, not an opening
 FOLLOW = 0.95  # share of a clip one speaker must hold for it to count as theirs
-THEME_SHARE = 0.5  # at least this share of the lines should touch a word that comes back
 TOPIC_WINDOW = 4  # lines either side when looking for a change of subject
 HANDLE = 1.0  # seconds kept past each end, for the sound the blends at a cut need
 KEYFRAME_SEARCH = 30.0
@@ -54,7 +53,10 @@ LEANS_BACK = phrases(
     for example, for instance, in other words, that said, on the other hand, at the same time, as a result, after that, on top of that,
     that's why, that is why, which is why"""
 )
-NEEDS_A_NAME = phrases("it, it's, this is, this was, that is, that's, that was, they, they're, he, he's, she, she's, these are, those are, who")
+ANSWERS = phrases("yeah, yes, yep, sure, exactly, absolutely, right, okay, ok, well, oh, ah, uh, um, hmm, mm, mhm, i see, i agree, good question, great question")
+POINTS_BEFORE_NAMING = frozenset("it it's its they they're them their he he's him his she she's her this that that's these those".split())
+NOT_YET_A_NAME = frozenset("what what's when where why how who which now then".split())
+TIME_NOUNS = frozenset("year week month morning afternoon evening time summer winter spring autumn".split())
 CARRIES_ON = phrases("but, however, because, although, though, which, yet, except, unless, so")
 OPEN_ENDS = phrases(
     """let me show you, let me explain, let me tell you, i'll show you, i'll explain, i'm going to show, i'm going to explain, here's how,
@@ -182,13 +184,28 @@ def changes_of_subject(lines: list[Said]) -> set[int]:
     return {place for place, value in scores.items() if value <= cutoff}
 
 
+def unnamed(said: str) -> str:
+    """A pronoun before any noun has been said, so the listener has to know what came earlier."""
+    tokens = said.split()
+    for place, token in enumerate(tokens):
+        if token in POINTS_BEFORE_NAMING:
+            following = tokens[place + 1] if place + 1 < len(tokens) else ""
+            return "" if token == "this" and following in TIME_NOUNS else token
+        if len(token) > 3 and token not in STOPWORDS and token not in NOT_YET_A_NAME:
+            return ""
+    return ""
+
+
 def opening(line: Said, turns: bool) -> Check:
     leans = starts_with(line.said, LEANS_BACK)
     if leans:
         return Check(False, f'Starts with "{leans}", which leans on the line before. Trim it in the clip\'s script.md if the rest stands up.')
-    named = starts_with(line.said, NEEDS_A_NAME)
+    answer = starts_with(line.said, ANSWERS)
+    if answer:
+        return Check(False, f'Starts with "{answer}", which answers something the clip does not hold.')
+    named = unnamed(line.said)
     if named:
-        return Check(False, f'Starts with "{named}", and nothing in the clip says who or what that is.')
+        return Check(False, f'Says "{named}" before saying who or what that is.')
     if math.isinf(line.before):
         return Check(True, "Opens the recording.")
     if line.before >= CLEAR_PAUSE:
@@ -232,6 +249,8 @@ def hook_forms(line: str) -> list[str]:
 
 def first_line(line: Said) -> Check:
     count = len(line.text.split())
+    if count < HOOK_LEAST:
+        return Check(False, "The first line is too short to say anything alone.")
     if count > HOOK_WORDS:
         return Check(False, f"The first line runs {count} words, long for an opening.")
     forms = hook_forms(line.text)
@@ -268,13 +287,15 @@ def standing(lines: list[Said]) -> Check:
 
 
 def focus(lines: list[Said]) -> tuple[Check, float]:
-    counts = Counter(theme for line in lines for theme in line.themes)
-    themes = [theme for theme, seen in counts.most_common() if seen > 1]
+    """A word that opens the clip and comes back in its second half. Said twice in one place, it is a retake and not a theme."""
+    half = len(lines) // 2
+    early, late = (Counter(theme for line in part for theme in line.themes) for part in (lines[:half], lines[half:]))
+    themes = [theme for theme, _ in (early + late).most_common() if early[theme] and late[theme]]
     share = sum(1 for line in lines if line.themes.intersection(themes)) / len(lines)
     if len(lines) < 3:
         return Check(True, "Short enough to hold one idea."), share
-    if share < THEME_SHARE:
-        return Check(False, "No word of substance comes back, so it may wander."), share
+    if not themes:
+        return Check(False, "No word of substance carries from the first half to the second, so it may wander."), share
     return Check(True, f"Keeps coming back to {', '.join(themes[:3])}."), share
 
 

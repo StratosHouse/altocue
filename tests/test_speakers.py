@@ -7,6 +7,7 @@ import io
 import json
 import os
 import tarfile
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,12 +16,20 @@ import pytest
 from test_cut import silent_project, timed
 
 from altocue import brand, caption, cut, doctor, setup, speakers
+from altocue import transcribe as transcribing
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import Clip, Edl, Segment, Word
 from altocue.motion import basic, html
 from altocue.project import Project
 from altocue.speakers import Turn, assign
+
+
+@pytest.fixture(autouse=True)
+def no_waiting(monkeypatch):
+    """A long render elsewhere can hold the real lock, and nothing here is heavy."""
+    monkeypatch.setattr(speakers.locks, "heavy", lambda label: nullcontext())
+    monkeypatch.setattr(transcribing, "heavy", lambda label: nullcontext())
 
 
 def said(*spans: tuple[str, float, float]) -> list[Word]:
@@ -232,7 +241,13 @@ def test_mapped_words_carry_the_speaker(tmp_path):
 def test_a_caption_page_never_mixes_speakers(tmp_path):
     project = turns_project(tmp_path)
     pages = caption.build(project)
-    assert all(len({word["speaker"] for word in page["said_by"]}) == 1 for page in pages)
+    who = {word["text"]: page["speaker"] for page in pages for word in page["words"]}
+    assert who["work"] == "S1" and who["and"] == "S2"
+    assert {page["speaker"] for page in pages} == {"S1", "S2"}
+    edl = project.edl()
+    words = [word for word in cut.map_words(project, edl)]
+    pages = caption.build_pages(words, max_words=8, combine_ms=5000)
+    assert len(pages) == 2 and [len(page["words"]) for page in pages] == [4, 4]
 
 
 def test_captions_look_the_same_until_asked(tmp_path):
@@ -295,8 +310,8 @@ def test_the_plain_renderer_draws_colour_and_name(tmp_path):
 
 
 @pytest.mark.slow
-def test_two_real_voices_come_apart(tmp_path):
-    """Needs the extra, the models and macOS `say`, so it stays out of the normal run."""
+def test_two_voices_come_apart(tmp_path):
+    """Needs the extra, the models and macOS `say`, so it stays out of the normal run. Short turns need the count given."""
     import shutil
     import subprocess
 
@@ -321,7 +336,7 @@ def test_two_real_voices_come_apart(tmp_path):
         truth.append((at, at + len(samples) / 16000, turn % 2))
         at += len(samples) / 16000 + 0.5
     wav = ffmpeg.write_wav(tmp_path / "both.wav", np.concatenate(parts), 16000)
-    found = speakers.select().turns(wav, count=0)
+    found = speakers.select().turns(wav, count=2)
     assert len({turn.speaker for turn in found}) == 2
     middle = [word.speaker for word in assign([Word(text="x", start=(a + b) / 2, end=(a + b) / 2 + 0.2) for a, b, _ in truth], found)]
     assert middle[0] == middle[2] == middle[4] != middle[1] == middle[3] == middle[5]

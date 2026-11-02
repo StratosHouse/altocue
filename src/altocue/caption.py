@@ -66,10 +66,8 @@ def build_pages(
                 if strip_punctuation(w["text"])
             ]
             if shown:
-                page = {"start": shown[0]["start"], "end": shown[-1]["end"], "segment": chunk[0]["segment"], "words": shown}
-                if chunk[0].get("speaker"):
-                    page |= {"speaker": chunk[0]["speaker"], "said_by": [{"speaker": w.get("speaker", "")} for w in chunk]}
-                pages.append(page)
+                speaker = {"speaker": chunk[0]["speaker"]} if chunk[0].get("speaker") else {}
+                pages.append({"start": shown[0]["start"], "end": shown[-1]["end"], "segment": chunk[0]["segment"], "words": shown, **speaker})
 
     for page, following in zip(pages, pages[1:], strict=False):
         page["end"] = round(min(page["end"] + HOLD_AFTER, following["start"]), 3)
