@@ -30,6 +30,19 @@ STAGES: dict[str, tuple[str, str]] = {
     "qa": ("altocue.qa", "Run the fact gates"),
     "review": ("altocue.review", "Editor in Chief review"),
     "run": ("altocue.run", "Run every stage in order"),
+    "library": ("altocue.library", "Search motion, stock, sound and looks"),
+    "music": ("altocue.stock.music", "Find music you are allowed to use"),
+    "sfx": ("altocue.stock.sfx", "Find sound effects you are allowed to use"),
+    "credits": ("altocue.stock.credits", "List what this film must credit"),
+    "deliver": ("altocue.deliver", "Subtitles, chapters, thumbnails and platform versions"),
+    "export": ("altocue.export", "Hand the edit to Premiere, Resolve or Final Cut"),
+    "recipes": ("altocue.generate.recipes", "Browse and cost generation recipes"),
+    "facts": ("altocue.facts", "Measure the finished film"),
+    "benchmark": ("altocue.benchmark", "Compare against real videos from a CSV or your own key"),
+    "learn": ("altocue.learn", "Learn from your own published results"),
+    "clips": ("altocue.clips", "Find and cut short clips from a long video"),
+    "status": ("altocue.status", "Show what is done, stale and next"),
+    "demo": ("altocue.demo", "Prove this machine works on a sample clip"),
 }
 
 
