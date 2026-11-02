@@ -33,6 +33,8 @@ GATE_ACTIONS = {
     "format": "Re-render with the project's output settings.",
     "rules_strings": "Change the on-screen text. A human decides how.",
     "rules_ocr": "Look at the frames named. A human decides how to fix them.",
+    "claims": "Rewrite the line so the host shows what can be seen, or film a real customer who consents. A label does not cure this.",
+    "disclosure": "Add an on-screen label in motion.json, such as AI-generated actor, and flip the platform's AI toggle. See altocue-ugc.",
 }
 
 
@@ -121,6 +123,14 @@ def note_frames(project: Project, file: Path, notes: list[dict[str, Any]]) -> di
     return found
 
 
+def spend_lines(project: Project) -> list[str]:
+    """Stated in the report, because a film can pass every gate and still have spent money the cap never saw."""
+    from ..generate import spend_report, store
+
+    paid = store.ledger_path(project).exists() or store.reservations_path(project).exists()
+    return spend_report(project) if paid else []
+
+
 def write(project: Project, file: Path, result: dict[str, Any], gates: list[GateResult], log: dict[str, Any]) -> Path:
     result["notes"].sort(key=lambda n: (SEVERITY_ORDER[n["severity"]], n["start_seconds"]))
     frames = note_frames(project, file, result["notes"])
@@ -163,6 +173,9 @@ def write(project: Project, file: Path, result: dict[str, Any], gates: list[Gate
             lines.append(f"- {said} ({item['why']})")
     if result["warnings"]:
         lines += ["", "## Warnings", "", *[f"- {w}" for w in result["warnings"]]]
+    spend = spend_lines(project)
+    if spend:
+        lines += ["", "## Spend", "", *[f"- {line}" for line in spend]]
     lines += ["", "## What this review could not see or hear", "", *[f"- {item}" for item in result["limits"]], ""]
     path = project.review_dir / "REPORT.md"
     path.write_text("\n".join(lines))

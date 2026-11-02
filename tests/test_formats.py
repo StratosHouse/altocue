@@ -136,6 +136,40 @@ def test_a_missing_slot_says_which_one():
         resolve_items([{"type": "word_slam"}], WORDS, 8.0)
 
 
+@pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
+def test_inline_animation_names_match_the_scoped_keyframes(fmt, brand):
+    """A name written by draw() must survive scoping, or the graphic silently stops moving."""
+    body = page(fmt, brand)
+    defined = set(formats.KEYFRAMES.findall(body))
+    for style in re.findall(r'style="([^"]*animation[^"]*)"', body):
+        for block in formats.ANIMATED.findall(style):
+            names = {word for word in formats.WORD.findall(block.split(":", 1)[1])} - CSS_WORDS - CORE_KEYFRAMES
+            assert names <= defined, f"{names} has no keyframes"
+
+
+def test_images_land_on_stage_under_a_flat_name(project):
+    (project.root / "shot.png").write_bytes(b"png")
+    item = formats.place_images(project.root, {"type": "iso_stack", "layers": [{"src": "shot.png"}, {"text": "No image"}]})
+    name = item["layers"][0]["src"]
+    assert name.startswith("img-") and name.endswith(".png") and item["stage_images"][name] == str((project.root / "shot.png").resolve())
+
+
+def test_a_single_image_slot_is_placed_too(project):
+    (project.root / "ui.webp").write_bytes(b"webp")
+    assert formats.place_images(project.root, {"type": "floating_device", "image": "ui.webp"})["image"].endswith(".webp")
+
+
+def test_an_image_outside_the_project_is_refused(project):
+    with pytest.raises(AltocueError, match="not in this project"):
+        formats.place_images(project.root, {"type": "floating_device", "image": "../../secret.png"})
+
+
+def test_a_file_that_is_not_an_image_is_refused(project):
+    (project.root / "notes.txt").write_text("hi")
+    with pytest.raises(AltocueError, match="not an image"):
+        formats.place_images(project.root, {"type": "floating_device", "image": "notes.txt"})
+
+
 def test_only_formats_in_the_film_add_css(brand):
     html = compose({"width": 1080, "height": 1920, "fps": 30, "duration": 8.0, "tail": 0, "total": 8.0, "captions": [], "items": []}, brand)
     assert ".f-word_slam" not in html and "fmt-panel" not in html

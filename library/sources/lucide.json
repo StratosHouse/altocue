@@ -1,0 +1,49 @@
+{
+  "id": "lucide",
+  "name": "Lucide",
+  "url": "https://github.com/lucide-icons/lucide",
+  "classes": [
+    "icon"
+  ],
+  "holds": "Clean open line icons.",
+  "size": {
+    "count": 2015,
+    "unit": "icons",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "ISC",
+    "url": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the ISC notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/lucide-icons/lucide",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "ISC sits outside the bundle rule, so it is fetched, not shipped."
+}

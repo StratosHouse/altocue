@@ -1,0 +1,49 @@
+{
+  "id": "shadcn-registries",
+  "name": "shadcn registry directory",
+  "url": "https://ui.shadcn.com/r/registries.json",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A live list of component registries with health scores.",
+  "size": {
+    "count": 530,
+    "unit": "registries",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/shadcn-ui/ui/blob/main/LICENSE.md",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://ui.shadcn.com/r/registries.json",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "A discovery feed, not a licence. Each registry needs its own check."
+}

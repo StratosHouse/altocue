@@ -1,0 +1,44 @@
+{
+  "id": "smithsonian",
+  "name": "Smithsonian Open Access",
+  "url": "https://www.si.edu/openaccess",
+  "classes": [
+    "photo"
+  ],
+  "holds": "CC0 records and images across the Smithsonian's museums.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": "CC0-1.0",
+    "url": "https://www.si.edu/openaccess",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://edan.si.edu/openaccess/apidocs/",
+    "key": "free",
+    "key_env": "DATA_GOV_API_KEY",
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The CC0 counts come from its live stats API, because the FAQ turned away the read. A video filter returned nothing, so treat this as photos only."
+}

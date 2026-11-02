@@ -80,7 +80,7 @@ def push_filter(c: Canvas, frames: int, start: float, end: float, first: int = 0
     A piece that starts `first` frames in carries on from there, and past either end the zoom stays put.
     """
     span = max(frames - 1, 1)
-    place = f"n/{span}" if not first else f"clip((n+{first})/{span},0,1)"
+    place = f"in/{span}" if not first else f"clip((in+{first})/{span},0,1)"  # perspective names its frame counter `in`, not `n`
     z = f"({start}+({end}-{start})*{place})"
     w, h = f"(W/{z})", f"(H/{z})"
     x0, y0 = f"((W-{w})/2)", f"((H-{h})*{ZOOM_ORIGIN_Y})"

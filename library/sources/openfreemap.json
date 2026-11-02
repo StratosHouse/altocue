@@ -1,0 +1,53 @@
+{
+  "id": "openfreemap",
+  "name": "OpenFreeMap",
+  "url": "https://openfreemap.org/",
+  "classes": [
+    "map"
+  ],
+  "holds": "Free hosted OpenStreetMap tiles.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "ODbL-1.0",
+    "url": "https://openfreemap.org/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "OpenStreetMap contributors"
+  },
+  "access": {
+    "kind": "cdn",
+    "docs": "https://openfreemap.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "No view caps. Offline at most 3,000 tiles or 50 MB, 4 at a time"
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "credit_required",
+    "share_alike"
+  ],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "Liberty style",
+    "results": 1,
+    "direct_file": false,
+    "status": "partial"
+  },
+  "notes": "Credit is needed, including in video."
+}

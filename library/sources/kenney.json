@@ -1,0 +1,48 @@
+{
+  "id": "kenney",
+  "name": "Kenney",
+  "url": "https://kenney.nl/",
+  "classes": [
+    "sfx",
+    "music",
+    "character",
+    "3d",
+    "icon"
+  ],
+  "holds": "CC0 game assets: sound effects, jingles, 3D kits and characters.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": "CC0-1.0",
+    "url": "https://kenney.nl/support",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://kenney.nl/assets",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Altocue already ships some of its sound effects. Credit the name if you credit anything, and never use the logo. Its isometric packs are 2D tiles."
+}

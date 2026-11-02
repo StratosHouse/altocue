@@ -12,7 +12,8 @@ from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, trans
 from . import timeline as timelines
 from .errors import AltocueError
 from .motion import formats
-from .project import Project
+from .project import Project, write_json
+from .stock import credits
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -150,6 +151,7 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         picture, voice = plate.build(project, draft=draft)
         caption.build(project)
         timeline = timelines.build(project)
+        credits.write_txt(project)
         layer = motion.render_layers(project, renderer=renderer, draft=draft)
         audio = project.work / "mix.wav"
         music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
@@ -159,6 +161,8 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         c = plate.canvas(project, draft=draft)
         timeline = bake_edges(project, timeline, picture, c, draft=draft)
         ffmpeg.run(compose_args(project, picture, audio, layer, timeline, c, dest))
+    if not draft:
+        write_json(project.work / "render.json", {"cut": project.cut_mark()})
     return dest
 
 

@@ -1,0 +1,50 @@
+{
+  "id": "paper-shaders",
+  "name": "Paper Shaders",
+  "url": "https://github.com/paper-design/shaders",
+  "classes": [
+    "motion",
+    "overlay"
+  ],
+  "holds": "Zero-dependency canvas shaders with a frame control for seeking.",
+  "size": {
+    "count": 30,
+    "unit": "shaders",
+    "as_of": "2026-11-02",
+    "method": "npm"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "Apache-2.0",
+    "url": "https://github.com/paper-design/shaders/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the licence and NOTICE"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/paper-design/shaders",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": ""
+}

@@ -1,0 +1,44 @@
+{
+  "id": "blender-mcp",
+  "name": "BlenderMCP",
+  "url": "https://github.com/ahujasid/blender-mcp",
+  "classes": [
+    "3d"
+  ],
+  "holds": "Connects an agent to a running Blender.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/ahujasid/blender-mcp/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "local",
+    "docs": "https://github.com/ahujasid/blender-mcp",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "It runs arbitrary Python inside Blender, so treat it with care."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "quaternius",
+  "name": "Quaternius",
+  "url": "https://quaternius.com/",
+  "classes": [
+    "3d",
+    "character"
+  ],
+  "holds": "CC0 low-poly 3D packs.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://quaternius.com/faq.html",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://quaternius.com/faq.html",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "No API and a mixed look, so a person picks."
+}

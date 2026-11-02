@@ -669,12 +669,26 @@ def _stamp(project: Project, clips: list[Clip], look: str, enabled: bool, ranges
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-def _user_lut(project: Project, lut: str | Path | None) -> Path | None:
-    """A flag is read from where the command ran. A path in `altocue.toml` starts at the project."""
-    if lut:
-        return Path(lut)
+def _asked(project: Project, look: str | None = None, strength: float | None = None, lut: str | Path | None = None) -> tuple[Any, float, str]:
+    """What the flags and `altocue.toml` ask for. A flag beats the file, and a LUT replaces the look in the file."""
+    from . import looks
+
+    amount = float(project.setting("grade", "look_strength", 1.0) if strength is None else strength)
     named = project.setting("grade", "lut", "")
-    return project.root / Path(named).expanduser() if named else None
+    user_lut = Path(lut) if lut else project.root / Path(named).expanduser() if named else None  # a flag reads from the shell, the file from the project
+    plain = "natural" if user_lut and not look else None
+    finish = looks.choose(look or plain or project.setting("grade", "look", "natural"), strength=amount, lut=user_lut)
+    return finish, amount, looks.stamp(user_lut)
+
+
+def up_to_date(project: Project) -> bool:
+    """True when `altocue grade` would keep the LUTs it has."""
+    path = project.lut_dir / "report.json"
+    if not path.exists():
+        return False
+    finish, amount, lut = _asked(project)
+    stamp = _stamp(project, project.clips(), finish.name, bool(project.setting("grade", "enabled", True)), _kept_ranges(project), strength=amount, lut=lut)
+    return json.loads(path.read_text()).get("stamp") == stamp
 
 
 def grade_project(
@@ -683,15 +697,12 @@ def grade_project(
     """Bake one LUT per clip and write `work/luts/report.json`."""
     from . import looks
 
-    amount = float(project.setting("grade", "look_strength", 1.0) if strength is None else strength)
-    user_lut = _user_lut(project, lut)
-    plain = "natural" if user_lut and not look else None  # a LUT replaces the look in the config, and a flag beats both
-    finish = looks.choose(look or plain or project.setting("grade", "look", "natural"), strength=amount, lut=user_lut)
+    finish, amount, lut_mark = _asked(project, look, strength, lut)
     chosen = finish.name
     enabled = bool(project.setting("grade", "enabled", True))
     clips = project.clips()
     ranges = _kept_ranges(project)
-    stamp = _stamp(project, clips, chosen, enabled, ranges, strength=amount, lut=looks.stamp(user_lut))
+    stamp = _stamp(project, clips, chosen, enabled, ranges, strength=amount, lut=lut_mark)
     report_path = project.lut_dir / "report.json"
     if not force and report_path.exists():
         saved = json.loads(report_path.read_text())

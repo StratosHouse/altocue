@@ -30,6 +30,8 @@ STAGES: dict[str, tuple[str, str]] = {
     "qa": ("altocue.qa", "Run the fact gates"),
     "review": ("altocue.review", "Editor in Chief review"),
     "run": ("altocue.run", "Run every stage in order"),
+    "film": ("altocue.film", "Make a film with no footage: launch, explainer, ad and more"),
+    "launch": ("altocue.film", "Make a launch video from a brief"),
     "library": ("altocue.library", "Search motion, stock, sound and looks"),
     "music": ("altocue.stock.music", "Find music you are allowed to use"),
     "sfx": ("altocue.stock.sfx", "Find sound effects you are allowed to use"),

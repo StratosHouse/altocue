@@ -272,3 +272,47 @@ def test_a_film_with_no_sound_at_all_passes_through(tmp_path):
         master.master_file(source, tmp_path / "out.mp4")
     assert master.master_file(source, tmp_path / "out.mp4", silent_film=True)["mode"] == "silent"
     assert (tmp_path / "out.mp4").exists()
+
+
+def test_every_named_target_says_where_its_numbers_come_from():
+    for target in master.TARGETS.values():
+        assert target.source
+        assert target.primary or "no primary source" in target.source.lower()
+
+
+def test_the_cited_targets_carry_the_published_numbers():
+    assert (master.TARGETS["podcast"].loudness, master.TARGETS["podcast"].true_peak) == (-16.0, -1.0)
+    assert (master.TARGETS["streaming"].loudness, master.TARGETS["streaming"].true_peak) == (-14.0, -1.0)
+    assert (master.TARGETS["broadcast"].loudness, master.TARGETS["broadcast"].true_peak) == (-23.0, -1.0)
+    assert all(master.TARGETS[name].primary for name in ("podcast", "streaming", "broadcast"))
+    assert not master.TARGETS["social"].primary and not master.TARGETS["hot"].primary
+
+
+def test_cli_masters_to_a_named_target_and_measures_it(tmp_path, film, capsys):
+    dest = tmp_path / "out.mp4"
+    assert main(["master", "--input", str(film), "--output", str(dest), "--loudness", "podcast"]) == 0
+    measured = ffmpeg.loudness(dest)
+    assert abs(measured["integrated"] + 16) <= 0.5 and measured["true_peak"] < -1
+    assert "Apple Podcasts" in capsys.readouterr().out
+
+
+def test_true_peak_on_the_command_line_beats_the_named_target(tmp_path, film):
+    dest = tmp_path / "out.mp4"
+    assert main(["master", "--input", str(film), "--output", str(dest), "--loudness", "podcast", "--true-peak", "-3"]) == 0
+    assert ffmpeg.loudness(dest)["true_peak"] < -3
+
+
+def test_an_unknown_target_is_refused(tmp_path, film):
+    with pytest.raises(SystemExit):
+        main(["master", "--input", str(film), "--output", str(tmp_path / "out.mp4"), "--loudness", "very-loud"])
+
+
+def test_a_project_can_name_its_target(tmp_path):
+    project = Project.create(tmp_path / "video")
+    config = project.root / "altocue.toml"
+    config.write_text(config.read_text().replace("loudness = -14.0", 'loudness = "podcast"').replace("true_peak = -1.5        # dBTP\n", ""))
+    assert master.project_target(Project.open(project.root)) == (-16.0, -1.0)
+
+
+def test_a_number_in_the_project_still_works(tmp_path):
+    assert master.project_target(Project.create(tmp_path / "video")) == (-14.0, -1.5)

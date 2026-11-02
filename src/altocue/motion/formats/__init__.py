@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import pkgutil
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ...errors import AltocueError
@@ -29,6 +31,8 @@ CORE_TYPES = {"hook", "chip", "lower_third", "stat", "quote", "steps", "title", 
 FONT_FILES = {"mono": "GeistMono-Variable.ttf", "serif": "InstrumentSerif-Regular.ttf", "hand": "Caveat-Variable.ttf"}
 FONT_STACKS = {"mono": 'ui-monospace,Menlo,monospace', "serif": "Georgia,serif", "hand": "cursive"}
 
+IMAGE_KEYS = ("image", "src")
+IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".svg")
 KEYFRAMES = re.compile(r"@keyframes\s+([\w-]+)")
 ANIMATED = re.compile(r"@keyframes\s+[\w-]+|animation(?:-name)?\s*:[^;}]+")
 WORD = re.compile(r"(?<![\w-])[A-Za-z_][\w-]*")
@@ -48,7 +52,7 @@ class Slot:
     """One thing a format needs. A text limit is characters that fit. A list limit is rows, and `each` is characters per row."""
 
     name: str
-    kind: str = "text"  # text, number, list, choice
+    kind: str = "text"  # text, number, list, choice, path
     limit: int = 0
     required: bool = True
     choices: tuple[str, ...] = ()
@@ -157,7 +161,7 @@ def strings(item: dict[str, Any]) -> list[str]:
 def render(item: dict[str, Any], attrs: str, style: str) -> str:
     fmt = load()[item["type"]]
     leaves = " fmt-leaves" if fmt.leaves else ""
-    return f'<div class="clip fmt-{fmt.area}{leaves} f-{fmt.id}" {attrs} {style}>{fmt.draw(item)}</div>'
+    return f'<div class="clip fmt-{fmt.area}{leaves} f-{fmt.id}" {attrs} {style}>{_scoped(fmt, fmt.draw(item))}</div>'
 
 
 def used(items: Iterable[dict[str, Any]]) -> list[Format]:
@@ -169,14 +173,50 @@ def fonts_for(items: Iterable[dict[str, Any]]) -> list[str]:
     return sorted({font for fmt in used(items) for font in fmt.fonts})
 
 
-def scoped_css(fmt: Format) -> str:
-    """Keyframes carry the format's id, so two formats in one film can each have their own `pop`."""
+def _scoped(fmt: Format, text: str) -> str:
     names = set(KEYFRAMES.findall(fmt.css))
 
     def rename(found: re.Match[str]) -> str:
         return WORD.sub(lambda word: f"{fmt.id}--{word.group(0)}" if word.group(0) in names else word.group(0), found.group(0))
 
-    return ANIMATED.sub(rename, fmt.css)
+    return ANIMATED.sub(rename, text)
+
+
+def scoped_css(fmt: Format) -> str:
+    """Keyframes carry the format's id, so two formats in one film can each have their own `pop`."""
+    return _scoped(fmt, fmt.css)
+
+
+def stage_name(reference: str) -> str:
+    """A flat name for a project image beside the page, so two folders' logo.png never collide."""
+    return f"img-{hashlib.sha256(str(reference).encode()).hexdigest()[:16]}{PurePosixPath(str(reference)).suffix.lower()}"
+
+
+def place_images(root: Path, item: dict[str, Any]) -> dict[str, Any]:
+    """Check every image a graphic names is a real picture in the project, and point the graphic at its name on stage."""
+    if find(item.get("type")) is None:
+        return item
+    placed = dict(item)
+    stage: dict[str, str] = {}
+
+    def place(row: dict[str, Any]) -> dict[str, Any]:
+        row = dict(row)
+        for key in IMAGE_KEYS:
+            if row.get(key):
+                path = (root / str(row[key])).resolve()
+                if not path.is_file() or not path.is_relative_to(root.resolve()):
+                    raise AltocueError(f"{item['type']}: the image {row[key]} is not in this project.", fix="Point it at an image file inside the project.")
+                if path.suffix.lower() not in IMAGE_TYPES:
+                    raise AltocueError(f"{item['type']}: {row[key]} is not an image this renderer can show.", fix=f"Use one of {', '.join(IMAGE_TYPES)}.")
+                row[key] = stage_name(row[key])
+                stage[row[key]] = str(path)
+        return row
+
+    placed = place(placed)
+    for key, value in item.items():
+        if isinstance(value, list):
+            placed[key] = [place(row) if isinstance(row, dict) else row for row in value]
+    return {**placed, "stage_images": stage} if stage else placed
 
 
 def stylesheet(items: Iterable[dict[str, Any]]) -> str:

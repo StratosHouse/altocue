@@ -1,0 +1,49 @@
+{
+  "id": "gl-transitions",
+  "name": "GL Transitions",
+  "url": "https://github.com/gl-transitions/gl-transitions",
+  "classes": [
+    "transition"
+  ],
+  "holds": "Open GLSL transitions, each a pure function of progress.",
+  "size": {
+    "count": 149,
+    "unit": "transitions",
+    "as_of": "2026-11-02",
+    "method": "npm"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": "MIT",
+    "url": "https://github.com/gl-transitions/gl-transitions/blob/master/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the header in the shader"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://www.npmjs.com/package/gl-transitions",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Each one needs both clips, so it belongs in the picture edit. Only MIT and BSD items are listed."
+}

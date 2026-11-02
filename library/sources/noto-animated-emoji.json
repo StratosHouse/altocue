@@ -1,0 +1,58 @@
+{
+  "id": "noto-animated-emoji",
+  "name": "Noto animated emoji",
+  "url": "https://googlefonts.github.io/noto-emoji-animation/",
+  "classes": [
+    "animation",
+    "emoji"
+  ],
+  "holds": "881 animated emoji as Lottie files.",
+  "size": {
+    "count": 881,
+    "unit": "animations",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://googlefonts.github.io/noto-emoji-animation/",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "cdn",
+    "docs": "https://googlefonts.github.io/noto-emoji-animation/data/api.json",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "data/api.json",
+    "results": 881,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "CC BY 4.0 by third-party report only. Google's page states no licence, so hold back until it is confirmed."
+}

@@ -158,6 +158,12 @@ def run(args: argparse.Namespace) -> int:
     if rounds.blocked(project, digest):
         print("Both fix rounds are used, so no reviewer was called. This is with a human now. Use --reset-rounds to start again.")
         return 1
+    missing = qa.not_run(gates)
+    if missing and chosen != "pack":
+        raise AltocueError(
+            f"Not checked: {', '.join(g.id for g in missing)}. This film cannot SHIP, so no {chosen} review was paid for.",
+            fix="Run `altocue doctor`, fix what stopped those gates, then review again. `--reviewer pack` costs nothing and still works.",
+        )
     if chosen == "gemini":
         gemini.require(project, upload=args.upload, paid=args.paid_key)
 

@@ -1,0 +1,44 @@
+{
+  "id": "tubelab",
+  "name": "TubeLab",
+  "url": "https://tubelab.net/docs/api/mcp-server",
+  "classes": [
+    "data"
+  ],
+  "holds": "YouTube and Shorts research with an API on its Pro plan.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://tubelab.net/docs/api/mcp-server",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://tubelab.net/docs/api/mcp-server",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Best runner-up for transcripts. Its terms address returned 404."
+}

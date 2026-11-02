@@ -27,6 +27,7 @@ DEFAULT_CONFIG = """\
 [output]
 aspect = "{aspect}"     # any W:H, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9
 fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
+# platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
 
 [brand]
 name = "default"        # a preset name or a path to a brand.json
@@ -44,7 +45,7 @@ remove_fillers = true
 
 [audio]
 denoise = true
-loudness = -14.0        # integrated LUFS
+loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast
 true_peak = -1.5        # dBTP
 
 [grade]
@@ -64,8 +65,15 @@ library = []            # folders of your own clips, searched first
 
 [generate]
 provider = ""           # fal or higgsfield. Empty means nothing generates
-spend_cap_usd = 0.0     # the most one run may spend. 0 blocks all paid calls
+spend_cap_usd = 0.0     # the most this project may spend, on every route. 0 blocks all paid calls
 usd_per_credit = 0.08   # Higgsfield only: your plan's dollars per credit
+
+[disclosure]            # for a film with a generated person. A check, not legal advice
+label = "AI-generated actor"   # the words that must stay on screen. Put them in motion.json
+exempt = ""             # why no label is needed, in your words. Recorded, never judged
+
+[ugc]
+label_text = []         # words printed on the real product, so `qa --check ugc` does not call them baked in
 
 [review]
 reviewer = "auto"       # auto, gemini, codex or pack

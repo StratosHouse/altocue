@@ -1,0 +1,48 @@
+{
+  "id": "hald-clut-cedeber",
+  "name": "cedeber/hald-clut",
+  "url": "https://github.com/cedeber/hald-clut",
+  "classes": [
+    "lut"
+  ],
+  "holds": "HaldCLUTs including sets derived from commercial products.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "GPL-3.0-only",
+    "url": "https://github.com/cedeber/hald-clut",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/cedeber/hald-clut",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "metadata_unreliable",
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Tagged GPL-3.0, which is doubtful for sets derived from commercial products."
+}

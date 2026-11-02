@@ -24,7 +24,7 @@ from .detect import VOICED_PAUSE, candidates, certain
 from .review import apply_rulings, covering, load_rulings, removal_id, write_report, write_review
 from .snap import FRAME_SLACK, OVERLAP, POST, PRE, frame_count, last_full_frame, overlap, plays, snap, to_grid
 
-__all__ = ["add_arguments", "apply_review", "expected_words", "map_words", "propose", "removal_id", "run", "validate"]
+__all__ = ["add_arguments", "apply_review", "expected_words", "map_words", "propose", "removal_id", "run", "segment_ends", "validate"]
 
 TIME_SLACK = 0.02  # ffprobe durations can sit a hair under the last sample
 LABEL_WORDS = 5
@@ -250,6 +250,16 @@ def expected_words(project: Project, edl: Edl) -> list[str]:
 def caption_words(project: Project, edl: Edl) -> list[str]:
     """What the captions should show. A kept filler is heard, and stays out of them."""
     return [word["text"] for word in map_words(project, edl) if word.get("kind", "word") == "word"]
+
+
+def segment_ends(edl: Edl) -> dict[str, float]:
+    """Where each segment stops in output seconds. These are the cuts nothing on screen may hold across."""
+    ends: dict[str, float] = {}
+    frame = 0
+    for segment in edl.segments:
+        frame += frame_count(segment.start, segment.end, edl.fps)
+        ends[segment.id] = round(frame / edl.fps, 3)
+    return ends
 
 
 def map_words(project: Project, edl: Edl) -> list[dict[str, Any]]:

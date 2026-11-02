@@ -1,0 +1,46 @@
+{
+  "id": "lemo-opuscar",
+  "name": "lemo-opuscar",
+  "url": "https://github.com/lemomo-ai/lemo-opuscar",
+  "classes": [
+    "motion"
+  ],
+  "holds": "Excellent style prompts with demo source code, not an asset library.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": "MIT",
+    "url": "https://github.com/lemomo-ai/lemo-opuscar/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice for any code, credit the films"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/lemomo-ai/lemo-opuscar",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Link plus patterns. Code and guides are MIT, the demo films are CC BY 4.0, and archive footage in them is not ours to ship. We learn from it and write our own."
+}

@@ -1,0 +1,44 @@
+{
+  "id": "outlierkit",
+  "name": "OutlierKit",
+  "url": "https://outlierkit.com/pricing",
+  "classes": [
+    "data"
+  ],
+  "holds": "YouTube outlier research on paid plans.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "outlierkit-terms",
+    "url": "https://outlierkit.com/pricing",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://outlierkit.com/pricing",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "One of its comparison pages was wrong, so distrust its comparisons."
+}

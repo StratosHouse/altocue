@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import cut, ffmpeg, overlays, transitions
+from . import cut, ffmpeg, overlays, platforms, transitions
 from .errors import AltocueError
 from .models import Edl
 from .motion import compositions, formats, placement
@@ -157,14 +157,16 @@ def build(project: Project) -> dict[str, Any]:
     duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
     edits = picture_edits(project, edl, words=words)
     items, tail = resolve_items(motion.get("items", []), words, duration)
-    items = [compositions.resolve(project, item) if item["type"] == "composition" else item for item in items]
+    items = [compositions.resolve(project, item) if item["type"] == "composition" else formats.place_images(project.root, item) for item in items]
     width, height = project.size
     brand = brands.load(project)
     picture = next((path for path in (project.work / "plate.mp4", project.work / "plate-draft.mp4") if path.exists()), None)
-    items = placement.place(items, picture, (width, height), brand)
+    zone = platforms.zone_of(project)
+    items = placement.place(items, picture, (width, height), brand, zone)
     timeline = {
         "width": width,
         "height": height,
+        "zone": zone,
         "fps": edl.fps,
         "duration": duration,
         "tail": tail,

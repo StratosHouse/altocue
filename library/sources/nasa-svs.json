@@ -1,0 +1,50 @@
+{
+  "id": "nasa-svs",
+  "name": "NASA Scientific Visualization Studio",
+  "url": "https://svs.gsfc.nasa.gov/",
+  "classes": [
+    "video"
+  ],
+  "holds": "Science visualisations from NASA.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "nasa-media",
+    "url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "{title}, NASA Scientific Visualization Studio"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://svs.gsfc.nasa.gov/help/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "Not stated"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "ocean",
+    "results": 1443,
+    "direct_file": false,
+    "status": "partial"
+  },
+  "notes": "The search works. File addresses were not tested. Third-party data is possible, so check each item."
+}

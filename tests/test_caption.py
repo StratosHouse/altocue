@@ -1,4 +1,7 @@
+from altocue import caption
 from altocue.caption import balanced, build_pages, strip_punctuation
+from altocue.models import Clip, Edl, Segment, Word
+from altocue.project import Project
 
 
 def word(text, start, end, segment="a"):
@@ -43,3 +46,28 @@ def test_a_page_never_runs_into_the_next_one_across_a_cut():
 def test_a_comma_ends_the_page():
     pages = build_pages([word("sound,", 0.1, 0.3), word("it", 0.32, 0.4), word("fixes", 0.42, 0.6)], combine_ms=700)
     assert [[w["text"] for w in p["words"]] for p in pages] == [["sound"], ["it", "fixes"]]
+
+
+def jump_cut(tmp_path, words, segments, fps=50):
+    project = Project.create(tmp_path / "video")
+    project.save_clips([Clip(id="a", path=str(tmp_path / "gone.mp4"), duration=4.0, fps=fps, width=1080, height=1920, has_audio=False)])
+    project.save_words("a", words, "test")
+    project.save_edl(Edl(fps=fps, segments=[Segment(id=f"s{n:03d}", clip="a", start=a, end=b) for n, (a, b) in enumerate(segments, 1)]))
+    return project
+
+
+def test_the_hold_stops_at_the_cut(tmp_path):
+    words = [Word("one", 0.3, 0.6), Word("two", 1.5, 1.8)]
+    pages = caption.build(jump_cut(tmp_path, words, [(0.0, 0.62), (1.2, 2.0)]))
+    assert pages[0]["end"] == 0.62
+
+
+def test_the_last_page_stops_with_the_footage(tmp_path):
+    pages = caption.build(jump_cut(tmp_path, [Word("one", 0.3, 0.6)], [(0.0, 0.62)]))
+    assert pages[0]["end"] == 0.62
+
+
+def test_a_page_still_holds_when_the_cut_is_far_away(tmp_path):
+    words = [Word("one", 0.3, 0.6), Word("two", 1.5, 1.8)]
+    pages = caption.build(jump_cut(tmp_path, words, [(0.0, 1.0), (1.2, 2.0)]))
+    assert pages[0]["end"] == 0.88

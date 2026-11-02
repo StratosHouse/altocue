@@ -1,0 +1,47 @@
+{
+  "id": "ready-player-me",
+  "name": "Ready Player Me",
+  "url": "https://en.wikipedia.org/wiki/Ready_Player_Me",
+  "classes": [
+    "character"
+  ],
+  "holds": "An avatar service reported closed.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://en.wikipedia.org/wiki/Ready_Player_Me",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://en.wikipedia.org/wiki/Ready_Player_Me",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "dead"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Reported shut down on 31 January 2026, by secondary sources."
+}
