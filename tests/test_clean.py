@@ -157,6 +157,13 @@ def test_a_hum_far_below_the_noise_is_left_alone():
     assert clean.detect_hum(speech(6) + hiss(6, -50) + tone(6, 60, -95), RATE) is None
 
 
+def test_the_quietest_stretch_is_room_and_never_half_digital_silence():
+    samples = speech(4, 0.15) + hiss(4, -60)
+    samples[: RATE // 4] = 0.0
+    stretch = clean.quietest(samples.astype(np.float32), RATE)
+    assert 20 * np.log10(np.sqrt(np.mean(np.square(stretch.astype(np.float64))))) == pytest.approx(-60, abs=2)
+
+
 def test_harder_work_for_worse_audio():
     order = [clean.plan_denoise(snr)["strength"] for snr in (60, 38, 26, 8)]
     assert order == ["none", "light", "normal", "strong"]

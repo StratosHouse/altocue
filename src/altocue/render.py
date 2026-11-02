@@ -88,7 +88,8 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
     layer = motion.render_layers(project, renderer=renderer, draft=draft)
     audio = project.work / "mix.wav"
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
-    mix.mix_bed(voice, audio, music=music, sfx=sfx_cues(timeline) if timeline.get("sfx", True) else [], tail=timeline["tail"])
+    room = voice.with_name(f"{voice.stem}-room.wav")
+    mix.mix_bed(voice, audio, music=music, sfx=sfx_cues(timeline) if timeline.get("sfx", True) else [], tail=timeline["tail"], room=room)
     dest = project.out / ("draft.mp4" if draft else "render.mp4")
     ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
     return dest

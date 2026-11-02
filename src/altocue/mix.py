@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ffmpeg
+from . import clean, ffmpeg
 from .errors import AltocueError
 from .models import Edl
 from .project import Project, write_json
@@ -32,6 +32,17 @@ SFX_UNDER_DB = 10.0
 SFX_UNDER_RANGE = (8.0, 12.0)
 SFX_PEAK_OVER_VOICE_DB = 7.0
 PEAK_LIMIT = 10 ** (-1 / 20)
+ROOM_SECONDS = 8  # long enough that no ear catches the repeat
+ROOM_FRAME = 2048
+ROOM_CLEAR_DB = 20.0  # under the speech by this much, or the quietest stretch is not a room
+ROOM_LOUDEST_DB = -40.0
+ROOM_QUIETEST_DB = -96.0  # under this it is rounding, not a room
+ROOM_BLEND = 0.015  # between one clip's room and the next
+ROOM_HOP = 240
+ROOM_HOLE_DB = 3.0  # how far the voice must fall under the room to count as a hole
+ROOM_LEAD = 3  # frames
+ROOM_SMOOTH = 5  # frames
+ROOM_TAIL_FADE = 1.0
 
 
 @dataclass
@@ -123,8 +134,75 @@ def _join(a: Piece, b: Piece, half: int) -> None:
     a.linear_out, b.linear_in = correlated, correlated
 
 
+def room_loop(samples: np.ndarray) -> np.ndarray | None:
+    """A seamless loop of this clip's own room, or None if it has no quiet stretch to sample.
+
+    The stretch can be a quarter second, and repeating that flutters. So the loop keeps its
+    spectrum and level with fresh phases, which also makes the join exact. Fixed seed, same loop.
+    """
+    if len(samples) < ROOM_FRAME * 2:
+        return None
+    stretch = clean.quietest(samples, RATE).astype(np.float64)
+    level = 20 * np.log10(np.sqrt(np.mean(stretch**2)) + 1e-12)
+    if not ROOM_QUIETEST_DB < level <= ROOM_LOUDEST_DB or clean.speech_level(samples, RATE) - level < ROOM_CLEAR_DB:
+        return None
+    count = (len(stretch) - ROOM_FRAME) // (ROOM_FRAME // 2) + 1
+    frames = np.stack([stretch[i * ROOM_FRAME // 2 : i * ROOM_FRAME // 2 + ROOM_FRAME] for i in range(max(count, 1))])
+    power = np.mean(np.abs(np.fft.rfft(frames * np.hanning(frames.shape[1]), axis=1)) ** 2, axis=0)
+    size = ROOM_SECONDS * RATE
+    magnitude = np.interp(np.fft.rfftfreq(size, 1 / RATE), np.fft.rfftfreq(frames.shape[1], 1 / RATE), np.sqrt(power))
+    phases = np.random.default_rng(0).uniform(0, 2 * np.pi, len(magnitude))
+    loop = np.fft.irfft(magnitude * np.exp(1j * phases), size)
+    return loop * 10 ** (level / 20) / np.sqrt(np.mean(loop**2))
+
+
+def _room_layer(pieces: list[Piece], loops: dict[str, np.ndarray | None], count: int) -> tuple[np.ndarray, np.ndarray]:
+    """Each piece's room at its own gain, and the level it should hold, sample by sample.
+
+    A piece with no room of its own, such as a clip with no sound, borrows the nearest neighbour's.
+    """
+    room, held = np.zeros(count), np.zeros(count)
+    blend = round(ROOM_BLEND * RATE)
+    chain = [loops.get(piece.clip) for piece in pieces]
+    for order in (range(1, len(chain)), range(len(chain) - 2, -1, -1)):
+        for index in order:
+            before = chain[index - 1 if order.step > 0 else index + 1]
+            chain[index] = chain[index] if chain[index] is not None else before
+    for piece, loop in zip(pieces, chain, strict=True):
+        if loop is None:
+            continue
+        low, high = max(piece.start - blend, 0), min(piece.end + blend, count)
+        at = np.arange(low, high)
+        shape = np.clip(np.minimum(at - piece.start + blend, piece.end + blend - at) / (2 * blend), 0, 1)
+        room[low:high] += loop[at % len(loop)] * shape * piece.gain
+        held[low:high] += np.sqrt(np.mean(loop**2)) * shape * piece.gain
+    return room, held
+
+
+def _smooth(values: np.ndarray) -> np.ndarray:
+    return np.convolve(values, np.ones(ROOM_SMOOTH) / ROOM_SMOOTH)[ROOM_SMOOTH // 2 : ROOM_SMOOTH // 2 + len(values)]
+
+
+def fill_holes(voice: np.ndarray, room: np.ndarray, held: np.ndarray) -> tuple[np.ndarray, float]:
+    """Lay the room in wherever the voice falls under it. Where the voice holds up, nothing is added."""
+    count = len(voice) // ROOM_HOP
+    if not count or not held.any():
+        return voice, 0.0
+    size = (count, ROOM_HOP)
+    have = np.mean(voice[: count * ROOM_HOP].reshape(size) ** 2, axis=1)
+    want = np.mean(held[: count * ROOM_HOP].reshape(size) ** 2, axis=1) * 10 ** (-ROOM_HOLE_DB / 10)
+    short = np.sqrt(np.clip(1 - have / (want + 1e-20), 0, 1)) * (want > 0)
+    missing = _smooth(np.lib.stride_tricks.sliding_window_view(np.pad(short, ROOM_LEAD, mode="edge"), 2 * ROOM_LEAD + 1).max(axis=1))  # arrives before the voice has gone
+    times = (np.arange(count) + 0.5) * ROOM_HOP
+    return voice + room * np.interp(np.arange(len(voice)), times, missing), float(np.sum(missing > 0.5) * ROOM_HOP / RATE)
+
+
 def mix_voice(project: Project, edl: Edl, dest: str | Path, fade_ms: float = FADE_MS) -> Path:
-    """Write the edited voice: sample-accurate, frame-exact, and faded at every join."""
+    """Write the edited voice: sample-accurate, frame-exact, and faded at every join.
+
+    Room tone goes in beside it, so no cut drops to digital silence. The last clip's room is
+    written to `<dest>-room.wav`, for `mix_bed` to run on under anything past the voice.
+    """
     if not edl.segments:
         raise AltocueError("The cut is empty.", fix="Run `altocue cut` and check edl.json.")
     pieces = _pieces(project, edl)
@@ -143,7 +221,22 @@ def mix_voice(project: Project, edl: Edl, dest: str | Path, fade_ms: float = FAD
         if piece.fade_out:
             chunk[-piece.fade_out :] *= _curve(piece.fade_out, piece.linear_out)[::-1]
         out[max(first, 0) : min(last, len(out))] += chunk[max(-first, 0) : len(chunk) - max(last - len(out), 0)]
+    dest = Path(dest)
+    report: dict[str, Any] = {"room": {}, "filled_seconds": 0.0}
+    room_file = dest.with_name(f"{dest.stem}-room.wav")
+    room_file.unlink(missing_ok=True)
+    if project.setting("audio", "room_tone", True):
+        loops = {piece.clip: room_loop(piece.source) for piece in {piece.clip: piece for piece in pieces}.values()}
+        report["room"] = {clip: round(float(20 * np.log10(np.sqrt(np.mean(loop**2)))), 1) for clip, loop in loops.items() if loop is not None}
+        room, held = _room_layer(pieces, loops, len(out))
+        room[: pieces[0].fade_in] *= _curve(pieces[0].fade_in, False)
+        room[len(room) - pieces[-1].fade_out :] *= _curve(pieces[-1].fade_out, False)[::-1]
+        out, report["filled_seconds"] = fill_holes(out, room, held)
+        last = next((loops[piece.clip] for piece in reversed(pieces) if loops[piece.clip] is not None), None)
+        if last is not None:
+            ffmpeg.write_wav(room_file, last, RATE)
     peak = np.abs(out).max()
+    write_json(dest.with_suffix(".json"), report)
     return ffmpeg.write_wav(dest, out / peak if peak > 1 else out, RATE)
 
 
@@ -276,11 +369,28 @@ def _effect(cue: dict[str, Any], index: int, level: float, total: int, folder: P
     )
 
 
-def mix_bed(voice: str | Path, dest: str | Path, music: str | Path | None = None, sfx: Any = (), tail: float = 0.0) -> Path:
+def _room_tail(room: Path, start: int, total: int) -> np.ndarray | None:
+    """The room carried on past the voice, picking up as the voice fades and fading out at the end."""
+    if not room.exists() or total <= start:
+        return None
+    loop, _ = ffmpeg.read_wav(room)
+    count = total - start
+    bed = loop[np.arange(start, total) % len(loop)].astype(np.float64)
+    fade = min(round(ROOM_TAIL_FADE * RATE), count)
+    bed[-fade:] *= _curve(fade, False)[::-1]
+    pick_up = min(round(FADE_MS / 1000 * RATE), count)
+    bed[:pick_up] *= _curve(pick_up, False)
+    return bed
+
+
+def mix_bed(
+    voice: str | Path, dest: str | Path, music: str | Path | None = None, sfx: Any = (), tail: float = 0.0, room: str | Path | None = None
+) -> Path:
     """Mix voice, ducked music and effects to stereo 48 kHz, running `tail` seconds past the voice.
 
     Each entry in `sfx` is `{"name": "pop", "at": 1.2}` or `{"file": path, "at": 1.2}`, with an
-    optional `under_db` from 8 to 12. The numbers land in a `.json` beside the mix.
+    optional `under_db` from 8 to 12. `room` is the loop from `mix_voice`, which fills the tail.
+    The numbers land in a `.json` beside the mix.
     """
     voice, dest = Path(voice), Path(dest)
     if not voice.exists():
@@ -291,6 +401,11 @@ def mix_bed(voice: str | Path, dest: str | Path, music: str | Path | None = None
     level = _voice_level(voice, samples)
     out = np.zeros((total, 2))
     out[: len(samples)] = samples[:, None]
+    if room and tail:
+        start = max(len(samples) - round(FADE_MS / 1000 * RATE) // 2, 0)
+        bed = _room_tail(Path(room), start, total)
+        if bed is not None:
+            out[start:] += bed[:, None]
     report: dict[str, Any] = {"voice_lufs": level, "music": None, "sfx": []}
     with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
         folder = Path(scratch)

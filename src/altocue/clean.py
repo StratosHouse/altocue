@@ -328,14 +328,14 @@ def _afftdn_delay() -> int:
     return int(np.argmax(np.abs(corr[:6000])))
 
 
-def _quietest(samples: np.ndarray, rate: int) -> np.ndarray:
+def quietest(samples: np.ndarray, rate: int) -> np.ndarray:
     """The quietest stretch of room tone that is not digital silence."""
     levels = _frame_db(samples, rate, 10.0)
     span = round(PRINT_SECONDS * 100)
     if len(levels) <= span:
         return samples
     rolling = np.convolve(levels, np.ones(span) / span, mode="valid")
-    rolling[rolling < -100] = np.inf
+    rolling[np.convolve(levels < -100, np.ones(span), mode="valid") > 0] = np.inf
     first = int(np.argmin(rolling)) * rate // 100
     return samples[first : first + span * rate // 100]
 
@@ -346,7 +346,7 @@ def _run_afftdn(samples: np.ndarray, folder: Path, reduction: float) -> Path:
     The print is laid in front of the clip, so the whole clip gets it, then trimmed off.
     """
     delay = _afftdn_delay()
-    room = _quietest(samples, RATE)
+    room = quietest(samples, RATE)
     printed = ffmpeg.write_wav(folder / "printed.wav", np.r_[room, samples], RATE)
     learn = f"asendcmd=c='0.0 afftdn sn start',asendcmd=c='{len(room) / RATE:.3f} afftdn sn stop'"
     chain = f"apad=pad_len={delay},{learn},afftdn=nr={reduction:g}:nf=-40,atrim=start_sample={delay + len(room)}"

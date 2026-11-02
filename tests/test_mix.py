@@ -165,7 +165,7 @@ def test_a_segment_shorter_than_the_fade(project, tmp_path):
     assert len(voice) == round((27 + 1 + 30) / 30 * RATE)
 
 
-def test_a_clip_without_audio_is_silence(project, tmp_path):
+def test_a_clip_without_audio_and_no_room_to_borrow_is_silence(project, tmp_path):
     project.save_clips(
         [
             Clip(id="a", path="a.mov", duration=4, fps=30, width=64, height=64),
@@ -192,6 +192,154 @@ def test_backwards_segment_is_refused(project, tmp_path):
     cleaned(project, "a", noise(4))
     with pytest.raises(AltocueError):
         mix.mix_voice(project, edl(("a", 2, 1)), tmp_path / "voice.wav")
+
+
+def talk(seconds: float = 4.0, room_db: float = -60.0, seed: int = 2) -> np.ndarray:
+    """Bursts of voice over a steady room, the shape of a cleaned clip."""
+    n = int(seconds * RATE)
+    return speech_bursts(seconds, 0.15, every=1.0, length=0.6)[:n] + np.random.default_rng(seed).normal(0, 10 ** (room_db / 20), n)
+
+
+def floor_db(samples: np.ndarray, hop: int = 240) -> float:
+    """The lowest level in 5 ms frames."""
+    frames = samples[: len(samples) // hop * hop].reshape(-1, hop)
+    return float(20 * np.log10(np.sqrt(np.mean(frames**2, axis=1)).min() + 1e-9))
+
+
+def test_a_room_loop_keeps_the_level_and_colour_of_the_quietest_stretch():
+    freqs = np.fft.rfftfreq(4 * RATE, 1 / RATE)
+    white = np.random.default_rng(6).normal(0, 1, 4 * RATE)
+    room = np.fft.irfft(np.fft.rfft(white) * (freqs < 2000), 4 * RATE)
+    room = room / room.std() * 10 ** (-58 / 20)
+    gate = (np.arange(4 * RATE) / RATE) % 1.0 < 0.6
+    loop = mix.room_loop((noise(4, 0.1) * gate + room).astype(np.float32))
+    assert loop is not None and len(loop) == mix.ROOM_SECONDS * RATE
+    assert rms_db(loop) == pytest.approx(-58, abs=1.5)
+    spectrum = np.abs(np.fft.rfft(loop)) ** 2
+    bins = np.fft.rfftfreq(len(loop), 1 / RATE)
+    assert spectrum[bins < 2000].sum() > spectrum[bins > 4000].sum() * 30
+
+
+def test_a_room_loop_joins_itself_without_a_click():
+    loop = mix.room_loop(talk().astype(np.float32))
+    assert abs(loop[0] - loop[-1]) < 4 * np.abs(np.diff(loop)).mean()
+
+
+def test_a_room_loop_is_the_same_every_time():
+    samples = talk().astype(np.float32)
+    assert np.array_equal(mix.room_loop(samples), mix.room_loop(samples))
+
+
+@pytest.mark.parametrize(
+    "samples",
+    [
+        np.zeros(4 * RATE),  # digital silence is not a room
+        tone(4, 220),  # no quiet stretch at all
+        speech_bursts(4, 0.15, every=1.0, length=0.6),  # pauses of digital silence
+    ],
+    ids=["silence", "steady", "gated"],
+)
+def test_a_clip_with_no_room_to_sample_gives_none(samples):
+    assert mix.room_loop(samples.astype(np.float32)) is None
+
+
+def test_a_loud_stretch_never_passes_for_a_room():
+    assert mix.room_loop((talk(room_db=-32.0)).astype(np.float32)) is None
+
+
+def test_a_clip_with_no_sound_gets_the_room_of_its_neighbour(project, tmp_path):
+    project.save_clips(
+        [
+            Clip(id="a", path="a.mov", duration=4, fps=30, width=64, height=64),
+            Clip(id="b", path="b.mov", duration=4, fps=30, width=64, height=64, has_audio=False),
+        ]
+    )
+    cleaned(project, "a", talk())
+    voice, _ = ffmpeg.read_wav(mix.mix_voice(project, edl(("a", 0, 1), ("b", 0, 1), ("a", 1, 2)), tmp_path / "voice.wav"))
+    gap = voice[RATE + 2400 : 2 * RATE - 2400]
+    assert np.abs(gap).max() > 0
+    assert rms_db(gap) == pytest.approx(-60, abs=2)
+
+
+def test_the_floor_holds_across_a_cut_with_nothing_either_side_of_it(project, tmp_path):
+    a = talk()
+    a[: RATE // 4] = 0.0
+    a[-RATE // 4 :] = 0.0
+    cleaned(project, "a", a)
+    voice, _ = ffmpeg.read_wav(mix.mix_voice(project, edl(("a", 0.2, 3.0), ("a", 3.8, 4.0), ("a", 1.0, 3.0)), tmp_path / "voice.wav"))
+    join = round(84 / 30 * RATE)
+    assert floor_db(voice[join - 2400 : join + 2400]) > -66
+
+
+def test_room_tone_leaves_speech_alone(project, tmp_path):
+    a = cleaned(project, "a", talk())
+    voice, _ = ffmpeg.read_wav(mix.mix_voice(project, edl(("a", 0, 2), ("a", 3.0, 4.0)), tmp_path / "voice.wav"))
+    assert np.allclose(voice[4800 : RATE - 4800], a[4800 : RATE - 4800], atol=3e-4)
+
+
+def test_each_clip_keeps_its_own_room(project, tmp_path):
+    project.save_clips(
+        [
+            Clip(id="a", path="a.mov", duration=4, fps=30, width=64, height=64),
+            Clip(id="b", path="b.mov", duration=4, fps=30, width=64, height=64),
+            Clip(id="c", path="c.mov", duration=4, fps=30, width=64, height=64, has_audio=False),
+        ]
+    )
+    cleaned(project, "a", talk(room_db=-64))
+    cleaned(project, "b", talk(room_db=-52, seed=8))
+    voice, _ = ffmpeg.read_wav(mix.mix_voice(project, edl(("a", 0, 1), ("c", 0, 1), ("b", 0, 1), ("c", 0, 1)), tmp_path / "voice.wav"))
+    assert rms_db(voice[RATE + 4800 : 2 * RATE - 4800]) == pytest.approx(-64, abs=2.5)
+    assert rms_db(voice[3 * RATE + 4800 : 4 * RATE - 4800]) == pytest.approx(-52, abs=2.5)
+
+
+def test_room_tone_follows_the_segment_gain(project, tmp_path):
+    project.save_clips(
+        [
+            Clip(id="a", path="a.mov", duration=4, fps=30, width=64, height=64),
+            Clip(id="b", path="b.mov", duration=4, fps=30, width=64, height=64, has_audio=False),
+        ]
+    )
+    cleaned(project, "a", talk())
+    voice, _ = ffmpeg.read_wav(mix.mix_voice(project, edl(("a", 0, 1), ("b", 0, 1, 0.5)), tmp_path / "voice.wav"))
+    assert rms_db(voice[RATE + 4800 : 2 * RATE - 4800]) == pytest.approx(-66, abs=2)
+
+
+def test_room_tone_can_be_turned_off(project, tmp_path):
+    config = project.root / "altocue.toml"
+    config.write_text(config.read_text().replace("room_tone = true", "room_tone = false"))
+    plain = Project.open(project.root)
+    plain.save_clips(
+        [
+            Clip(id="a", path="a.mov", duration=4, fps=30, width=64, height=64),
+            Clip(id="b", path="b.mov", duration=4, fps=30, width=64, height=64, has_audio=False),
+        ]
+    )
+    cleaned(plain, "a", talk())
+    voice, _ = ffmpeg.read_wav(mix.mix_voice(plain, edl(("a", 0, 1), ("b", 0, 1)), tmp_path / "voice.wav"))
+    assert np.abs(voice[RATE + 1000 :]).max() == 0
+    assert not (tmp_path / "voice-room.wav").exists()
+
+
+def test_the_voice_report_names_the_rooms(project, tmp_path):
+    cleaned(project, "a", talk())
+    out = mix.mix_voice(project, edl(("a", 0, 2)), tmp_path / "voice.wav")
+    report = json.loads(out.with_suffix(".json").read_text())
+    assert report["room"]["a"] == pytest.approx(-60, abs=2) and "filled_seconds" in report
+
+
+def test_the_room_runs_on_under_the_tail_and_fades(project, tmp_path):
+    cleaned(project, "a", talk())
+    voice = mix.mix_voice(project, edl(("a", 0, 2)), tmp_path / "voice.wav")
+    out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", room=voice.with_name("voice-room.wav"), tail=3.0))[:, 0]
+    assert len(out) == 5 * RATE
+    assert rms_db(out[3 * RATE : 4 * RATE]) == pytest.approx(-60, abs=2)
+    assert abs(out[-1]) < 1e-3 and floor_db(out[2 * RATE - 2400 : 2 * RATE + 2400]) > -70
+
+
+def test_no_room_file_means_a_silent_tail(tmp_path):
+    voice, _ = voice_file(tmp_path, 2)
+    out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", room=tmp_path / "no-such-room.wav", tail=1.0))[:, 0]
+    assert np.abs(out[2 * RATE + 100 :]).max() == 0
 
 
 def voice_file(tmp_path: Path, seconds: float = 10.0, amp: float = 0.15) -> tuple[Path, np.ndarray]:
