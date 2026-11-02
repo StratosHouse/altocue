@@ -383,3 +383,75 @@ def test_word_checks_work_in_any_alphabet():
     said, heard = ["\u043f\u0440\u0438\u0432\u0435\u0442", "\u043c\u0438\u0440"], ["\u0441\u043e\u0432\u0441\u0435\u043c", "\u0434\u0440\u0443\u0433\u043e\u0435"]
     assert match_rate(said, heard) == 0.0
     assert match_rate(["\u0633\u0644\u0627\u0645"], ["\u0633\u0644\u0627\u0645"]) == 1.0
+
+
+# Reading time
+
+
+def test_reading_time_counts_words_and_seconds():
+    timeline = {
+        "total": 10.0,
+        "captions": [{"start": 0, "end": 1, "words": [{"text": "said", "start": 0, "end": 1}]}],
+        "items": [{"type": "chip", "text": "Four short words here", "start": 1.0, "end": 2.0}],
+    }
+    assert rules.reading_time(timeline, 3.0) == [
+        {"layer": "chip", "text": "Four short words here", "start": 1.0, "words": 4, "shown": 1.0, "needed": 1.333, "short_by": 0.333}
+    ]
+
+
+def test_every_string_in_one_graphic_shares_its_time():
+    timeline = {"items": [{"type": "stat", "value": "41%", "label": "of runway goes to tools", "start": 0.0, "end": 2.0}]}
+    row = rules.reading_time(timeline, 3.0)[0]
+    assert row["words"] == 6 and row["needed"] == 2.0 and row["short_by"] == 0
+
+
+def test_time_past_the_end_of_the_film_is_not_reading_time():
+    timeline = {"total": 2.0, "items": [{"type": "chip", "text": "Six words in this little chip", "start": 1.0, "end": 9.0}]}
+    assert rules.reading_time(timeline, 3.0)[0]["shown"] == 1.0
+
+
+def test_punctuation_is_not_a_word():
+    timeline = {"items": [{"type": "chip", "text": "One - two", "start": 0.0, "end": 1.0}]}
+    assert rules.reading_time(timeline, 3.0)[0]["words"] == 2
+
+
+def test_captions_are_left_out_of_the_reading_gate():
+    """A caption echoes what is being said, so a fast talker is not a reading fault."""
+    timeline = {
+        "captions": [{"start": 0, "end": 0.4, "words": [{"text": w, "start": 0, "end": 0.4} for w in ("far", "too", "many", "words")]}],
+        "items": [],
+    }
+    assert rules.reading_time(timeline, 3.0) == []
+
+
+def context_with(timeline, reading=None):
+    project = SimpleNamespace(setting=lambda section, key, default=None: reading if reading and key == "reading_wps" else default)
+    return SimpleNamespace(timeline=timeline, project=project)
+
+
+def test_reading_gate_states_its_speed_and_names_the_graphic():
+    timeline = {"items": [{"type": "chip", "text": "Four short words here", "start": 1.0, "end": 2.0}]}
+    gate = gates.gate_text_readable(context_with(timeline))
+    assert not gate.passed and gate.value == 1 and gate.threshold == "3 words a second"
+    assert "chip at 00:01.00" in gate.detail and "4 words" in gate.detail
+
+
+def test_reading_gate_passes_at_exactly_the_stated_speed():
+    timeline = {"items": [{"type": "chip", "text": "Three short words", "start": 1.0, "end": 2.0}]}
+    assert gates.gate_text_readable(context_with(timeline)).passed
+
+
+def test_a_project_can_state_a_slower_reader():
+    timeline = {"items": [{"type": "chip", "text": "Three short words", "start": 1.0, "end": 2.0}]}
+    gate = gates.gate_text_readable(context_with(timeline, reading=2.0))
+    assert not gate.passed and gate.threshold == "2 words a second"
+
+
+def test_reading_gate_with_no_timeline_is_skipped_not_passed():
+    gate = gates.gate_text_readable(context_with(None))
+    assert gate.skipped and not gate.passed and gate.value != gates.NOT_APPLICABLE
+
+
+def test_reading_gate_with_only_captions_does_not_apply():
+    gate = gates.gate_text_readable(context_with({"captions": [], "items": []}))
+    assert gate.skipped and gate.value == gates.NOT_APPLICABLE

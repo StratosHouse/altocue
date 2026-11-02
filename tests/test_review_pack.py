@@ -175,3 +175,28 @@ def test_no_edl_falls_back_to_a_pack_without_cuts(tmp_path):
 
 def test_pack_never_uses_drawtext():
     assert "drawtext" not in open(pack.__file__).read()
+
+
+def test_a_reviewer_never_gets_facts_notes_or_results(tmp_path):
+    """Numbers would anchor the hook and pacing scores, and outcomes would end the blind review."""
+    item = build(Case("t", "", Recipe(burn_captions=False, seconds=3.0)), tmp_path)
+    root = item.project.root
+    write_json(item.project.review_dir / "facts.json", {"facts": {"first_word_s": {"value": SECRET}}})
+    (item.project.review_dir / "facts.md").write_text(SECRET)
+    (root / "director-notes.md").write_text(SECRET)
+    write_json(root / "results" / "ledger.json", {"note": SECRET})
+    write_json(root / "bench" / "data.json", {"note": SECRET})
+    with planted(item):
+        gates = qa.run_gates(item.project, item.file)
+        info = pack.build(item.project, item.file, gates)
+    assert not (item.project.review_dir / "facts.json").exists() and not (item.project.review_dir / "facts.md").exists()
+    path = pack.write_prompt(item.project, info)
+    shown = path.read_text() + pack.prompt_text(info)
+    shown += "".join(f.read_text() for f in folder(item).rglob("*") if f.suffix in {".json", ".txt"})
+    assert SECRET not in shown
+    assert "first_word_s" not in shown and "caption_coverage" not in shown
+
+
+def test_the_pack_forbids_facts_notes_and_results_by_name():
+    for path in ("review/facts.json", "review/facts.md", "director-notes.md", "results/", "bench/"):
+        assert path in pack.FORBIDDEN

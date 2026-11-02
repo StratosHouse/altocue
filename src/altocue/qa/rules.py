@@ -24,6 +24,7 @@ from ..motion import formats
 
 TEXT_FIELDS = ("eyebrow", "text", "title", "subtitle", "value", "label", "by", "headline", "cta")
 FUZZY_FROM = 6  # shorter words differ by one letter too often to fuzzy match
+READING_WPS = 3.0  # 180 words a minute, the top of the 160 to 180 Ofcom recommends for subtitles. A subtitle figure, not a phone study
 
 
 @dataclass
@@ -129,6 +130,29 @@ def on_screen(timeline: dict[str, Any]) -> list[dict[str, Any]]:
         for step in item.get("items", []) if item.get("type") == "steps" else []:
             strings.append({"layer": "steps", "text": _clean(step["text"]), "start": step.get("at", item["start"]), "end": item["end"]})
     return strings
+
+
+def reading_time(timeline: dict[str, Any], wps: float = READING_WPS) -> list[dict[str, Any]]:
+    """How long each graphic's words stay up, against how long they take to read.
+
+    Strings shown together share their time. Captions are left out, because they echo what is
+    being said, and BBC R&D found viewers keep up with accurate subtitles well past guideline speed.
+    """
+    groups: dict[tuple[str, float, float], list[str]] = {}
+    for item in on_screen(timeline):
+        if item["layer"] != "captions":
+            groups.setdefault((item["layer"], item["start"], item["end"]), []).append(item["text"])
+    close = timeline.get("total")
+    rows = []
+    for (layer, start, end), texts in groups.items():
+        words = sum(1 for text in texts for word in text.split() if any(ch.isalnum() for ch in word))
+        if not words:
+            continue
+        shown = round((min(end, close) if close else end) - start, 3)
+        needed = round(words / wps, 3)
+        short = round(max(needed - shown, 0), 3)
+        rows.append({"layer": layer, "text": " ".join(texts), "start": start, "words": words, "shown": shown, "needed": needed, "short_by": short})
+    return rows
 
 
 def _spoken_at(rule: dict[str, Any], spoken: list[dict[str, Any]]) -> list[tuple[float, float]]:

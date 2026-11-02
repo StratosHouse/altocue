@@ -126,6 +126,11 @@ CANARIES = [
             items=[{"type": "chip", "text": "Follow this plan", "start": 1.0, "end": 3.0}], burn_text=[("Follow this plan", 0.94, 1.0, 3.0)]
         ),
     ),
+    Case(
+        "graphic gone before it can be read",
+        "text_readable",
+        Recipe(items=[{"type": "quote", "text": "Twelve whole words sit in this quote and it leaves after one second", "start": 1.0, "end": 2.0}]),
+    ),
 ]
 
 CONTROLS = [
@@ -145,6 +150,11 @@ CONTROLS = [
             items=[{"type": "chip", "text": "Altocue free plan", "start": 0.0, "end": 6.0}],
             burn_text=[("Altocue free plan", 0.12, 0.0, 6.0)],
         ),
+    ),
+    Case(
+        "clean, graphic held long enough to read",
+        "",
+        Recipe(items=[{"type": "quote", "text": "Twelve whole words sit in this quote and it stays for five seconds", "start": 0.5, "end": 5.5}]),
     ),
 ]
 

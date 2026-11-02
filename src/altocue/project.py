@@ -62,6 +62,9 @@ provider = ""           # fal or higgsfield. Empty means nothing generates
 spend_cap_usd = 0.0     # the most one run may spend. 0 blocks all paid calls
 usd_per_credit = 0.08   # Higgsfield only: your plan's dollars per credit
 
+[qa]
+reading_wps = 3.0       # words a second for the text_readable gate. Slower for children or second-language viewers
+
 [review]
 reviewer = "auto"       # auto, gemini, codex or pack
 """

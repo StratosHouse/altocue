@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .. import qa
+from .. import facts, qa
 from ..models import GateResult
 from ..project import Project, write_json
 from ..qa.gates import NOT_APPLICABLE, grab
@@ -30,6 +30,7 @@ GATE_ACTIONS = {
     "captions_match": "Rebuild captions from the transcript. Never caption what was not said.",
     "safe_zone": "Move the text inside the safe zone.",
     "face_clear": "Move the text off the face.",
+    "text_readable": "Hold the text longer, or cut words.",
     "format": "Re-render with the project's output settings.",
     "rules_strings": "Change the on-screen text. A human decides how.",
     "rules_ocr": "Look at the frames named. A human decides how to fix them.",
@@ -121,12 +122,23 @@ def note_frames(project: Project, file: Path, notes: list[dict[str, Any]]) -> di
     return found
 
 
-def write(project: Project, file: Path, result: dict[str, Any], gates: list[GateResult], log: dict[str, Any]) -> Path:
+def facts_section(measured: dict[str, Any] | None) -> list[str]:
+    """Below the verdict and the scores, because the reviewer must never have seen these numbers."""
+    if not measured:
+        return []
+    if "error" in measured:
+        return ["", "## Measured facts", "", f"Could not be measured: {measured['error']}"]
+    return ["", "## Measured facts", "", facts.AFTER_SCORING, "", *facts.rows(measured)]
+
+
+def write(
+    project: Project, file: Path, result: dict[str, Any], gates: list[GateResult], log: dict[str, Any], *, measured: dict[str, Any] | None = None
+) -> Path:
     result["notes"].sort(key=lambda n: (SEVERITY_ORDER[n["severity"]], n["start_seconds"]))
     frames = note_frames(project, file, result["notes"])
     reviewer = result["reviewer"]
     result["limits"] = limits(result, gates)
-    write_json(project.review_dir / "report.json", {**result, "gates": [g.to_dict() for g in gates], "rounds": log})
+    write_json(project.review_dir / "report.json", {**result, "gates": [g.to_dict() for g in gates], "rounds": log, "facts": measured})
 
     lines = [f"# Verdict: {result['verdict']}", ""]
     lines.append(f"- **File:** {file.name}, sha256 {result['file_sha256'][:12]}")
@@ -163,6 +175,7 @@ def write(project: Project, file: Path, result: dict[str, Any], gates: list[Gate
             lines.append(f"- {said} ({item['why']})")
     if result["warnings"]:
         lines += ["", "## Warnings", "", *[f"- {w}" for w in result["warnings"]]]
+    lines += facts_section(measured)
     lines += ["", "## What this review could not see or hear", "", *[f"- {item}" for item in result["limits"]], ""]
     path = project.review_dir / "REPORT.md"
     path.write_text("\n".join(lines))

@@ -47,6 +47,7 @@ NO_TIMELINE = "No timeline.json, so what should be on screen is unknown."
 INSERT_NOT_BEFORE = 2.0
 EDGE_SLACK = 0.005
 GRAB_BACKOFF = (0.0, 0.1, 0.5, 1.0)
+HOOK_SECONDS = 3.0
 
 SILENT_LABELS = ("broll", "b-roll", "silent", "no speech")
 HOLD_LABELS = ("hold", "freeze", "still")
@@ -581,6 +582,16 @@ def sightings(c: Context) -> dict[str, Any]:
     return c._seen
 
 
+def outside(box: list[float], zone: dict[str, float]) -> bool:
+    x, y, w, h = box
+    return (
+        x < zone["left"] - EDGE_SLACK
+        or x + w > zone["right"] + EDGE_SLACK
+        or y < zone["top"] - EDGE_SLACK
+        or y + h > zone["bottom"] + EDGE_SLACK
+    )
+
+
 def gate_safe_zone(c: Context) -> GateResult:
     seen = sightings(c)
     if seen.get("empty"):
@@ -590,22 +601,13 @@ def gate_safe_zone(c: Context) -> GateResult:
     if not seen["read"]:
         return skipped("safe_zone", f"Could not read any of the {seen['total']} sampled strings in the picture.")
     zone = zone_for(c)
-    outside = []
-    for hit in seen["boxes"]:
-        x, y, w, h = hit["box"]
-        if (
-            x < zone["left"] - EDGE_SLACK
-            or x + w > zone["right"] + EDGE_SLACK
-            or y < zone["top"] - EDGE_SLACK
-            or y + h > zone["bottom"] + EDGE_SLACK
-        ):
-            outside.append(f"{hit['layer']} at {stamp(hit['at'])}")
+    strays = [f"{hit['layer']} at {stamp(hit['at'])}" for hit in seen["boxes"] if outside(hit["box"], zone)]
     detail = (
-        f"outside the safe zone: {', '.join(sorted(set(outside))[:6])}"
-        if outside
+        f"outside the safe zone: {', '.join(sorted(set(strays))[:6])}"
+        if strays
         else f"read {seen['read']} of {seen['total']} sampled strings, all inside"
     )
-    return GateResult(id="safe_zone", passed=not outside, value=len(outside), threshold=zone, detail=detail)
+    return GateResult(id="safe_zone", passed=not strays, value=len(strays), threshold=zone, detail=detail)
 
 
 def overlap(a: list[float], b: list[float]) -> float:
@@ -656,6 +658,21 @@ def gate_inserts(c: Context) -> GateResult:
         problems.append(f"B-roll covers {share:.0%} of the edit")
     detail = "; ".join(problems) or f"B-roll covers {share:.0%} of the edit"
     return GateResult(id="inserts", passed=not problems, value=round(share, 3), threshold=INSERT_MOST, detail=detail)
+
+
+def gate_text_readable(c: Context) -> GateResult:
+    """On-screen text must stay up long enough to read, at a speed the report states."""
+    wps = float(c.project.setting("qa", "reading_wps", rules.READING_WPS))
+    limit = f"{wps:g} words a second"
+    if c.timeline is None:
+        return skipped("text_readable", NO_TIMELINE, limit)
+    rows = rules.reading_time(c.timeline, wps)
+    if not rows:
+        return not_applicable("text_readable", "No text in the graphics. Captions follow speech, so they are not timed here.")
+    short = [r for r in rows if r["short_by"] > 0]
+    named = "; ".join(f"{r['layer']} at {stamp(r['start'])}, {r['words']} words in {r['shown']:.1f}s, needs {r['needed']:.1f}s" for r in short[:5])
+    detail = f"gone before it can be read: {named}" if short else f"{len(rows)} graphics, each held long enough at {limit}"
+    return GateResult(id="text_readable", passed=not short, value=len(short), threshold=limit, detail=detail)
 
 
 def layer_frame(c: Context, at: float, dest: Path) -> bool:
@@ -835,6 +852,7 @@ def run_all(c: Context) -> list[GateResult]:
         (("face_clear",), gate_face_clear),
         (("graphics_clear",), gate_graphics_clear),
         (("inserts",), gate_inserts),
+        (("text_readable",), gate_text_readable),
         (("format",), gate_format),
         (("rules_strings",), gate_rules_strings),
         (("rules_ocr",), gate_rules_ocr),
