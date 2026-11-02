@@ -380,8 +380,9 @@ def _count_up(item: dict[str, Any]) -> str:
     width = len(_show(value, places, prefix, suffix))
     size = min(236, 1400 / max(width, 1))
     number = _count(value, places, prefix, suffix, run, 0.1, rate=float(item.get("rate") or 0))
+    lead = f';--lead:{float(item["lead"]):.3f}s' if item.get("lead") is not None else ""
     return (
-        f'<div class="wrap" style="--r:{run:.3f}s"><div class="fig"><div class="num" style="font-size:calc({size:.0f}px * var(--scale))">{number}</div>'
+        f'<div class="wrap" style="--r:{run:.3f}s{lead}"><div class="fig"><div class="num" style="font-size:calc({size:.0f}px * var(--scale))">{number}</div>'
         f'<i class="rule"></i></div><p class="lab">{kit.emphasis(item["label"])}</p></div>'
     )
 
@@ -926,7 +927,7 @@ FORMATS = (
         summary="A big number climbs to its value while a rule draws beneath it.",
         group="data",
         jobs=("hook", "prove"),
-        slots=(Slot("value", kind="number"), Slot("label", limit=70), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False), Slot("run", kind="number", required=False), Slot("rate", kind="number", required=False)),
+        slots=(Slot("value", kind="number"), Slot("label", limit=70), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False), Slot("run", kind="number", required=False), Slot("rate", kind="number", required=False), Slot("lead", kind="number", required=False)),
         example={"value": 1284, "label": "Sample orders shipped last *quarter*"},
         draw=_count_up,
         seconds=3.0,
@@ -943,7 +944,7 @@ FORMATS = (
 .f-count_up .fig{display:inline-block;max-width:100%}
 .f-count_up .num{font-weight:700;line-height:1.16;letter-spacing:-.028em;color:var(--ink);animation:culand .24s linear calc(var(--r) * .86) both}
 .f-count_up .rule{display:block;height:calc(9px * var(--scale));margin:calc(8px * var(--scale)) 0 calc(26px * var(--scale));background:var(--accent);transform-origin:0 50%;animation:cugrow var(--r) var(--ease) .1s both}
-.f-count_up .lab{margin:0;font-size:calc(46px * var(--scale));font-weight:500;line-height:1.18;letter-spacing:-.02em;text-wrap:balance;animation:dkrise .5s var(--ease) calc(var(--r) * .45) both}
+.f-count_up .lab{margin:0;font-size:calc(46px * var(--scale));font-weight:500;line-height:1.18;letter-spacing:-.02em;text-wrap:balance;animation:dkrise .5s var(--ease) var(--lead,calc(var(--r) * .45)) both}
 @keyframes culand{from{color:var(--ink)}to{color:var(--accent)}}
 @keyframes cugrow{from{transform:scaleX(0)}to{transform:none}}
 """,

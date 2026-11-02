@@ -1034,7 +1034,7 @@ def _logo_sting(item: dict[str, Any]) -> str:
     mark = f'<div class="pic"><img src="{kit.esc(image)}" alt=""></div>' if image else f'<div class="turn">{arcs}</div>'
     letters = kit.letters(str(item["text"]))
     line = f'<p>{kit.esc(item["label"])}</p>' if item.get("label") else ""
-    call = f'<div class="call"><span>{kit.esc(item["cta"])}</span></div>' if item.get("cta") else ""
+    call = f'<div class="call"><span>{kit.esc(item["cta"])}<i class="shine"></i></span></div>' if item.get("cta") else ""
     return f'<div class="bg"></div><div class="lock"><div class="mark">{mark}</div><div class="name"><h1>{letters}</h1>{line}</div>{call}</div>'
 
 
@@ -1054,7 +1054,9 @@ $ .c{display:inline-block;animation:pd-letter .52s var(--ease) calc(.42s + var(-
 $ .word{display:inline-block;white-space:nowrap}
 $ .name p{margin:12u 0 0;font-size:42u;letter-spacing:-.016em;color:var(--soft);animation:rise .5s var(--ease) .72s both}
 $ .call{flex:none;display:flex;justify-content:center;animation:rise .55s var(--ease) 1.05s both}
-$ .call span{position:relative;display:inline-block;overflow:hidden;padding:20u 46u 22u;border-radius:99u;font-size:42u;font-weight:600;letter-spacing:-.02em;color:var(--panel);background:var(--accent)}
+$ .call span{position:relative;display:inline-block;overflow:hidden;padding:26u 62u 28u;border-radius:99u;font-size:56u;font-weight:600;letter-spacing:-.025em;color:var(--panel);background:var(--accent)}
+$ .shine{position:absolute;top:-20%;bottom:-20%;left:-30%;width:26%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:translateX(0) skewX(-18deg);animation:pd-shine 2.6s cubic-bezier(.5,0,.3,1) 1.5s infinite}
+@keyframes pd-shine{0%{transform:translateX(0) skewX(-18deg)}46%,100%{transform:translateX(620%) skewX(-18deg)}}
 @container (min-aspect-ratio:5/4){$ .lock{flex-direction:row;flex-wrap:wrap;gap:34u 50u;align-content:center}$ .name{text-align:left}$ .call{flex:0 0 100%}}
 @keyframes pd-turn{from{transform:rotate(-150deg) scale(.7)}to{transform:none}}
 @keyframes pd-arc{from{stroke-dashoffset:.74}to{stroke-dashoffset:0}}

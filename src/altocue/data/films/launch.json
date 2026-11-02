@@ -96,7 +96,7 @@
           "product": "Ebbline",
           "hook": "tickets waiting. *Before coffee.*",
           "offer": "Your first 500 replies are free",
-          "cta": "Start free at ebbline.example",
+          "cta": "Start free today",
           "tickets": "412",
           "price": "$0 to start",
           "date": "Live today",
@@ -122,7 +122,7 @@
           {
             "id": "hook",
             "beat": "hook",
-            "seconds": 4,
+            "seconds": 3.4,
             "verb": "interrupt",
             "energy": 3,
             "carry": "the number grows into the queue",
@@ -163,7 +163,8 @@
                     "scale": 1.75
                   }
                 },
-                "rate": 9
+                "rate": 9,
+                "lead": 0.0
               }
             ],
             "sound": [
@@ -173,18 +174,18 @@
               },
               {
                 "name": "pop",
-                "at": 1.05
+                "at": 1.25
               },
               {
                 "name": "rise",
-                "at": 3.1
+                "at": 2.5
               }
             ]
           },
           {
             "id": "problem",
             "beat": "problem",
-            "seconds": 7,
+            "seconds": 7.6,
             "verb": "pile up",
             "energy": 5,
             "carry": "the alerts slide off the way the camera is going",
@@ -206,14 +207,14 @@
                   "*questions.*"
                 ],
                 "start": -0.3,
-                "duration": 3.5,
+                "duration": 3.9,
                 "zone": "left"
               },
               {
                 "type": "notification_stack",
                 "zone": "right",
                 "start": -0.3,
-                "duration": 3.6,
+                "duration": 4.0,
                 "alerts": [
                   {
                     "text": "Where is my order?",
@@ -240,7 +241,15 @@
               {
                 "type": "marker",
                 "text": "All day, your team *copies and pastes.*",
-                "start": 3.2,
+                "start": 3.7,
+                "duration": 2.4,
+                "zone": "high",
+                "align": "center"
+              },
+              {
+                "type": "marker",
+                "text": "And the queue *keeps growing.*",
+                "start": 6.1,
                 "zone": "high",
                 "align": "center"
               },
@@ -248,7 +257,7 @@
                 "type": "state_gauge",
                 "zone": "low",
                 "align": "center",
-                "start": 3.3,
+                "start": 3.75,
                 "scale": 1.5,
                 "important": false,
                 "rows": [
@@ -258,24 +267,36 @@
                       {
                         "value": "{{tickets}}",
                         "level": 0.62,
-                        "at": 3.3
+                        "at": 3.75
                       },
                       {
                         "value": "419",
-                        "level": 0.7,
-                        "at": 4.3,
+                        "level": 0.68,
+                        "at": 4.4,
                         "hot": true
                       },
                       {
-                        "value": "431",
-                        "level": 0.82,
-                        "at": 5.1,
+                        "value": "424",
+                        "level": 0.73,
+                        "at": 5.0,
+                        "hot": true
+                      },
+                      {
+                        "value": "429",
+                        "level": 0.79,
+                        "at": 5.6,
+                        "hot": true
+                      },
+                      {
+                        "value": "433",
+                        "level": 0.85,
+                        "at": 6.2,
                         "hot": true
                       },
                       {
                         "value": "{{peak}}",
                         "level": 0.92,
-                        "at": 5.9,
+                        "at": 6.8,
                         "hot": true
                       }
                     ]
@@ -298,19 +319,27 @@
               },
               {
                 "name": "tick",
-                "at": 4.3
+                "at": 4.4
               },
               {
                 "name": "tick",
-                "at": 5.1
+                "at": 5.0
               },
               {
                 "name": "tick",
-                "at": 5.9
+                "at": 5.6
+              },
+              {
+                "name": "tick",
+                "at": 6.2
+              },
+              {
+                "name": "tick",
+                "at": 6.8
               },
               {
                 "name": "whoosh",
-                "at": 6.6
+                "at": 7.15
               }
             ]
           },
@@ -472,9 +501,18 @@
                 "type": "recap_check",
                 "title": "What you *get back*",
                 "points": [
-                  "Replies in your tone",
-                  "A person keeps the hard tickets",
-                  "Every fix teaches it"
+                  {
+                    "text": "Replies in your tone",
+                    "at": 0.5
+                  },
+                  {
+                    "text": "A person keeps the hard tickets",
+                    "at": 1.5
+                  },
+                  {
+                    "text": "Every fix teaches it",
+                    "at": 2.5
+                  }
                 ],
                 "start": -0.3,
                 "zone": "right"

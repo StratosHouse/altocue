@@ -195,10 +195,10 @@ $ .tr{right:var(--gutter);top:var(--top);align-items:flex-end}
 $ .bl{left:var(--gutter);bottom:calc(var(--top) * .6)}
 $ .br{right:var(--gutter);bottom:calc(var(--top) * .6);align-items:flex-end}
 $ .stamp>i{width:14u;height:14u;background:var(--accent);animation:csblink 1s steps(2) infinite}
-$ .tx{font-size:30u;font-weight:500;letter-spacing:.04em}
+$ .tx{font-size:38u;font-weight:500;letter-spacing:.04em}
 $ .word{display:inline-block;white-space:nowrap}
 $ .c{display:inline-block;opacity:0;animation:cson .01s linear calc(var(--i) * .035s) forwards}
-$ .lb{font-size:22u;letter-spacing:.06em;color:var(--soft)}
+$ .lb{font-size:28u;letter-spacing:.05em;color:var(--soft)}
 @keyframes csblink{0%{opacity:1}100%{opacity:.15}}
 @keyframes cson{to{opacity:1}}
 """
