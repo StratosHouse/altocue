@@ -664,3 +664,64 @@ def test_music_comes_back_up_after_the_last_word():
     bed = np.full((8 * RATE, 2), 0.2)
     ridden, _ = mix._ride(bed, voice, -40.0)
     assert ridden[7 * RATE, 0] == pytest.approx(0.2, abs=0.01)
+
+
+# Stems
+
+
+def test_stems_add_back_up_to_the_mix(project, tmp_path):
+    cleaned(project, "a", speech_bursts(4))
+    voice = mix.mix_voice(project, edl(("a", 0.0, 4.0)), tmp_path / "voice.wav")
+    music = ffmpeg.write_wav(tmp_path / "bed.wav", tone(8, 7000, 0.2), RATE)
+    whole = mix.mix_bed(voice, tmp_path / "mix.wav", music=music, sfx=[{"name": "pop", "at": 1.0}], tail=0.5, stems=tmp_path / "stems")
+    parts = [stereo(tmp_path / "stems" / f"{name}.wav") for name in mix.STEMS]
+    mixed = stereo(whole)
+    assert all(len(part) == len(mixed) == round(4.5 * RATE) for part in parts)
+    assert all(np.abs(part).max() > 0.001 for part in parts)
+    assert np.abs(sum(parts) - mixed).max() < 3 / 32768  # rounding, and nothing else
+
+
+def test_stems_share_the_trim_that_kept_the_mix_under_its_ceiling(project, tmp_path):
+    cleaned(project, "a", tone(4, 300, 0.95))
+    voice = mix.mix_voice(project, edl(("a", 0.0, 4.0)), tmp_path / "voice.wav")
+    music = ffmpeg.write_wav(tmp_path / "bed.wav", tone(8, 7000, 0.9), RATE)
+    whole = mix.mix_bed(voice, tmp_path / "mix.wav", music=music, stems=tmp_path / "stems")
+    assert json.loads(whole.with_suffix(".json").read_text())["trim_db"] < 0
+    parts = [stereo(tmp_path / "stems" / f"{name}.wav") for name in mix.STEMS]
+    assert np.abs(sum(parts) - stereo(whole)).max() < 3 / 32768
+
+
+def test_a_room_tail_belongs_to_the_voice_stem(project, tmp_path):
+    cleaned(project, "a", speech_bursts(4) + noise(4, 0.002))
+    voice = mix.mix_voice(project, edl(("a", 0.0, 4.0)), tmp_path / "voice.wav")
+    room = voice.with_name(f"{voice.stem}-room.wav")
+    if not room.exists():
+        pytest.skip("No room tone was found in this clip.")
+    mix.mix_bed(voice, tmp_path / "mix.wav", tail=1.0, room=room, stems=tmp_path / "stems")
+    assert np.abs(stereo(tmp_path / "stems" / "voice.wav")[-RATE // 2 :]).max() > 0
+    assert np.abs(stereo(tmp_path / "stems" / "effects.wav")).max() < 3 / 32768
+
+
+def test_a_film_with_no_voice_has_stems_too(tmp_path):
+    music = ffmpeg.write_wav(tmp_path / "bed.wav", tone(8, 300, 0.2), RATE)
+    whole = mix.mix_bed(None, tmp_path / "mix.wav", music=music, sfx=[{"name": "pop", "at": 1.0}], seconds=4.0, stems=tmp_path / "stems")
+    parts = {name: stereo(tmp_path / "stems" / f"{name}.wav") for name in mix.STEMS}
+    assert np.abs(parts["voice"]).max() == 0 and np.abs(parts["music"]).max() > 0.001 and np.abs(parts["effects"]).max() > 0.001
+    assert np.abs(sum(parts.values()) - stereo(whole)).max() < 3 / 32768
+
+
+def test_a_film_with_nothing_but_a_voice_has_silent_stems_for_the_rest(project, tmp_path):
+    cleaned(project, "a", speech_bursts(4))
+    voice = mix.mix_voice(project, edl(("a", 0.0, 4.0)), tmp_path / "voice.wav")
+    mix.mix_bed(voice, tmp_path / "mix.wav", stems=tmp_path / "stems")
+    assert np.abs(stereo(tmp_path / "stems" / "music.wav")).max() == 0
+    assert np.abs(stereo(tmp_path / "stems" / "effects.wav")).max() < 3 / 32768
+
+
+def test_asking_for_stems_changes_nothing_in_the_mix(project, tmp_path):
+    cleaned(project, "a", speech_bursts(4))
+    voice = mix.mix_voice(project, edl(("a", 0.0, 4.0)), tmp_path / "voice.wav")
+    music = ffmpeg.write_wav(tmp_path / "bed.wav", tone(8, 7000, 0.2), RATE)
+    plain = mix.mix_bed(voice, tmp_path / "plain.wav", music=music, sfx=[{"name": "pop", "at": 1.0}])
+    split = mix.mix_bed(voice, tmp_path / "split.wav", music=music, sfx=[{"name": "pop", "at": 1.0}], stems=tmp_path / "stems")
+    assert plain.read_bytes() == split.read_bytes()
