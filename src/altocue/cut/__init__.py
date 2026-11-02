@@ -80,7 +80,27 @@ def bounds(
         start, end = snap(envelope, start, end, first_word_start=first.start, last_word_end=last.end)
         start = min(start, max(first.start, first.end - OVERLAP))
         end = max(end, min(last.end, last.start + OVERLAP))
-    return to_grid(max(start, floor), min(end, ceiling), fps, floor=floor, ceiling=ceiling)
+    frame = 1 / fps
+    before = words[run[0] - 1] if run[0] else None
+    after = words[run[-1] + 1] if run[-1] + 1 < len(words) else None
+    final = last_full_frame(clip.duration, fps)
+    return to_grid(
+        max(start, floor),
+        min(end, ceiling),
+        fps,
+        floor=floor - frame if no_frame_between(before, first, frame) else floor,
+        ceiling=min(ceiling + frame, final) if no_frame_between(last, after, frame) else ceiling,
+    )
+
+
+def no_frame_between(left: Word | None, right: Word | None, frame: float) -> bool:
+    """Fast speech can leave no frame between two words, so the edge must fall in one of them.
+
+    A kept word stays whole, and the frame comes out of its neighbour, unless that word is too short to spare it.
+    """
+    if left is None or right is None or right.start - left.end >= frame:
+        return False
+    return min(left.end - left.start, right.end - right.start) >= 2 * frame
 
 
 def assemble(project: Project, removed: list[Removed], fps: int, order: list[Key] | None = None) -> Edl:

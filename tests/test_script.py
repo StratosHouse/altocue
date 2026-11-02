@@ -13,7 +13,7 @@ from altocue.cli import main
 from altocue.cut import expected_words, map_words, propose, validate
 from altocue.cut.script import from_script, script_text, sentences, transcript_mark, write_script
 from altocue.errors import AltocueError
-from altocue.models import Word
+from altocue.models import Removed, Word
 from altocue.project import Project
 
 TALK = "First we plan the work. Then we film the idea. Next we cut the pauses. Finally we ship the thing."
@@ -334,3 +334,32 @@ def test_a_named_script_file_works(tmp_path):
 def test_spans_helper_is_not_shadowed():
     assert spans_of(timed("a b")) == [(0.0, 0.3), (0.3, 0.6)]
     assert cut.propose is propose
+
+
+def run_on(*texts: str) -> list[Word]:
+    """Words with no gap at all, as fast speech comes back from the engine."""
+    return timed(" ".join(texts), start=1.012, step=0.24)
+
+
+def test_a_kept_word_keeps_its_last_frame_when_the_next_word_goes(tmp_path):
+    words = run_on("Then we keep all of this and then", "a final line")
+    project = silent_project(tmp_path, words, fps=24)
+    edl = cut.assemble(project, [Removed("a", words[8].start, words[-1].end, "manual", "out", "auto")], 24)
+    assert edl.segments[-1].end >= words[7].end
+    assert validate(project, edl) == []
+
+
+def test_a_kept_word_keeps_its_first_frame_when_the_word_before_goes(tmp_path):
+    words = run_on("Drop these three words", "then keep this")
+    project = silent_project(tmp_path, words, fps=24)
+    edl = cut.assemble(project, [Removed("a", words[0].start, words[3].end, "manual", "out", "auto")], 24)
+    assert edl.segments[0].start <= words[4].start
+    assert validate(project, edl) == []
+
+
+def test_a_sliver_of_a_word_never_plays_for_a_tight_edge(tmp_path):
+    words = [*timed("keep this word", start=1.012, step=0.24), Word(text="a", start=1.732, end=1.772), *timed("goes", start=1.772, step=0.24)]
+    project = silent_project(tmp_path, words, fps=24)
+    edl = cut.assemble(project, [Removed("a", words[3].start, words[-1].end, "manual", "out", "auto")], 24)
+    assert validate(project, edl) == []
+    assert spoken(project, edl) == "keep this word"
