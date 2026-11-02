@@ -461,3 +461,61 @@ def test_a_cue_after_an_apology_counts_mid_sentence():
     words = [transcribe.Word(*item) for item in times]
     kinds = [w.kind for w in transcribe.classify(words)]
     assert kinds == ["word", "word", "cue", "cue", "word"]
+
+
+# Long recordings
+
+
+def steady_wav(path: Path, seconds: float, quiet: list[tuple[float, float]]) -> Path:
+    rate = transcribe.RATE
+    samples = 0.2 * np.sin(2 * np.pi * 200 * np.arange(int(seconds * rate)) / rate).astype(np.float32)
+    for start, end in quiet:
+        samples[int(start * rate) : int(end * rate)] = 0.0
+    return ffmpeg.write_wav(path, samples, rate)
+
+
+def test_the_envelope_reads_a_file_in_blocks_and_measures_the_same(tmp_path, monkeypatch):
+    wav = steady_wav(tmp_path / "a.wav", 61.03, [(3.0, 5.0), (40.0, 41.0)])
+    expected = Envelope.measure(*ffmpeg.read_wav(wav))
+    monkeypatch.setattr(ffmpeg, "read_wav", lambda *a: pytest.fail("the whole file went into memory"))
+    found = Envelope.from_wav(wav)
+    assert np.allclose(found.db, expected.db)
+    assert (found.floor, found.loud, found.threshold) == pytest.approx((expected.floor, expected.loud, expected.threshold))
+
+
+def test_an_empty_wav_still_gives_an_envelope(tmp_path):
+    wav = ffmpeg.write_wav(tmp_path / "a.wav", np.zeros(0, dtype=np.float32), transcribe.RATE)
+    assert len(Envelope.from_wav(wav).db) == 0
+
+
+class Pieces:
+    """Hears one word per second, and says how much it was handed each time."""
+
+    name, hosted = "pieces", False
+
+    def __init__(self) -> None:
+        self.lengths: list[float] = []
+
+    def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
+        seconds = len(ffmpeg.read_wav(wav)[0]) / transcribe.RATE
+        self.lengths.append(seconds)
+        return [Word(text=f"w{at}", start=at + 0.2, end=at + 0.6) for at in range(int(seconds))]
+
+
+def test_a_long_recording_goes_in_pieces_split_where_it_is_quiet(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 10.0)
+    monkeypatch.setattr(transcribe, "REACH", 3.0)
+    wav = steady_wav(tmp_path / "a.wav", 32.0, [(8.5, 9.0), (20.5, 21.0)])
+    engine = Pieces()
+    words = transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 32.0, language="en", prompt="")
+    assert engine.lengths == pytest.approx([8.75, 12.0, 11.25], abs=0.1)
+    assert [word.start for word in words] == sorted(word.start for word in words)
+    assert words[8].start == pytest.approx(8.95, abs=0.1)
+
+
+def test_a_short_recording_stays_whole(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 100.0)
+    wav = steady_wav(tmp_path / "a.wav", 12.0, [(5.0, 6.0)])
+    engine = Pieces()
+    transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 12.0, language="en", prompt="")
+    assert engine.lengths == pytest.approx([12.0], abs=0.05)

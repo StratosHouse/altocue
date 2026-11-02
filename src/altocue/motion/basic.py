@@ -70,11 +70,15 @@ def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, bran
         box = (left, geo["cap_y"] - pad_y, left + longest + 2 * pad_x, geo["cap_y"] + line_height * len(lines) + pad_y)
         draw.rounded_rectangle(box, radius=px * 0.42, fill=_rgba(brand.colors["panel"], 214), outline=(255, 255, 255, 26), width=2)
     y = float(geo["cap_y"])
+    plain = page.get("colour") or brand.colors["ink"]
+    if page.get("name"):
+        small = _font(brand, px // 2, 600)
+        draw.text((geo["gutter"] + (area - draw.textlength(page["name"], font=small)) / 2, y - px * 0.66), page["name"], font=small, fill=plain)
     for line in lines:
         used = sum(draw.textlength(texts[i], font=font) for i in line) + space * (len(line) - 1)
         x = geo["gutter"] + (area - used) / 2
         for index in line:
-            color = brand.colors["accent"] if index == active else brand.colors["ink"]
+            color = brand.colors["accent"] if index == active else plain
             draw.text((x, y), texts[index], font=font, fill=color)
             x += draw.textlength(texts[index], font=font) + space
         y += line_height

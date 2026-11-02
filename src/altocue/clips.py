@@ -78,11 +78,13 @@ LATER_IN_A_LIST = phrases(
     """second, secondly, third, thirdly, fourth, fifth, lastly, finally, number two, number three, step two, step three, point two,
     point three, the next one, the last one"""
 )
-NUMBER_WORDS = re.compile(r"\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|fifty|hundred|thousand|million|billion|percent|half|twice|double|triple)\b")
+NUMBER_WORDS = re.compile(
+    r"\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|fifty|hundred|thousand|million|billion|percent|half|twice|double|triple)\b"
+)
 TO_YOU = re.compile(r"\b(you|your|you're|you've|you'll)\b")
 CLAIM = re.compile(
-    r"\b(most people|most of us|everyone|everybody|nobody|no one|never|always|stop|don't|wrong|mistake|mistakes|myth|actually|truth|secret|problem|hardest|biggest|worst|best|only"
-    r"|why|the reason|the real|here's|here is|how to|how i|how we|lost|failed|quit|fired)\b"
+    r"\b(most people|most of us|everyone|everybody|nobody|no one|never|always|stop|don't|wrong|mistake|mistakes|myth|actually|truth|secret|problem"
+    r"|hardest|biggest|worst|best|only|why|the reason|the real|here's|here is|how to|how i|how we|lost|failed|quit|fired)\b"
 )
 
 
@@ -400,7 +402,8 @@ def keyframe_before(path: str, at: float) -> float:
     while True:
         head = max(0.0, head - KEYFRAME_SEARCH)
         window = f"{origin + head:.3f}%{origin + at + 0.05:.3f}"
-        args = [ffmpeg.require("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "json", "-read_intervals", window, path]
+        args = [ffmpeg.require("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "json"]
+        args += ["-read_intervals", window, path]
         done = subprocess.run(args, capture_output=True, text=True, errors="replace")
         packets = json.loads(done.stdout or "{}").get("packets", []) if done.returncode == 0 else []
         times = [float(p["pts_time"]) - origin for p in packets if "K" in p.get("flags", "") and "pts_time" in p]
@@ -418,7 +421,8 @@ def copy_stretch(clip: Clip, start: float, end: float, folder: Path) -> tuple[Pa
     codec = next((s.get("codec_name", "") for s in ffmpeg.probe_json(clip.path).get("streams", []) if s.get("codec_type") == "video"), "")
     dest = folder / f"{clip.id}{'.mov' if codec in COPIES_INTO_MOV else '.mkv'}"
     sound = ["-map", "0:a:0", "-c:a", "pcm_s24le"] if clip.has_audio else []
-    ffmpeg.run(["-ss", f"{offset + SEEK_SLACK:.6f}", "-i", clip.path, "-t", f"{until - offset:.6f}", "-map", "0:v:0", "-c:v", "copy", *sound, "-map_metadata", "0", str(dest)])
+    span = ["-ss", f"{offset + SEEK_SLACK:.6f}", "-i", clip.path, "-t", f"{until - offset:.6f}"]
+    ffmpeg.run([*span, "-map", "0:v:0", "-c:v", "copy", *sound, "-map_metadata", "0", str(dest)])
     return dest, offset
 
 

@@ -18,6 +18,22 @@ Set `caption.style` in the brand file: `clean` (default), `bold`, `boxed`, `rail
 - **`boxed`:** a dark plate behind the words. Busy backgrounds.
 - **`rail`:** small and quiet. Interviews and long form.
 
+## Speakers
+
+Run `altocue transcribe --speakers`, or give the number with `--speakers 2` when you know it, which is more reliable. It needs `pip install "altocue[speakers]"` and `altocue setup --speakers`. Then, in `altocue.toml`:
+
+```toml
+[speakers]
+show = "both"    # colour, name or both
+S1 = "Ada"
+S2 = "Grace"
+```
+
+- **A page never mixes two speakers.** Each voice gets its own page.
+- **A name shows when the voice changes,** not on every page.
+- **Colours come from `caption.speaker_colours` in the brand file,** or a built-in set.
+- **Check the labels before you name anyone.** A wrong name on a real person is worse than none.
+
 ## Rules
 
 - **Fix spellings in the transcript, not the caption.** Names and product terms come from `work/words/`.

@@ -104,6 +104,17 @@ def check_denoiser() -> Check:
     return Check("deep-filter", bool(found), False, detail, "" if found else "Run `altocue setup` for better noise removal.")
 
 
+def check_speakers() -> Check:
+    from .speakers import model_folder, models_ready
+
+    if importlib.util.find_spec("sherpa_onnx") is None:
+        fix = 'Run `pip install "altocue[speakers]"`, then `altocue setup --speakers`.'
+        return Check("speakers", False, False, "not installed: words will have no speakers", fix)
+    if not models_ready():
+        return Check("speakers", False, False, "models not fetched: words will have no speakers", "Run `altocue setup --speakers`.")
+    return Check("speakers", True, False, f"sherpa-onnx, models at {model_folder()}")
+
+
 def check_ocr() -> Check:
     """QA reads text in the picture. A skipped gate blocks SHIP, so this one matters."""
     if shutil.which("tesseract"):
@@ -139,7 +150,8 @@ def check_clis() -> list[Check]:
 
 
 def checks() -> list[Check]:
-    return [check_ffmpeg(), check_node(), check_renderer(), check_transcriber(), check_denoiser(), check_ocr(), check_memory(), *check_keys(), *check_clis()]
+    tools = [check_ffmpeg(), check_node(), check_renderer(), check_transcriber(), check_denoiser(), check_speakers(), check_ocr(), check_memory()]
+    return [*tools, *check_keys(), *check_clis()]
 
 
 def run(args: argparse.Namespace) -> int:

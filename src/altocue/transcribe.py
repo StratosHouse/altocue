@@ -15,6 +15,7 @@ import tempfile
 import urllib.error
 import urllib.request
 import uuid
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -39,6 +40,10 @@ SPREAD_MAX = 0.4
 GHOST_MARGIN = 0.3  # a word with no speech this close to it was never said
 LOOP_FILLER, LOOP_WORD, LOOP_PHRASE = 3, 6, 4
 STOCK_CONFIDENCE = 0.5
+PIECE = 900.0  # a recording past this goes to the engine in pieces of about this many seconds
+REACH = 60.0  # how far either side of a mark to look for the quietest moment
+QUIET_WINDOW = 25  # envelope frames that must be quiet together, so a split lands in a pause and not between syllables
+ENVELOPE_BLOCK = 5000  # envelope frames read from disk at once
 
 FILLERS = frozenset("um umm uh uhh uhm er erm hm hmm mm mmm mhm ah ahh eh".split())
 FILLER_PROMPT = "Um, uh, so, like, you know, okay, hmm, I mean, right."
@@ -100,6 +105,12 @@ def core(text: str) -> str:
     return re.sub(r"[^\w']", "", text.lower().replace("’", "'"))
 
 
+def frame_levels(samples: np.ndarray, size: int) -> np.ndarray:
+    frames = len(samples) // size
+    rms = np.sqrt((samples[: frames * size].reshape(frames, size) ** 2).mean(axis=1)) + 1e-9
+    return 20 * np.log10(rms)
+
+
 @dataclass
 class Envelope:
     """A 20 ms RMS envelope. Speech is measured against the clip's own floor, so outdoor ambience stays below it."""
@@ -111,18 +122,28 @@ class Envelope:
 
     @classmethod
     def measure(cls, samples: np.ndarray, rate: int) -> Envelope:
-        size = int(rate * HOP)
-        frames = len(samples) // size
-        if not frames:
+        return cls.of_levels(frame_levels(samples, int(rate * HOP)))
+
+    @classmethod
+    def of_levels(cls, db: np.ndarray) -> Envelope:
+        if not len(db):
             return cls(np.zeros(0), 0.0, 0.0, 0.0)
-        rms = np.sqrt((samples[: frames * size].reshape(frames, size) ** 2).mean(axis=1)) + 1e-9
-        db = 20 * np.log10(rms)
         floor, loud = float(np.percentile(db, 10)), float(np.percentile(db, 90))
         return cls(db, floor, loud, max(floor + 6.0, loud - 26.0, -52.0))
 
     @classmethod
     def from_wav(cls, path: str | Path) -> Envelope:
-        return cls.measure(*ffmpeg.read_wav(path))
+        """Reads the file a block at a time, so hours of sound never sit in memory whole."""
+        with wave.open(str(path), "rb") as handle:
+            rate, channels, width = handle.getframerate(), handle.getnchannels(), handle.getsampwidth()
+            if width != 2:
+                raise AltocueError(f"{path} is not 16-bit PCM.")
+            size = int(rate * HOP)
+            levels: list[np.ndarray] = []
+            while raw := handle.readframes(size * ENVELOPE_BLOCK):
+                samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+                levels.append(frame_levels(samples.reshape(-1, channels).mean(axis=1) if channels > 1 else samples, size))
+        return cls.of_levels(np.concatenate(levels) if levels else np.zeros(0))
 
     @property
     def speech(self) -> np.ndarray:
@@ -522,11 +543,40 @@ def prompt_for(project: Project, *, engine: str) -> str:
     return " ".join([FILLER_PROMPT, *words])
 
 
+def quiet_marks(envelope: Envelope, duration: float) -> list[float]:
+    """Where to split a long recording: the quietest pause near each mark, so no word is cut in two."""
+    if duration <= PIECE * 1.5 or not len(envelope.db):
+        return []
+    held = np.convolve(envelope.db, np.ones(QUIET_WINDOW) / QUIET_WINDOW, "same")
+    marks: list[float] = []
+    place = PIECE
+    while place < duration - PIECE / 2:
+        first, last = int((place - REACH) / HOP), int((place + REACH) / HOP)
+        marks.append(round((first + int(np.argmin(held[first:last]))) * HOP, 3))
+        place = marks[-1] + PIECE
+    return marks
+
+
+def in_pieces(engine: Transcriber, wav: Path, envelope: Envelope, duration: float, *, language: str, prompt: str) -> list[Word]:
+    """Hand the engine a long recording a piece at a time, so its memory follows the piece and not the file."""
+    marks = quiet_marks(envelope, duration)
+    if not marks:
+        return engine.transcribe(wav, language=language, prompt=prompt)
+    words: list[Word] = []
+    edges = [0.0, *marks, duration]
+    for start, end in zip(edges, edges[1:], strict=False):
+        piece = ffmpeg.extract_wav(wav, wav.with_name("piece.wav"), rate=RATE, start=start, end=end)
+        heard = engine.transcribe(piece, language=language, prompt=prompt)
+        words += [dataclasses.replace(word, start=word.start + start, end=word.end + start) for word in heard]
+        piece.unlink()
+    return words
+
+
 def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: str, cues: list[str]) -> list[Word]:
     with tempfile.TemporaryDirectory() as folder:
         wav = ffmpeg.extract_wav(clip.path, Path(folder) / "audio.wav", rate=RATE)
-        raw = engine.transcribe(wav, language=language, prompt=prompt)
         envelope = Envelope.from_wav(wav)
+        raw = in_pieces(engine, wav, envelope, clip.duration, language=language, prompt=prompt)
     return classify(clean(raw, duration=clip.duration, envelope=envelope), cues=cues)
 
 
@@ -573,9 +623,16 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
         "--engine", default=None, help=f"auto or one of {', '.join(ENGINES)}. Hosted engines run only when named here or in altocue.toml"
     )
     parser.add_argument("--force", action="store_true", help="Transcribe clips that already have a word file")
+    parser.add_argument("--speakers", nargs="?", type=int, const=0, default=None, metavar="N", help="Also work out who said each word. Give N if you know how many spoke")
 
 
 def run(args: argparse.Namespace) -> int:
-    counts = transcribe_project(Project.open(args.project), engine=args.engine, force=args.force)
+    project = Project.open(args.project)
+    counts = transcribe_project(project, engine=args.engine, force=args.force)
     print(f"Transcribed {len(counts)} clips, {sum(counts.values())} words")
+    if getattr(args, "speakers", None) is not None:
+        from . import speakers
+
+        for clip, seconds in speakers.label_project(project, count=args.speakers).items():
+            print(f"{clip}: " + ", ".join(f"{name} {value:.0f} s" for name, value in seconds.items()))
     return 0

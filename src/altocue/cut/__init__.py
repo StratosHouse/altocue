@@ -374,6 +374,7 @@ def map_words(project: Project, edl: Edl) -> list[dict[str, Any]]:
             {
                 "text": word.text,
                 "kind": word.kind,
+                "speaker": word.speaker,
                 "clip": segment.clip,
                 "segment": segment.id,
                 "start": round(offset + head, 3),

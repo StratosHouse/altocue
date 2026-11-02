@@ -51,6 +51,8 @@ Run `altocue doctor --json`.
 | The user wants | Use |
 |---|---|
 | Remove pauses, ums, retakes | `altocue-cut` |
+| Pick or reorder lines, edit by transcript | `altocue-cut` |
+| Shorts or reels from a long recording | `altocue-clips` |
 | Better sound, less noise, no hum | `altocue-clean` |
 | Better colour, HDR phone footage, matching shots | `altocue-grade` |
 | Vertical from horizontal, punch-ins | `altocue-frame` |
@@ -68,7 +70,8 @@ Run `altocue doctor --json`.
 ## Project files
 
 - `altocue.toml`: settings. Change them and re-run.
-- `edl.json`: the cut. You may edit it by hand.
+- `edl.json`: the cut. You may edit it by hand, and gain, crops and zooms stay through a re-cut.
+- `script.md`: every sentence. Edit it, then `altocue cut --from-script`.
 - `motion.json`: the graphics. You write this.
 - `broll.json`: the B-roll you picked. `altocue broll` writes this.
 - `work/`: everything derived. Safe to delete.

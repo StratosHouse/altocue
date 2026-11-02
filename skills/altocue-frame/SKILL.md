@@ -11,7 +11,7 @@ compatibility: Requires the altocue CLI.
 
 1. Set the aspect with `altocue new --aspect`, or in `altocue.toml`.
 2. Run `altocue frame` after `altocue cut`. It writes a crop and zoom into each segment of `edl.json`.
-3. Change any crop by hand. `crop` is `[x, y, width, height]` in display pixels.
+3. Change any crop by hand. `crop` is `[x, y, width, height]` in display pixels. It stays through a re-cut, and `altocue frame --force` clears it.
 
 ## How it decides
 
