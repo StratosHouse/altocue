@@ -41,6 +41,7 @@ remove_fillers = true
 
 [audio]
 denoise = true
+denoiser = "auto"       # auto, apple, deep-filter or afftdn
 loudness = -14.0        # integrated LUFS
 true_peak = -1.5        # dBTP
 

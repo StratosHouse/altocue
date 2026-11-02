@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ffmpeg
+from . import ffmpeg, swift
 from .errors import AltocueError
 from .master import limiter_latency
 from .models import Clip
@@ -36,6 +36,8 @@ MAX_LIMITING_DB = 6.0
 VERSION_TIMEOUT = 10.0
 PRINT_SECONDS = 0.25
 TAIL = 4800  # `deep-filter -D` drops the last 1440 samples, so it gets spare ones
+ENGINES = ("auto", "apple", "deep-filter", "afftdn")
+ISOLATOR = Path(__file__).with_name("isolate.swift")
 
 # Runs on Apple Silicon as downloaded. It is ad-hoc signed and embeds DeepFilterNet3.
 # A script download carries no quarantine flag. A browser download does, and it then
@@ -75,6 +77,7 @@ STRENGTHS: tuple[tuple[str, float, float, float], ...] = (
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--force", action="store_true", help="Clean clips that are already done")
+    parser.add_argument("--denoiser", choices=ENGINES, help="Override the engine set in altocue.toml")
 
 
 def find_deep_filter() -> str | None:
@@ -95,6 +98,57 @@ def check_binary(binary: str) -> str | None:
     except OSError as error:
         return f"deep-filter would not start: {error}. {fix}"
     return None if done.returncode == 0 else f"deep-filter failed with code {done.returncode}. {fix}"
+
+
+def _check_isolator(binary: str) -> dict[str, Any] | None:
+    try:
+        done = subprocess.run([binary, "--check"], capture_output=True, text=True, timeout=VERSION_TIMEOUT)
+        return json.loads(done.stdout) if done.returncode == 0 else None
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        return None
+
+
+@lru_cache(maxsize=1)
+def find_isolator() -> str | None:
+    """Apple's voice isolation, on a Mac that has the audio unit. Needs no download."""
+    binary = swift.compiled(ISOLATOR, "isolate")
+    return str(binary) if binary and _check_isolator(str(binary)) else None
+
+
+def isolator_model() -> str:
+    """Which of Apple's two voice models this macOS gives us."""
+    binary = find_isolator()
+    return str((_check_isolator(binary) or {}).get("model", "unknown")) if binary else "unknown"
+
+
+def usable_deep_filter() -> tuple[str | None, str | None]:
+    """The `deep-filter` binary if it runs, and why not if it is there and does not."""
+    binary = find_deep_filter()
+    problem = check_binary(binary) if binary else None
+    return (None, problem) if problem else (binary, None)
+
+
+def choose_denoiser(wanted: str = "auto") -> tuple[str, str | None, list[str]]:
+    """The engine for this machine, its binary, and a note for anything passed over."""
+    if wanted not in ENGINES:
+        raise AltocueError(f"Unknown denoiser {wanted}.", fix=f"Use one of {', '.join(ENGINES)}.")
+    notes: list[str] = []
+    if wanted == "afftdn":
+        return "afftdn", None, notes
+    if wanted in {"auto", "apple"}:
+        binary = find_isolator()
+        if binary:
+            return "apple", binary, notes
+        if wanted == "apple":
+            notes.append("Apple voice isolation is not available here. It needs macOS 13 or later and the Xcode command line tools.")
+    binary, problem = usable_deep_filter()
+    if binary:
+        return "deep-filter", binary, notes
+    if problem:
+        notes.append(f"{problem} Used afftdn instead.")
+    elif wanted == "deep-filter":
+        notes.append("deep-filter is not installed, so afftdn was used. Run `altocue setup`.")
+    return "afftdn", None, notes
 
 
 def _frame_db(samples: np.ndarray, rate: int, ms: float = 50.0) -> np.ndarray:
@@ -159,7 +213,8 @@ def detect_hum(samples: np.ndarray, rate: int) -> dict[str, Any] | None:
 def plan_denoise(snr: float) -> dict[str, Any]:
     """How hard to work: clean audio is left alone, and the worse it is the more we take."""
     strength, atten, reduction = next((name, atten, reduction) for name, least, atten, reduction in STRENGTHS if snr >= least)
-    return {"strength": strength, "atten_db": atten, "reduction_db": reduction}
+    wet = 100 * (1 - 10 ** (-atten / 20))  # the dry signal is left at `-atten`, which is what deep-filter's limit leaves
+    return {"strength": strength, "atten_db": atten, "reduction_db": reduction, "wet": round(wet, 1)}
 
 
 def tone_filters(hum: dict[str, Any] | None) -> str:
@@ -238,6 +293,20 @@ def _run_deep_filter(binary: str, source: Path, folder: Path, atten: float, coun
     return dest
 
 
+def _run_isolate(binary: str, source: Path, folder: Path, wet: float, count: int) -> Path:
+    dest = folder / "isolated.wav"
+    try:
+        done = subprocess.run([binary, str(source), str(dest), f"{wet:.1f}"], capture_output=True, text=True, timeout=max(120.0, count / RATE * 10))
+    except (subprocess.TimeoutExpired, OSError) as error:
+        raise AltocueError(f"Apple voice isolation failed: {error}") from error
+    if done.returncode != 0 or not dest.exists():
+        raise AltocueError(f"Apple voice isolation failed with code {done.returncode}.")
+    size = len(ffmpeg.read_wav(dest)[0])
+    if size != count:
+        raise AltocueError(f"Apple voice isolation returned {size} samples, not {count}.")
+    return dest
+
+
 @lru_cache(maxsize=1)
 def _afftdn_delay() -> int:
     """`afftdn` delays its output and keeps the length. Measure by how much, once."""
@@ -280,10 +349,15 @@ def _run_afftdn(samples: np.ndarray, folder: Path, reduction: float) -> Path:
 
 
 def _denoise(
-    raw: Path, samples: np.ndarray, folder: Path, plan: dict[str, Any], deep_filter: str | None, warnings: list[str]
+    raw: Path, samples: np.ndarray, folder: Path, plan: dict[str, Any], deep_filter: str | None, isolate: str | None, warnings: list[str]
 ) -> tuple[Path, str]:
     if plan["strength"] == "none":
         return raw, "none"
+    if isolate:
+        try:
+            return _run_isolate(isolate, raw, folder, plan["wet"], len(samples)), "apple"
+        except AltocueError as error:
+            warnings.append(f"{error} Used the next engine instead.")
     if deep_filter:
         try:
             return _run_deep_filter(deep_filter, raw, folder, plan["atten_db"], len(samples)), "deep-filter"
@@ -292,8 +366,26 @@ def _denoise(
     return _run_afftdn(samples, folder, plan["reduction_db"]), "afftdn"
 
 
+def _harm(before: np.ndarray, voice: Path, raw: Path) -> dict[str, float]:
+    return {"retained_db": 0.0, "share_lost": 0.0} if voice == raw else speech_change(before, ffmpeg.read_wav(voice)[0], RATE)
+
+
+def _too_much(change: dict[str, float]) -> bool:
+    return change["retained_db"] < -SPEECH_LOSS_LIMIT_DB or change["share_lost"] > SHARE_LOST_LIMIT
+
+
+def _taken(change: dict[str, float]) -> str:
+    return f"{change['retained_db']} dB, {change['share_lost']:.0%} of its energy"
+
+
 def clean_clip(
-    clip: Clip, dest: str | Path, *, deep_filter: str | None = None, denoise: bool = True, spoken: bool | None = None
+    clip: Clip,
+    dest: str | Path,
+    *,
+    deep_filter: str | None = None,
+    isolate: str | None = None,
+    denoise: bool = True,
+    spoken: bool | None = None,
 ) -> dict[str, Any]:
     """Clean one clip to `dest` and report what was measured and what was done.
 
@@ -333,25 +425,25 @@ def clean_clip(
         hum = detect_hum(before, RATE)
         plan = plan_denoise(speech - floor) if denoise else plan_denoise(float("inf"))
         loud = ffmpeg.loudness(raw)
-        voice, engine = _denoise(raw, before, folder, plan, deep_filter, report["warnings"])
-        change = {"retained_db": 0.0, "share_lost": 0.0}
+        voice, engine = _denoise(raw, before, folder, plan, deep_filter, isolate, report["warnings"])
+        change = _harm(before, voice, raw)
+        if engine == "apple" and _too_much(change):  # the unit removes any voice it does not recognise, so a second engine gets a turn
+            report["warnings"].append(f"{engine} took too much speech ({_taken(change)}), so the next engine ran instead.")
+            voice, engine = _denoise(raw, before, folder, plan, deep_filter, None, report["warnings"])
+            change = _harm(before, voice, raw)
         kept_original = False
-        if voice != raw:
-            denoised, _ = ffmpeg.read_wav(voice)
-            change = speech_change(before, denoised, RATE)
-            if change["retained_db"] < -SPEECH_LOSS_LIMIT_DB or change["share_lost"] > SHARE_LOST_LIMIT:
-                taken = f"{change['retained_db']} dB, {change['share_lost']:.0%} of its energy"
-                report["warnings"].append(f"{engine} took too much speech ({taken}), so we kept the original.")
-                voice, engine, kept_original = raw, "none", True
-                if change["retained_db"] <= NOTHING_KEPT_DB:
-                    shutil.copy(raw, dest)
-                    report.update(
-                        status="no_speech",
-                        kept_original=True,
-                        speech_retained_db=change["retained_db"],
-                        speech_share_lost=change["share_lost"],
-                    )
-                    return report
+        if _too_much(change):
+            report["warnings"].append(f"{engine} took too much speech ({_taken(change)}), so we kept the original.")
+            voice, engine, kept_original = raw, "none", True
+            if change["retained_db"] <= NOTHING_KEPT_DB:
+                shutil.copy(raw, dest)
+                report.update(
+                    status="no_speech",
+                    kept_original=True,
+                    speech_retained_db=change["retained_db"],
+                    speech_share_lost=change["share_lost"],
+                )
+                return report
 
         into = ffmpeg.loudness(voice)["integrated"]
         pre = INTO_COMPRESSOR_LUFS - into if into > -69 else 0.0
@@ -400,17 +492,14 @@ def _spoken(project: Project, clip: Clip) -> bool | None:
         return None
 
 
-def clean_project(project: Project, force: bool = False) -> dict[str, Any]:
+def clean_project(project: Project, force: bool = False, denoiser: str | None = None) -> dict[str, Any]:
     """Clean every clip to `work/audio/<clip id>.wav` and save the report beside them."""
     path = project.audio_dir / "report.json"
     saved = json.loads(path.read_text()) if path.exists() else {}
-    binary, notes = find_deep_filter(), []
-    problem = check_binary(binary) if binary else None
-    if problem:
-        notes.append(f"{problem} Used afftdn instead.")
-        binary = None
+    denoiser, binary, notes = choose_denoiser(denoiser or str(project.setting("audio", "denoiser", "auto")))
+    isolate = binary if denoiser == "apple" else None
+    deep_filter = binary if denoiser == "deep-filter" else usable_deep_filter()[0] if isolate else None  # the spare, if isolation fails
     use_denoiser = bool(project.setting("audio", "denoise", True))
-    denoiser = "deep-filter" if binary else "afftdn"
     same = saved.get("denoise", True) == use_denoiser and saved.get("denoiser") == denoiser  # a changed setting redoes the sound
     earlier = saved.get("clips", {}) if same else {}
     entries: dict[str, Any] = {}
@@ -429,7 +518,7 @@ def clean_project(project: Project, force: bool = False) -> dict[str, Any]:
         elif not force and clip.id in earlier and dest.exists() and dest.stat().st_mtime >= Path(clip.path).stat().st_mtime:
             entries[clip.id] = {**earlier[clip.id], "status": "reused"}
         else:
-            entries[clip.id] = clean_clip(clip, dest, deep_filter=binary, denoise=use_denoiser, spoken=_spoken(project, clip))
+            entries[clip.id] = clean_clip(clip, dest, deep_filter=deep_filter, isolate=isolate, denoise=use_denoiser, spoken=_spoken(project, clip))
     report = {"denoiser": denoiser, "denoise": use_denoiser, "target_lufs": VOICE_LUFS, "warnings": notes, "clips": entries}
     write_json(path, report)
     return report
@@ -447,7 +536,7 @@ def describe(entry: dict[str, Any]) -> str:
 
 
 def run(args: argparse.Namespace) -> int:
-    report = clean_project(Project.open(args.project), force=args.force)
+    report = clean_project(Project.open(args.project), force=args.force, denoiser=args.denoiser)
     for note in report["warnings"]:
         print(f"Warning: {note}")
     for entry in report["clips"].values():
