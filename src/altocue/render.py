@@ -19,12 +19,16 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
 
 
 def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
-    """House sound for graphics: a pop on arrival, a tick per step, a whoosh to the end card."""
+    """House sound for graphics: a pop on arrival, a tick per step, a whoosh to the end card.
+
+    A wipe sounds at its midpoint, because that is where the cut lands.
+    """
     cues: list[dict[str, Any]] = []
     for item in timeline["items"]:
         fmt = formats.find(item["type"])
         if fmt and fmt.sound:
-            cues.append({"name": fmt.sound, "at": item["start"]})
+            at = (item["start"] + item["end"]) / 2 if fmt.group == "wipe" else item["start"]
+            cues.append({"name": fmt.sound, "at": at})
         if item["type"] in {"lower_third", "steps", "stat", "quote"}:
             cues.append({"name": "pop", "at": item["start"]})
         if item["type"] == "steps":
@@ -32,6 +36,11 @@ def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
         if item["type"] == "endcard":
             cues.append({"name": "whoosh", "at": item["start"]})
     return cues
+
+
+def all_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
+    """The house sounds, unless `sfx` turned them off, and every cue the project asked for."""
+    return (sfx_cues(timeline) if timeline.get("sfx", True) else []) + timeline.get("cues", [])
 
 
 def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Layer, timeline: dict[str, Any], c: plate.Canvas, dest: Path) -> list[str]:
@@ -89,7 +98,7 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
     audio = project.work / "mix.wav"
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
     room = voice.with_name(f"{voice.stem}-room.wav")
-    mix.mix_bed(voice, audio, music=music, sfx=sfx_cues(timeline) if timeline.get("sfx", True) else [], tail=timeline["tail"], room=room)
+    mix.mix_bed(voice, audio, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room)
     dest = project.out / ("draft.mp4" if draft else "render.mp4")
     ffmpeg.run(compose_args(project, picture, audio, layer, timeline, plate.canvas(project, draft=draft), dest))
     return dest

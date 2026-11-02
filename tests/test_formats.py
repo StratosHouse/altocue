@@ -119,7 +119,8 @@ def test_placement_and_sound_know_the_format(fmt, brand):
     assert estimated_height(placed(fmt), 1080, 1920, brand) > 0
     if fmt.sound:
         assert brands.data_path("sfx", f"{fmt.sound}.ogg").exists()
-        assert {"name": fmt.sound, "at": 0.5} in render.sfx_cues({"items": [placed(fmt)]})
+        at = 0.5 + fmt.seconds / 2 if fmt.group == "wipe" else 0.5
+        assert {"name": fmt.sound, "at": at} in render.sfx_cues({"items": [placed(fmt)]})
 
 
 def test_ids_never_shadow_core_types():
