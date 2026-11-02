@@ -24,3 +24,4 @@ Set `caption.style` in the brand file: `clean` (default), `bold`, `boxed`, `rail
 - **Never add a word that was not said.** Use a `chip` or `quote` graphic for added text.
 - **Up to 4 words a page.** Fewer at moments that matter.
 - **Check the safe zone.** App buttons cover the bottom and the right of a tall video. QA checks this.
+- **Captions help people understand.** Over 100 studies found better comprehension, attention and memory (Gernsbacher, 2015). That is about understanding. It is not a result about keeping viewers.

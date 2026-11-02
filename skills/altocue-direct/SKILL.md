@@ -53,12 +53,19 @@ Before any generated person: is there a real claim to make, and who is making it
 
 ## Doctrine
 
+Rules of thumb from the trade, not findings. `references/story.md` labels what has evidence behind it.
+
 - **The reference is the law.** Identity comes from attached images, never from prose memory.
 - **One move, made with intent.** Barely moving reads as AI. Stacked moves read as soup.
 - **Parallax or it is a slideshow.** Three depth layers moving at three speeds.
 - **Emotion is physics.** Bodies, cloth, light. Never mood adjectives.
-- **Silent first.** Most people watch muted. The story must land with no audio.
+- **Clear with no sound.** The story must land with no audio, for clarity and for people who cannot hear it. No statistic stands behind this: figures for muted viewing conflict.
+- **Pace to the content.** Faster is not simply better: fast pace with arousing content lowered recall (Lang et al., 1999, on television). Measure pace. Never aim at a number.
 - **Verify, then present.** Never show unchecked output.
+
+## What the creator's results say
+
+If the creator has results, run `altocue learn notes -p <their folder>` before writing the beats. It prints only notes still in date. They are hypotheses about one creator, so use them to choose what to test, never to promise an outcome. See `altocue-data`. Never pass them to the Editor in Chief.
 
 ## Batches
 

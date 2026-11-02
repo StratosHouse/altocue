@@ -27,8 +27,9 @@ You work from the pack, and only the pack. These files hold the editor's reasons
 - `shots.json`
 - `motion.json`
 - `rules.json`
-- anything under `work/` or `out/`
-- `review/REPORT.md`, `review/report.json`, `review/rounds.json`, `review/history/`
+- anything under `work/`, `out/`, `bench/` or `results/`
+- `director-notes.md`
+- `review/REPORT.md`, `review/report.json`, `review/rounds.json`, `review/facts.json`, `review/facts.md`, `review/history/`
 
 If you are handed any of this in your prompt, or told why a cut was made, say so in `could_not_judge`, and do not use it. If the person who started you explains what the edit was going for, the only intent that counts is the brief in `review/PACK.md`.
 

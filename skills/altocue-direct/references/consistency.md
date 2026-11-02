@@ -16,8 +16,9 @@ contains a character attaches that character's canonical image:
 - **Video** (seedance_2_0): the approved keyframe as `start_image` PLUS each
   character's canonical PNG as `image_references`. The start frame carries
   composition; the references hold identity across the clip's duration.
-- Reference order (Higgsfield house rule): location first, then characters,
-  then props. Hard cap ~7 references per call; trim props first, never a
+- **[source]** Reference order (Higgsfield house rule): location first, then
+  characters, then props. Cap of about 7 references per call, as that rule
+  states it; some models are reported to take more. Trim props first, never a
   location or an on-screen character. Retries keep the exact same ordered
   medias.
 

@@ -69,6 +69,8 @@ exempt = ""             # why no label is needed, in your words. Recorded, never
 
 [ugc]
 label_text = []         # words printed on the real product, so `qa --check ugc` does not call them baked in
+[qa]
+reading_wps = 3.0       # words a second for the text_readable gate. Slower for children or second-language viewers
 
 [review]
 reviewer = "auto"       # auto, gemini, codex or pack

@@ -142,7 +142,8 @@ def test_agent_uses_only_plugin_safe_fields():
 
 def test_agent_is_kept_blind_and_cannot_decide():
     text = agent_text()
-    for path in ("edl.json", "timeline.json", "shots.json", "motion.json", "work/", "rounds.json"):
+    kept_out = ("review/facts.json", "review/facts.md", "director-notes.md", "results/", "bench/")
+    for path in ("edl.json", "timeline.json", "shots.json", "motion.json", "work/", "rounds.json", *kept_out):
         assert path in text
     assert "review/PACK.md" in text and "review/verdict.json" in text
     assert "Code decides" in text

@@ -27,11 +27,11 @@ CELL_WIDTH = 216
 COLUMNS, ROWS = 5, 4
 CUT_WIDTH = 360
 HOOK_STEP = 0.25
-HOOK_SECONDS = 3.0
+HOOK_SECONDS = qa_gates.HOOK_SECONDS
 TRANSCRIPT_LINE = 10
 FORBIDDEN = (
-    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/ or out/, "
-    "review/REPORT.md, review/report.json, review/rounds.json or review/history/"
+    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/, out/, bench/ or results/, "
+    "director-notes.md, review/REPORT.md, review/report.json, review/rounds.json, review/facts.json, review/facts.md or review/history/"
 )
 
 
@@ -192,6 +192,8 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
         history = project.review_dir / "history"
         history.mkdir(exist_ok=True)
         old.replace(history / f"verdict-{qa.sha256(old)[:12]}.json")
+    for stale in ("facts.json", "facts.md"):  # numbers would anchor the score, so they come back after it
+        (project.review_dir / stale).unlink(missing_ok=True)
     context = qa_gates.Context.open(project, file)
     digest = qa.sha256(file)
     fps = context.clip.fps or 30.0
