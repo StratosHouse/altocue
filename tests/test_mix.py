@@ -519,16 +519,15 @@ def test_a_short_track_loops_and_still_lands(tmp_path):
 
 def test_a_loop_join_does_not_click(tmp_path):
     music = ffmpeg.write_wav(tmp_path / "music.wav", tone(1.5, 300, 0.2, phase=1.0), RATE)
-    out = stereo(mix.mix_bed(ffmpeg.write_wav(tmp_path / "voice.wav", np.zeros(6 * RATE), RATE), tmp_path / "mix.wav", music=music))[:, 0]
-    steady = np.abs(np.diff(out[RATE:RATE + 1000])).max()
-    assert np.abs(np.diff(out[RATE : 5 * RATE])).max() < steady * 2
+    out = stereo(mix.mix_bed(silent_voice(tmp_path, 6), tmp_path / "mix.wav", music=music))[:, 0]
+    steps = np.abs(np.diff(out[2 * RATE : 5 * RATE]))
+    assert steps.max() < np.percentile(steps, 99) * 1.5
 
 
 def test_fade_ending_starts_at_the_top_of_the_track(tmp_path):
     body = np.r_[tone(1, 5000, 0.1), tone(29, 2000, 0.05)]
     music = ffmpeg.write_wav(tmp_path / "music.wav", body, RATE)
-    voice = ffmpeg.write_wav(tmp_path / "voice.wav", np.zeros(10 * RATE), RATE)
-    path = mix.mix_bed(voice, tmp_path / "mix.wav", music=music, music_end="fade")
+    path = mix.mix_bed(silent_voice(tmp_path, 10), tmp_path / "mix.wav", music=music, music_end="fade")
     out = stereo(path)[:, 0]
     assert band_rms_db(out[int(0.6 * RATE) : int(0.9 * RATE)], 5000) > band_rms_db(out[int(0.6 * RATE) : int(0.9 * RATE)], 2000)
     assert json.loads(path.with_suffix(".json").read_text())["music"]["starts_at"] == 0
@@ -537,8 +536,7 @@ def test_fade_ending_starts_at_the_top_of_the_track(tmp_path):
 
 def test_music_rises_at_the_head_and_is_gone_on_the_last_sample(tmp_path):
     music = ffmpeg.write_wav(tmp_path / "music.wav", tone(30, 2000, 0.1), RATE)
-    voice = ffmpeg.write_wav(tmp_path / "voice.wav", np.zeros(10 * RATE), RATE)
-    out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", music=music))[:, 0]
+    out = stereo(mix.mix_bed(silent_voice(tmp_path, 10), tmp_path / "mix.wav", music=music))[:, 0]
     assert abs(out[0]) < 0.001 and abs(out[-1]) < 0.001
     assert rms_db(out[: RATE // 10]) < rms_db(out[RATE : 2 * RATE]) - 6
     assert rms_db(out[-RATE // 20 :]) < rms_db(out[RATE : 2 * RATE]) - 6

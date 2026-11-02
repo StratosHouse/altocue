@@ -137,9 +137,9 @@ def test_house_off_keeps_project_cues():
 
 def test_every_effect_is_heard_where_it_was_called(tmp_path):
     names = mix.sfx_names()
-    seconds = len(names) + 2
+    seconds = 2 * len(names) + 2
     silence = ffmpeg.write_wav(tmp_path / "voice.wav", np.r_[np.full(RATE, 0.1) * np.sin(np.arange(RATE) * 0.05), np.zeros((seconds - 1) * RATE)], RATE)
-    cues = [{"name": name, "at": 1.5 + index} for index, name in enumerate(names)]
+    cues = [{"name": name, "at": 1.5 + 2 * index, "align": "start"} for index, name in enumerate(names)]
     out = mix.mix_bed(silence, tmp_path / "mix.wav", sfx=cues)
     with wave.open(str(out), "rb") as handle:
         left = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2").reshape(-1, 2)[:, 0]

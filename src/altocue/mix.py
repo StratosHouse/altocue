@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tempfile
 import wave
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +29,8 @@ MUSIC_FADE_OUT = 2.6
 MUSIC_LAND_FADE = 0.6  # keeps the track's own ending, and still never stops on a click
 MUSIC_LOOP_BLEND = 0.5
 MUSIC_SILENT_DB = -50.0
-MUSIC_ENDS = ("land", "fade")
+MUSIC_ENDS = ("land", "fade", "own")  # "own" is a score that ends itself: no loop, no backtiming, no fade
+MUSIC_GUARD = 0.005  # against a click, and no more
 FRAMES_PER_SECOND = 100
 SYLLABLE_FRAMES = 5
 SYLLABLE_HOLD = 15  # 150 ms either side
@@ -43,6 +46,21 @@ SFX_UNDER_DB = 10.0
 SFX_UNDER_RANGE = (8.0, 12.0)
 SFX_PEAK_OVER_VOICE_DB = 7.0
 PEAK_LIMIT = 10 ** (-1 / 20)
+# With no voice the music leads. These start from one repo's measurements of its own films: effect
+# peaks 3 to 10 dB over the music, a closing fade of about 0.27 s, a 6 to 12 dB dip before a big hit.
+BED_LUFS = -18.0  # leaves the hits room over the music, and the master sets the final level
+BED_OVER_DB = 6.0  # for a sound with no row in the table
+BED_OVER_RANGE = (0.0, 14.0)
+BED_WINDOW = 0.4  # how much music before a hit it is levelled against
+BED_QUIET_DB = 6.0  # a fade-in or a rest does not take a hit down further than this
+HIT_PEAK_DB = -3.0
+TIGHT_HEAD = 0.03
+TIGHT_TAIL = 0.27
+DIP_RANGE = (6.0, 12.0)
+DIP_SECONDS = 0.4
+DIP_BACK = 0.02
+ALIGNS = ("start", "peak")
+SILENT_VOICE = 1e-4
 ROOM_SECONDS = 8  # long enough that no ear catches the repeat
 ROOM_FRAME = 2048
 ROOM_CLEAR_DB = 20.0  # under the speech by this much, or the quietest stretch is not a room
@@ -285,9 +303,7 @@ def _write_stereo(path: Path, samples: np.ndarray) -> Path:
     return path
 
 
-def _voice_level(path: Path, samples: np.ndarray) -> float:
-    if np.abs(samples).max() < 1e-4:
-        return VOICE_LUFS
+def _voice_level(path: Path) -> float:
     level = ffmpeg.loudness(path)["integrated"]
     return level if level > -69 else VOICE_LUFS
 
@@ -385,50 +401,98 @@ def _looped(track: np.ndarray, total: int) -> tuple[np.ndarray, int]:
     return out, passes
 
 
-def _shaped(track: np.ndarray, total: int, end: str) -> tuple[np.ndarray, int, int]:
+def _shaped(track: np.ndarray, total: int, end: str, tight: bool = False) -> tuple[np.ndarray, int, int]:
     """The bed for a film of `total` samples, with its head and tail, and where it started in the track."""
+    if end == "own":
+        bed = np.zeros((total, 2))
+        count = min(total, len(track))
+        bed[:count] = track[:count]
+        guard = min(round(MUSIC_GUARD * RATE), count // 2)
+        bed[:guard] *= _curve(guard, False)[:, None]
+        bed[count - guard : count] *= _curve(guard, False)[::-1, None]
+        return bed, 0, 1
     stream, passes = _looped(track, total)
     start = len(stream) - total if end == "land" else 0  # backtimed, as an editor would
     bed = stream[start : start + total].copy()
-    head = min(round(MUSIC_FADE_IN * RATE), total // 4)
-    tail = min(round((MUSIC_LAND_FADE if end == "land" else MUSIC_FADE_OUT) * RATE), total // 3)
+    head = min(round((TIGHT_HEAD if tight else MUSIC_FADE_IN) * RATE), total // 4)
+    tail = min(round((TIGHT_TAIL if tight else MUSIC_LAND_FADE if end == "land" else MUSIC_FADE_OUT) * RATE), total // 3)
     bed[:head] *= _curve(head, False)[:, None]
     bed[total - tail :] *= _curve(tail, False)[::-1, None]
     return bed, start, passes
 
 
-def _bed(music: Path, samples: np.ndarray, level: float, total: int, end: str, folder: Path) -> tuple[np.ndarray, dict[str, Any]]:
+def _music_bed(music: Path, target: float, total: int, end: str, folder: Path, tight: bool = False) -> tuple[np.ndarray, dict[str, Any]]:
+    """The track at `target` LUFS, fitted to the film."""
     if not music.exists():
         raise AltocueError(f"No music at {music}.", fix="Check the path in motion.json.")
     if end not in MUSIC_ENDS:
         raise AltocueError(f"Unknown music ending {end}.", fix=f"Use one of {', '.join(MUSIC_ENDS)}.")
     path = folder / "music.wav"
     ffmpeg.run(["-i", str(music), "-vn", "-ar", str(RATE), "-ac", "2", "-c:a", "pcm_s16le", str(path)])
-    gain = level - MUSIC_UNDER_VOICE_LU - ffmpeg.loudness(music)["integrated"]
-    bed, start, passes = _shaped(_trimmed_music(path), total, end)
-    ridden, under = _ride(bed * 10 ** (gain / 20), samples, level - RIDER_GATE_BELOW_VOICE_DB)
-    return ridden, {"file": str(music), "gain_db": round(gain, 2), "under_voice_db": round(under, 1), "end": end, "starts_at": round(start / RATE, 3), "loops": passes}
+    gain = target - ffmpeg.loudness(music)["integrated"]
+    bed, start, passes = _shaped(_trimmed_music(path), total, end, tight)
+    return bed * 10 ** (gain / 20), {"file": str(music), "gain_db": round(gain, 2), "end": end, "starts_at": round(start / RATE, 3), "loops": passes}
 
 
-def _effect(cue: dict[str, Any], index: int, level: float, total: int, folder: Path) -> tuple[np.ndarray, int, dict[str, Any]]:
-    under = float(cue.get("under_db", SFX_UNDER_DB))
-    if not SFX_UNDER_RANGE[0] <= under <= SFX_UNDER_RANGE[1]:
-        raise AltocueError(f"Effect level {under:g} dB under the voice is out of range.", fix="Use 8 to 12 dB under the voice.")
+@lru_cache(maxsize=1)
+def _sound_table() -> dict[str, dict[str, Any]]:
+    return {row["name"]: row for row in json.loads((SFX_DIR / "sounds.json").read_text())}
+
+
+def _placing(cue: dict[str, Any]) -> dict[str, Any]:
+    """How this sound is placed: the table's word for a bundled sound, and the cue's over that."""
+    row = _sound_table().get(cue.get("name", ""), {})
+    found = {key: cue.get(key, row.get(key, default)) for key, default in (("align", "start"), ("offset_ms", 0), ("min_gap_ms", 0), ("dip_db", 0.0))}
+    if found["align"] not in ALIGNS:
+        raise AltocueError(f"Unknown alignment {found['align']}.", fix=f"Use one of {', '.join(ALIGNS)}.")
+    return {**found, "over_db": float(cue.get("over_db", row.get("bed_db", BED_OVER_DB)))}
+
+
+def _spaced(cues: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Cues in time order, less any sound repeated sooner than it should be."""
+    kept, skipped = [], []
+    last: dict[str, float] = {}
+    for cue in sorted(cues, key=lambda row: float(row["at"])):
+        name, at = cue.get("name", Path(str(cue.get("file"))).stem), float(cue["at"])
+        if name in last and at - last[name] < float(_placing(cue)["min_gap_ms"]) / 1000:
+            skipped.append({"name": name, "at": at, "why": "too soon after the last one"})
+            continue
+        last[name] = at
+        kept.append(cue)
+    return kept, skipped
+
+
+def _loaded(cue: dict[str, Any], index: int, total: int, folder: Path) -> tuple[np.ndarray, Path, Path]:
+    """The sound as mono samples, its wav, and where it came from."""
     path = Path(cue["file"]) if "file" in cue else sfx_path(cue["name"])
     if not path.exists():
         raise AltocueError(f"No effect at {path}.", fix="Check the path.")
-    start = round(float(cue["at"]) * RATE)
-    if not 0 <= start < total:
+    if not 0 <= round(float(cue["at"]) * RATE) < total:
         raise AltocueError(
             f"Effect {path.stem} at {float(cue['at']):.2f}s is outside the {total / RATE:.2f}s mix.",
             fix="Move it inside the film, or remove it.",
         )
     wav = ffmpeg.extract_wav(path, folder / f"effect{index}.wav")
-    samples, _ = ffmpeg.read_wav(wav)
+    return ffmpeg.read_wav(wav)[0].astype(np.float64), wav, path
+
+
+def _placed(samples: np.ndarray, cue: dict[str, Any], place: dict[str, Any]) -> tuple[np.ndarray, int, int]:
+    """The sound, where it starts, and where its loudest moment falls. A lead-in before the film is lost."""
+    loudest = int(np.argmax(np.abs(samples)))
+    start = round(float(cue["at"]) * RATE) + round(int(place["offset_ms"]) / 1000 * RATE) - (loudest if place["align"] == "peak" else 0)
+    return samples[max(-start, 0) :], max(start, 0), start + loudest
+
+
+def _effect(cue: dict[str, Any], index: int, level: float, total: int, folder: Path) -> tuple[np.ndarray, int, dict[str, Any]]:
+    """A sound levelled against the voice."""
+    under = float(cue.get("under_db", SFX_UNDER_DB))
+    if not SFX_UNDER_RANGE[0] <= under <= SFX_UNDER_RANGE[1]:
+        raise AltocueError(f"Effect level {under:g} dB under the voice is out of range.", fix="Use 8 to 12 dB under the voice.")
+    samples, wav, path = _loaded(cue, index, total, folder)
     peak = float(20 * np.log10(np.abs(samples).max() + 1e-9))
     gain = level - under - max_momentary(wav)
     ceiling = level + SFX_PEAK_OVER_VOICE_DB - peak
-    placed = samples.astype(np.float64) * 10 ** (min(gain, ceiling) / 20)
+    placed, start, _ = _placed(samples * 10 ** (min(gain, ceiling) / 20), cue, _placing(cue))
     return (
         placed,
         start,
@@ -440,6 +504,77 @@ def _effect(cue: dict[str, Any], index: int, level: float, total: int, folder: P
             "capped": ceiling < gain,
         },
     )
+
+
+def _lufs_like(bed: np.ndarray) -> float:
+    """Stereo power on the LUFS scale, with no K-weighting. Within a dB of `ebur128` on a steady bed."""
+    return float(10 * np.log10(np.sum(np.mean(bed**2, axis=0)) + 1e-12) - 0.691)
+
+
+def _level_at(bed: np.ndarray, hit: int) -> float | None:
+    """The music's level in the moment before a hit, or None if there is no music there."""
+    first = max(hit - round(BED_WINDOW * RATE), 0)
+    if hit <= first:
+        return None
+    level = _lufs_like(bed[first:hit])
+    return level if level > -90 else None
+
+
+def _hit(cue: dict[str, Any], index: int, bed: np.ndarray, overall: float, total: int, folder: Path) -> tuple[np.ndarray, int, int, float, dict[str, Any]]:
+    """A sound levelled against the music in the moment it lands. Returns it, its start and hit, and any dip."""
+    place = _placing(cue)
+    if "under_db" in cue:
+        raise AltocueError("under_db sets an effect against a voice, and this film has none.", fix="Use over_db, for how far over the music it sits.")
+    if not BED_OVER_RANGE[0] <= place["over_db"] <= BED_OVER_RANGE[1]:
+        low, high = BED_OVER_RANGE
+        raise AltocueError(f"Effect level {place['over_db']:g} dB over the music is out of range.", fix=f"Use {low:g} to {high:g} dB over the music.")
+    dip = float(place["dip_db"])
+    if dip and not DIP_RANGE[0] <= dip <= DIP_RANGE[1]:
+        raise AltocueError(f"A dip of {dip:g} dB is out of range.", fix=f"Use {DIP_RANGE[0]:g} to {DIP_RANGE[1]:g} dB, or 0 for no dip.")
+    samples, _, path = _loaded(cue, index, total, folder)
+    placed, start, hit = _placed(samples, cue, place)
+    local = _level_at(bed, min(hit, total))
+    against = overall if local is None else max(local, overall - BED_QUIET_DB)
+    peak = float(20 * np.log10(np.abs(samples).max() + 1e-9))
+    gain = against + place["over_db"] - peak
+    ceiling = HIT_PEAK_DB - peak
+    used = min(gain, ceiling)
+    entry = {
+        "name": cue.get("name", path.stem),
+        "at": float(cue["at"]),
+        "over_bed_db": round(peak + used - against, 1),
+        "gain_db": round(used, 2),
+        "capped": ceiling < gain,
+        "dip_db": dip,
+    }
+    return placed * 10 ** (used / 20), start, hit, dip, entry
+
+
+def _dipped(bed: np.ndarray, dips: list[tuple[int, float]]) -> np.ndarray:
+    """Draw the music down before a big hit, and bring it straight back on the hit."""
+    if not dips:
+        return bed
+    gain_db = np.zeros(len(bed))
+    back = round(DIP_BACK * RATE)
+    for hit, depth in dips:
+        first, last = max(hit - round(DIP_SECONDS * RATE), 0), min(hit + back, len(bed))
+        at = np.arange(first, last)
+        down = _raised((at - first) / max((hit - first) // 2, 1))
+        up = 1 - _raised((at - hit) / back)
+        gain_db[first:last] = np.minimum(gain_db[first:last], -depth * np.where(at < hit, down, up))
+    return bed * 10 ** (gain_db / 20)[:, None]
+
+
+def _no_voice(music: Path | None, cues: list[dict[str, Any]], total: int, end: str, folder: Path) -> tuple[np.ndarray, dict[str, Any]]:
+    """The music leads. Effects are levelled against it, and a big hit gets a dip in front of it."""
+    bed, info = _music_bed(music, BED_LUFS, total, end, folder, tight=True) if music else (np.zeros((total, 2)), None)
+    overall = _lufs_like(bed) if music else BED_LUFS
+    hits = [_hit(cue, index, bed, overall, total, folder) for index, cue in enumerate(cues)]
+    out = _dipped(bed, [(hit, dip) for _, _, hit, dip, _ in hits if dip])
+    for placed, start, _, _, _ in hits:
+        end_at = min(start + len(placed), total)
+        out[start:end_at] += placed[: end_at - start, None]
+    return out, {"mode": "no voice", "voice_lufs": None, "bed_lufs": BED_LUFS, "music": info, "sfx": [entry for *_, entry in hits]}
 
 
 def _room_tail(room: Path, start: int, total: int) -> np.ndarray | None:
@@ -457,51 +592,79 @@ def _room_tail(room: Path, start: int, total: int) -> np.ndarray | None:
 
 
 def mix_bed(
-    voice: str | Path,
+    voice: str | Path | None,
     dest: str | Path,
     music: str | Path | None = None,
     sfx: Any = (),
     tail: float = 0.0,
     room: str | Path | None = None,
     music_end: str = "land",
+    seconds: float | None = None,
 ) -> Path:
-    """Mix voice, ducked music and effects to stereo 48 kHz, running `tail` seconds past the voice.
+    """Mix voice, music and effects to stereo 48 kHz, running `tail` seconds past the picture.
 
-    Each entry in `sfx` is `{"name": "pop", "at": 1.2}` or `{"file": path, "at": 1.2}`, with an
-    optional `under_db` from 8 to 12. `room` is the loop from `mix_voice`, which fills the tail.
-    `music_end` is "land", which backtimes the track so its own end falls on the film's last
-    sample, or "fade", which starts at the top of the track and fades out. The numbers land in a
+    With a voice, music ducks under it and effects sit 8 to 12 dB under it. `voice=None`, with
+    `seconds` for the film's length, or a voice track of pure silence, is a film with no voice:
+    the music leads at `BED_LUFS`, fades are tight, and effects are levelled against the music.
+
+    Each entry in `sfx` is `{"name": "pop", "at": 1.2}` or `{"file": path, "at": 1.2}`, plus
+    `align` ("start" or "peak"), `offset_ms` and `min_gap_ms`, which default to the sound's row in
+    `sounds.json`. With a voice a cue can set `under_db`. With none it can set `over_db` and `dip_db`.
+    `room` is the loop from `mix_voice`, which fills the tail. `music_end` is "land", which
+    backtimes the track so its own end falls on the film's last sample, "fade", which starts at the
+    top of the track and fades out, or "own", for a score that ends itself. The numbers land in a
     `.json` beside the mix.
     """
-    voice, dest = Path(voice), Path(dest)
-    if not voice.exists():
-        raise AltocueError(f"No voice track at {voice}.", fix="Run `altocue plate`.")
-    samples, _ = ffmpeg.read_wav(voice)
-    samples = samples.astype(np.float64)
-    total = len(samples) + round(tail * RATE)
-    level = _voice_level(voice, samples)
-    out = np.zeros((total, 2))
-    out[: len(samples)] = samples[:, None]
-    if room and tail:
-        start = max(len(samples) - round(FADE_MS / 1000 * RATE) // 2, 0)
-        bed = _room_tail(Path(room), start, total)
-        if bed is not None:
-            out[start:] += bed[:, None]
-    report: dict[str, Any] = {"voice_lufs": level, "music": None, "sfx": []}
+    dest = Path(dest)
+    if voice is None:
+        if seconds is None:
+            raise AltocueError("A mix with no voice has nothing to set its length.", fix="Pass seconds, the film's length.")
+        samples, length = np.zeros(0), round(seconds * RATE)
+    else:
+        voice = Path(voice)
+        if not voice.exists():
+            raise AltocueError(f"No voice track at {voice}.", fix="Run `altocue plate`.")
+        loaded, _ = ffmpeg.read_wav(voice)
+        samples, length = loaded.astype(np.float64), len(loaded)
+    total = length + round(tail * RATE)
+    cues, skipped = _spaced(sfx)
     with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
         folder = Path(scratch)
-        if music:
-            bed, report["music"] = _bed(Path(music), samples, level, total, music_end, folder)
-            out += bed
-        for index, cue in enumerate(sfx):
-            placed, start, entry = _effect(cue, index, level, total, folder)
-            end = min(start + len(placed), total)
-            out[start:end] += placed[: end - start, None]
-            report["sfx"].append(entry)
+        if voice is None or np.abs(samples).max(initial=0.0) < SILENT_VOICE:
+            out, report = _no_voice(Path(music) if music else None, cues, total, music_end, folder)
+        else:
+            out, report = _with_voice(Path(voice), samples, Path(music) if music else None, cues, total, tail, Path(room) if room else None, music_end, folder)
     peak = float(np.abs(out).max())
     if peak > PEAK_LIMIT:
         out *= PEAK_LIMIT / peak
+    report["skipped"] = skipped
     report["trim_db"] = round(20 * np.log10(PEAK_LIMIT / peak), 2) if peak > PEAK_LIMIT else 0.0
     _write_stereo(dest, out)
     write_json(dest.with_suffix(".json"), report)
     return dest
+
+
+def _with_voice(
+    voice: Path, samples: np.ndarray, music: Path | None, cues: list[dict[str, Any]], total: int, tail: float, room: Path | None, end: str, folder: Path
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """The voice leads. Music ducks under it, and effects are levelled against it."""
+    level = _voice_level(voice)
+    out = np.zeros((total, 2))
+    out[: len(samples)] = samples[:, None]
+    if room and tail:
+        start = max(len(samples) - round(FADE_MS / 1000 * RATE) // 2, 0)
+        bed = _room_tail(room, start, total)
+        if bed is not None:
+            out[start:] += bed[:, None]
+    report: dict[str, Any] = {"mode": "voice", "voice_lufs": level, "music": None, "sfx": []}
+    if music:
+        bed, report["music"] = _music_bed(music, level - MUSIC_UNDER_VOICE_LU, total, end, folder)
+        ridden, under = _ride(bed, samples, level - RIDER_GATE_BELOW_VOICE_DB)
+        report["music"]["under_voice_db"] = round(under, 1)
+        out += ridden
+    for index, cue in enumerate(cues):
+        placed, start, entry = _effect(cue, index, level, total, folder)
+        stop = min(start + len(placed), total)
+        out[start:stop] += placed[: stop - start, None]
+        report["sfx"].append(entry)
+    return out, report
