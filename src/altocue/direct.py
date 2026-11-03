@@ -108,7 +108,7 @@ class Shot(Model):
     extra: dict[str, Any] = field(default_factory=dict)
     synthetic: list[str] = field(default_factory=list)
     script: str = ""
-    motion: str | None = None
+    motion: str | None = None  # a video that sets camera and timing, such as assets/blockout.mp4
 
     def media(self) -> list[str]:
         return [value for value in (self.first_frame, self.last_frame, *self.refs) if value]
@@ -315,7 +315,7 @@ def _ledger_findings(shots: list[Shot], ledger: Any) -> list[Finding]:
     """A reference must show its character in the state the ledger has them in at that shot (c380, c373).
 
     The ledger is `{"maya": [{"from": "s01", "state": "unhurt"}, {"from": "s04", "state": "wounded"}]}`. A reference
-    names its state in its file name, such as refs/maya-wounded.png, and an `@id` still carries the state of its own shot.
+    names its state in its file name, such as refs/maya-unhurt.png or refs/maya-wounded.png, and an `@id` still carries the state of its own shot.
     """
     order = {shot.id: index for index, shot in enumerate(shots)}
     if not isinstance(ledger, dict):

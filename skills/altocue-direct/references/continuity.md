@@ -6,6 +6,11 @@ Read this when a scene has more than one shot. Models have no memory between cli
 
 - **Write a geography block, and open every prompt in the scene with it.** **[source]** Compass, who stands where, and each person's position in the first frame as a share of the screen. Several authors use this, and it is cheap.
 - **Keep a timed ledger for props and damage.** **[source]** A table of what each person holds and what has happened to it, shot by shot. State only accumulates. A torn sleeve stays torn.
+- **Name references by state, and let `altocue direct` match them to the ledger.** [source] Identity and condition are separate: unhurt, wounded and bandaged are three references, not one, however well the face matches. Put the ledger beside the shots, and name each file for its state:
+  ```json
+  {"ledger": {"maya": [{"from": "s01", "state": "unhurt"}, {"from": "s04", "state": "wounded"}]}}
+  ```
+  A shot from s04 on that uses `refs/maya-unhurt.png`, or an `@id` still made before s04, warns. Fix the reference before generating, not after.
 - **Keep separate sets for separate jobs.** **[source]** A twist gets its own room.
 - **Plan the listening reaction as carefully as the line.** **[thumb]**
 - **Put sound events in the same table as picture events.** **[source]** Both then ride one clock.
