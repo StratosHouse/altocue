@@ -1901,3 +1901,13 @@ def test_one_shape_fits_a_picture_without_naming_the_shape():
     drawn = scenes._clip(item, default_brand(), 4)
     assert re.findall(r'class="clip footnote"[^>]*><span>([^<]+)</span>', drawn) == ["Raw take"]
     assert "@keyframes" not in drawn and f"width:{item['boxes'][0][2]:.0f}px" in drawn
+
+
+def test_a_full_frame_format_in_a_zone_can_be_set_larger():
+    """An end card's button and address must read on a phone, so a sting placed in a zone can be scaled up like a panel."""
+    from altocue.motion.html import geometry
+
+    plain = scenes._place({"type": "logo_sting", "text": "Altocue", "zone": "bottom", "start": 0, "end": 3, "scene": "a"}, (1920, 1080))
+    larger = scenes._place({"type": "logo_sting", "text": "Altocue", "zone": "bottom", "scale": 1.25, "start": 0, "end": 3, "scene": "a"}, (1920, 1080))
+    assert "--scale" not in plain["place"]
+    assert f"--scale:{geometry(1920, 1080)['scale'] * 1.25:.3f}" in larger["place"]

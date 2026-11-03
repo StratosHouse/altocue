@@ -18,7 +18,7 @@ from ..brand import Brand
 from ..errors import AltocueError
 from . import compositions, formats
 from .formats import kit
-from .html import base_css, caption_html, item_html, root_tokens
+from .html import base_css, caption_html, geometry, item_html, root_tokens
 
 PANEL_WIDTH = 880.0  # what a panel format fills at full scale
 SLOW_SAMPLES = 6  # keys a second on a slow drift
@@ -142,6 +142,8 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
             return {**item, "place": place, "label_at": at, "boxes": boxes, "zone_place": whole}
         return {**item, "place": place, "label_at": at}
     if area == "full":
+        if storyboard.number(item.get("scale")):  # larger or smaller than the frame's own scale, as a panel can be
+            box += f";--scale:{geometry(width, height)['scale'] * float(item['scale']):.3f}"
         return {**item, "place": box}
     scale = fit_scale(fmt, zone, size, float(item.get("scale", 1.0)))
     return {**item, "place": f"{box};--scale:{scale};--gutter:0px;--rail:0px", "zone_class": "zone mid" if item.get("align") == "center" else "zone"}
