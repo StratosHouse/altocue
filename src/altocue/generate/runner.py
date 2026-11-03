@@ -368,17 +368,23 @@ def reserve(
     usd, rate, as_of = priced_call(project, provider, cost=cost, credits=credits)
     if usd <= 0:
         raise AltocueError("Nothing to reserve: this costs nothing.", fix="Skip --reserve for a free job, and import the result as usual.")
+    _refuse_reserved(project, shot)
+    spend_gate(project, Cost(usd=usd), provider, yes=yes)  # the question is asked outside the lock
     with store.booking(project):
-        if store.open_reservation(project, shot):
-            fix = f"Import against it, or free it first with: altocue generate --release {shot}"
-            raise AltocueError(f"{shot} already has an open reservation.", fix=fix)
-        spend_gate(project, Cost(usd=usd), provider, yes=yes)
+        _refuse_reserved(project, shot)
+        spend_gate(project, Cost(usd=usd), provider, yes=True)  # checked again where it is booked
         row = {"shot": shot, "state": "open", "provider": provider, "recipe": recipe, "credits": credits, "usd": usd}
         row |= {"usd_per_credit": rate, "rate_as_of": as_of, "at": store.now()}
         store.save_reservations(project, [*store.read_reservations(project), row])
     amount = f"{credits:g} credit{'' if credits == 1 else 's'}, ${usd:.2f}" if credits is not None else f"${usd:.2f}"
     out(f"{shot}: reserved {amount}. Spend it, then register the result with --import, or free it with --release.")
     return row
+
+
+def _refuse_reserved(project: Project, shot: str) -> None:
+    if store.open_reservation(project, shot):
+        fix = f"Import against it, or free it first with: altocue generate --release {shot}"
+        raise AltocueError(f"{shot} already has an open reservation.", fix=fix)
 
 
 def release(project: Project, shot: str, *, out: Out = print) -> None:
@@ -409,8 +415,10 @@ def settle(project: Project, shot: str, *, usd: float, credits: float | None, jo
 def spend_report(project: Project) -> list[str]:
     """Where the money went. An import with no reservation is named, because the cap never saw it coming."""
     cap = cap_usd(project)
-    spent, flying, booked = store.spent_usd(project), store.in_flight_usd(project), store.reserved_usd(project)
-    lines = [f"Cap ${cap:.2f}. Spent ${spent:.2f}. Running ${flying:.2f}. Reserved ${booked:.2f}. Left ${cap - spent - flying - booked:.2f}."]
+    spent, flying, booked, held = store.spent_usd(project), store.in_flight_usd(project), store.reserved_usd(project), store.held_usd(project)
+    lines = [f"Cap ${cap:.2f}. Spent ${spent:.2f}. Running ${flying:.2f}. Reserved ${booked:.2f}. Left ${cap - spent - flying - booked - held:.2f}."]
+    if held:
+        lines.append(f"Held by a generate run that is still sending jobs: ${held:.2f}. It comes back when the run ends.")
     rows = store.read_reservations(project)
     lines += [f"Reserved, not imported yet: {r['shot']}, ${r['usd']:.2f}." for r in rows if r["state"] == "open"]
     lines += [f"Over its reservation: {r['shot']}, ${r['actual_usd']:.2f} against ${r['usd']:.2f}." for r in rows if r.get("over_usd")]
@@ -494,7 +502,9 @@ class Run:
     def submit(self, item: Planned) -> bool:
         attempt = (item.record or {}).get("attempt", 0) + 1
         item.record = None
-        self._save(item, "submitting", attempt)
+        with store.booking(self.project):  # the job record and the run's hold change together, so the money is counted once
+            self._save(item, "submitting", attempt)
+            store.draw_hold(self.project, self.id, item.cost.usd)
         try:
             item.job = self.provider.submit(_resolved(self.project, item.req), f"{item.hash}-{attempt}")
         except Moderated as error:
@@ -695,11 +705,19 @@ def generate_shots(
             )
     if _own_files(plan, project.root):
         uploads.require(project, chosen.catalog, chosen.id, "This run")
-    if any(item.status == "new" for item in plan):
-        spend_gate(project, total, chosen.id, yes=yes)
     run = Run(project, chosen, timeout_s=timeout_s, out=out)
     run.outcome = outcome
-    return run.drive(plan)
+    if not any(item.status == "new" for item in plan):
+        return run.drive(plan)
+    spend_gate(project, total, chosen.id, yes=yes)  # the question is asked outside the lock
+    with store.booking(project):
+        spend_gate(project, total, chosen.id, yes=True)  # checked again where it is booked
+        store.open_hold(project, run.id, total.usd)
+    try:
+        return run.drive(plan)
+    finally:
+        with store.booking(project):
+            store.close_hold(project, run.id)
 
 
 def cancel_shot(project: Project, shot: str, *, out: Out = print) -> None:

@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -187,9 +188,59 @@ def reserved_usd(project: Project) -> float:
     return sum(usd(row["usd"]) for row in read_reservations(project) if row["state"] == "open")
 
 
+def holds_path(project: Project) -> Path:
+    return generated_dir(project) / "holds.json"
+
+
+def read_holds(project: Project) -> list[dict[str, Any]]:
+    path = holds_path(project)
+    return json.loads(path.read_text())["holds"] if path.exists() else []
+
+
+def _alive(row: dict[str, Any]) -> bool:
+    """A hold counts while the run that took it is alive. One on another machine always counts, because it cannot be checked."""
+    if row.get("host") != socket.gethostname():
+        return True
+    try:
+        os.kill(int(row["pid"]), 0)
+    except ProcessLookupError:
+        return False
+    except (OSError, KeyError, TypeError, ValueError):
+        return True
+    return True
+
+
+def held_usd(project: Project) -> float:
+    """What running `generate` runs have booked and not yet sent. A run that died sent nothing more, so its hold no longer counts."""
+    return sum(usd(row["usd"]) for row in read_holds(project) if row["state"] == "open" and _alive(row))
+
+
+def open_hold(project: Project, run: str, amount: float) -> None:
+    """Call inside `booking`. A run books its whole estimate before any job is sent."""
+    rows = [row for row in read_holds(project) if _alive(row)]
+    rows.append({"run": run, "state": "open", "usd": round(amount, 6), "pid": os.getpid(), "host": socket.gethostname(), "at": now()})
+    atomic_json(holds_path(project), {"holds": rows})
+
+
+def draw_hold(project: Project, run: str, amount: float) -> None:
+    """Call inside `booking`, with the job record that now counts this money as in flight."""
+    rows = read_holds(project)
+    for row in rows:
+        if row["run"] == run and row["state"] == "open":
+            row["usd"] = round(max(usd(row["usd"]) - amount, 0.0), 6)
+    atomic_json(holds_path(project), {"holds": rows})
+
+
+def close_hold(project: Project, run: str) -> None:
+    """Call inside `booking`. What the run did not send goes back to the cap."""
+    path = holds_path(project)
+    if path.exists():
+        atomic_json(path, {"holds": [row for row in read_holds(project) if row["run"] != run and _alive(row)]})
+
+
 def committed_usd(project: Project) -> float:
-    """Everything the cap has to count: spent, running, and promised to a reservation."""
-    return round(spent_usd(project) + in_flight_usd(project) + reserved_usd(project), 6)
+    """Everything the cap has to count: spent, running, promised to a reservation, and held by a run that has not sent it yet."""
+    return round(spent_usd(project) + in_flight_usd(project) + reserved_usd(project) + held_usd(project), 6)
 
 
 @contextmanager

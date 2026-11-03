@@ -1425,6 +1425,95 @@ def test_a_generate_run_counts_what_the_project_already_spent(tmp_path, fal, cap
     assert len(fal.submits) == 1
 
 
+def still_then_video(project: Project, fal: FakeFal) -> None:
+    """A still at $0.08, then a 5 s draft video from it at $0.77. The video waits while the still runs."""
+    write_shots(project, still(id="key"), shot(id="s02", first_frame="@key"))
+    original = fal.result_body
+
+    def route(request_id):
+        fal.result_body = {"images": [{"url": f"{fal.url}/media/key.png"}]} if request_id == "req-1" else original
+
+    fal.on_status = route
+
+
+def holds(project: Project) -> list[dict]:
+    path = project.work / "generated" / "holds.json"
+    return json.loads(path.read_text())["holds"] if path.exists() else []
+
+
+def test_a_run_holds_its_whole_budget_while_it_waits(tmp_path, fal, monkeypatch, capsys):
+    """s02 waits for its still. Before this, another agent could book s02's money in that gap, and both were spent."""
+    project = capped(tmp_path, fal, 1.0)
+    still_then_video(project, fal)
+    tried: list[int] = []
+
+    def other_agent(seconds):
+        if not tried:
+            assert [h["usd"] for h in holds(project)] == [pytest.approx(0.7735)]  # the still is in flight, the video is held
+            tried.append(go(project, "--reserve", "other", "--cost", "0.50", "--from", "fal", "--yes"))
+
+    monkeypatch.setattr("altocue.generate.runner.sleep", other_agent)
+    assert go(project, "--yes") == 0
+    assert tried == [1]
+    assert reservations(project) == []
+    assert len(fal.submits) == 2
+    assert holds(project) == []
+    assert sum(row["usd"] for row in spend(project)) == pytest.approx(0.8535)
+
+
+def test_a_second_run_cannot_take_what_the_first_one_holds(tmp_path, fal, monkeypatch, capsys):
+    project = capped(tmp_path, fal, 1.0)
+    still_then_video(project, fal)
+    write_shots(project, still(id="key"), shot(id="s02", first_frame="@key"), shot(id="s03", prompt=PROMPT + " Later."))
+    tried: list[int] = []
+
+    def second_run(seconds):
+        if not tried:
+            tried.append(go(project, "--only", "s03", "--yes"))
+
+    monkeypatch.setattr("altocue.generate.runner.sleep", second_run)
+    assert go(project, "--only", "key", "s02", "--yes") == 0
+    assert tried == [1]
+    assert [c["path"] for c in fal.submits] == ["/fal-ai/nano-banana-2", "/bytedance/seedance-2.0/mini/image-to-video"]
+
+
+def test_a_run_gives_back_what_it_did_not_spend(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 1.0)
+    fal.result_code = 500
+    fal.result_body = {"detail": "Runner failed", "error_type": "runner_server_error"}
+    write_shots(project, still(id="key"), shot(id="s02", first_frame="@key"))
+    assert go(project, "--yes") == 1  # the still fails, so the video is never sent
+    assert holds(project) == []
+    assert generate.runner.store.committed_usd(project) == 0
+
+
+def test_an_interrupted_run_gives_back_its_hold_and_keeps_the_job_on_the_cap(tmp_path, fal, monkeypatch):
+    project = capped(tmp_path, fal, 1.0)
+    still_then_video(project, fal)
+
+    def interrupt(seconds):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("altocue.generate.runner.sleep", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        go(project, "--yes")
+    assert holds(project) == []
+    assert generate.runner.store.committed_usd(project) == pytest.approx(0.08)  # the still is running and may be billed
+
+
+def test_a_hold_left_by_a_run_that_died_is_not_counted(tmp_path, fal):
+    import socket
+    import subprocess
+
+    project = capped(tmp_path, fal, 1.0)
+    gone = subprocess.Popen([sys.executable, "-c", "pass"])
+    gone.wait()
+    row = {"run": "dead", "state": "open", "usd": 0.9, "pid": gone.pid, "host": socket.gethostname(), "at": "2026-11-02T00:00:00Z"}
+    (project.work / "generated").mkdir(parents=True, exist_ok=True)
+    (project.work / "generated" / "holds.json").write_text(json.dumps({"holds": [row, {**row, "run": "live", "pid": os.getpid(), "usd": 0.05}]}))
+    assert generate.runner.store.committed_usd(project) == pytest.approx(0.05)
+
+
 def test_import_settles_its_reservation(project, tmp_path, capsys):
     source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
     assert go(project, "--reserve", "s01", "--credits", "189", "--yes") == 0
