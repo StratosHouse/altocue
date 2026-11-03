@@ -286,7 +286,8 @@ def test_there_is_no_flag_that_opens_a_browser(film, capsys):
 
 def test_no_code_in_altocue_can_start_a_browser():
     source = Path(page.__file__).parents[1]
-    found = [str(path.relative_to(source)) for path in source.rglob("*.py") if re.search(r"\bwebbrowser\b", path.read_text())]
+    ours = (path for path in source.rglob("*.py") if "node_modules" not in path.parts)  # the renderer's own packages are not Altocue's code
+    found = [str(path.relative_to(source)) for path in ours if re.search(r"\bwebbrowser\b", path.read_text())]
     assert found == []
 
 
