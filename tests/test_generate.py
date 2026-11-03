@@ -1824,9 +1824,62 @@ def test_a_recipe_that_stays_here_needs_no_opt_in(project):
     assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "faceless-video", "--yes") == 0
 
 
-def test_a_recipe_used_through_its_fal_fallback_needs_no_higgsfield_opt_in(project, tmp_path):
+def test_a_recipe_is_checked_against_its_own_host_whatever_from_says(project, tmp_path, capsys):
+    """--from fal used to skip the Higgsfield check for a Higgsfield recipe."""
+    assert go(project, "--reserve", "s01", "--cost", "1", "--from", "fal", "--recipe", "text-behind", "--yes") == 1
+    assert "--allow-upload higgsfield" in capsys.readouterr().err
+    assert reservations(project) == []
     source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
-    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "1", "--from", "fal", "--recipe", "dubbing") == 0
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "1", "--from", "fal", "--recipe", "dubbing") == 1
+    assert "--allow-upload higgsfield" in capsys.readouterr().err
+    assert generated_asset(project, "s01", missing_ok=True) is None
+
+
+def test_a_clip_from_a_fal_fallback_is_imported_without_the_recipe(project, tmp_path):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    args = ["--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "1", "--from", "fal", "--synthetic", "voice"]
+    assert go(project, *args) == 0
+    assert sidecar_of(project)["synthetic"] == ["voice"]
+
+
+def picture(path: Path) -> Path:
+    from PIL import Image
+
+    Image.new("RGB", (64, 64), (200, 120, 40)).save(path)
+    return path
+
+
+def import_face(project: Project, tmp_path: Path) -> None:
+    """The user's own photo, copied in as shot `face`."""
+    assert go(project, "--import", str(picture(tmp_path / "headshot.png")), "--shot", "face", "--prompt", "p", "--model", "m", "--cost", "0") == 0
+
+
+@pytest.mark.parametrize("media", [{"first_frame": "key.png"}, {"first_frame": "@face"}])
+def test_a_reservation_with_no_recipe_that_sends_project_files_needs_the_opt_in(project, tmp_path, capsys, media):
+    picture(project.root / "key.png")
+    import_face(project, tmp_path)
+    write_shots(project, still(id="face"), shot(**media))
+    capsys.readouterr()
+    assert go(project, "--reserve", "s01", "--credits", "5", "--yes") == 1
+    err = capsys.readouterr().err
+    assert "train" in err and "--allow-upload higgsfield" in err
+    assert reservations(project) == []
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert go(project, "--reserve", "s01", "--credits", "5", "--yes") == 0
+
+
+def test_an_import_with_no_recipe_that_sent_project_files_needs_the_opt_in(project, tmp_path, capsys):
+    picture(project.root / "key.png")
+    write_shots(project, shot(first_frame="key.png"))
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert imported(project, source) == 1
+    assert "--allow-upload higgsfield" in capsys.readouterr().err
+    assert generated_asset(project, "s01", missing_ok=True) is None
+
+
+def test_a_reservation_that_sends_nothing_needs_no_opt_in(project):
+    write_shots(project, still(id="key"), shot(first_frame="@key"))
+    assert go(project, "--reserve", "s01", "--credits", "5", "--yes") == 0
 
 
 def test_an_unknown_recipe_is_refused(project, capsys):
@@ -1907,6 +1960,20 @@ def test_a_cli_run_with_nothing_to_upload_needs_no_opt_in(hf_project, higgsfield
 def test_a_still_made_in_this_run_is_not_the_projects_footage(hf_project, higgsfield):
     write_shots(hf_project, still(id="key"), shot(id="s02", first_frame="@key"))
     assert go(hf_project, "--yes") == 0
+
+
+def test_a_shot_built_on_an_imported_file_sends_a_project_file(hf_project, higgsfield, tmp_path, capsys):
+    """`--import ~/headshot.jpg --shot face`, then `@face` in a later shot, used to reach Higgsfield with no yes."""
+    import_face(hf_project, tmp_path)
+    write_shots(hf_project, still(id="face"), shot(id="s02", first_frame="@face"))
+    capsys.readouterr()
+    assert go(hf_project, "--yes") == 1
+    err = capsys.readouterr().err
+    assert "train" in err and "--allow-upload higgsfield" in err
+    assert higgsfield.creates() == []
+    assert go(hf_project, "--dry-run") == 0
+    out = capsys.readouterr().out
+    assert "imported" in out and "--allow-upload higgsfield" in out
 
 
 # Command plumbing

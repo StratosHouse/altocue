@@ -200,25 +200,54 @@ def build_plan(
     return plan
 
 
-def _own_files(plan: list[Planned], root: Path) -> list[str]:
-    """Project files a run would send. A still made in an earlier shot is the provider's own output, not the project's footage."""
+def project_file(project: Project, value: str | Path) -> str | None:
+    """The project file a shot's media sends, or None for a still the provider made in an earlier shot.
+
+    An `@id` whose shot was imported is the project's own file, such as a photo of the user, so it counts.
+    """
+    text = str(value)
+    if not text.startswith("@"):
+        return os.path.relpath(value, project.root) if Path(text).is_absolute() else text
+    entry = store.read_manifest(project).get(text[1:])
+    return f"{entry['asset']}, imported as {text[1:]}" if entry and entry.get("imported") else None
+
+
+def _own_files(project: Project, plan: list[Planned]) -> list[str]:
+    """Project files a run would send."""
     paths = [path for item in plan if item.status == "new" for path in filter(None, [item.req.first_frame, item.req.last_frame, *item.req.refs])]
-    return [os.path.relpath(path, root) for path in paths if not str(path).startswith("@")]
+    return [name for name in (project_file(project, path) for path in paths) if name]
 
 
-def _uploads(plan: list[Planned], root: Path) -> list[str]:
+def shot_files(project: Project, shot: str, shots_file: str = "shots.json") -> list[str]:
+    """Project files a listed shot sends, for a reservation or an import that names no recipe."""
+    path = project.root / shots_file
+    known = next((s for s in load_shots(path).shots if s.id == shot), None) if path.exists() else None
+    return [name for name in (project_file(project, value) for value in known.media()) if name] if known else []
+
+
+def _uploads(project: Project, plan: list[Planned]) -> list[str]:
     names = []
     for item in plan:
         if item.status != "new":
             continue
         for path in filter(None, [item.req.first_frame, item.req.last_frame, *item.req.refs]):
             text = str(path)
-            label = f"the still from {text[1:]}" if text.startswith("@") else os.path.relpath(path, root)
+            label = project_file(project, path) or f"the still from {text[1:]}"
             names.append(f"{label} (for {item.shot.id})")
     return names
 
 
-def show_plan(plan: list[Planned], provider: GenProvider, root: Path, out: Out) -> Cost:
+def _upload_gate(project: Project, shot: str, *, provider: str, recipe: str, shots_file: str) -> recipes.Recipe | None:
+    """A named recipe is checked against its own host, whatever --from says. A shot that sends project files is checked too."""
+    catalog = catalog_for(project)
+    used = recipes.require_usable(project, recipe, catalog) if recipe else None
+    sent = shot_files(project, shot, shots_file)
+    if sent:
+        uploads.require(project, catalog, recipes.HOST if recipe else provider, f"Shot {shot}, which sends {', '.join(sent)},")
+    return used
+
+
+def show_plan(project: Project, plan: list[Planned], provider: GenProvider, out: Out) -> Cost:
     total = Cost()
     for item in plan:
         if item.status == "done":
@@ -244,7 +273,7 @@ def show_plan(plan: list[Planned], provider: GenProvider, root: Path, out: Out) 
         out(f"Total: ${total.usd:.2f} on {provider.id} (prices as of {dates[0] if dates else 'unknown'})")
         if dates and (date.fromisoformat(today()) - date.fromisoformat(dates[0])).days > STALE_DAYS:
             out("Warning: these prices are older than 30 days. Check models.toml against the provider's pages.")
-    names = _uploads(plan, root)
+    names = _uploads(project, plan)
     if names:
         out(f"These files go to {provider.destination}:")
         for name in names:
@@ -359,8 +388,7 @@ def reserve(
     out: Out = print,
 ) -> dict[str, Any]:
     """Book money against the cap before an agent spends it through a provider's MCP server."""
-    if recipe:
-        recipes.require_usable(project, recipe, catalog_for(project), provider)
+    _upload_gate(project, shot, provider=provider, recipe=recipe, shots_file=shots_file)
     _refuse_claims(project, shot, shots_file)
     if credits is None and cost is None:
         raise AltocueError("--reserve needs --credits, or --cost for a provider that bills dollars.", fix="Quote it first: altocue recipes quote <id>")
@@ -687,8 +715,8 @@ def generate_shots(
             f"{names} may already be paid for: a submit started and no job id was saved.",
             fix=f"Check {chosen.id} for the job. If it is not there, run `altocue generate --resubmit {names}`.",
         )
-    total = show_plan(plan, chosen, project.root, out)
-    if _own_files(plan, project.root) and not uploads.allowed(project, chosen.catalog, chosen.id):
+    total = show_plan(project, plan, chosen, out)
+    if _own_files(project, plan) and not uploads.allowed(project, chosen.catalog, chosen.id):
         out(f"Blocked until the project agrees to uploads, after reading the warning: altocue generate --allow-upload {chosen.id}")
     outcome = Outcome()
     outcome.moderated = [item.shot.id for item in plan if item.status == "moderated"]
@@ -703,7 +731,7 @@ def generate_shots(
             store.record_asset(
                 project, item.shot.id, asset=project.root / item.record["asset"], digest=item.hash, imported=False, check_passed=passed
             )
-    if _own_files(plan, project.root):
+    if _own_files(project, plan):
         uploads.require(project, chosen.catalog, chosen.id, "This run")
     run = Run(project, chosen, timeout_s=timeout_s, out=out)
     run.outcome = outcome
@@ -772,7 +800,7 @@ def import_asset(
     if surface == "mcp" and not job_id:
         raise AltocueError("An MCP import needs --job-id.", fix="Keep every job id from the run. It is how a charge is traced to a file.")
     usd, rate, rate_as_of = priced_call(project, provider, cost=cost, credits=credits)
-    used = recipes.require_usable(project, recipe, catalog_for(project), provider) if recipe else None
+    used = _upload_gate(project, shot, provider=provider, recipe=recipe, shots_file=shots_file)
     probe = ffmpeg.probe_json(source)
     known = None
     if (project.root / shots_file).exists():
