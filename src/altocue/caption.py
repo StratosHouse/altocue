@@ -34,9 +34,7 @@ def balanced(words: list[dict[str, Any]], max_words: int) -> list[list[dict[str,
     return [words[i : i + size] for i in range(0, len(words), size)]
 
 
-def build_pages(
-    words: list[dict[str, Any]], *, max_words: int = 4, combine_ms: int = 700, ends: dict[str, float] | None = None
-) -> list[dict[str, Any]]:
+def build_pages(words: list[dict[str, Any]], *, max_words: int = 4, combine_ms: int = 700, ends: dict[str, float] | None = None) -> list[dict[str, Any]]:
     """Group mapped words into pages. Each word needs `text`, `start`, `end` and `segment`.
 
     `ends` gives each segment's last moment in output seconds, and a page's hold stops there.
@@ -61,7 +59,7 @@ def build_pages(
     for run in runs:
         for chunk in balanced(run, max_words):
             shown = [
-                {"text": strip_punctuation(w["text"]), "start": round(w["start"], 3), "end": round(w["end"], 3)}
+                {"text": strip_punctuation(w["text"]), "start": round(w["start"], 3), "end": round(w["end"], 3), **({"tag": w["tag"]} if w.get("tag") else {})}
                 for w in chunk
                 if strip_punctuation(w["text"])
             ]

@@ -51,7 +51,7 @@ def stray(frames: list[np.ndarray], edge: int = REACH) -> list[tuple[int, str]]:
     """Each wrong frame as its place from the edge, where 0 is the first frame of the new shot."""
     if edge < SETTLED + 1 or len(frames) - edge < SETTLED + 1:
         return []
-    old, new = np.mean(frames[: SETTLED], axis=0), np.mean(frames[-SETTLED:], axis=0)
+    old, new = np.mean(frames[:SETTLED], axis=0), np.mean(frames[-SETTLED:], axis=0)
     gap = apart(old, new)
     motion = max(apart(frames[0], frames[1]), apart(frames[-2], frames[-1]))
     found: list[tuple[int, str]] = []

@@ -43,8 +43,7 @@ def independence(reviewer: str, editor: str | None) -> tuple[bool, str]:
     if reviewer.lower() == editor.lower():
         return (
             False,
-            f"Reviewer and editor are both {editor}. The reviewer had a fresh context and no edit reasons, "
-            "but it is not an outside opinion.",
+            f"Reviewer and editor are both {editor}. The reviewer had a fresh context and no edit reasons, but it is not an outside opinion.",
         )
     return True, f"Reviewer is {reviewer}, editor is {editor}."
 
@@ -72,9 +71,7 @@ def finish(project: Project, file: Path, digest: str, result: dict[str, Any], re
     return 0 if result["verdict"] == "SHIP" else 1
 
 
-def conclude(
-    project: Project, file: Path, digest: str, raw: dict[str, Any], reviewer: dict[str, Any], gates: list[GateResult], editor: str | None
-) -> int:
+def conclude(project: Project, file: Path, digest: str, raw: dict[str, Any], reviewer: dict[str, Any], gates: list[GateResult], editor: str | None) -> int:
     result = rubric.score(raw, gates, ffmpeg.probe_clip(file).duration)
     flag, why = independence(str(reviewer.get("vendor", "")), editor)
     if reviewer.get("via") == "review pack":
@@ -94,9 +91,7 @@ def ingest(project: Project, file: Path, source: str, editor: str | None) -> int
         raise AltocueError(f"{target.name} is not valid JSON: {error}", fix="Fix the file and ingest it again.") from error
     reviewer = raw.get("reviewer") or {}
     if not reviewer.get("vendor"):
-        raise AltocueError(
-            "The verdict does not name the reviewer's vendor.", fix='Add "reviewer": {"vendor": "...", "model": "..."} to the file.'
-        )
+        raise AltocueError("The verdict does not name the reviewer's vendor.", fix='Add "reviewer": {"vendor": "...", "model": "..."} to the file.')
     digest = qa.sha256(file)
     stated = raw.get("file_sha256")
     if stated != digest:
@@ -190,9 +185,7 @@ def run(args: argparse.Namespace) -> int:
         return 0
     prompt = pack.prompt_text(info)
     if chosen == "gemini":
-        raw, reviewer = gemini.review(
-            project, file, duration=ffmpeg.probe_clip(file).duration, prompt=prompt, upload=args.upload, paid=args.paid_key
-        )
+        raw, reviewer = gemini.review(project, file, duration=ffmpeg.probe_clip(file).duration, prompt=prompt, upload=args.upload, paid=args.paid_key)
     else:
         raw, reviewer = codex.review(project, prompt, upload=args.upload)
     return conclude(project, file, digest, raw, reviewer, gates, editor)

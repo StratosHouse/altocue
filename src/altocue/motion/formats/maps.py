@@ -87,7 +87,9 @@ def _centre(name: str) -> Point:
 
 def _known(name: Any, owner: str) -> str:
     if name not in _atlas()["countries"]:
-        raise AltocueError(f'{owner}: "{name}" is not a country in the map data.', fix="Use the Natural Earth short name, for example United States of America or Dem. Rep. Congo.")
+        raise AltocueError(
+            f'{owner}: "{name}" is not a country in the map data.', fix="Use the Natural Earth short name, for example United States of America or Dem. Rep. Congo."
+        )
     return str(name)
 
 
@@ -151,7 +153,9 @@ def _extent(points: Sequence[Point]) -> tuple[float, float, float, float]:
     return min(p[0] for p in points), max(p[0] for p in points), min(p[1] for p in points), max(p[1] for p in points)
 
 
-def _zoom_values(width: float, height: float, *, tall: Point = (880, 860), wide: Point = (1500, 800), square: Point = (940, 640), most: float = 2.0) -> tuple[float, float, float]:
+def _zoom_values(
+    width: float, height: float, *, tall: Point = (880, 860), wide: Point = (1500, 800), square: Point = (940, 640), most: float = 2.0
+) -> tuple[float, float, float]:
     """How far each canvas shape enlarges a subject this size. Boxes are in canvas pixels."""
     width, height = max(width, 1.0), max(height, 1.0)
     fit = (min(tall[0] / width, tall[1] / height), min(wide[0] / 0.9 / width, wide[1] / 0.9 / height), min(square[0] / 0.86 / width, square[1] / 0.86 / height))
@@ -413,12 +417,21 @@ def _country_lift(item: dict[str, Any]) -> str:
     shape = [view.ring(ring) for ring in _country_rings(name)]
     x0, x1, y0, y1 = _extent([p for ring in body_rings for p in view.ring(ring)])
     path = _d(shape)
-    layers = "".join(f'<div class="ly{" top" if index == LAYERS - 1 else ""}" style="--i:{index}"><svg class="geo" viewBox="-1200 -1200 2400 2400" aria-hidden="true"><path d="{path}"/></svg></div>' for index in range(LAYERS))
+    layers = "".join(
+        f'<div class="ly{" top" if index == LAYERS - 1 else ""}" style="--i:{index}"><svg class="geo" viewBox="-1200 -1200 2400 2400" aria-hidden="true"><path d="{path}"/></svg></div>'
+        for index in range(LAYERS)
+    )
     plane = (
         f'<div class="plane"><div class="dim">{_world(view, leave=[name])}</div>'
         f'<div class="pit"><svg class="geo" viewBox="-1200 -1200 2400 2400" aria-hidden="true"><path d="{path}"/></svg></div>{layers}</div>'
     )
-    return _scene(f'<div class="room">{plane}</div>', _zooms(x1 - x0, (y1 - y0) * 0.9 + 80, wide=(1300, 700), square=(860, 600), tall=(860, 780)), title=_title(item["text"], item.get("label")), start=0.5, push=1.5)
+    return _scene(
+        f'<div class="room">{plane}</div>',
+        _zooms(x1 - x0, (y1 - y0) * 0.9 + 80, wide=(1300, 700), square=(860, 600), tall=(860, 780)),
+        title=_title(item["text"], item.get("label")),
+        start=0.5,
+        push=1.5,
+    )
 
 
 LAYERS = 12
@@ -471,11 +484,17 @@ def _sweep_map(item: dict[str, Any]) -> str:
         )
     best = max(picked, key=lambda name: picked[name])
     bx, by = view.at(*_centre(best))
-    tag = _node(bx, by, f'{kit.esc(best)} <em>{kit.esc(_short(picked[best]))}</em>', begin + span + 0.2, rings=1)
+    tag = _node(bx, by, f"{kit.esc(best)} <em>{kit.esc(_short(picked[best]))}</em>", begin + span + 0.2, rings=1)
     scan = f'<div class="scan" style="left:{x0:.0f}px;--far:{x1 - x0:.0f}px;--t:{begin:.3f}s;--n:{span:.3f}s"></div>'
     middle = (x0 + x1) / 2, (y0 + y1) / 2
     inner = f'<div class="shift" style="transform:translate({-middle[0]:.1f}px,{-middle[1]:.1f}px)">{_world(view, leave=picked)}{"".join(tiles)}{scan}{tag}</div>'
-    return _scene(inner, _zooms(x1 - x0 + 60, y1 - y0 + 60, tall=(880, 780), wide=(1300, 680), square=(900, 500)), title=_title(item["text"]), extra=_ramp(low, high, item.get("unit"), begin + span * 0.6), start=0.82)
+    return _scene(
+        inner,
+        _zooms(x1 - x0 + 60, y1 - y0 + 60, tall=(880, 780), wide=(1300, 680), square=(900, 500)),
+        title=_title(item["text"]),
+        extra=_ramp(low, high, item.get("unit"), begin + span * 0.6),
+        start=0.82,
+    )
 
 
 LEGEND_CSS = """
@@ -519,7 +538,7 @@ def _bubble_map(item: dict[str, Any]) -> str:
         x, y = points[index]
         size = 2 * (24 + 92 * math.sqrt(values[index] / top))
         delay = rows[index]["delay"] if anchored else 0.55 + (total * 0.42) * rank / max(len(rows), 1)
-        label = f'<em>{rank + 1}</em>' if rank < 5 else ""
+        label = f"<em>{rank + 1}</em>" if rank < 5 else ""
         bubbles.append(f'<div class="bub" style="left:{x:.1f}px;top:{y:.1f}px;--s:{size:.0f}px;--t:{delay:.3f}s;z-index:{len(rows) - rank}"><b></b>{label}</div>')
         if rank < 5:
             shown = rows[index].get("show") or _short(values[index])
@@ -527,7 +546,13 @@ def _bubble_map(item: dict[str, Any]) -> str:
     x0, x1, y0, y1 = _extent(points)
     middle = (x0 + x1) / 2, (y0 + y1) / 2
     inner = f'<div class="shift" style="transform:translate({-middle[0]:.1f}px,{-middle[1]:.1f}px)">{_world(view)}{"".join(bubbles)}</div>'
-    return _scene(inner, _zooms(x1 - x0 + 170, y1 - y0 + 170, tall=(900, 620), wide=(1080, 760), square=(880, 430)), title=_title(item["text"]), extra=f'<ol class="rank">{"".join(keys)}</ol>', start=0.8)
+    return _scene(
+        inner,
+        _zooms(x1 - x0 + 170, y1 - y0 + 170, tall=(900, 620), wide=(1080, 760), square=(880, 430)),
+        title=_title(item["text"]),
+        extra=f'<ol class="rank">{"".join(keys)}</ol>',
+        start=0.8,
+    )
 
 
 BUBBLE_CSS = """
@@ -570,7 +595,11 @@ def _hex_cells(flat: dict[str, Point]) -> dict[str, tuple[int, int]]:
         tried, reach = home, 0
         while tried in taken:
             reach += 1
-            ring = [(home[0] + dq * reach + dr * step, home[1] + dq2 * reach + ds * step) for (dq, dq2), (dr, ds) in zip(HEX_NEAR, HEX_NEAR[2:] + HEX_NEAR[:2], strict=True) for step in range(reach + 1)]
+            ring = [
+                (home[0] + dq * reach + dr * step, home[1] + dq2 * reach + ds * step)
+                for (dq, dq2), (dr, ds) in zip(HEX_NEAR, HEX_NEAR[2:] + HEX_NEAR[:2], strict=True)
+                for step in range(reach + 1)
+            ]
             free = [cell for cell in ring if cell not in taken]
             if free:
                 tried = min(free, key=lambda c: (math.dist((c[0] + c[1] / 2, c[1] * math.sqrt(3) / 2), (q + r / 2, r * math.sqrt(3) / 2)), c))
@@ -657,7 +686,14 @@ def _hex_map(item: dict[str, Any]) -> str:
             f'<div class="tile" style="left:{x - middle[0]:.1f}px;top:{y - middle[1]:.1f}px;--t:{0.3 + wave * 0.62:.3f}s;--c:{total * 0.42 + wave * 0.5:.3f}s;--v:{fill:.0f}%;--tx:{ink}">'
             f'<div class="base">{shape}</div><div class="fill">{shape}</div><b>{kit.esc(str(short)[:3])}</b><i>{kit.esc(data[name].get("show") or _short(values[name]))}</i></div>'
         )
-    return _scene("".join(out), _zooms(x1 - x0 + 2 * size, y1 - y0 + 2 * size, tall=(880, 760), wide=(1400, 640), square=(900, 500), most=1.5), title=_title(item["text"]), extra=_ramp(low, high, item.get("unit"), total * 0.46), start=1.0, push=0.01)
+    return _scene(
+        "".join(out),
+        _zooms(x1 - x0 + 2 * size, y1 - y0 + 2 * size, tall=(880, 760), wide=(1400, 640), square=(900, 500), most=1.5),
+        title=_title(item["text"]),
+        extra=_ramp(low, high, item.get("unit"), total * 0.46),
+        start=1.0,
+        push=0.01,
+    )
 
 
 HEX_CSS = (
@@ -698,7 +734,9 @@ def _flow_map(item: dict[str, Any]) -> str:
     x0, x1, y0, y1 = _extent([centre, *points])
     fit = _zoom_values(x1 - x0 + 200, y1 - y0 + 300, tall=(900, 860), wide=(1500, 760), square=(920, 600))
     shown = [rows[index].get("show") or (_short(rows[index]["value"]) if "value" in rows[index] else "") for index in range(len(rows))]
-    spots = _tag_spots([centre, *points], [str(item["place"]), *(f"{row['text']} {extra}".strip() for row, extra in zip(rows, shown, strict=True))], min(fit), 470 / fit[0])
+    spots = _tag_spots(
+        [centre, *points], [str(item["place"]), *(f"{row['text']} {extra}".strip() for row, extra in zip(rows, shown, strict=True))], min(fit), 470 / fit[0]
+    )
     strands, nodes = [], []
     for index, point in enumerate(points):
         a, b = (centre, point) if outward else (point, centre)
@@ -710,7 +748,7 @@ def _flow_map(item: dict[str, Any]) -> str:
             f'<div class="draw" style="--t:{delay:.3f}s;--w:{width:.1f}"><svg class="geo" viewBox="-1200 -1200 2400 2400" aria-hidden="true"><path class="pipe" pathLength="1" d="{path}"/></svg></div>'
             f'<div class="march" style="--t:{delay + 0.5:.3f}s;--w:{width:.1f}"><svg class="geo" viewBox="-1200 -1200 2400 2400" aria-hidden="true"><path class="beads" pathLength="1" d="{path}"/></svg></div>'
         )
-        label = f'{kit.esc(rows[index]["text"])}{f" <em>{kit.esc(shown[index])}</em>" if shown[index] else ""}'
+        label = f"{kit.esc(rows[index]['text'])}{f' <em>{kit.esc(shown[index])}</em>' if shown[index] else ''}"
         nodes.append(_node(point[0], point[1], label, delay, cls="from", rings=1, spot=spots[index + 1]))
     hub_node = _node(centre[0], centre[1], kit.emphasis(str(item["place"])), 0.3 + total * 0.3 * (0 if outward else 1), cls="hub", rings=2, spot=spots[0])
     middle = (x0 + x1) / 2, (y0 + y1) / 2
@@ -793,7 +831,9 @@ def _globe_turn(item: dict[str, Any]) -> str:
         f'<style>@keyframes {name}{{{stops}}}</style><div class="orb"><div class="air"></div><div class="sea"></div>'
         f'<div class="lnd" style="animation:{name} {turn:.3f}s linear both"></div><div class="limb"></div>{pin}</div>'
     )
-    return _scene(orb, _zooms(1040, 1040, tall=(900, 900), wide=(860, 860), square=(760, 760), most=1.2), title=_title(item["text"], item.get("label")), start=0.92, push=1.6)
+    return _scene(
+        orb, _zooms(1040, 1040, tall=(900, 900), wide=(860, 860), square=(760, 760), most=1.2), title=_title(item["text"], item.get("label")), start=0.92, push=1.6
+    )
 
 
 GLOBE_CSS = """
@@ -822,9 +862,7 @@ def _pin_drop(item: dict[str, Any]) -> str:
     x, y = view.at(*place)
     total = kit.seconds(item)
     land = min(1.2, total * 0.34)
-    pin = (
-        '<svg viewBox="0 0 120 160" aria-hidden="true"><path d="M60 4C29 4 6 28 6 58c0 38 46 84 52 96a2.4 2.4 0 0 0 4 0c6-12 52-58 52-96C114 28 91 4 60 4z"/><circle cx="60" cy="58" r="21"/></svg>'
-    )
+    pin = '<svg viewBox="0 0 120 160" aria-hidden="true"><path d="M60 4C29 4 6 28 6 58c0 38 46 84 52 96a2.4 2.4 0 0 0 4 0c6-12 52-58 52-96C114 28 91 4 60 4z"/><circle cx="60" cy="58" r="21"/></svg>'
     sub = f"<small>{kit.esc(item['label'])}</small>" if item.get("label") else ""
     marker = (
         f'<div class="site" style="left:{x:.1f}px;top:{y:.1f}px;--t:{land:.3f}s"><b class="pool"></b><b class="ring"></b><b class="ring two"></b>'
@@ -870,7 +908,10 @@ FORMATS = (
         group="maps",
         jobs=("explain", "prove"),
         slots=(Slot("stops", kind="list", limit=4, each=20), Slot("text", limit=40, required=False)),
-        example={"text": "Three cities in *one week*", "stops": [{"text": "Lisbon", "lon": -9.14, "lat": 38.72}, {"text": "Nairobi", "lon": 36.82, "lat": -1.29}, {"text": "Singapore", "lon": 103.82, "lat": 1.35}]},
+        example={
+            "text": "Three cities in *one week*",
+            "stops": [{"text": "Lisbon", "lon": -9.14, "lat": 38.72}, {"text": "Nairobi", "lon": 36.82, "lat": -1.29}, {"text": "Singapore", "lon": 103.82, "lat": 1.35}],
+        },
         draw=_flight_route,
         seconds=4.4,
         shortest=2.6,

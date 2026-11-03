@@ -124,7 +124,7 @@ def test_the_missing_package_names_its_extra(monkeypatch):
     monkeypatch.setattr(speakers.importlib.util, "find_spec", lambda name: None)
     with pytest.raises(AltocueError) as error:
         speakers.select()
-    assert 'altocue[speakers]' in str(error.value.fix)
+    assert "altocue[speakers]" in str(error.value.fix)
 
 
 def test_missing_models_name_the_setup_step(monkeypatch, tmp_path):

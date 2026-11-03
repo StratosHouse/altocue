@@ -332,9 +332,7 @@ def _face_masks(lab: np.ndarray, faces: list[Face]) -> tuple[np.ndarray, np.ndar
     for face in faces:
         cx, cy = face.center
         oval = np.zeros((height, width), np.uint8)
-        cv2.ellipse(
-            oval, (round(cx), round(cy + face.h * 0.05)), (max(1, round(face.w * 0.36)), max(1, round(face.h * 0.42))), 0, 0, 360, 1, -1
-        )
+        cv2.ellipse(oval, (round(cx), round(cy + face.h * 0.05)), (max(1, round(face.w * 0.36)), max(1, round(face.h * 0.42))), 0, 0, 360, 1, -1)
         inside = oval.astype(bool)
         if not inside.any():
             continue
@@ -589,9 +587,7 @@ def _read_clip(clip: Clip, spans: list[tuple[float, float]] | None) -> ClipStats
     with ThreadPoolExecutor(max_workers=4) as pool:
         frames = [f for f in pool.map(lambda at: read_rgb(clip, at, SAMPLE_SIDE), sample_times(clip, spans)) if f is not None]
     if not frames:
-        raise AltocueError(
-            f"Could not read any frame of {clip.id}.", fix=f"Check that {clip.path} plays. If it lives in iCloud, download it first."
-        )
+        raise AltocueError(f"Could not read any frame of {clip.id}.", fix=f"Check that {clip.path} plays. If it lives in iCloud, download it first.")
     if clip.is_hdr:
         sdr = [hdr_to_sdr(f, clip.transfer) for f in frames]
         stats = measure_frames(clip.id, sdr, frames)
@@ -660,9 +656,7 @@ def _stamp(project: Project, clips: list[Clip], look: str, enabled: bool, ranges
     files = []
     for clip in clips:
         if not Path(clip.path).exists():
-            raise AltocueError(
-                f"{clip.id} points at a missing file: {clip.path}.", fix="Restore the source file, then run `altocue ingest`."
-            )
+            raise AltocueError(f"{clip.id} points at a missing file: {clip.path}.", fix="Restore the source file, then run `altocue ingest`.")
         info = Path(clip.path).stat()
         files.append([clip.id, clip.path, info.st_size, info.st_mtime_ns, ranges.get(clip.id)])
     text = json.dumps({"version": VERSION, "look": look, "strength": strength, "lut": lut, "enabled": enabled, "files": files}, sort_keys=True)
@@ -691,9 +685,7 @@ def up_to_date(project: Project) -> bool:
     return json.loads(path.read_text()).get("stamp") == stamp
 
 
-def grade_project(
-    project: Project, force: bool = False, look: str | None = None, *, strength: float | None = None, lut: str | Path | None = None
-) -> dict[str, Any]:
+def grade_project(project: Project, force: bool = False, look: str | None = None, *, strength: float | None = None, lut: str | Path | None = None) -> dict[str, Any]:
     """Bake one LUT per clip and write `work/luts/report.json`."""
     from . import looks
 
@@ -757,7 +749,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--look", help="Overrides [grade] look. `--compare` shows them all")
     parser.add_argument("--look-strength", type=float, default=None, help="How much of the look or LUT, from 0 to 1")
     parser.add_argument("--lut", default=None, help="Your own .cube file, in place of a look")
-    parser.add_argument("--compare", action="store_true", help="Write every look on one real frame to work/luts/looks.jpg, and stop")
+    parser.add_argument("--compare", action="store_true", help="Write every look on one real frame to work/luts/looks.jpg, each one alone in work/luts/looks/, and stop")
 
 
 def _summary(clip_id: str, entry: dict[str, Any]) -> str:
@@ -784,7 +776,8 @@ def run(args: argparse.Namespace) -> int:
     if args.compare:
         from . import looks
 
-        print(f"Looks on one frame: {looks.sheet(project)}")
+        sheet = looks.sheet(project)
+        print(f"Looks on one frame: {sheet}\nEach look alone, and the frame before any correction as raw.jpg: {sheet.parent / 'looks'}")
         return 0
     report = grade_project(project, force=args.force, look=args.look, strength=args.look_strength, lut=args.lut)
     for clip_id, entry in report["clips"].items():

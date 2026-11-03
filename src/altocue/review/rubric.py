@@ -183,9 +183,7 @@ def score(raw: dict[str, Any], gates: list[GateResult], duration: float) -> dict
         "scores": marks,
         "notes": kept,
         "dropped_notes": dropped,
-        "unsupported_scores": [
-            name for name, e in marks.items() if e["score"] is not None and e["score"] < NOTE_UNDER and name not in noted
-        ],
+        "unsupported_scores": [name for name, e in marks.items() if e["score"] is not None and e["score"] < NOTE_UNDER and name not in noted],
         "could_not_judge": [str(item) for item in raw.get("could_not_judge") or []],
         "warnings": warnings,
     }

@@ -14,8 +14,7 @@ from altocue.models import Word
 from altocue.project import Project
 
 GOOD_PROMPT = (
-    "She lifts the lantern and walks to the door, the coat swinging with each stride. "
-    "Slow dolly in from medium to close-up, ending on her hands. Dust stirs in the beam."
+    "She lifts the lantern and walks to the door, the coat swinging with each stride. Slow dolly in from medium to close-up, ending on her hands. Dust stirs in the beam."
 )
 
 
@@ -396,9 +395,7 @@ def test_long_character_clip_warns():
 def moving(path: Path, seconds: float = 2.0) -> Path:
     """Film grain changes every frame, so it clears the motion gate on purpose."""
     source = f"color=c=gray:size=320x568:rate=30:duration={seconds},noise=alls=40:allf=t"
-    subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True
-    )
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
     return path
 
 

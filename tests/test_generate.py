@@ -2254,7 +2254,7 @@ def test_new_packaged_terms_lapse_the_opt_in_even_under_a_project_catalog(projec
 def test_a_stale_catalog_cannot_switch_the_gate_off(project, capsys):
     local = project.root / "models.local.toml"
     text = local.read_text()
-    start, end = text.index("upload_warning"), text.index("poll_seconds = 3.0\ndestination = \"Higgsfield")
+    start, end = text.index("upload_warning"), text.index('poll_seconds = 3.0\ndestination = "Higgsfield')
     local.write_text(text[:start] + text[end:])
     assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
     assert "train" in capsys.readouterr().err

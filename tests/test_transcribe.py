@@ -105,9 +105,7 @@ def test_cue_with_softener_marks_the_whole_phrase():
     assert [w.kind for w in classify(words)] == ["word"] + ["cue"] * 5 + ["word"]
 
 
-@pytest.mark.parametrize(
-    "line", ["We had to redo the whole kitchen", "We cut that out of the budget", "The engine would not start again today"]
-)
+@pytest.mark.parametrize("line", ["We had to redo the whole kitchen", "We cut that out of the budget", "The engine would not start again today"])
 def test_cue_words_inside_a_sentence_stay_words(line):
     assert all(w.kind == "word" for w in classify(timed(line, step=0.25)))
 

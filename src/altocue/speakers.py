@@ -109,7 +109,6 @@ class Sherpa:
 
 def select() -> Diariser:
     if importlib.util.find_spec("sherpa_onnx") is None:
-
         fix = 'Run `uv tool install --force "altocue[speakers]"`, then `altocue setup --speakers`.'
         raise AltocueError("Telling speakers apart needs sherpa-onnx.", fix=fix)
     if not models_ready():

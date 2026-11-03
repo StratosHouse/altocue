@@ -215,7 +215,7 @@ def plan_song(film: Any) -> list[Problem]:
         nearest = min(cuts, key=lambda cut: abs(cut - at), default=None)
         if nearest is None or abs(nearest - at) > frame:
             off = f"{abs(nearest - at):.2f} s from the nearest cut" if nearest is not None else "with no cut at all"
-            add("error", "storyboard", f'The {name} at {at:g} s falls {off}.', "Move a scene boundary onto it, so the cut lands on the hit.")
+            add("error", "storyboard", f"The {name} at {at:g} s falls {off}.", "Move a scene boundary onto it, so the cut lands on the hit.")
         if not hit.get("how"):
             fix = 'Add "how", such as pinned by ear on the kick and bass. Altocue has no stem or onset tool, and a beat grid can miss the real hit.'
             add("warning", "storyboard", f"The {name} does not say how it was found.", fix)

@@ -57,8 +57,7 @@ TARGETS = {
         "podcast",
         -16.0,
         -1.0,
-        "Apple Podcasts audio requirements: around -16 dB LKFS, +/- 1 dB, true peak no higher than -1 dBFS. "
-        "https://podcasters.apple.com/support/893-audio-requirements",
+        "Apple Podcasts audio requirements: around -16 dB LKFS, +/- 1 dB, true peak no higher than -1 dBFS. https://podcasters.apple.com/support/893-audio-requirements",
         True,
     ),
     "broadcast": Target(
@@ -131,9 +130,7 @@ def measure(path: str | Path, loudness: float, true_peak: float) -> dict[str, fl
     found = _loudnorm_json(done.stderr)
     values = {key: float(found[key]) for key in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")}
     if not all(math.isfinite(v) for v in values.values()) or values["input_i"] < -70:
-        raise Silent(
-            f"{path} is silent or too short to measure.", fix="Check the sound in the render. Master needs at least a second of audio."
-        )
+        raise Silent(f"{path} is silent or too short to measure.", fix="Check the sound in the render. Master needs at least a second of audio.")
     return values
 
 
@@ -170,9 +167,7 @@ def _encode(src: Path, dest: Path, chain: str, has_video: bool) -> str:
     return ffmpeg.run([*args, str(dest)]).stderr
 
 
-def master_file(
-    src: str | Path, dest: str | Path, loudness: float = LOUDNESS, true_peak: float = TRUE_PEAK, *, silent_film: bool = False
-) -> dict[str, Any]:
+def master_file(src: str | Path, dest: str | Path, loudness: float = LOUDNESS, true_peak: float = TRUE_PEAK, *, silent_film: bool = False) -> dict[str, Any]:
     """Master `src` to `dest` and return the numbers measured on the finished file.
 
     AAC overshoots a limiter on transients, so the ceiling is checked on the decoded
@@ -222,9 +217,7 @@ def master_file(
     mode = _loudnorm_json(log).get("normalization_type", "linear") if level.startswith("loudnorm") else "linear"
     warnings = []
     if mode == "dynamic":
-        warnings.append(
-            f"loudnorm used dynamic mode: range {found['input_lra']:g} LU, peaks {found['input_tp']:g} dBTP. Level rides through the file."
-        )
+        warnings.append(f"loudnorm used dynamic mode: range {found['input_lra']:g} LU, peaks {found['input_tp']:g} dBTP. Level rides through the file.")
     passed = measured["true_peak"] < true_peak and abs(measured["integrated"] - loudness) <= PASS_TOLERANCE
     if not passed:
         warnings.append(f"Missed the target after {attempts} tries: {measured['integrated']} LUFS, {measured['true_peak']} dBTP.")

@@ -127,13 +127,9 @@ def certain(clip: Clip, words: list[Word], *, max_pause: float, remove_fillers: 
         while kind == "cue" and stop < len(words) and words[stop].kind == "cue":
             stop += 1
         if kind == "cue":
-            found.append(
-                Candidate(clip.id, words[index].start, words[stop - 1].end, "cue", "spoken cue", quote(words[index:stop]), 1.0, "auto")
-            )
+            found.append(Candidate(clip.id, words[index].start, words[stop - 1].end, "cue", "spoken cue", quote(words[index:stop]), 1.0, "auto"))
         elif kind == "filler" and remove_fillers:
-            found.append(
-                Candidate(clip.id, words[index].start, words[index].end, "filler", "filler", quote(words[index:stop]), 1.0, "auto")
-            )
+            found.append(Candidate(clip.id, words[index].start, words[index].end, "filler", "filler", quote(words[index:stop]), 1.0, "auto"))
         index = stop
     return found
 
@@ -299,14 +295,7 @@ def retakes(tokens: list[Token], clips: list[Clip], words: dict[str, list[Word]]
         cross_clip = previous.clip != later.clip
         pause_before = later.word.start if cross_clip else later.word.start - previous.word.end
         spoken_cue = not cross_clip and cue_between(words[later.clip], previous.index, later.index)
-        restart = (
-            cross_clip
-            or later.opening
-            or spoken_cue
-            or pause_before >= RESTART_PAUSE
-            or previous.word.text.rstrip()[-1:] in SENTENCE_END
-            or cut_off(previous.word)
-        )
+        restart = cross_clip or later.opening or spoken_cue or pause_before >= RESTART_PAUSE or previous.word.text.rstrip()[-1:] in SENTENCE_END or cut_off(previous.word)
         if not restart:
             continue
         best = None

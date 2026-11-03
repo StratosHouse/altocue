@@ -355,9 +355,7 @@ def _run_afftdn(samples: np.ndarray, folder: Path, reduction: float) -> Path:
     return dest
 
 
-def _denoise(
-    raw: Path, samples: np.ndarray, folder: Path, plan: dict[str, Any], deep_filter: str | None, isolate: str | None, warnings: list[str]
-) -> tuple[Path, str]:
+def _denoise(raw: Path, samples: np.ndarray, folder: Path, plan: dict[str, Any], deep_filter: str | None, isolate: str | None, warnings: list[str]) -> tuple[Path, str]:
     if plan["strength"] == "none":
         return raw, "none"
     if isolate:
@@ -513,9 +511,7 @@ def _words(project: Project, clip: Clip) -> list[tuple[float, float]] | None:
         return None
 
 
-def clean_project(
-    project: Project, force: bool = False, denoiser: str | None = None, deess: str | None = None, breaths: float | None = None
-) -> dict[str, Any]:
+def clean_project(project: Project, force: bool = False, denoiser: str | None = None, deess: str | None = None, breaths: float | None = None) -> dict[str, Any]:
     """Clean every clip to `work/audio/<clip id>.wav` and save the report beside them."""
     path = project.audio_dir / "report.json"
     saved = json.loads(path.read_text()) if path.exists() else {}

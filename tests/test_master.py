@@ -34,9 +34,7 @@ def video(wav: Path, path: Path) -> Path:
 
 
 def video_md5(path: Path) -> str:
-    done = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:v", "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True
-    )
+    done = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:v", "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True)
     return done.stdout.strip()
 
 

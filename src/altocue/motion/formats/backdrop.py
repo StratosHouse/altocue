@@ -32,7 +32,10 @@ def _soft_gradient(item: dict[str, Any]) -> str:
     rng = _seeded(item)
     tones = [tone for tone in str(item.get("tones", "")).split(",") if HEX.fullmatch(tone.strip())]
     paint = "".join(f"--tone{index}:{tone.strip()};" for index, tone in enumerate(tones[:3]))
-    blobs = "".join(f'<i class="b{tone}" style="--x:{x + rng.uniform(-6, 6):.1f}%;--y:{y + rng.uniform(-6, 6):.1f}%;--r:{r}%;--t:{-rng.uniform(0, 9):.2f}s"></i>' for x, y, r, tone in places)
+    blobs = "".join(
+        f'<i class="b{tone}" style="--x:{x + rng.uniform(-6, 6):.1f}%;--y:{y + rng.uniform(-6, 6):.1f}%;--r:{r}%;--t:{-rng.uniform(0, 9):.2f}s"></i>'
+        for x, y, r, tone in places
+    )
     return f'<div class="wash" style="{paint}">{blobs}</div>'
 
 

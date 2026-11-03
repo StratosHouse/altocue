@@ -31,9 +31,7 @@ def not_run(results: list[GateResult]) -> list[GateResult]:
     return [g for g in results if g.skipped and g.value != gates.NOT_APPLICABLE]
 
 
-def run_gates(
-    project: Project, file: str | Path, stage: str = "final", *, rules_path: str | Path | None = None, ocr_fps: float = gates.OCR_FPS
-) -> list[GateResult]:
+def run_gates(project: Project, file: str | Path, stage: str = "final", *, rules_path: str | Path | None = None, ocr_fps: float = gates.OCR_FPS) -> list[GateResult]:
     """Run every gate, save `review/qa.json`, and return the results."""
     context = gates.Context.open(project, file, stage, rules_path=rules_path)
     context.ocr_fps = ocr_fps

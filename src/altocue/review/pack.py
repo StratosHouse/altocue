@@ -70,10 +70,7 @@ def contact_sheets(file: Path, fps: float, dest: Path, work: Path) -> list[float
     per_sheet = COLUMNS * ROWS
     dest.mkdir(parents=True, exist_ok=True)
     for page in range(0, len(frames), per_sheet):
-        cells = [
-            stamped(Image.open(path).convert("RGB"), timecode(at))
-            for path, at in zip(frames[page : page + per_sheet], times[page:], strict=False)
-        ]
+        cells = [stamped(Image.open(path).convert("RGB"), timecode(at)) for path, at in zip(frames[page : page + per_sheet], times[page:], strict=False)]
         width, height = cells[0].size
         rows = (len(cells) - 1) // COLUMNS + 1
         sheet = Image.new("RGB", (width * COLUMNS, height * rows), (20, 20, 20))
@@ -211,10 +208,27 @@ def numbers(context: qa_gates.Context, digest: str, gates: list[GateResult], cut
     }
 
 
+BRIEF_FIELDS = (("message", "Message"), ("company", "What it is"), ("audience", "For"), ("goal", "Goal"), ("tone", "Tone"))
+BRIEF_LISTS = (("must_show", "Must show"), ("claims", "Claims"), ("notes", "Planned on purpose"))
+
+
 def read_brief(project: Project) -> str:
+    """The brief in the user's words: brief.md, or the brief.json a film from a storyboard keeps. Brand colours stay out."""
     path = project.root / "brief.md"
     text = path.read_text().strip() if path.exists() else ""
-    return text or "No brief was written for this video."
+    if text:
+        return text
+    made = project.root / "brief.json"
+    try:
+        brief = json.loads(made.read_text()) if made.exists() else {}
+    except ValueError:
+        brief = {}
+    lines = [f"- **{label}:** {brief[key]}" for key, label in BRIEF_FIELDS if isinstance(brief.get(key), str) and brief[key].strip()]
+    for key, label in BRIEF_LISTS:
+        rows = [str(row) for row in brief.get(key) or [] if str(row).strip()]
+        if rows:
+            lines += ["", f"{label}:", *(f"- {row}" for row in rows)]
+    return "\n".join(lines).strip() or "No brief was written for this video."
 
 
 def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, Any]:

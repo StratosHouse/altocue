@@ -19,7 +19,13 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 
 ### Motion and the library
 
-- 123 original motion formats in 12 groups: kinetic type, products, paper, data, explainers, proof, teaching, film, maps, backdrops, isometric scenes and wipes
+- 126 original motion formats in 12 groups: kinetic type, products, paper, data, explainers, proof, teaching, film, maps, backdrops, isometric scenes and wipes
+- `timeline_cut` lays a take's real words on a track, and each removal strikes and folds away as the playhead passes. `cut.track` reads them from a project's own words and `edl.json`
+- `library_scroll` types a search, then scrolls a wall of real stock results, each with its licence on it
+- `feature_badge` pops a feature's icon and name in a corner on the cut. The icons are Tabler's, MIT, with the notice kept, or drawn in code
+- A film can play part of a clip's sound, take a picture from a frame of a clip, caption a raw take word for word with each cut tagged, read captions from the clip that carries the sound, scale its caption track, change one picture's shape in place, and start a chosen track on a downbeat so cuts snap to heard beats. Film render writes `out/credits.txt`
+- `altocue broll --wall` keeps a frame and the licence of each stock result for a search shown on screen, and `grade --compare` keeps each look alone
+- `altocue deliver` works on a film from a storyboard, and `--no-music` writes the film with voice and effects only, for an app's own music library
 - `altocue library`: one searchable catalog with built-in, fetched, searched and linked tiers, a licence gate, a brand deny list and a weekly sync, and the `altocue-library` skill
 - Any HyperFrames composition can be mounted as a graphic, and fetched items are kept self-contained, so a render needs the network only for a font that could not be embedded
 - Copy longer than a format allows fails before the render

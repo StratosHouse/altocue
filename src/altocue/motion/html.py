@@ -46,6 +46,11 @@ background:color-mix(in srgb,var(--panel) 84%%,transparent);box-shadow:0 0 0 1px
 .cap.rail{font-weight:600;font-size:calc(var(--cap-size) * .76px);letter-spacing:-.008em}
 .cap.rail{--pop:1}
 @keyframes capin{from{transform:scale(.94)}to{transform:none}}
+.cap b.tg{position:relative;color:#fff;background:#c42b35;border-radius:.18em;padding:0 .12em}
+.cap b.tg i{position:absolute;left:50%%;bottom:100%%;margin-bottom:.14em;transform:translateX(-50%%);padding:.14em .44em .16em;border-radius:.34em;font-size:.36em;font-style:normal;
+font-weight:700;letter-spacing:.06em;line-height:1.1;text-transform:uppercase;white-space:nowrap;color:#fff;background:#c42b35}
+.cap b.tg.new{animation:tagin .3s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes tagin{from{transform:scale(.55)}to{transform:none}}
 
 /* Shared surfaces */
 .glass{background:color-mix(in srgb,var(--surface) 78%%,transparent);box-shadow:0 0 0 1px rgba(211,238,252,.13) inset,0 1px 0 rgba(255,255,255,.07) inset,0 24px 64px rgba(0,0,0,.34);
@@ -163,12 +168,6 @@ def _style(item: dict[str, Any], *, leave: bool = False) -> str:
     return f'style="{";".join(parts)}"' if parts else ""
 
 
-def _caption_word(text: str, on: bool) -> str:
-    """One word, with an unseen copy of itself that holds the room the word needs when it pops."""
-    lit = ' class="on"' if on else ""
-    return f'<b{lit} data-room="{escape(text, quote=True)}"><span>{escape(text)}</span></b>'
-
-
 def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") -> str:
     """One clip per spoken word. Only the first one plays the entrance. `place` sets the page somewhere other than the caption line."""
     out = []
@@ -178,7 +177,7 @@ def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") 
         end = page["end"] if index == len(words) - 1 else words[index + 1]["start"]
         if end - start < 0.02:
             continue
-        spans = "".join(_caption_word(w["text"], i == index) for i, w in enumerate(words))
+        spans = "".join(_caption_word(w, i, index) for i, w in enumerate(words))
         who = f'<i class="who">{escape(page["name"])}</i>' if page.get("name") else ""
         body = f'<span class="plate">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
         enter = " enter" if index == 0 and style != "rail" else ""
@@ -186,6 +185,18 @@ def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") 
         tint = f' style="{css}"' if css else ""
         out.append(f'<div class="clip cap {style}{enter}"{tint} {_attrs(start, end, track)}>{body}</div>')
     return "\n".join(out)
+
+
+def _caption_word(word: dict[str, Any], place: int, now: int) -> str:
+    """One word of a page, with an unseen copy of itself that holds the room the word needs when it pops.
+
+    A word a cut removed shows its tag once it has been said, and the tag pops as it is said.
+    """
+    text = escape(word["text"])
+    if word.get("tag") and place <= now:
+        return f'<b class="tg{" on new" if place == now else ""}">{text}<i>{escape(str(word["tag"]))}</i></b>'
+    lit = ' class="on"' if place == now else ""
+    return f'<b{lit} data-room="{escape(word["text"], quote=True)}"><span>{text}</span></b>'
 
 
 def _hook_lines(text: str) -> str:
@@ -242,13 +253,15 @@ def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
     tokens = root_tokens(timeline, brand, geo)
     style = brand.caption["style"]
     upper = brand.caption.get("uppercase")
-    captions = "\n".join(caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"])
+    captions = "\n".join(
+        caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"]
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
 <style>{css}{formats.stylesheet(timeline["items"])}</style></head>
 <body>
-<div id="root" data-composition-id="root" data-no-timeline data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
+<div id="root" data-composition-id="root" data-no-timeline data-start="0" data-duration="{timeline["total"]:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
 {under + chr(10) if under else ""}{captions}
 {items_html}
 </div>
@@ -278,4 +291,4 @@ def base_css(timeline: dict[str, Any], brand: Brand) -> tuple[str, dict[str, flo
 
 def root_tokens(timeline: dict[str, Any], brand: Brand, geo: dict[str, float]) -> str:
     size = caption_size(timeline["width"], timeline["height"], brand)
-    return f'--cap-y:{geo["cap_y"]}px;--cap-size:{size};--top:{geo["top"]}px;--lt-y:{geo["lt_y"]}px;--rail:{geo["rail"]}px'
+    return f"--cap-y:{geo['cap_y']}px;--cap-size:{size};--top:{geo['top']}px;--lt-y:{geo['lt_y']}px;--rail:{geo['rail']}px"

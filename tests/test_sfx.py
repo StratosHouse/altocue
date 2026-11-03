@@ -52,7 +52,6 @@ def test_every_bundled_effect_can_be_called(name):
     assert resolved([{"name": name, "at": {"word": "done."}}])[1][0]["name"] == name
 
 
-
 def test_a_project_file_can_be_a_cue(tmp_path):
     sound = tmp_path / "sounds" / "door.wav"
     sound.parent.mkdir()

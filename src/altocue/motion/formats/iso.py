@@ -193,6 +193,7 @@ def _face(a: Point, b: Point, height: float, tone: str) -> str:
 
 def _box(block: dict, shift: Point) -> str:
     x, y, w, d, h = block["x"], block["y"], block["w"], block["d"], block["h"]
+
     def at(px: float, py: float, pz: float = 0.0) -> Point:
         sx, sy = _iso(px, py, pz)
         return (sx + shift[0], sy + shift[1])
@@ -220,7 +221,8 @@ def _can(block: dict, shift: Point) -> str:
         f'<g transform="matrix({_n(rx)} 0 0 {_n(-tall)} {_n(cx)} {_n(cy)})"><rect class="fr up" width="1" height="1"/></g>'
     )
     tiers = "".join(
-        f'<g class="lift" style="--u:{_n(tall * share)}px"><path class="band" d="M{_n(cx - rx)} {_n(cy)}A{_n(rx)} {_n(ry)} 0 0 0 {_n(cx + rx)} {_n(cy)}"/></g>' for share in (1 / 3, 2 / 3)
+        f'<g class="lift" style="--u:{_n(tall * share)}px"><path class="band" d="M{_n(cx - rx)} {_n(cy)}A{_n(rx)} {_n(ry)} 0 0 0 {_n(cx + rx)} {_n(cy)}"/></g>'
+        for share in (1 / 3, 2 / 3)
     )
     top = f'<g class="lift" style="--u:{_n(tall)}px"><ellipse class="ft" cx="{_n(cx)}" cy="{_n(cy)}" rx="{_n(rx)}" ry="{_n(ry)}"/><ellipse class="lip" cx="{_n(cx)}" cy="{_n(cy)}" rx="{_n(rx * 0.7)}" ry="{_n(ry * 0.7)}"/></g>'
     return f'<path class="fl" d="{bottom}"/><path class="fr" d="{side}"/>{walls}{tiers}{top}'
@@ -334,7 +336,9 @@ def _iso_board(item: dict) -> str:
         start, end = named.get(route.get("from")), named.get(route.get("to"))
         if not start or not end:
             missing = route.get("from") if not start else route.get("to")
-            raise AltocueError(f'iso_board: a route names "{missing}" and no block has that id.', fix='Give the block an "id", and use it in the route\'s "from" and "to".')
+            raise AltocueError(
+                f'iso_board: a route names "{missing}" and no block has that id.', fix='Give the block an "id", and use it in the route\'s "from" and "to".'
+            )
         ax, ay = start["x"] + start["w"] / 2, start["y"] + start["d"] / 2
         bx, by = end["x"] + end["w"] / 2, end["y"] + end["d"] / 2
         corner = (ax, by) if route.get("via") == "y" else (bx, ay)
@@ -579,7 +583,11 @@ FORMATS = (
             Slot("move", "choice", required=False, choices=("explode", "stack", "fan")),
             Slot("ground", "choice", required=False, choices=GROUNDS),
         ),
-        example={"title": "Three steps, *one screen*", "layers": [{"text": "Draft the script", "on": True}, {"text": "Cut to the words"}, {"text": "Render the film"}], "move": "explode"},
+        example={
+            "title": "Three steps, *one screen*",
+            "layers": [{"text": "Draft the script", "on": True}, {"text": "Cut to the words"}, {"text": "Render the film"}],
+            "move": "explode",
+        },
         draw=_iso_stack,
         css=_scoped("iso_stack", GROUND, CSS_STACK),
         seconds=5.0,

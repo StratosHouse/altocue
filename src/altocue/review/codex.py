@@ -47,9 +47,7 @@ def review(project: Project, prompt: str, *, upload: bool, say: Callable[[str], 
         )
     binary = shutil.which("codex")
     if not binary:
-        raise AltocueError(
-            "The codex CLI is not on PATH.", fix="Install it from https://developers.openai.com/codex, or use --reviewer pack."
-        )
+        raise AltocueError("The codex CLI is not on PATH.", fix="Install it from https://developers.openai.com/codex, or use --reviewer pack.")
     images = pick_images(project.review_dir / "pack")
     total = sum(1 for _ in (project.review_dir / "pack").rglob("*.jpg"))
     say(f"Sending {len(images)} frames, the transcript and the measurements to OpenAI through the codex CLI. The video itself stays here.")

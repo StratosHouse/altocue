@@ -12,13 +12,16 @@ import json
 import os
 import shutil
 import struct
+import tempfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
 
+import numpy as np
+
 from . import brand as brands
-from . import cut, ffmpeg, locks, master, motion, plate, platforms, render, subtitles, thumbnails
+from . import cut, ffmpeg, locks, master, mix, motion, plate, platforms, render, subtitles, thumbnails
 from . import timeline as timelines
 from .errors import AltocueError
 from .generate.store import generated_dir
@@ -66,6 +69,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
     parser.add_argument("--stems", action="store_true", help="Also write voice, music and effects as WAV files, for a finisher")
     parser.add_argument("--textless", action="store_true", help="Also write the cut picture with no captions or graphics, and its voice mastered")
+    parser.add_argument("--no-music", action="store_true", help="Also write the film with voice and effects only, for a song from an app's own library")
     parser.add_argument(
         "--override",
         metavar="REASON",
@@ -144,8 +148,17 @@ def spoken(project: Project, edl: Edl) -> tuple[list[dict[str, Any]], str]:
     return words, "" if words else "Nobody speaks in this cut."
 
 
-def write_subtitles(words: list[dict[str, Any]], edl: Edl, folder: Path) -> tuple[Path | None, dict[str, Any]]:
-    cues = subtitles.build_cues(words, cut.segment_ends(edl), fps=edl.fps)
+def film_spoken(project: Project) -> tuple[list[dict[str, Any]], dict[str, float], float, str]:
+    """A film's words are its own caption track, in film seconds, and no cue crosses the end of a scene."""
+    line = json.loads(project.timeline_path.read_text()) if project.timeline_path.exists() else {}
+    words = [{**word, "segment": page.get("scene")} for page in line.get("captions") or [] for word in page["words"]]
+    ends = {str(scene["id"]): float(scene["end"]) for scene in line.get("scenes") or []}
+    why = "" if words else ("Nobody speaks in this film." if line else "This film has no timeline yet. Run `altocue film render`.")
+    return words, ends, float(line.get("fps") or project.fps), why
+
+
+def write_subtitles(words: list[dict[str, Any]], ends: dict[str, float], fps: float, folder: Path) -> tuple[Path | None, dict[str, Any]]:
+    cues = subtitles.build_cues(words, ends, fps=fps)
     srt, vtt = folder / "subtitles.srt", folder / "subtitles.vtt"
     if not cues:
         srt.unlink(missing_ok=True)
@@ -202,9 +215,7 @@ def youtube_problems(chapters: list[dict[str, Any]]) -> list[str]:
     if len(chapters) < YOUTUBE_FEWEST:
         problems.append(f"YouTube needs at least three chapters, and this list has {len(chapters)}.")
     problems += [
-        f'YouTube ignores chapters under 10 seconds: "{c["title"]}" runs {c["end"] - c["start"]:.1f} s.'
-        for c in chapters
-        if c["end"] - c["start"] < YOUTUBE_SHORTEST
+        f'YouTube ignores chapters under 10 seconds: "{c["title"]}" runs {c["end"] - c["start"]:.1f} s.' for c in chapters if c["end"] - c["start"] < YOUTUBE_SHORTEST
     ]
     return problems
 
@@ -343,9 +354,7 @@ def package(base: Path, dest: Path, srt: Path | None, chapters: list[dict[str, A
         meta.unlink(missing_ok=True)
 
 
-def make_film(
-    project: Project, final: Path, folder: Path, srt: Path | None, chapters: list[dict[str, Any]], override: float | master.Target | None
-) -> dict[str, Any]:
+def make_film(project: Project, final: Path, folder: Path, srt: Path | None, chapters: list[dict[str, Any]], override: float | master.Target | None) -> dict[str, Any]:
     """`deliver/film.mp4`. With a loudness asked for, the sound is mastered again from the render, never from the final."""
     target = target_for(project, override)
     dest, base = folder / "film.mp4", final
@@ -487,9 +496,7 @@ def _verdict(entry: dict[str, Any]) -> str:
     return f"Not checked: {', '.join(entry['not_checked'])}." if entry["not_checked"] else "Missed its loudness."
 
 
-def make_version(
-    project: Project, platform: Platform, folder: Path, seconds: float, override: float | master.Target | None, renderer: str
-) -> dict[str, Any]:
+def make_version(project: Project, platform: Platform, folder: Path, seconds: float, override: float | master.Target | None, renderer: str) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "platform": platform.name,
         "aspect": platform.aspect,
@@ -567,23 +574,70 @@ def write_textless(project: Project, folder: Path) -> dict[str, Any]:
     return {"file": dest.name, "loudness": {"integrated": result.get("integrated"), "true_peak": result.get("true_peak")}}
 
 
-def write_stems(project: Project, folder: Path) -> dict[str, Any]:
-    """The stems of the finished film, remade from the render's own voice track and timeline, so they add up to its mix."""
+def is_film(project: Project) -> bool:
+    """A film from a storyboard has no cut. Its shapes are rendered again from the storyboard, never cropped."""
+    return (project.root / "storyboard.json").is_file() and not project.edl_path.exists()
+
+
+def stem_files(project: Project, folder: Path) -> dict[str, Path]:
+    """Voice, music and effects of the finished film, remade from what made its mix, so the three add up to it."""
+    if is_film(project):
+        from . import film
+
+        return film.stems(project, folder)
     voice = project.work / "voice.wav"
     if not voice.exists() or not project.timeline_path.exists():
         raise AltocueError("The stems come from the render's own voice track and timeline, and one is missing.", fix="Run `altocue render`, then deliver again.")
-    files = render.write_stems(project, json.loads(project.timeline_path.read_text()), voice, folder / "stems")
-    return {"files": [str(path.relative_to(folder)) for path in files], "level": "as mixed, before mastering"}
+    files = render.write_stems(project, json.loads(project.timeline_path.read_text()), voice, folder)
+    return dict(zip(mix.STEMS, files, strict=True))
+
+
+def write_stems(project: Project, folder: Path) -> dict[str, Any]:
+    """The stems of the finished film, so a finisher can rebalance them. They add up to its mix."""
+    files = stem_files(project, folder / "stems")
+    return {"files": [str(path.relative_to(folder)) for path in files.values()], "level": "as mixed, before mastering"}
+
+
+NO_MUSIC = "film-no-music.mp4"
+
+
+def no_music(project: Project, final: Path, folder: Path, override: float | master.Target | None) -> dict[str, Any]:
+    """The finished film with its voice and effects and no music, mastered to the same target, picture untouched.
+
+    For an app's own music library: TikTok's Commercial Music Library or Meta's sound collection add a song in the app,
+    which only sounds right over a film that has none of its own.
+    """
+    target = target_for(project, override)
+    dest = folder / NO_MUSIC
+    with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
+        parts = stem_files(project, Path(scratch) / "stems")
+        music, _ = ffmpeg.read_wav(parts["music"])
+        had_music = bool(np.abs(music).max(initial=0.0) > mix.SILENT_VOICE)
+        dry = Path(scratch) / "dry.wav"
+        both = "amix=inputs=2:duration=longest:normalize=0"
+        ffmpeg.run(["-i", str(parts["voice"]), "-i", str(parts["effects"]), "-filter_complex", both, "-c:a", "pcm_s16le", str(dry)])
+        joined = Path(scratch) / "dry.mov"
+        seconds = ffmpeg.probe_clip(final).duration
+        ffmpeg.run(["-i", str(final), "-i", str(dry), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "alac", "-t", f"{seconds:.3f}", str(joined)])
+        with locks.heavy("mastering the film with no music"):
+            master.master_file(joined, dest, target["target"], target["true_peak"], silent_film=True)
+    return {"file": dest.name, "made_of": ["voice", "effects"], "had_music": had_music, "loudness": measured(project, dest, target)}
 
 
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     wanted = platforms.parse(args.platforms) if args.platforms else []
+    made_in_code = is_film(project)
+    if made_in_code and wanted:
+        raise AltocueError(
+            "A film's other shapes are rendered again from its storyboard, so deliver makes no platform versions of it.",
+            fix="Run `altocue film render --cutdowns 9:16,1:1`, then review and deliver each one.",
+        )
     final = finished_film(project)
     digest = sha256(final)
     signoff = sign_off(project, final, digest, getattr(args, "override", None))
-    edl = project.edl()
-    if wanted:
+    edl = None if made_in_code else project.edl()
+    if wanted and edl is not None:
         plate.same_rate(project, edl)  # a version re-renders the cut, so check before anything is written
     seconds = ffmpeg.probe_clip(final).duration
     folder = project.root / FOLDER
@@ -595,8 +649,13 @@ def run(args: argparse.Namespace) -> int:
     if textless:
         print(f"Textless: {FOLDER}/{textless['file']}, the cut picture with no captions or graphics, and its voice mastered.")
 
-    words, silent_why = spoken(project, edl)
-    srt, subs = write_subtitles(words, edl, folder)
+    if edl is None:
+        words, ends, fps, silent_why = film_spoken(project)
+        line = json.loads(project.timeline_path.read_text()) if project.timeline_path.exists() else {}
+        shots = [(float(scene["start"]), float(scene["end"])) for scene in line.get("scenes") or []]
+    else:
+        (words, silent_why), ends, fps, shots = spoken(project, edl), cut.segment_ends(edl), float(edl.fps), shots_of(edl)
+    srt, subs = write_subtitles(words, ends, fps, folder)
     print(f"Subtitles: {FOLDER}/subtitles.srt and {FOLDER}/subtitles.vtt. {_reading_line(subs['reading'])}" if srt else f"No subtitles. {silent_why}")
 
     chapters, source = chapter_list(project, words, seconds)
@@ -606,8 +665,13 @@ def run(args: argparse.Namespace) -> int:
     film = make_film(project, final, folder, srt, chapters, args.loudness)
     print(f"Film: {FOLDER}/{film['file']}, {_spoken_as(film['loudness'])}")
 
-    pictures = thumbnails.write(plate_or_final(project, final), shots_of(edl), folder / "thumbnails")
+    pictures = thumbnails.write(plate_or_final(project, final), shots, folder / "thumbnails")
     print(f"Thumbnails: {len(pictures['candidates'])} candidates from {pictures['read']} frames. Compare them in {FOLDER}/thumbnails/{pictures['sheet']}")
+
+    dry = no_music(project, final, folder, args.loudness) if getattr(args, "no_music", False) else None
+    if dry:
+        said = "" if dry["had_music"] else " This film had no music, so it matches the film apart from mastering."
+        print(f"No music: {FOLDER}/{dry['file']}, voice and effects only, {_spoken_as(dry['loudness'])}.{said}")
 
     made = [make_version(project, platform, folder, seconds, args.loudness, args.renderer) for platform in wanted]
     versions = _earlier_versions(folder, digest, made) + made
@@ -616,11 +680,14 @@ def run(args: argparse.Namespace) -> int:
         report["stems"] = stems
     if textless:
         report["textless"] = textless
+    if dry:
+        report["no_music"] = dry
     write_json(folder / "deliver.json", report)
     print(f"Saved {FOLDER}/deliver.json")
     if signoff["override"]:
         print(f"Override recorded: no SHIP verdict for this film. Reason: {signoff['override']}")
     missed = film["loudness"]["passed"] is False or any(v.get("failed") or v.get("problem") or v["loudness"]["passed"] is False for v in made)
+    missed = missed or bool(dry and dry["loudness"]["passed"] is False)
     return 1 if missed else 0
 
 

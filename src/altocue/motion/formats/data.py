@@ -187,7 +187,9 @@ def _every(count: int, most: int = 6) -> list[int]:
     return shown
 
 
-def _line_geometry(values: list[float], labels: list[str], height: int, prefix: str, suffix: str, top: int = 58, bottom: int = 46, left: int = 78, right: int = 40) -> dict[str, Any]:
+def _line_geometry(
+    values: list[float], labels: list[str], height: int, prefix: str, suffix: str, top: int = 58, bottom: int = 46, left: int = 78, right: int = 40
+) -> dict[str, Any]:
     """Points in svg units plus the static axes. A line may sit on a labelled floor above zero, but only when the data never comes near zero."""
     low, high = min(values), max(values)
     floor = 0.0 if 0 <= low <= high * 0.62 else low
@@ -227,14 +229,21 @@ def _trace(points: list[tuple[float, float]], values: list[float], share: float)
     return points[0][0], points[0][1], 0.0, values[0]
 
 
-def _line_layers(mark: str, geo: dict[str, Any], values: list[float], height: int, begin: float, end: float, share_at: Callable[[float], float], places: int, prefix: str, suffix: str) -> tuple[str, str]:
+def _line_layers(
+    mark: str, geo: dict[str, Any], values: list[float], height: int, begin: float, end: float, share_at: Callable[[float], float], places: int, prefix: str, suffix: str
+) -> tuple[str, str]:
     """The drawn line, its fill, the travelling dot and its value flag. Each is a div, driven by the same samples, so none can slip."""
     points = geo["points"]
     path = "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in points)
     area = f"{path} L{points[-1][0]:.1f} {geo['base']:.1f} L{points[0][0]:.1f} {geo['base']:.1f} Z"
     frames = max(round((end - begin) * FPS), 8)
     span = end + 0.02
-    head, line, fill, flags = [(0.0, _at(points[0], height) + ";opacity:0")], [(0.0, "stroke-dashoffset:1")], [(0.0, f"clip-path:inset(0 {100 - points[0][0] / W * 100:.2f}% 0 0)")], []
+    head, line, fill, flags = (
+        [(0.0, _at(points[0], height) + ";opacity:0")],
+        [(0.0, "stroke-dashoffset:1")],
+        [(0.0, f"clip-path:inset(0 {100 - points[0][0] / W * 100:.2f}% 0 0)")],
+        [],
+    )
     for k in range(frames + 1):
         moment = begin + (end - begin) * k / frames
         x, y, along, value = _trace(points, values, share_at(moment))
@@ -364,8 +373,12 @@ def _chart_story(item: dict[str, Any]) -> str:
         notes.append(f'<div class="ly lead" style="animation:dkdraw .36s var(--ease) {spot["at"]:.3f}s both">{_svg(height, leader)}</div>')
         notes.append(f'<i class="pin" style="left:{_pct(x, W)};top:{_pct(y, height)};animation-delay:{spot["at"]:.3f}s"></i>')
         edge = f"left:{_pct(max(x - 26, 0.0), W)}" if spot["side"] == "right" else f"right:{_pct(W - min(x + 26, W), W)}"
-        notes.append(f'<div class="call" style="{edge};top:{_pct(spot["bottom"], height)}"><span style="animation-delay:{spot["at"] + 0.06:.3f}s">{kit.esc(spot["text"])}</span></div>')
-    plot = f'<style>{style}</style><div class="plot" style="aspect-ratio:{W}/{height}"><div class="ly grid">{_svg(height, geo["grid"])}</div>{layers}{"".join(notes)}</div>'
+        notes.append(
+            f'<div class="call" style="{edge};top:{_pct(spot["bottom"], height)}"><span style="animation-delay:{spot["at"] + 0.06:.3f}s">{kit.esc(spot["text"])}</span></div>'
+        )
+    plot = (
+        f'<style>{style}</style><div class="plot" style="aspect-ratio:{W}/{height}"><div class="ly grid">{_svg(height, geo["grid"])}</div>{layers}{"".join(notes)}</div>'
+    )
     return _card(item, plot)
 
 
@@ -380,7 +393,7 @@ def _count_up(item: dict[str, Any]) -> str:
     width = len(_show(value, places, prefix, suffix))
     size = min(236, 1400 / max(width, 1))
     number = _count(value, places, prefix, suffix, run, 0.1, rate=float(item.get("rate") or 0))
-    lead = f';--lead:{float(item["lead"]):.3f}s' if item.get("lead") is not None else ""
+    lead = f";--lead:{float(item['lead']):.3f}s" if item.get("lead") is not None else ""
     return (
         f'<div class="wrap" style="--r:{run:.3f}s{lead}"><div class="fig"><div class="num" style="font-size:calc({size:.0f}px * var(--scale))">{number}</div>'
         f'<i class="rule"></i></div><p class="lab">{kit.emphasis(item["label"])}</p></div>'
@@ -517,7 +530,10 @@ def _bar_race(item: dict[str, Any]) -> str:
     final = [series[i][-1] for i in range(len(rows))]
     hot = _hot(rows, final)
     for index, row in enumerate(rows):
-        slide = [(0.0, f"transform:translateY({smooth[index][0] * 100:.1f}%)"), *[(m / span * 100, f"transform:translateY({smooth[index][k] * 100:.2f}%)") for k, m in enumerate(moments)]]
+        slide = [
+            (0.0, f"transform:translateY({smooth[index][0] * 100:.1f}%)"),
+            *[(m / span * 100, f"transform:translateY({smooth[index][k] * 100:.2f}%)") for k, m in enumerate(moments)],
+        ]
         grow = [(0.0, "transform:scaleX(0)"), (enter / span * 100, "transform:scaleX(0);animation-timing-function:cubic-bezier(.16,1,.3,1)")]
         move = [(0.0, "transform:translateX(0%)"), (enter / span * 100, "transform:translateX(0%);animation-timing-function:cubic-bezier(.16,1,.3,1)")]
         for period in range(len(periods)):
@@ -535,7 +551,9 @@ def _bar_race(item: dict[str, Any]) -> str:
         name = f'<span class="nm{" on" if index == hot else ""}">{kit.esc(row["text"])}</span>'
         bar = f'<b class="bar{" hot" if index == hot else ""}" style="animation:{mark}b{index} {span:.3f}s linear both"></b>'
         tag = f'<span class="val" style="animation:{mark}v{index} {span:.3f}s linear both"><span>{strip[1]}</span></span>'
-        bars.append(f'<div class="r{" top" if index == hot else ""}" style="animation:{mark}y{index} {span:.3f}s linear both">{name}<span class="tr">{bar}{tag}</span></div>')
+        bars.append(
+            f'<div class="r{" top" if index == hot else ""}" style="animation:{mark}y{index} {span:.3f}s linear both">{name}<span class="tr">{bar}{tag}</span></div>'
+        )
     flips = [(0.0, "transform:translateY(0);animation-timing-function:steps(1,end)")]
     for period in range(1, len(periods)):
         at = (lead + run * (period - 0.5) / gaps) / span * 100
@@ -556,11 +574,17 @@ def _value_steps(texts: list[str], enter: float, lead: float, run: float, count:
     """A value flag with two speeds: the climb to the first period, then the run through the rest."""
     last = len(texts) - 1
     span = lead + run + 0.02
-    frames = [(0.0, "transform:translateY(0);animation-timing-function:linear"), (enter / span * 100, f"transform:translateY(0);animation-timing-function:steps({count},end)")]
+    frames = [
+        (0.0, "transform:translateY(0);animation-timing-function:linear"),
+        (enter / span * 100, f"transform:translateY(0);animation-timing-function:steps({count},end)"),
+    ]
     frames.append((lead / span * 100, f"transform:translateY({-count * 1.16:.2f}em);animation-timing-function:steps({ticks},end)"))
     frames.append((100.0, f"transform:translateY({-last * 1.16:.2f}em)"))
     cells = "".join(f"<i>{kit.esc(text)}</i>" for text in texts)
-    return _keys(f"{mark}t{index}", frames), f'<span class="ct"><span class="st" data-layout-allow-overflow data-layout-allow-overlap style="animation:{mark}t{index} {span:.3f}s linear both">{cells}</span></span>'
+    return (
+        _keys(f"{mark}t{index}", frames),
+        f'<span class="ct"><span class="st" data-layout-allow-overflow data-layout-allow-overlap style="animation:{mark}t{index} {span:.3f}s linear both">{cells}</span></span>',
+    )
 
 
 # Comparisons and flows
@@ -610,11 +634,15 @@ def _slope(item: dict[str, Any]) -> str:
         y0, y1 = place(before[index]), place(after[index])
         cls = "on" if index == hot else "off"
         line = f'<line x1="{x0}" x2="{x1}" y1="{y0:.1f}" y2="{y1:.1f}" pathLength="1"/>'
-        layers.append((index == hot, f'<div class="ly stroke {cls}" style="animation:dkdraw {run:.3f}s cubic-bezier(.45,0,.2,1) {wait:.3f}s both">{_svg(height, line)}</div>'))
+        layers.append(
+            (index == hot, f'<div class="ly stroke {cls}" style="animation:dkdraw {run:.3f}s cubic-bezier(.45,0,.2,1) {wait:.3f}s both">{_svg(height, line)}</div>')
+        )
         marks.append(f'<i class="pt {cls}" style="left:{_pct(x0, W)};top:{_pct(y0, height)};animation-delay:{wait - 0.1:.3f}s"></i>')
         marks.append(f'<i class="pt {cls}" style="left:{_pct(x1, W)};top:{_pct(y1, height)};animation-delay:{wait + run - 0.08:.3f}s"></i>')
-        marks.append(f'<span class="lv {cls}" style="right:{_pct(W - x0 + 22, W)};top:{_pct(left_y[index], height)};animation-delay:{wait - 0.1:.3f}s">{kit.esc(_show(before[index], places, prefix, suffix))}</span>')
-        name = f'<b>{kit.esc(_show(after[index], places, prefix, suffix))}</b> {kit.esc(row["text"])}'
+        marks.append(
+            f'<span class="lv {cls}" style="right:{_pct(W - x0 + 22, W)};top:{_pct(left_y[index], height)};animation-delay:{wait - 0.1:.3f}s">{kit.esc(_show(before[index], places, prefix, suffix))}</span>'
+        )
+        name = f"<b>{kit.esc(_show(after[index], places, prefix, suffix))}</b> {kit.esc(row['text'])}"
         marks.append(f'<span class="rv {cls}" style="left:{_pct(x1 + 22, W)};top:{_pct(right_y[index], height)};animation-delay:{wait + run - 0.08:.3f}s">{name}</span>')
     drawn = "".join(html for _, html in sorted(layers, key=lambda pair: pair[0]))
     heads = f'<span class="ty" style="left:{_pct(x0, W)}">{kit.esc(item["left"])}</span><span class="ty" style="left:{_pct(x1, W)}">{kit.esc(item["right"])}</span>'
@@ -704,7 +732,9 @@ def _sankey(item: dict[str, Any]) -> str:
     for here in nodes.values():
         wait = 0.45 + here["depth"] * hop
         on = here["name"] in wanted
-        marks.append(f'<i class="nd{" on" if on else ""}" style="left:{_pct(here["x"], W)};top:{_pct(here["y"], height)};height:{_pct(here["tall"], height)};animation-delay:{wait:.3f}s"></i>')
+        marks.append(
+            f'<i class="nd{" on" if on else ""}" style="left:{_pct(here["x"], W)};top:{_pct(here["y"], height)};height:{_pct(here["tall"], height)};animation-delay:{wait:.3f}s"></i>'
+        )
         if here["depth"] == last and last > 0:
             side = f"right:{_pct(W - here['x'] + 14, W)}"
         elif here["depth"] == 0:
@@ -712,8 +742,10 @@ def _sankey(item: dict[str, Any]) -> str:
         else:
             side = f"left:{_pct(here['x'] + node_w / 2, W)}"
         mid = here["y"] + here["tall"] / 2
-        text = f'<b>{kit.esc(_show(here["size"], places, prefix, suffix))}</b> {kit.esc(here["name"])}'
-        marks.append(f'<span class="lb{" on" if on else ""}{" mid" if 0 < here["depth"] < last else ""}" style="{side};top:{_pct(mid, height)};animation-delay:{wait + (hop * 0.8 if here["depth"] else 0.1):.3f}s">{text}</span>')
+        text = f"<b>{kit.esc(_show(here['size'], places, prefix, suffix))}</b> {kit.esc(here['name'])}"
+        marks.append(
+            f'<span class="lb{" on" if on else ""}{" mid" if 0 < here["depth"] < last else ""}" style="{side};top:{_pct(mid, height)};animation-delay:{wait + (hop * 0.8 if here["depth"] else 0.1):.3f}s">{text}</span>'
+        )
     drawn = "".join(html for _, html in sorted(bands, key=lambda pair: pair[0]))
     return _card(item, f'<div class="plot" style="aspect-ratio:{W}/{height}">{drawn}{"".join(marks)}</div>')
 
@@ -787,7 +819,7 @@ def _treemap_zoom(item: dict[str, Any]) -> str:
     shift_x = ((W - w * scale) / 2 - x * scale) / W * 100
     shift_y = ((height - h * scale) / 2 - y * scale) / height * 100
     share = values[hot] / whole * 100
-    detail = f'<p>{kit.esc(item["detail"])}</p>' if item.get("detail") else ""
+    detail = f"<p>{kit.esc(item['detail'])}</p>" if item.get("detail") else ""
     number = _count(share, 0 if abs(share - round(share)) < 0.05 else 1, "", "%", 0.8, zoom + 0.5)
     panel = f'<div class="zoomed" style="--z:{zoom + 0.42:.3f}s"><strong>{number}</strong><span>{kit.esc(rows[hot]["text"])}, {kit.esc(_show(values[hot], places, prefix, suffix))}</span>{detail}</div>'
     cam = f'<div class="cam" style="--tx:{shift_x:.3f}%;--ty:{shift_y:.3f}%;--s:{scale:.4f};--z:{zoom:.3f}s">{"".join(blocks)}</div>'
@@ -855,7 +887,9 @@ def _bubble_time(item: dict[str, Any]) -> str:
     grid = []
     for tick in y_ticks:
         y = spot([0, tick, 0])[1]
-        grid.append(f'<line class="{"zero" if tick == y_ticks[0] else "gl"}" x1="{left}" x2="{W - right}" y1="{y:.1f}" y2="{y:.1f}"/><text x="{left - 12}" y="{y + 9:.1f}" text-anchor="end">{kit.esc(_short(tick))}</text>')
+        grid.append(
+            f'<line class="{"zero" if tick == y_ticks[0] else "gl"}" x1="{left}" x2="{W - right}" y1="{y:.1f}" y2="{y:.1f}"/><text x="{left - 12}" y="{y + 9:.1f}" text-anchor="end">{kit.esc(_short(tick))}</text>'
+        )
     for tick in x_ticks:
         x = spot([tick, 0, 0])[0]
         grid.append(f'<text x="{x:.1f}" y="{height - bottom + 34}" text-anchor="middle">{kit.esc(_short(tick))}</text>')
@@ -878,7 +912,11 @@ def _bubble_time(item: dict[str, Any]) -> str:
             move.append((at, f"transform:translate({x / W * 100:.3f}%,{y / height * 100:.3f}%);{hop}"))
             grow.append((at, f"transform:translate(-50%,-50%) scale({r:.4f});{hop}"))
             name.append((at, f"transform:translate(-50%,calc(-100% - {r * 62 + 8:.1f}px * var(--scale)));{hop}"))
-        css += [_keys(f"{mark}m{index}", [(0.0, move[0][1]), *move]), _keys(f"{mark}g{index}", [(0.0, grow[0][1]), *grow]), _keys(f"{mark}n{index}", [(0.0, name[0][1]), *name])]
+        css += [
+            _keys(f"{mark}m{index}", [(0.0, move[0][1]), *move]),
+            _keys(f"{mark}g{index}", [(0.0, grow[0][1]), *grow]),
+            _keys(f"{mark}n{index}", [(0.0, name[0][1]), *name]),
+        ]
         on = index == hot
         if on:
             line = "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y, _ in spots)
@@ -892,7 +930,10 @@ def _bubble_time(item: dict[str, Any]) -> str:
             trail = f'<div class="ly trail" style="animation:{mark}w {span:.3f}s linear both">{_svg(height, _path(line))}</div>'
         motion = f"{span:.3f}s linear both"
         balls.append(
-            (on, f'<div class="ly bb{" on" if on else ""}" style="animation:{mark}m{index} {motion}"><i class="ball" style="animation:{mark}g{index} {motion}"></i><span class="nm" style="animation:{mark}n{index} {motion}">{kit.esc(row["text"])}</span></div>')
+            (
+                on,
+                f'<div class="ly bb{" on" if on else ""}" style="animation:{mark}m{index} {motion}"><i class="ball" style="animation:{mark}g{index} {motion}"></i><span class="nm" style="animation:{mark}n{index} {motion}">{kit.esc(row["text"])}</span></div>',
+            )
         )
     flips = [(0.0, "transform:translateY(0);animation-timing-function:steps(1,end)")]
     for period in range(1, len(periods)):
@@ -902,7 +943,10 @@ def _bubble_time(item: dict[str, Any]) -> str:
     css.append(_keys(f"{mark}p", flips))
     when = f'<div class="when"><span style="animation:{mark}p {span:.3f}s linear both">{"".join(f"<i>{kit.esc(p)}</i>" for p in periods)}</span></div>'
     drawn = "".join(html for _, html in sorted(balls, key=lambda pair: pair[0]))
-    return _card(item, f'<style>{"".join(css)}</style><div class="plot" style="aspect-ratio:{W}/{height}"><div class="ly grid">{_svg(height, "".join(grid))}</div>{when}{trail}{drawn}</div>')
+    return _card(
+        item,
+        f'<style>{"".join(css)}</style><div class="plot" style="aspect-ratio:{W}/{height}"><div class="ly grid">{_svg(height, "".join(grid))}</div>{when}{trail}{drawn}</div>',
+    )
 
 
 SAMPLE = "Sample data for illustration"
@@ -927,7 +971,15 @@ FORMATS = (
         summary="A big number climbs to its value while a rule draws beneath it.",
         group="data",
         jobs=("hook", "prove"),
-        slots=(Slot("value", kind="number"), Slot("label", limit=70), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False), Slot("run", kind="number", required=False), Slot("rate", kind="number", required=False), Slot("lead", kind="number", required=False)),
+        slots=(
+            Slot("value", kind="number"),
+            Slot("label", limit=70),
+            Slot("prefix", limit=2, required=False),
+            Slot("suffix", limit=4, required=False),
+            Slot("run", kind="number", required=False),
+            Slot("rate", kind="number", required=False),
+            Slot("lead", kind="number", required=False),
+        ),
         example={"value": 1284, "label": "Sample orders shipped last *quarter*"},
         draw=_count_up,
         seconds=3.0,
@@ -956,7 +1008,13 @@ FORMATS = (
         summary="Digits roll like an odometer and lock into place from left to right.",
         group="data",
         jobs=("prove",),
-        slots=(Slot("value", kind="number"), Slot("label", limit=64), Slot("prefix", limit=2, required=False), Slot("suffix", limit=4, required=False), Slot("note", limit=48, required=False)),
+        slots=(
+            Slot("value", kind="number"),
+            Slot("label", limit=64),
+            Slot("prefix", limit=2, required=False),
+            Slot("suffix", limit=4, required=False),
+            Slot("note", limit=48, required=False),
+        ),
         example={"value": 48210, "label": "Sample meters read this *season*", "note": SAMPLE},
         draw=_number_wheel,
         seconds=3.2,
@@ -1082,7 +1140,14 @@ FORMATS = (
         example={
             "title": "Sample bookings peak on *Thursday*",
             "sub": "Bookings per day",
-            "bars": [{"text": "Mon", "value": 118}, {"text": "Tue", "value": 142}, {"text": "Wed", "value": 169}, {"text": "Thu", "value": 231, "hot": True}, {"text": "Fri", "value": 194}, {"text": "Sat", "value": 86}],
+            "bars": [
+                {"text": "Mon", "value": 118},
+                {"text": "Tue", "value": 142},
+                {"text": "Wed", "value": 169},
+                {"text": "Thu", "value": 231, "hot": True},
+                {"text": "Fri", "value": 194},
+                {"text": "Sat", "value": 86},
+            ],
             "note": SAMPLE,
         },
         draw=_bar_build,
@@ -1144,7 +1209,13 @@ FORMATS = (
         summary="A hundred squares fill one by one to show a share you can actually count.",
         group="data",
         jobs=("prove", "explain"),
-        slots=(Slot("value", kind="number"), Slot("label", limit=60), Slot("title", limit=52, required=False), Slot("suffix", limit=3, required=False), Slot("note", limit=48, required=False)),
+        slots=(
+            Slot("value", kind="number"),
+            Slot("label", limit=60),
+            Slot("title", limit=52, required=False),
+            Slot("suffix", limit=3, required=False),
+            Slot("note", limit=48, required=False),
+        ),
         example={"value": 38, "suffix": "%", "title": "Most sample visitors never return", "label": "of visitors come back *within a week*", "note": SAMPLE},
         draw=_waffle,
         seconds=5.6,
@@ -1381,7 +1452,14 @@ FORMATS = (
         example={
             "title": "Where a sample budget goes",
             "sub": "Spending, thousands",
-            "blocks": [{"text": "Staff", "value": 340, "hot": True}, {"text": "Premises", "value": 210}, {"text": "Equipment", "value": 150}, {"text": "Travel", "value": 90}, {"text": "Training", "value": 70}, {"text": "Other", "value": 40}],
+            "blocks": [
+                {"text": "Staff", "value": 340, "hot": True},
+                {"text": "Premises", "value": 210},
+                {"text": "Equipment", "value": 150},
+                {"text": "Travel", "value": 90},
+                {"text": "Training", "value": 70},
+                {"text": "Other", "value": 40},
+            ],
             "detail": "Larger than premises and travel put together.",
             "note": SAMPLE,
         },

@@ -159,7 +159,12 @@ def _equation_morph(item: dict[str, Any]) -> str:
                 a, b = track.get(step), track.get(step + 1)
                 if a and b and abs(a["x"] - b["x"]) > 0.9:
                     middle = (a["x"] + b["x"]) / 2
-                    frames.append(((leaves + move / 2) / span * 100, f"transform:translate({middle:.3f}em,-.72em);opacity:1;color:{'var(--accent)' if b['hot'] else 'var(--ink)'};{GLIDE}"))
+                    frames.append(
+                        (
+                            (leaves + move / 2) / span * 100,
+                            f"transform:translate({middle:.3f}em,-.72em);opacity:1;color:{'var(--accent)' if b['hot'] else 'var(--ink)'};{GLIDE}",
+                        )
+                    )
         css.append(_keys(f"{mark}e{number}", frames))
         sample = next(iter(track.values()))
         kind = " v" if sample["text"].isalpha() else " d" if sample["text"][0].isdigit() else ""
@@ -172,7 +177,11 @@ def _equation_morph(item: dict[str, Any]) -> str:
         if not text:
             continue
         on, off = beats[step] - move * 0.4, beats[step + 1] - move if step < len(rows) - 1 else span
-        frames = [(0.0, "opacity:0;transform:translateY(.4em)"), (max(on - 0.3, 0.0) / span * 100, "opacity:0;transform:translateY(.4em)"), (on / span * 100, "opacity:1;transform:none")]
+        frames = [
+            (0.0, "opacity:0;transform:translateY(.4em)"),
+            (max(on - 0.3, 0.0) / span * 100, "opacity:0;transform:translateY(.4em)"),
+            (on / span * 100, "opacity:1;transform:none"),
+        ]
         if step < len(rows) - 1:
             frames += [(off / span * 100, "opacity:1;transform:none"), ((off + 0.2) / span * 100, "opacity:0;transform:none")]
         css.append(_keys(f"{mark}w{step}", frames))
@@ -235,7 +244,17 @@ def _compile(expr: str, param: str) -> Callable[[float, float], float]:
     return run
 
 
-def _curve_path(fn: Callable[[float, float], float], value: float, x0: float, x1: float, x_of: Callable[[float], float], y_of: Callable[[float], float], low: float, high: float, count: int) -> str:
+def _curve_path(
+    fn: Callable[[float, float], float],
+    value: float,
+    x0: float,
+    x1: float,
+    x_of: Callable[[float], float],
+    y_of: Callable[[float], float],
+    low: float,
+    high: float,
+    count: int,
+) -> str:
     parts, pen = [], False
     reach = (high - low) * 0.6
     for k in range(count + 1):
@@ -291,10 +310,14 @@ def _function_plot(item: dict[str, Any]) -> str:
     grid = []
     for tick in y_ticks:
         y = y_of(tick)
-        grid.append(f'<line class="{"ax" if tick == 0 else "gl"}" x1="{left}" x2="{W - right}" y1="{y:.1f}" y2="{y:.1f}"/><text x="{left - 12}" y="{y + 9:.1f}" text-anchor="end">{_plain(tick)}</text>')
+        grid.append(
+            f'<line class="{"ax" if tick == 0 else "gl"}" x1="{left}" x2="{W - right}" y1="{y:.1f}" y2="{y:.1f}"/><text x="{left - 12}" y="{y + 9:.1f}" text-anchor="end">{_plain(tick)}</text>'
+        )
     for tick in x_ticks:
         x = x_of(tick)
-        grid.append(f'<line class="{"ax" if tick == 0 else "gl"}" x1="{x:.1f}" x2="{x:.1f}" y1="{top}" y2="{height - bottom}"/><text x="{x:.1f}" y="{height - 8}" text-anchor="middle">{_plain(tick)}</text>')
+        grid.append(
+            f'<line class="{"ax" if tick == 0 else "gl"}" x1="{x:.1f}" x2="{x:.1f}" y1="{top}" y2="{height - bottom}"/><text x="{x:.1f}" y="{height - 8}" text-anchor="middle">{_plain(tick)}</text>'
+        )
     total = kit.seconds(item)
     begin, draw = 0.55, min(total * 0.24, 1.3)
     start = begin + draw + 0.25
@@ -317,7 +340,10 @@ def _function_plot(item: dict[str, Any]) -> str:
             leave = at + (hop - glide)
             step = f"animation-timing-function:steps({frames_each},end)"
             base = move * frames_each
-            rail += [(at / span * 100, f"transform:translateY(0%);{HOLD}" if base == 0 else f"transform:translateY({-base / count * 100:.4f}%);{HOLD}"), (leave / span * 100, f"transform:translateY({-base / count * 100:.4f}%);{step}")]
+            rail += [
+                (at / span * 100, f"transform:translateY(0%);{HOLD}" if base == 0 else f"transform:translateY({-base / count * 100:.4f}%);{HOLD}"),
+                (leave / span * 100, f"transform:translateY({-base / count * 100:.4f}%);{step}"),
+            ]
             tags += [(leave / span * 100, f"transform:translateY({-base * 1.16:.2f}em);{step}")]
             at = leave + glide
             rail.append((at / span * 100, f"transform:translateY({-(base + frames_each) / count * 100:.4f}%);{HOLD}"))
@@ -363,7 +389,9 @@ def _pythagoras(total: float, says: list[str]) -> str:
     drawn = []
     for index, (corners, (dx, dy)) in enumerate(pieces):
         shift = f"--x:{dx * u / 420 * 100:.3f}%;--y:{dy * u / 420 * 100:.3f}%"
-        drawn.append(f'<div class="ly pc" style="{shift};--t:{0.5 + index * 0.14:.2f}s;--m:{move + index * 0.1:.2f}s"><svg viewBox="0 0 420 420" aria-hidden="true"><polygon points="{pts(*corners)}"/></svg></div>')
+        drawn.append(
+            f'<div class="ly pc" style="{shift};--t:{0.5 + index * 0.14:.2f}s;--m:{move + index * 0.1:.2f}s"><svg viewBox="0 0 420 420" aria-hidden="true"><polygon points="{pts(*corners)}"/></svg></div>'
+        )
     tilted = pts((a, 0), (s, a), (b, s), (0, b))
     gap_c = f'<div class="ly gap outc" style="--t:1.2s;--m:{move - 0.3:.2f}s"><svg viewBox="0 0 420 420" aria-hidden="true"><polygon points="{tilted}"/></svg><span class="nm" style="left:50%;top:50%">c<sup>2</sup></span></div>'
     side_a = f'<polygon points="{pts((0, 0), (a, 0), (a, a), (0, a))}"/>'
@@ -403,9 +431,7 @@ def _triangle_sum(total: float, says: list[str]) -> str:
     radius = 62.0
     turn_a, turn_b = total * 0.34, total * 0.52
     hull = f'<polygon class="hull" points="{a[0]},{a[1]} {b[0]},{b[1]} {c[0]},{c[1]}"/>'
-    names = (
-        f'<text x="{a[0] - 10}" y="{a[1] + 34}">A</text><text x="{b[0] - 8}" y="{b[1] + 34}">B</text><text x="{c[0] - 8}" y="{c[1] - 22}" class="hide">C</text>'
-    )
+    names = f'<text x="{a[0] - 10}" y="{a[1] + 34}">A</text><text x="{b[0] - 8}" y="{b[1] + 34}">B</text><text x="{c[0] - 8}" y="{c[1] - 22}" class="hide">C</text>'
     line = f'<line class="par" x1="0" x2="420" y1="{c[1]}" y2="{c[1]}" pathLength="1"/>'
     wedge_c = _wedge(c, a, b, radius, "tc")
 
@@ -436,7 +462,9 @@ def _geometry_proof(item: dict[str, Any]) -> str:
 
 # Code walkthrough
 
-KEYWORDS = set("def return if else elif for while in not and or import from class const let var function async await try except finally with as new yield None True False null true false".split())
+KEYWORDS = set(
+    "def return if else elif for while in not and or import from class const let var function async await try except finally with as new yield None True False null true false".split()
+)
 CODE = re.compile(r"(?P<note>#.*|//.*)|(?P<text>\"[^\"]*\"?|'[^']*'?|`[^`]*`?)|(?P<num>\b\d+(?:\.\d+)?\b)|(?P<word>[A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -468,7 +496,7 @@ def _code_walk(item: dict[str, Any]) -> str:
         first, last = (raw, raw) if not isinstance(raw, list) else (raw[0], raw[-1])
         first, last = int(_num(first, "code_walk", "line")), int(_num(last, "code_walk", "line"))
         if not 1 <= first <= last <= len(lines):
-            _fail("code_walk", f'a step points at line {raw}, and the code has {len(lines)} lines.')
+            _fail("code_walk", f"a step points at line {raw}, and the code has {len(lines)} lines.")
         spots.append((first - 1, last))
     glide = 0.32
     band = [(0.0, f"opacity:0;transform:translateY({spots[0][0] * 100:.2f}%) scaleY({spots[0][1] - spots[0][0]})")]
@@ -488,11 +516,17 @@ def _code_walk(item: dict[str, Any]) -> str:
             frames.append(((beats[index] - 0.24) / span * 100, frames[-1][1]))
             frames.append((beats[index] / span * 100, state))
         css.append(_keys(f"{mark}l{number}", frames))
-        cells.append(f'<div class="ln" style="animation:{mark}l{number} {span:.3f}s linear both"><span class="no">{number + 1}</span><code>{_paint(line) or " "}</code></div>')
+        cells.append(
+            f'<div class="ln" style="animation:{mark}l{number} {span:.3f}s linear both"><span class="no">{number + 1}</span><code>{_paint(line) or " "}</code></div>'
+        )
     says = []
     for index, row in enumerate(rows):
         off = beats[index + 1] - 0.3 if index < len(rows) - 1 else None
-        frames = [(0.0, "opacity:0;transform:translateY(.3em)"), (max(beats[index] - 0.3, 0.0) / span * 100, "opacity:0;transform:translateY(.3em)"), (beats[index] / span * 100, "opacity:1;transform:none")]
+        frames = [
+            (0.0, "opacity:0;transform:translateY(.3em)"),
+            (max(beats[index] - 0.3, 0.0) / span * 100, "opacity:0;transform:translateY(.3em)"),
+            (beats[index] / span * 100, "opacity:1;transform:none"),
+        ]
         if off is not None:
             frames += [(off / span * 100, "opacity:1;transform:none"), ((off + 0.18) / span * 100, "opacity:0;transform:none")]
         css.append(_keys(f"{mark}s{index}", frames))
@@ -621,7 +655,15 @@ def _algo_step(item: dict[str, Any]) -> str:
                 move.append((at / span * 100, f"transform:translateX({place * 100}%);{GLIDE}"))
                 move.append(((at + glide) / span * 100, f"transform:translateX({now * 100}%);{GLIDE}"))
                 place = now
-            tint = "var(--accent)" if index in state["look"] else "color-mix(in srgb,var(--accent) 42%,var(--surface))" if index in state["done"] else "color-mix(in srgb,var(--ink) 12%,transparent)" if index in state["out"] else "var(--mute)"
+            tint = (
+                "var(--accent)"
+                if index in state["look"]
+                else "color-mix(in srgb,var(--accent) 42%,var(--surface))"
+                if index in state["done"]
+                else "color-mix(in srgb,var(--ink) 12%,transparent)"
+                if index in state["out"]
+                else "var(--mute)"
+            )
             paint.append((at / span * 100, f"background:{tint};{HOLD}"))
         css += [_keys(f"{mark}m{index}", move), _keys(f"{mark}p{index}", paint)]
         motion = f"{span:.3f}s linear both"
@@ -641,7 +683,9 @@ def _vocab_card(item: dict[str, Any]) -> str:
     tag = "".join(f"<span>{kit.esc(item[name])}</span>" for name in ("kind", "sound") if item.get(name))
     word = f'<div class="term" style="font-size:calc({size:.0f}px * var(--scale))">{kit.letters(term)}</div>'
     example = f'<p class="eg">{kit.emphasis(item["example"])}</p>' if item.get("example") else ""
-    return f'<div class="sheet">{f"<div class=tags>{tag}</div>" if tag else ""}{word}<i class="rule"></i><p class="mean">{kit.emphasis(item["meaning"])}</p>{example}</div>'
+    return (
+        f'<div class="sheet">{f"<div class=tags>{tag}</div>" if tag else ""}{word}<i class="rule"></i><p class="mean">{kit.emphasis(item["meaning"])}</p>{example}</div>'
+    )
 
 
 def _quiz_reveal(item: dict[str, Any]) -> str:
@@ -685,7 +729,9 @@ def _chapter_card(item: dict[str, Any]) -> str:
     if item.get("of") and isinstance(number, int | float):
         count = min(int(_num(item["of"], "chapter_card", "of")), 12)
         pips = '<div class="pips">' + "".join(f'<i class="{"on" if n < number else ""}" style="--i:{n}"></i>' for n in range(count)) + "</div>"
-    words = "".join(f'<span class="m"><span class="w{" hot" if hot else ""}" style="--i:{i}">{kit.esc(word)}</span></span> ' for i, (word, hot) in enumerate(kit.tokens(item["text"])))
+    words = "".join(
+        f'<span class="m"><span class="w{" hot" if hot else ""}" style="--i:{i}">{kit.esc(word)}</span></span> ' for i, (word, hot) in enumerate(kit.tokens(item["text"]))
+    )
     sub = f'<p class="sub">{kit.esc(item["subtitle"])}</p>' if item.get("subtitle") else ""
     return f'<i class="bg"></i><div class="in">{head}<i class="rule"></i><h1>{words}</h1>{sub}{pips}</div>'
 
@@ -734,7 +780,7 @@ def _timeline_scroll(item: dict[str, Any]) -> str:
     motion = f"{span:.3f}s linear both"
     lane = '<i class="lane"></i>'
     track = f'<div class="track" style="--far:{reach + 1800:.1f}px;animation:{mark}c {motion}">{lane}{"".join(cells)}</div>'
-    return _card(item, f"<style>{_keys(f'{mark}c', camera)}</style><div class=\"vp\">{track}</div>")
+    return _card(item, f'<style>{_keys(f"{mark}c", camera)}</style><div class="vp">{track}</div>')
 
 
 # Labelled diagram
@@ -937,7 +983,11 @@ FORMATS = (
         example={
             "title": "Reading a sample file",
             "code": ["def total(prices):", "    # start from nothing", "    sum = 0", "    for price in prices:", "        sum += price", "    return sum"],
-            "steps": [{"text": "Keep a running total, *starting at zero*", "line": 3}, {"text": "Visit every price *once*", "line": 4}, {"text": "Add it on, then *hand back* the result", "line": [5, 6]}],
+            "steps": [
+                {"text": "Keep a running total, *starting at zero*", "line": 3},
+                {"text": "Visit every price *once*", "line": 4},
+                {"text": "Add it on, then *hand back* the result", "line": [5, 6]},
+            ],
         },
         draw=_code_walk,
         seconds=7.5,
@@ -1001,8 +1051,20 @@ FORMATS = (
         summary="A term, what it means and one example, set like a page from a dictionary.",
         group="teach",
         jobs=("explain",),
-        slots=(Slot("term", limit=20), Slot("meaning", limit=110), Slot("kind", limit=12, required=False), Slot("sound", limit=22, required=False), Slot("example", limit=90, required=False)),
-        example={"term": "Compound", "kind": "verb", "sound": "kom-POWND", "meaning": "To grow by adding each gain to the total, so later gains *build on earlier ones*.", "example": "Small savings *compound* over the years."},
+        slots=(
+            Slot("term", limit=20),
+            Slot("meaning", limit=110),
+            Slot("kind", limit=12, required=False),
+            Slot("sound", limit=22, required=False),
+            Slot("example", limit=90, required=False),
+        ),
+        example={
+            "term": "Compound",
+            "kind": "verb",
+            "sound": "kom-POWND",
+            "meaning": "To grow by adding each gain to the total, so later gains *build on earlier ones*.",
+            "example": "Small savings *compound* over the years.",
+        },
         draw=_vocab_card,
         seconds=8.6,
         shortest=3.0,
@@ -1072,7 +1134,12 @@ FORMATS = (
         slots=(Slot("title", limit=48), Slot("events", kind="list", limit=6, each=56), Slot("note", limit=48, required=False)),
         example={
             "title": "A sample town's *railway*",
-            "events": [{"date": "1868", "text": "The first line reaches the sample town"}, {"date": "1902", "text": "A second platform opens for freight"}, {"date": "1951", "text": "Steam gives way to diesel engines"}, {"date": "1994", "text": "The station is rebuilt as it stands today"}],
+            "events": [
+                {"date": "1868", "text": "The first line reaches the sample town"},
+                {"date": "1902", "text": "A second platform opens for freight"},
+                {"date": "1951", "text": "Steam gives way to diesel engines"},
+                {"date": "1994", "text": "The station is rebuilt as it stands today"},
+            ],
             "note": "Invented history for illustration",
         },
         draw=_timeline_scroll,
@@ -1102,10 +1169,21 @@ FORMATS = (
         summary="A figure draws itself, then each part gets its name on a clean leader line.",
         group="teach",
         jobs=("explain",),
-        slots=(Slot("title", limit=48), Slot("labels", kind="list", limit=6, each=12), Slot("paths", kind="list", required=False), Slot("note", limit=48, required=False)),
+        slots=(
+            Slot("title", limit=48),
+            Slot("labels", kind="list", limit=6, each=12),
+            Slot("paths", kind="list", required=False),
+            Slot("note", limit=48, required=False),
+        ),
         example={
             "title": "Inside an animal *cell*",
-            "labels": [{"text": "Membrane", "x": 12, "y": 30}, {"text": "Nucleus", "x": 38, "y": 58}, {"text": "Vesicle", "x": 28, "y": 82}, {"text": "Mitochondria", "x": 78, "y": 24}, {"text": "Golgi body", "x": 80, "y": 60}],
+            "labels": [
+                {"text": "Membrane", "x": 12, "y": 30},
+                {"text": "Nucleus", "x": 38, "y": 58},
+                {"text": "Vesicle", "x": 28, "y": 82},
+                {"text": "Mitochondria", "x": 78, "y": 24},
+                {"text": "Golgi body", "x": 80, "y": 60},
+            ],
             "note": "Simplified drawing, not to scale",
         },
         draw=_diagram_labels,
@@ -1135,7 +1213,12 @@ FORMATS = (
         summary="A calm full-screen title that marks a new section and where it falls.",
         group="teach",
         jobs=("transition",),
-        slots=(Slot("text", limit=44), Slot("number", kind="number", required=False), Slot("of", kind="number", required=False), Slot("subtitle", limit=70, required=False)),
+        slots=(
+            Slot("text", limit=44),
+            Slot("number", kind="number", required=False),
+            Slot("of", kind="number", required=False),
+            Slot("subtitle", limit=70, required=False),
+        ),
         example={"text": "How the *tide* turns", "number": 2, "of": 5, "subtitle": "What changes when the moon does the work"},
         draw=_chapter_card,
         seconds=4.2,
@@ -1172,7 +1255,10 @@ FORMATS = (
         group="teach",
         jobs=("close", "explain"),
         slots=(Slot("title", limit=48), Slot("points", kind="list", limit=5, each=40)),
-        example={"title": "What to *remember*", "points": ["Split the work into small steps", "Check each step before the next", "Write down what you changed", "Stop when the test passes"]},
+        example={
+            "title": "What to *remember*",
+            "points": ["Split the work into small steps", "Check each step before the next", "Write down what you changed", "Stop when the test passes"],
+        },
         draw=_recap_check,
         seconds=5.5,
         shortest=2.8,

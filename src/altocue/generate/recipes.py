@@ -257,9 +257,7 @@ def _load_line(recipe: Recipe) -> str:
         return f"call {recipe.load or recipe.tool} directly"
     line = f"{recipe.loader} with {recipe.load}"
     if recipe.slash_trap:
-        line += (
-            f". Never type /{recipe.load}: it does not resolve, it falls through to ordinary generation without a word, and the truth gate is lost"
-        )
+        line += f". Never type /{recipe.load}: it does not resolve, it falls through to ordinary generation without a word, and the truth gate is lost"
     return line
 
 

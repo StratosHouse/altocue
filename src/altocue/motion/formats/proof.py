@@ -99,7 +99,9 @@ def _stars(item: dict) -> str:
         fill = max(min(share - index, 1.0), 0.0)
         pace = 0.2 * max(fill, 0.3)
         whole = " whole" if fill >= 1 else ""
-        cells.append(f'<span class="star{whole}" style="--at:{at:.3f}s;--for:{pace:.3f}s;--f:{fill:.3f}"><span class="off">{_STAR}</span><span class="on">{_STAR}</span></span>')
+        cells.append(
+            f'<span class="star{whole}" style="--at:{at:.3f}s;--for:{pace:.3f}s;--f:{fill:.3f}"><span class="off">{_STAR}</span><span class="on">{_STAR}</span></span>'
+        )
         at += pace + 0.03 if fill else 0
     of = f"{best:g}"
     return (
@@ -308,7 +310,10 @@ FORMATS = (
         group="proof",
         jobs=("prove",),
         slots=(Slot("items", kind="list", limit=8, each=14), Slot("title", limit=44, required=False)),
-        example={"title": "Teams on the sample plan", "items": [{"text": "Northlight"}, {"text": "Quillhaven"}, {"text": "Marrowfield"}, {"text": "Larkmoor"}, {"text": "Oatfield Co"}, {"text": "Brasswick"}]},
+        example={
+            "title": "Teams on the sample plan",
+            "items": [{"text": "Northlight"}, {"text": "Quillhaven"}, {"text": "Marrowfield"}, {"text": "Larkmoor"}, {"text": "Oatfield Co"}, {"text": "Brasswick"}],
+        },
         draw=_logo_wall,
         seconds=3.6,
         shortest=2.0,
@@ -497,7 +502,13 @@ FORMATS = (
         summary="A divider wipes across and leaves two results side by side.",
         group="proof",
         jobs=("prove",),
-        slots=(Slot("before", limit=10), Slot("after", limit=10), Slot("label", limit=46, required=False), Slot("before_label", limit=16, required=False), Slot("after_label", limit=16, required=False)),
+        slots=(
+            Slot("before", limit=10),
+            Slot("after", limit=10),
+            Slot("label", limit=46, required=False),
+            Slot("before_label", limit=16, required=False),
+            Slot("after_label", limit=16, required=False),
+        ),
         example={"before": "14 hours", "after": "3 hours", "label": "Time to a first cut, sample project"},
         draw=_before_after,
         seconds=4,

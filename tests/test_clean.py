@@ -393,11 +393,7 @@ def test_isolation_that_fails_falls_back_with_a_warning(tmp_path):
 
 
 def test_isolation_of_the_wrong_length_falls_back(tmp_path):
-    short = (
-        "import wave\n"
-        "with wave.open(source, 'rb') as h: p, f = h.getparams(), h.readframes(1000)\n"
-        "with wave.open(dest, 'wb') as o: o.setparams(p); o.writeframes(f)"
-    )
+    short = "import wave\nwith wave.open(source, 'rb') as h: p, f = h.getparams(), h.readframes(1000)\nwith wave.open(dest, 'wb') as o: o.setparams(p); o.writeframes(f)"
     clip = source(tmp_path, speech(4, 0.15) + hiss(4, -45))
     dest = tmp_path / "out.wav"
     report = clean.clean_clip(clip, dest, deep_filter=None, isolate=isolator(tmp_path, short))
@@ -757,7 +753,7 @@ def test_a_failed_engine_reaches_the_report(project, monkeypatch, tmp_path):
     assert any("voice isolation" in note for note in report["clips"]["noisy"]["warnings"])
 
 
-@pytest.mark.parametrize(("old", "new"), [("deess = \"light\"", "deess = \"strong\""), ("breaths = 0", "breaths = 9"), ("level_phrases = true", "level_phrases = false")])
+@pytest.mark.parametrize(("old", "new"), [('deess = "light"', 'deess = "strong"'), ("breaths = 0", "breaths = 9"), ("level_phrases = true", "level_phrases = false")])
 def test_a_changed_sound_setting_redoes_the_sound(project, old, new):
     clean.clean_project(project)
     config = project.root / "altocue.toml"

@@ -41,7 +41,6 @@ BLANK = 4  # Mean level under which a frame is black.
 PLAIN = "use a built-in transition such as dissolve"
 
 
-
 def ready() -> bool:
     return HyperFramesRenderer().available()[0]
 

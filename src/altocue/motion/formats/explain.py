@@ -151,7 +151,7 @@ def _flow(rows: list[dict], back: str, wide: bool) -> str:
         mark = "<b>?</b>" if row.get("check") else f"{index + 1:02d}"
         parts.append(
             f'<div class="node at{"" if rest else " last"}{" ask" if row.get("check") else ""}" style="--x:{_n(x)};--y:{_n(y)};--nw:{_n(w)};--nh:{_n(h)};--a:{row["delay"]:.3f}s{rest}">'
-            f'<i>{mark}</i><span>{kit.esc(row["text"])}</span></div>'
+            f"<i>{mark}</i><span>{kit.esc(row['text'])}</span></div>"
         )
     if looped:
         fx, fy, fw, fh = boxes[bend]
@@ -210,7 +210,9 @@ def _tree(root: str, levels: list[list[dict]], picks: list[int], times: list[flo
         return f"M{_n(a[0])} {_n(a[1])}C{_n(a[0])} {_n(mid)} {_n(b[0])} {_n(mid)} {_n(b[0])} {_n(b[1])}"
 
     parent = box_root
-    nodes = [f'<div class="tn root at" style="--x:{_n(box_root[0])};--y:{_n(box_root[1])};--nw:{_n(box_root[2])};--nh:{_n(box_root[3])};--a:.12s"><span>{kit.esc(root)}</span></div>']
+    nodes = [
+        f'<div class="tn root at" style="--x:{_n(box_root[0])};--y:{_n(box_root[1])};--nw:{_n(box_root[2])};--nh:{_n(box_root[3])};--a:.12s"><span>{kit.esc(root)}</span></div>'
+    ]
     for level, pair in enumerate(levels):
         lit = times[level]
         begin = lit - 0.86
@@ -238,7 +240,10 @@ def _tree(root: str, levels: list[list[dict]], picks: list[int], times: list[flo
 def _decision(item: dict) -> str:
     rows = _beats(item, "options", 0.3, 0.66)
     if len(rows) % 2 or not rows:
-        raise AltocueError(f'decision_tree: "options" has {len(rows)} rows and they must come in pairs.', fix="Give each question two answers. The first pair branches from the question, and each next pair from the answer marked on.")
+        raise AltocueError(
+            f'decision_tree: "options" has {len(rows)} rows and they must come in pairs.',
+            fix="Give each question two answers. The first pair branches from the question, and each next pair from the answer marked on.",
+        )
     levels = [rows[i : i + 2] for i in range(0, len(rows), 2)]
     picks = [1 if pair[1].get("on") and not pair[0].get("on") else 0 for pair in levels]
     times = [pair[pick]["delay"] for pair, pick in zip(levels, picks, strict=True)]
@@ -269,7 +274,9 @@ def _track(rows: list[dict], token: str, wide: bool) -> str:
         chain = f'<div class="hop {axis}" style="--go:{_n(pitch)};--d:{max(move, 0):.3f}s;--t:{hop}s">{chain}</div>'
     for index in range(1, count):
         a = stops[index - 1]
-        parts.append(f'<div class="fill {axis} at" style="--x:{_n(a[0])};--y:{_n(a[1])};--len:{_n(pitch)};--d:{max(rows[index]["delay"] - hop, 0):.3f}s;--t:{hop}s"></div>')
+        parts.append(
+            f'<div class="fill {axis} at" style="--x:{_n(a[0])};--y:{_n(a[1])};--len:{_n(pitch)};--d:{max(rows[index]["delay"] - hop, 0):.3f}s;--t:{hop}s"></div>'
+        )
     for index, row in enumerate(rows):
         x, y = stops[index]
         done = row["delay"]
@@ -376,7 +383,9 @@ def _exploded(item: dict) -> str:
         hot = " hot" if row.get("on") else ""
         leader = _line(f"M{_n(cx + a)} {_n(cy)}L{_n(cx + a + 56)} {_n(cy)}", box, lands + 0.16, 0.2, "dim")
         label = f'<div class="lb at" style="--x:{_n(cx + a + 70)};--y:{_n(cy)};--a:{lands + 0.26:.3f}s"><span>{kit.esc(row["text"])}</span></div>'
-        parts.append(f'<div class="sl{hot}" style="--dy:{_n(tight - cy)};--a:{lands:.3f}s"><div class="fc">{_svg(box, _diamond(cx, cy, a, b, t))}</div>{leader}{label}</div>')
+        parts.append(
+            f'<div class="sl{hot}" style="--dy:{_n(tight - cy)};--a:{lands:.3f}s"><div class="fc">{_svg(box, _diamond(cx, cy, a, b, t))}</div>{leader}{label}</div>'
+        )
     return _plate(_title(item), _stage(width, height, "".join(parts)), "side" if item.get("title") else "")
 
 
@@ -403,7 +412,10 @@ def _heart() -> list[Point]:
 
 
 def _star() -> list[Point]:
-    return [(50 + (48 if i % 2 == 0 else 21) * math.cos(-math.pi / 2 + math.pi * i / 5), 53 + (48 if i % 2 == 0 else 21) * math.sin(-math.pi / 2 + math.pi * i / 5)) for i in range(10)]
+    return [
+        (50 + (48 if i % 2 == 0 else 21) * math.cos(-math.pi / 2 + math.pi * i / 5), 53 + (48 if i % 2 == 0 else 21) * math.sin(-math.pi / 2 + math.pi * i / 5))
+        for i in range(10)
+    ]
 
 
 def _drop() -> list[Point]:
@@ -475,7 +487,7 @@ def _document(item: dict) -> str:
     body = "".join(f"<mark>{kit.esc(part)}</mark>" if i % 2 else kit.esc(part) for i, part in enumerate(parts))
     span = kit.seconds(item)
     seed = str(item["text"])
-    heading = f'<h3>{kit.esc(item["heading"])}</h3>' if item.get("heading") else '<i class="gb hd"></i>'
+    heading = f"<h3>{kit.esc(item['heading'])}</h3>" if item.get("heading") else '<i class="gb hd"></i>'
     source = f'<div class="src"><span>{kit.esc(item["source"])}</span></div>' if item.get("source") else ""
     return (
         f'<div class="d"><div class="win" style="--z:{span * 0.08:.3f}s;--zt:{span * 0.26:.3f}s;--m:{span * 0.36:.3f}s;--mt:{max(span * 0.17, 0.5):.3f}s">'
@@ -541,7 +553,11 @@ def _zoom_frames() -> str:
 
 
 def _side(cls: str, title: str, value: str, rows: list[dict], late: float) -> str:
-    mark = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11L8.5 15.5L16 5.5"/></svg>' if cls == "b" else '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5L15 15M15 5L5 15"/></svg>'
+    mark = (
+        '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11L8.5 15.5L16 5.5"/></svg>'
+        if cls == "b"
+        else '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5L15 15M15 5L5 15"/></svg>'
+    )
     lines = "".join(f'<li style="--a:{late + index * 0.1:.3f}s">{mark}<span>{kit.esc(row["text"])}</span></li>' for index, row in enumerate(rows))
     big = f"<b>{kit.esc(value)}</b>" if value else ""
     return f'<div class="sd {cls}"><div class="c"><h3>{kit.esc(title)}</h3>{big}<ul>{lines}</ul></div></div>'
@@ -660,7 +676,9 @@ def _sketch(rows: list[dict], kind: str, wide: bool, seed: str) -> str:
             parts.append(write(x + w / 2, y + h / 2, w - 40, row["text"], timed[index] + 0.34, index == count - 1))
             if index + 1 < count:
                 nx, ny = boxes[index + 1]
-                start, end = ((x + w + 16, y + h / 2), (nx - 16, ny + h / 2)) if wide else ((x + w / 2 + hand.wobble(18), y + h + 14), (nx + w / 2 + hand.wobble(18), ny - 16))
+                start, end = (
+                    ((x + w + 16, y + h / 2), (nx - 16, ny + h / 2)) if wide else ((x + w / 2 + hand.wobble(18), y + h + 14), (nx + w / 2 + hand.wobble(18), ny - 16))
+                )
                 shaft, tip = hand.arrow(start, end, 16)
                 parts.append(_line(shaft, size, timed[index] + 0.62, 0.22, "pen"))
                 parts.append(_line(tip, size, timed[index] + 0.82, 0.1, "pen"))
@@ -842,8 +860,7 @@ transform-origin:50% 0;animation:ex-find var(--zt) var(--z) cubic-bezier(.72,0,.
 @keyframes ex-mark{to{background-size:100% 92%}}
 """
 
-CSS_SCALE = (
-    """
+CSS_SCALE = """
 & .d{position:absolute;inset:0;container-type:size}
 & .sky{position:absolute;inset:0;overflow:hidden;background:radial-gradient(110% 70% at 50% 38%,var(--surface),var(--panel) 74%)}
 & .cam{position:absolute;left:50%;top:38%;width:0;height:0}
@@ -869,9 +886,7 @@ CSS_SCALE = (
 @keyframes ex-bigin{from{opacity:0;transform:translateY(calc(30px * var(--scale)))}to{opacity:1;transform:none}}
 @keyframes ex-bigout{from{opacity:1}to{opacity:0;transform:translateY(calc(-22px * var(--scale)))}}
 @keyframes ex-tick{to{background:var(--accent)}}
-"""
-    + _zoom_frames()
-)
+""" + _zoom_frames()
 
 CSS_SPLIT = """
 @property --ex-at{syntax:'<percentage>';inherits:true;initial-value:100%}
@@ -964,7 +979,11 @@ FORMATS = (
         group="explain",
         jobs=("explain", "prove"),
         slots=(Slot("stages", "list", limit=5, each=22), Slot("token", limit=12, required=False), Slot("title", limit=40, required=False)),
-        example={"title": "From clip to post", "token": "clip.mp4", "stages": [{"text": "Transcribe"}, {"text": "Cut the silence"}, {"text": "Add the captions"}, {"text": "Publish"}]},
+        example={
+            "title": "From clip to post",
+            "token": "clip.mp4",
+            "stages": [{"text": "Transcribe"}, {"text": "Cut the silence"}, {"text": "Add the captions"}, {"text": "Publish"}],
+        },
         draw=_pipeline,
         css=_scoped("pipeline", BASE, CSS_PIPE),
         seconds=5.0,
@@ -997,7 +1016,10 @@ FORMATS = (
         group="explain",
         jobs=("explain", "prove"),
         slots=(Slot("items", "list", limit=5, each=32), Slot("title", limit=36, required=False)),
-        example={"title": "Before you post", "items": [{"text": "Cut the first ten seconds"}, {"text": "Check every *name*"}, {"text": "Read the captions aloud"}, {"text": "Pick the frame"}]},
+        example={
+            "title": "Before you post",
+            "items": [{"text": "Cut the first ten seconds"}, {"text": "Check every *name*"}, {"text": "Read the captions aloud"}, {"text": "Pick the frame"}],
+        },
         draw=_stepped,
         css=_scoped("stepped_list", BASE, CSS_STEPPED),
         seconds=4.5,
@@ -1014,7 +1036,10 @@ FORMATS = (
         group="explain",
         jobs=("explain",),
         slots=(Slot("layers", "list", limit=5, each=24), Slot("title", limit=36, required=False)),
-        example={"title": "What sits under the app", "layers": [{"text": "The screen you see"}, {"text": "The rules", "on": True}, {"text": "The engine"}, {"text": "Your data"}]},
+        example={
+            "title": "What sits under the app",
+            "layers": [{"text": "The screen you see"}, {"text": "The rules", "on": True}, {"text": "The engine"}, {"text": "Your data"}],
+        },
         draw=_exploded,
         css=_scoped("exploded_view", BASE, CSS_EXPLODED),
         seconds=4.5,
@@ -1052,7 +1077,11 @@ FORMATS = (
         group="explain",
         jobs=("prove", "explain"),
         slots=(Slot("text", limit=110), Slot("heading", limit=30, required=False), Slot("source", limit=36, required=False)),
-        example={"heading": "Terms of service", "text": "You keep the rights to your work, and *we may end this plan with 30 days of notice*.", "source": "Section 4, page 12"},
+        example={
+            "heading": "Terms of service",
+            "text": "You keep the rights to your work, and *we may end this plan with 30 days of notice*.",
+            "source": "Section 4, page 12",
+        },
         draw=_document,
         css=_scoped("doc_highlight", BASE, CSS_DOC),
         seconds=8.6,

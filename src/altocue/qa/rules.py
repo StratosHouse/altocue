@@ -53,9 +53,7 @@ def load(path: str | Path) -> Rules | None:
         raise AltocueError(f"{target} is not valid JSON: {error}", fix="Fix the file, or remove it.") from error
     unknown = set(data) - set(Rules.__dataclass_fields__)
     if unknown:
-        raise AltocueError(
-            f"Unknown keys in {target.name}: {', '.join(sorted(unknown))}.", fix=f"Use only {', '.join(Rules.__dataclass_fields__)}."
-        )
+        raise AltocueError(f"Unknown keys in {target.name}: {', '.join(sorted(unknown))}.", fix=f"Use only {', '.join(Rules.__dataclass_fields__)}.")
     for rule in data.get("required", []):
         if not {"when_spoken", "on_screen"} <= set(rule):
             raise AltocueError(f"A required rule in {target.name} is incomplete: {rule}.", fix="Each needs `when_spoken` and `on_screen`.")
@@ -124,9 +122,7 @@ def on_screen(timeline: dict[str, Any]) -> list[dict[str, Any]]:
     """Every string the render puts on screen, with its layer and time."""
     strings = []
     for page in timeline.get("captions", []):
-        strings.append(
-            {"layer": "captions", "text": " ".join(w["text"] for w in page["words"]), "start": page["start"], "end": page["end"]}
-        )
+        strings.append({"layer": "captions", "text": " ".join(w["text"] for w in page["words"]), "start": page["start"], "end": page["end"]})
         if page.get("name"):  # a speaker named on the page is on screen with it
             strings.append({"layer": "captions", "text": str(page["name"]), "start": page["start"], "end": page["end"]})
     for item in timeline.get("items", []):
@@ -188,9 +184,7 @@ def _spoken_at(rule: dict[str, Any], spoken: list[dict[str, Any]]) -> list[tuple
     ]
 
 
-def missing_required(
-    rule: dict[str, Any], strings: list[dict[str, Any]], spoken: list[dict[str, Any]], *, overlap: bool = False
-) -> dict[str, Any] | None:
+def missing_required(rule: dict[str, Any], strings: list[dict[str, Any]], spoken: list[dict[str, Any]], *, overlap: bool = False) -> dict[str, Any] | None:
     """The first place a trigger word is said without its line on screen."""
     lines = rule["on_screen"] if isinstance(rule["on_screen"], list) else [rule["on_screen"]]
     for start, end in _spoken_at(rule, spoken):
@@ -255,7 +249,7 @@ def said_terms(spoken: list[dict[str, Any]], terms: list[str]) -> list[dict[str,
         wanted = tokens(term)
         for index in range(len(said) - len(wanted) + 1 if wanted else 0):
             run = said[index : index + len(wanted)]
-            if (near(run[0][0], wanted[0]) if len(wanted) == 1 else [token for token, _ in run] == wanted):
+            if near(run[0][0], wanted[0]) if len(wanted) == 1 else [token for token, _ in run] == wanted:
                 hits.append({"layer": "speech", "source": "speech", "text": term, "start": run[0][1]["start"], "end": run[-1][1]["end"], "kind": "banned", "term": term})
                 break
     return hits

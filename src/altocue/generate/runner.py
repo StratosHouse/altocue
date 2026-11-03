@@ -90,9 +90,7 @@ def shot_request(shot: Shot, style: str = "", root: Path | None = None) -> GenRe
     )
 
 
-def estimate(
-    shots: Sequence[Shot], provider: str | GenProvider = "fal", *, catalog: Catalog | None = None, style: str = "", root: Path | None = None
-) -> Cost:
+def estimate(shots: Sequence[Shot], provider: str | GenProvider = "fal", *, catalog: Catalog | None = None, style: str = "", root: Path | None = None) -> Cost:
     """What these shots would cost. A shot no route can serve is an error, not a cheaper shot."""
     source = get_provider(provider, catalog or load_catalog()) if isinstance(provider, str) else provider
     total = Cost()
@@ -740,9 +738,7 @@ class Run:
         elif monotonic() - item.started > self.timeout_s:
             active.remove(item)
             self.outcome.running.append(item.shot.id)
-            self.out(
-                f"{item.shot.id}: still running at {self.provider.id}. Run `altocue generate` later to collect it. {status.detail}".rstrip()
-            )
+            self.out(f"{item.shot.id}: still running at {self.provider.id}. Run `altocue generate` later to collect it. {status.detail}".rstrip())
 
     def drive(self, plan: list[Planned]) -> Outcome:
         waiting = [item for item in plan if item.status == "new"]
@@ -850,9 +846,7 @@ def generate_shots(
     for item in plan:
         if item.restore and item.record:
             passed = item.record.get("check_passed")
-            store.record_asset(
-                project, item.shot.id, asset=project.root / item.record["asset"], digest=item.hash, imported=False, check_passed=passed
-            )
+            store.record_asset(project, item.shot.id, asset=project.root / item.record["asset"], digest=item.hash, imported=False, check_passed=passed)
     if _own_files(project, plan):
         uploads.require(project, chosen.catalog, chosen.id, "This run")
     run = Run(project, chosen, timeout_s=timeout_s, out=out)

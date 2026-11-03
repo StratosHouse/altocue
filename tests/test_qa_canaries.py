@@ -31,9 +31,7 @@ def test_gate_catches_planted_fault(case, runs):
 
 @pytest.mark.parametrize("case", CANARIES, ids=lambda c: c.name)
 def test_fault_fires_nothing_unrelated(case, runs):
-    assert fired(runs[case.name]) <= {case.gate, *case.also}, [
-        (g.id, g.value, g.detail) for g in runs[case.name] if not g.passed and not g.skipped
-    ]
+    assert fired(runs[case.name]) <= {case.gate, *case.also}, [(g.id, g.value, g.detail) for g in runs[case.name] if not g.passed and not g.skipped]
 
 
 @pytest.mark.parametrize("case", CONTROLS, ids=lambda c: c.name)

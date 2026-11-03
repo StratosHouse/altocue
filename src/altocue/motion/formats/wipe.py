@@ -32,7 +32,7 @@ def _white_flash(item: dict) -> str:
 def _shape_match(item: dict) -> str:
     """The shape locks onto a spot in the outgoing shot, swallows the frame, and hands back to the same spot in the next."""
     size = max(min(float(item.get("size", 30)), 80.0), 6.0)
-    place = f'--cx:{float(item.get("cx", 50)):g}%;--cy:{float(item.get("cy", 44)):g}%;--size:{size:g}%;--s0:{size / 420:.4f}'
+    place = f"--cx:{float(item.get('cx', 50)):g}%;--cy:{float(item.get('cy', 44)):g}%;--size:{size:g}%;--s0:{size / 420:.4f}"
     shape = item.get("shape", "circle")
     return f'<div class="scene {shape}" style="{place}"><span class="ring"><i></i></span><span class="grow"><i></i></span></div>{_label(item)}'
 

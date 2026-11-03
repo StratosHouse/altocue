@@ -325,9 +325,7 @@ def gate_loudness(c: Context) -> list[GateResult]:
             threshold=band,
             detail=f"{level:.1f} LUFS, range {measured['range']:.1f} LU",
         ),
-        GateResult(
-            id="true_peak", passed=peak <= ceiling, value=peak, threshold=ceiling, detail=f"{peak:.1f} dBTP measured on the decoded file"
-        ),
+        GateResult(id="true_peak", passed=peak <= ceiling, value=peak, threshold=ceiling, detail=f"{peak:.1f} dBTP measured on the decoded file"),
     ]
 
 
@@ -344,9 +342,7 @@ def frozen_runs(file: Path, end: float) -> list[tuple[float, float]]:
 
 
 def silent_runs(file: Path, end: float) -> list[tuple[float, float]]:
-    log = log_of(
-        ["-t", f"{end:.3f}", "-i", str(file), "-af", f"silencedetect=n={SILENCE_DB}dB:d={SILENCE_SECONDS}", "-vn", "-f", "null", "-"]
-    )
+    log = log_of(["-t", f"{end:.3f}", "-i", str(file), "-af", f"silencedetect=n={SILENCE_DB}dB:d={SILENCE_SECONDS}", "-vn", "-f", "null", "-"])
     starts = [float(v) for v in re.findall(r"silence_start: (-?[\d.]+)", log)]
     ends = [float(v) for v in re.findall(r"silence_end: ([\d.]+)", log)]
     return [(max(start, 0.0), ends[i] if i < len(ends) else end) for i, start in enumerate(starts)]
@@ -701,9 +697,7 @@ def sightings(c: Context) -> dict[str, Any]:
                 clear = path
                 if c.plate and item["at"] < c.footage_end:
                     clear = grab(c.plate, item["at"], Path(folder) / f"plate_{path.name}") or path
-                found_faces.append(
-                    {"at": item["at"], "boxes": faces.find(clear), "hits": [placed_box(r, wanted) for r in hits], "layer": item["layer"]}
-                )
+                found_faces.append({"at": item["at"], "boxes": faces.find(clear), "hits": [placed_box(r, wanted) for r in hits], "layer": item["layer"]})
     c._seen = {"boxes": boxes, "read": read, "total": len(picks), "faces": found_faces, "can_see_faces": can_see_faces}
     return c._seen
 
@@ -720,12 +714,7 @@ def placed_box(record: dict[str, Any], wanted: set[str]) -> list[float]:
 
 def outside(box: list[float], zone: dict[str, float]) -> bool:
     x, y, w, h = box
-    return (
-        x < zone["left"] - EDGE_SLACK
-        or x + w > zone["right"] + EDGE_SLACK
-        or y < zone["top"] - EDGE_SLACK
-        or y + h > zone["bottom"] + EDGE_SLACK
-    )
+    return x < zone["left"] - EDGE_SLACK or x + w > zone["right"] + EDGE_SLACK or y < zone["top"] - EDGE_SLACK or y + h > zone["bottom"] + EDGE_SLACK
 
 
 def gate_safe_zone(c: Context) -> GateResult:
@@ -738,11 +727,7 @@ def gate_safe_zone(c: Context) -> GateResult:
         return skipped("safe_zone", f"Could not read any of the {seen['total']} sampled strings in the picture.")
     zone = zone_for(c)
     strays = [f"{hit['layer']} at {stamp(hit['at'])}" for hit in seen["boxes"] if outside(hit["box"], zone)]
-    detail = (
-        f"outside the safe zone: {', '.join(sorted(set(strays))[:6])}"
-        if strays
-        else f"read {seen['read']} of {seen['total']} sampled strings, all inside"
-    )
+    detail = f"outside the safe zone: {', '.join(sorted(set(strays))[:6])}" if strays else f"read {seen['read']} of {seen['total']} sampled strings, all inside"
     return GateResult(id="safe_zone", passed=not strays, value=len(strays), threshold=zone, detail=detail)
 
 
@@ -765,13 +750,7 @@ def gate_face_clear(c: Context) -> GateResult:
         return skipped("face_clear", "The face model is missing, so captions were not checked against faces.")
     if not seen["read"]:
         return skipped("face_clear", f"Could not read any of the {seen['total']} sampled strings in the picture.")
-    covered = sorted(
-        {
-            f"{s['layer']} at {stamp(s['at'])}"
-            for s in seen["faces"]
-            if any(overlap(hit, face) >= FACE_OVERLAP for hit in s["hits"] for face in s["boxes"])
-        }
-    )
+    covered = sorted({f"{s['layer']} at {stamp(s['at'])}" for s in seen["faces"] if any(overlap(hit, face) >= FACE_OVERLAP for hit in s["hits"] for face in s["boxes"])})
     with_faces = sum(1 for s in seen["faces"] if s["boxes"])
     detail = f"text over a face: {', '.join(covered[:6])}" if covered else f"{with_faces} sampled frames had a face, none covered"
     if not c.plate:

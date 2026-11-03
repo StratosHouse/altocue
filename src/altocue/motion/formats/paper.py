@@ -109,13 +109,24 @@ def _rip(dice: _Dice, body: str, kind: str = "", top: float = 0, right: float = 
     """A torn sheet: the white core shows where the coloured face tore further back, which is what makes a tear read as paper."""
     core = _tear(dice, top * 0.55, right * 0.55, bottom * 0.55, left * 0.55, along=along)
     face = _tear(dice, top * 1.5, right * 1.5, bottom * 1.5, left * 1.5, along=along)
-    return f'<div class="rip {kind}" {attrs}><i class="core" style="clip-path:{core}"></i><i class="face" style="clip-path:{face}"></i><div class="ink">{body}</div></div>'
+    return (
+        f'<div class="rip {kind}" {attrs}><i class="core" style="clip-path:{core}"></i><i class="face" style="clip-path:{face}"></i><div class="ink">{body}</div></div>'
+    )
 
 
 def _snip(dice: _Dice) -> str:
     """Four scissor cuts with a slight miss at each corner."""
     d = dice.span
-    pairs = [(d(0, 7), d(0, 9)), (d(40, 60), d(0, 4)), (d(93, 100), d(0, 10)), (d(96, 100), d(40, 60)), (d(92, 100), d(91, 100)), (d(40, 60), d(96, 100)), (d(0, 8), d(90, 100)), (d(0, 4), d(40, 60))]
+    pairs = [
+        (d(0, 7), d(0, 9)),
+        (d(40, 60), d(0, 4)),
+        (d(93, 100), d(0, 10)),
+        (d(96, 100), d(40, 60)),
+        (d(92, 100), d(91, 100)),
+        (d(40, 60), d(96, 100)),
+        (d(0, 8), d(90, 100)),
+        (d(0, 4), d(40, 60)),
+    ]
     return "polygon(" + ",".join(f"{x:.1f}% {y:.1f}%" for x, y in pairs) + ")"
 
 
@@ -204,7 +215,20 @@ def _ransom(item: dict) -> str:
     words = kit.tokens(item["text"])
     total = sum(len(word) for word, _ in words)
     per_tick = max(1, math.ceil(total * TICK / max(kit.seconds(item) * 0.55, TICK)))
-    looks = ("news sans", "ink serif", "lit sans", "white mono", "kraft italic", "brick sans", "gold mono", "cream hand", "news italic", "ink mono", "white serif", "kraft sans")
+    looks = (
+        "news sans",
+        "ink serif",
+        "lit sans",
+        "white mono",
+        "kraft italic",
+        "brick sans",
+        "gold mono",
+        "cream hand",
+        "news italic",
+        "ink mono",
+        "white serif",
+        "kraft sans",
+    )
     out, index, last = [], 0, ""
     for word, hot in words:
         cells = []
@@ -322,7 +346,7 @@ def _collage(item: dict) -> str:
                 "strip",
             )
         )
-    label = layer(f'<span>{kit.esc(item["label"])}</span>', 13, 30, 90, 14, "rotate:-3deg", "tag") if item.get("label") else ""
+    label = layer(f"<span>{kit.esc(item['label'])}</span>", 13, 30, 90, 14, "rotate:-3deg", "tag") if item.get("label") else ""
     return (
         f'<div class="set" style="--grain:{_grain(dice)}"><div class="stage">'
         + layer(_rip(dice, "", "kraft", 0.14, 0.14, 0.14, 0.14), 0, -90, 16, -16, "left:0;top:5%;width:64%;height:74%;rotate:-5deg", "sheet")
@@ -358,7 +382,9 @@ def _stop_motion(item: dict) -> str:
         cells = []
         for char in word:
             at = (index // per_tick) * TICK
-            cells.append(f'<span class="c" style="--at:{at:.3f}s;--x:{dice.span(-30, 30):.0f}%;--r:{dice.span(-22, 22):.0f}deg;--k:{int(dice.span(0, 6))}">{kit.esc(char)}</span>')
+            cells.append(
+                f'<span class="c" style="--at:{at:.3f}s;--x:{dice.span(-30, 30):.0f}%;--r:{dice.span(-22, 22):.0f}deg;--k:{int(dice.span(0, 6))}">{kit.esc(char)}</span>'
+            )
             index += 1
         out.append(f'<span class="word{" hot" if hot else ""}">{"".join(cells)}</span>')
     label = f'<p style="--at:{_tick(index / per_tick * TICK) + TICK * 2:.3f}s">{kit.esc(item["label"])}</p>' if item.get("label") else ""
@@ -465,9 +491,7 @@ def _scribble(dice: _Dice, kind: str) -> str:
         )
     if kind == "under":
         return f'<path pathLength="1" d="M{j(0, 10):.0f} {j(60, 70):.0f}C{j(90, 130):.0f} {j(46, 58):.0f} {j(260, 320):.0f} {j(52, 66):.0f} {j(392, 400):.0f} {j(50, 58):.0f}C{j(300, 340):.0f} {j(66, 74):.0f} {j(140, 180):.0f} {j(72, 80):.0f} {j(70, 100):.0f} {j(84, 92):.0f}"/>'
-    return (
-        f'<path pathLength="1" d="M{j(4, 14):.0f} {j(8, 16):.0f}L{j(380, 396):.0f} {j(4, 14):.0f}L{j(386, 398):.0f} {j(84, 96):.0f}L{j(6, 16):.0f} {j(86, 96):.0f}L{j(2, 10):.0f} {j(2, 12):.0f}L{j(120, 160):.0f} {j(0, 8):.0f}"/>'
-    )
+    return f'<path pathLength="1" d="M{j(4, 14):.0f} {j(8, 16):.0f}L{j(380, 396):.0f} {j(4, 14):.0f}L{j(386, 398):.0f} {j(84, 96):.0f}L{j(6, 16):.0f} {j(86, 96):.0f}L{j(2, 10):.0f} {j(2, 12):.0f}L{j(120, 160):.0f} {j(0, 8):.0f}"/>'
 
 
 def _boil(item: dict) -> str:
@@ -478,7 +502,9 @@ def _boil(item: dict) -> str:
     words = []
     for index, part in enumerate(parts):
         if index % 2:
-            words.append(f'<span class="hit">{kit.esc(part)}<span class="pen" aria-hidden="true"><svg viewBox="0 0 400 100" preserveAspectRatio="none">{_scribble(dice, kind)}</svg></span></span>')
+            words.append(
+                f'<span class="hit">{kit.esc(part)}<span class="pen" aria-hidden="true"><svg viewBox="0 0 400 100" preserveAspectRatio="none">{_scribble(dice, kind)}</svg></span></span>'
+            )
         else:
             words.append(kit.esc(part))
     note = ""
@@ -613,7 +639,9 @@ def _pen_trail(item: dict) -> str:
             f"C{back - 62:.0f} {lane + 44:.0f} {back - 40:.0f} {sy + 14:.0f} {sx:.0f} {sy:.0f}"
         )
         link_at, link_for = begin + write, max(room - write - 0.06, 0.12)
-        links.append(f'<div class="link" style="--at:{link_at:.3f}s;--for:{link_for:.3f}s;--n:{max(int(link_for / TICK) * 2, 2)}"><svg viewBox="-2000 -2000 4000 5000" aria-hidden="true"><path pathLength="1" d="{link}"/></svg></div>')
+        links.append(
+            f'<div class="link" style="--at:{link_at:.3f}s;--for:{link_for:.3f}s;--n:{max(int(link_for / TICK) * 2, 2)}"><svg viewBox="-2000 -2000 4000 5000" aria-hidden="true"><path pathLength="1" d="{link}"/></svg></div>'
+        )
         pens.append(f'<div class="pen" style="offset-path:path(\'{link}\');--at:{link_at:.3f}s;--for:{link_for:.3f}s">{_PEN}</div>')
     centres = [(x + w / 2, base - size * 0.3) for x, base, w in placed]
     middle = ((min(x for x, _, _ in placed) + max(x + w for x, _, w in placed)) / 2, (top + bottom) / 2)
@@ -623,7 +651,9 @@ def _pen_trail(item: dict) -> str:
     for index in range(len(stops) - 1, 0, -1):
         dx, dy = stops[index][0] - stops[index - 1][0], stops[index][1] - stops[index - 1][1]
         begin = times[index] - 0.2 if index < len(stops) - 1 else span
-        inner = f'<div class="cam" style="--dx:{dx:.0f}px;--dy:{dy:.0f}px;--at:{max(begin, 0):.3f}s;--for:{0.75 if index < len(stops) - 1 else closing:.3f}s">{inner}</div>'
+        inner = (
+            f'<div class="cam" style="--dx:{dx:.0f}px;--dy:{dy:.0f}px;--at:{max(begin, 0):.3f}s;--for:{0.75 if index < len(stops) - 1 else closing:.3f}s">{inner}</div>'
+        )
     return f'<div class="room" style="--grain:{_grain(dice, 0.24)}"><div class="lens"><div class="pull" style="--fit:{fit:.3f};--at:{span:.3f}s;--for:{closing:.3f}s">{inner}</div></div><div class="vignette"></div></div>'
 
 
@@ -650,7 +680,14 @@ def _fold_out(item: dict) -> str:
     return f'<div class="set" style="--grain:{_grain(dice)}"><div class="pack"><div class="flat">{leaf(0)}</div>{nest}</div></div>'
 
 
-_SNAP = _keys("p-snap", "opacity:0;transform:scale(1.36) rotate(4deg)", "opacity:1;transform:scale(1.14) rotate(-1deg)", "opacity:1;transform:scale(.96)", "opacity:1;transform:none", "opacity:1;transform:none")
+_SNAP = _keys(
+    "p-snap",
+    "opacity:0;transform:scale(1.36) rotate(4deg)",
+    "opacity:1;transform:scale(1.14) rotate(-1deg)",
+    "opacity:1;transform:scale(.96)",
+    "opacity:1;transform:none",
+    "opacity:1;transform:none",
+)
 _HOP = _keys(
     "p-hop",
     "opacity:0;transform:translate(var(--x),150%) rotate(var(--r)) scale(.92,1.1)",
@@ -731,7 +768,15 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
 .f-torn_wipe p{margin:.9em 0 0;font-family:var(--mono);font-size:calc(34px * var(--scale));font-weight:500;letter-spacing:.02em;color:rgba(28,24,19,.74)}
 """
         + _keys("torn-in", "translate:-104% 0", "translate:-62% 0", "translate:-30% 0", "translate:-12% 0", "translate:-3% 0", "translate:0 0")
-        + _keys("torn-out", "transform:none", "transform:translateX(4%)", "transform:translateX(16%)", "transform:translateX(38%)", "transform:translateX(72%)", "transform:translateX(106%)"),
+        + _keys(
+            "torn-out",
+            "transform:none",
+            "transform:translateX(4%)",
+            "transform:translateX(16%)",
+            "transform:translateX(38%)",
+            "transform:translateX(72%)",
+            "transform:translateX(106%)",
+        ),
     ),
     Format(
         id="torn_scraps",
@@ -850,7 +895,17 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
             Slot("total_label", limit=8, required=False),
             Slot("total", limit=8),
         ),
-        example={"title": "Edit week 12", "label": "Saved", "items": [{"text": "Rough cut", "value": "3.5 h"}, {"text": "Captions", "value": "1.0 h"}, {"text": "Colour pass", "value": "2.0 h"}, {"text": "Sound clean", "value": "1.5 h"}], "total": "8.0 h"},
+        example={
+            "title": "Edit week 12",
+            "label": "Saved",
+            "items": [
+                {"text": "Rough cut", "value": "3.5 h"},
+                {"text": "Captions", "value": "1.0 h"},
+                {"text": "Colour pass", "value": "2.0 h"},
+                {"text": "Sound clean", "value": "1.5 h"},
+            ],
+            "total": "8.0 h",
+        },
         draw=_receipt,
         seconds=4.0,
         shortest=2.4,
@@ -927,8 +982,22 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
 .f-ticket_stub .code{position:relative;width:calc(100px * var(--scale));height:calc(92px * var(--scale))}
 .f-ticket_stub .mark{position:absolute;right:calc(196px * var(--scale));top:calc(24px * var(--scale));padding:.08em .34em;font-family:var(--mono);font-size:calc(54px * var(--scale));font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--brick);border:.08em solid var(--brick);border-radius:.12em;filter:var(--f0);mix-blend-mode:multiply;animation:thump .5s step-end calc(var(--dur) * .36) both}
 """
-        + _keys("thump", "opacity:0;transform:scale(1.9)", "opacity:1;transform:scale(1.12)", "opacity:1;transform:scale(.98)", "opacity:1;transform:none", "opacity:1;transform:none")
-        + _keys("stub", "transform:none", "transform:translate(calc(4px * var(--scale)),calc(2px * var(--scale))) rotate(1.4deg)", "transform:translate(calc(12px * var(--scale)),calc(8px * var(--scale))) rotate(4deg)", "transform:translate(calc(18px * var(--scale)),calc(20px * var(--scale))) rotate(6.4deg)", "transform:translate(calc(20px * var(--scale)),calc(24px * var(--scale))) rotate(6deg)")
+        + _keys(
+            "thump",
+            "opacity:0;transform:scale(1.9)",
+            "opacity:1;transform:scale(1.12)",
+            "opacity:1;transform:scale(.98)",
+            "opacity:1;transform:none",
+            "opacity:1;transform:none",
+        )
+        + _keys(
+            "stub",
+            "transform:none",
+            "transform:translate(calc(4px * var(--scale)),calc(2px * var(--scale))) rotate(1.4deg)",
+            "transform:translate(calc(12px * var(--scale)),calc(8px * var(--scale))) rotate(4deg)",
+            "transform:translate(calc(18px * var(--scale)),calc(20px * var(--scale))) rotate(6.4deg)",
+            "transform:translate(calc(20px * var(--scale)),calc(24px * var(--scale))) rotate(6deg)",
+        )
         + _PLACE,
     ),
     Format(
@@ -964,7 +1033,14 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
 .f-postage_stamp .ring span{font-family:var(--mono);font-size:calc(40px * var(--scale));font-weight:700;letter-spacing:.01em;text-transform:uppercase;text-align:center;line-height:1.06;padding:0 .3em}
 .f-postage_stamp .bars{position:absolute;left:calc(320px * var(--scale));top:calc(78px * var(--scale));width:calc(320px * var(--scale));height:calc(130px * var(--scale));overflow:visible;fill:none;stroke:currentColor;stroke-width:13}
 """
-        + _keys("thump", "opacity:0;transform:scale(1.7)", "opacity:1;transform:scale(1.08)", "opacity:1;transform:scale(.98)", "opacity:1;transform:none", "opacity:1;transform:none")
+        + _keys(
+            "thump",
+            "opacity:0;transform:scale(1.7)",
+            "opacity:1;transform:scale(1.08)",
+            "opacity:1;transform:scale(.98)",
+            "opacity:1;transform:none",
+            "opacity:1;transform:none",
+        )
         + _SNAP,
     ),
     Format(
@@ -1026,7 +1102,15 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
 .f-comic_pop .strap{display:flex;justify-content:center;margin-top:calc(8px * var(--scale));animation:p-snap .5s step-end .75s both}
 .f-comic_pop .strap span{padding:.34em .62em;font-size:calc(38px * var(--scale));font-weight:800;font-style:italic;letter-spacing:-.005em;text-transform:uppercase;color:#141210;background:var(--gold);border:calc(5px * var(--scale)) solid #141210;box-shadow:calc(8px * var(--scale)) calc(8px * var(--scale)) 0 #141210;text-align:center}
 """
-        + _keys("pop-hit", "transform:scale(0) rotate(-20deg)", "transform:scale(1.22) rotate(5deg)", "transform:scale(.9) rotate(-3deg)", "transform:scale(1.05) rotate(1deg)", "transform:scale(.99)", "transform:none")
+        + _keys(
+            "pop-hit",
+            "transform:scale(0) rotate(-20deg)",
+            "transform:scale(1.22) rotate(5deg)",
+            "transform:scale(.9) rotate(-3deg)",
+            "transform:scale(1.05) rotate(1deg)",
+            "transform:scale(.99)",
+            "transform:none",
+        )
         + _keys(
             "pop-word",
             "opacity:0;transform:scale(.2) rotate(-12deg)",
@@ -1046,7 +1130,10 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
         group="paper",
         jobs=("explain", "prove"),
         slots=(Slot("items", kind="list", limit=4, each=38), Slot("title", limit=30, required=False)),
-        example={"title": "This week", "items": [{"text": "Shoot on *Monday*"}, {"text": "Cut in one sitting"}, {"text": "Captions before coffee"}, {"text": "Post by *noon*"}]},
+        example={
+            "title": "This week",
+            "items": [{"text": "Shoot on *Monday*"}, {"text": "Cut in one sitting"}, {"text": "Captions before coffee"}, {"text": "Post by *noon*"}],
+        },
         draw=_scrapbook,
         seconds=4.0,
         shortest=2.0,
@@ -1072,7 +1159,14 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
 .f-scrapbook .tape{position:absolute;top:calc(-20px * var(--scale));width:calc(170px * var(--scale));height:calc(46px * var(--scale));font-size:calc(100px * var(--scale));background:rgba(240,226,184,.74);animation:tape-on .25s step-end var(--at) both}
 @keyframes tape-on{0%{opacity:0;transform:translateY(-30%) scale(1.2)}50%{opacity:1;transform:scale(1.06)}100%{opacity:1;transform:none}}
 """
-        + _keys("p-slap", "opacity:0;transform:scale(1.5) rotate(7deg)", "opacity:1;transform:scale(1.12) rotate(-2deg)", "opacity:1;transform:scale(.97) rotate(.4deg)", "opacity:1;transform:none", "opacity:1;transform:none")
+        + _keys(
+            "p-slap",
+            "opacity:0;transform:scale(1.5) rotate(7deg)",
+            "opacity:1;transform:scale(1.12) rotate(-2deg)",
+            "opacity:1;transform:scale(.97) rotate(.4deg)",
+            "opacity:1;transform:none",
+            "opacity:1;transform:none",
+        )
         + _SNAP,
     ),
     Format(
@@ -1199,7 +1293,16 @@ animation:p-snap .5s step-end var(--at) both,p-jit .75s step-end calc(var(--k) *
 @keyframes rest-on{to{visibility:visible}}
 @keyframes walk-frame{0%{visibility:visible}16.6%,100%{visibility:hidden}}
 """
-        + _keys("hop", "transform:none", "transform:translateY(calc(-34px * var(--scale)))", "transform:translateY(calc(-46px * var(--scale)))", "transform:translateY(calc(-18px * var(--scale)))", "transform:none", "transform:translateY(calc(-20px * var(--scale)))", "transform:none")
+        + _keys(
+            "hop",
+            "transform:none",
+            "transform:translateY(calc(-34px * var(--scale)))",
+            "transform:translateY(calc(-46px * var(--scale)))",
+            "transform:translateY(calc(-18px * var(--scale)))",
+            "transform:none",
+            "transform:translateY(calc(-20px * var(--scale)))",
+            "transform:none",
+        )
         + _keys("crew-boil", "filter:var(--f0)", "filter:var(--f1)", "filter:var(--f2)", "filter:var(--f0)")
         + _SNAP,
     ),

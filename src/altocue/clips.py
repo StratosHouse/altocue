@@ -197,7 +197,7 @@ def unnamed(said: str) -> str:
 
 
 def introduces(text: str) -> bool:
-    """"This is Altocue." names what it points at, which "This is a problem." does not."""
+    """ "This is Altocue." names what it points at, which "This is a problem." does not."""
     return bool(re.match(r"This is [A-Z]", text))
 
 

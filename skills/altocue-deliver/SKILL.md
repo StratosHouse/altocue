@@ -29,6 +29,12 @@ The master is only ever read. Everything lands in `deliver/`, so `out/` and `edl
 - **`thumbnails/`,** candidates from real frames, sharp and with open eyes where there is a face.
 - **`textless.mp4`, with `--textless`,** the cut picture with no captions or graphics, and its voice mastered. Another film lays it in a frame, or an app adds its own text.
 - **`deliver.json`,** the record of all of it.
+- **`film-no-music.mp4`, with `--no-music`,** the same picture with voice and effects only, mastered to the same target. For a song from an app's own library, such as TikTok's Commercial Music Library or Meta's sound collection, added in the app over a film that has none of its own.
+- **`stems/`, with `--stems`,** voice, music and effects as WAV files that add up to the mix, for a finisher.
+
+## A film from a storyboard
+
+`altocue deliver` works on a film made with `altocue film` too. Its subtitles come from the film's own caption track, its thumbnails from its scenes, and `--stems` and `--no-music` remix its sound from the storyboard. It makes no versions for apps: a film's other shapes are rendered again from its storyboard with `altocue film render --cutdowns 9:16,1:1`, never cropped.
 
 ## Versions for each app
 

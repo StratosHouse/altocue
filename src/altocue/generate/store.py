@@ -90,9 +90,7 @@ def read_manifest(project: Project) -> dict[str, dict[str, Any]]:
     return json.loads(path.read_text())["shots"] if path.exists() else {}
 
 
-def record_asset(
-    project: Project, shot: str, *, asset: Path, digest: str, imported: bool, check_passed: bool | None, meta: dict[str, Any] | None = None
-) -> None:
+def record_asset(project: Project, shot: str, *, asset: Path, digest: str, imported: bool, check_passed: bool | None, meta: dict[str, Any] | None = None) -> None:
     shots = read_manifest(project)
     shots[shot] = {
         "asset": str(asset.relative_to(project.root)),

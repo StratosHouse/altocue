@@ -385,7 +385,7 @@ def test_settings_follow_the_clip(tmp_path):
     (project.root / "house.json").write_text('{"caption": {"style": "boxed"}}')
     text = (project.root / "altocue.toml").read_text()
     text = text.replace('name = "default"', 'name = "house.json"').replace("max_pause = 0.4", "max_pause = 0.3")
-    text = text.replace('[transcribe.fix]        # names the transcript gets wrong, heard = written\n', '[transcribe.fix]\n"Pricing" = "Prices"\n')
+    text = text.replace("[transcribe.fix]        # names the transcript gets wrong, heard = written\n", '[transcribe.fix]\n"Pricing" = "Prices"\n')
     (project.root / "altocue.toml").write_text(text)
     child = cut_one(Project.open(project.root))
     assert child.setting("cut", "max_pause") == 0.3

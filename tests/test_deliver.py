@@ -108,9 +108,11 @@ def test_no_cue_crosses_a_cut_in_a_real_project(finished):
 
 def test_the_soft_copy_keeps_the_masters_picture_and_sound(finished):
     main(["deliver", "-p", str(finished.root)])
+
     def media_md5(path, stream):
         done = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", stream, "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True, check=True)
         return done.stdout.strip()
+
     film, final = finished.root / "deliver" / "film.mp4", finished.out / "final.mp4"
     assert media_md5(film, "0:v") == media_md5(final, "0:v")
     assert media_md5(film, "0:a") == media_md5(final, "0:a")
@@ -552,3 +554,87 @@ def test_deliver_writes_a_textless_copy_when_asked(finished, capsys):
 def test_a_textless_copy_stays_off_unless_asked(finished):
     assert main(["deliver", "-p", str(finished.root)]) == 0
     assert not (finished.root / "deliver" / "textless.mp4").exists()
+
+
+# The film with no music, for a platform's own music library
+
+
+def media_md5(path: Path, stream: str) -> str:
+    done = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", stream, "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True, check=True)
+    return done.stdout.strip()
+
+
+def test_no_music_keeps_the_picture_and_drops_only_the_music(finished, monkeypatch, capsys):
+    """A song from an app's own library goes on in the app, so the film ships once more with voice and effects only."""
+    import numpy as np
+
+    music = finished.root / "bed.wav"
+    at = np.arange(48000 * 4) / 48000
+    ffmpeg.write_wav(music, 0.3 * np.sin(2 * np.pi * 3000 * at), 48000)  # far above the test voice, so its share is easy to measure
+    (finished.root / "motion.json").write_text(json.dumps({"music": {"path": "bed.wav"}}))
+    render.build(finished, renderer="basic")
+    master.master_file(finished.out / "render.mp4", finished.out / "final.mp4")
+    ship(finished)
+    before = fingerprint(finished)
+    assert main(["deliver", "-p", str(finished.root), "--no-music"]) == 0
+    dry = finished.root / "deliver" / "film-no-music.mp4"
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["no_music"]["file"] == dry.name and report["no_music"]["made_of"] == ["voice", "effects"]
+    assert media_md5(dry, "0:v") == media_md5(finished.out / "final.mp4", "0:v")
+    assert ffmpeg.probe_clip(dry).duration == pytest.approx(ffmpeg.probe_clip(finished.out / "final.mp4").duration, abs=0.05)
+    sound = finished.root / "deliver" / "dry.wav"
+    ffmpeg.extract_wav(dry, sound)
+    heard, _ = ffmpeg.read_wav(sound)
+    spectrum = np.abs(np.fft.rfft(heard))
+    bins = np.fft.rfftfreq(len(heard), 1 / 48000)
+    near_music = spectrum[(bins > 2900) & (bins < 3100)].sum()
+    near_voice = spectrum[(bins > 150) & (bins < 300)].sum()
+    assert near_music < 0.05 * near_voice
+    assert fingerprint(finished) == before
+
+
+def test_no_music_says_so_when_there_was_no_music(finished, capsys):
+    assert main(["deliver", "-p", str(finished.root), "--no-music"]) == 0
+    assert "had no music" in capsys.readouterr().out
+    assert (finished.root / "deliver" / "film-no-music.mp4").is_file()
+
+
+@pytest.fixture
+def finished_film(tmp_path: Path, monkeypatch) -> Project:
+    """A film from a storyboard, its picture faked so no renderer runs, with a voice line and the score under it."""
+    import numpy as np
+
+    from altocue import film
+
+    def picture(stage: Path, output: Path, *, fps: int, draft: bool, total: float) -> Path:
+        page = (stage / "index.html").read_text()
+        width, height = re.search(r'data-width="(\d+)"', page).group(1), re.search(r'data-height="(\d+)"', page).group(1)
+        source = f"color=c=0x101020:s={width}x{height}:r={fps}:d={total}"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-pix_fmt", "yuv420p", str(output)], check=True)
+        return output
+
+    monkeypatch.setattr(film, "render_picture", picture)
+    assert main(["film", "new", "launch", str(tmp_path / "film"), "--variant", "15"]) == 0
+    project = Project.open(tmp_path / "film")
+    at = np.arange(48000 * 2) / 48000
+    ffmpeg.write_wav(project.root / "assets" / "voice" / "line.wav", 0.3 * np.sin(2 * np.pi * 220 * at), 48000)
+    board = json.loads((project.root / "storyboard.json").read_text())
+    board["scenes"][0]["voice"] = "assets/voice/line.wav"
+    (project.root / "storyboard.json").write_text(json.dumps(board))
+    assert main(["film", "render", "-p", str(project.root), "--draft"]) == 0
+    return ship(project)
+
+
+def test_a_film_delivers_its_thumbnails_and_a_version_with_no_music(finished_film, capsys):
+    assert main(["deliver", "-p", str(finished_film.root), "--no-music"]) == 0
+    folder = finished_film.root / "deliver"
+    report = json.loads((folder / "deliver.json").read_text())
+    assert report["film"]["file"] == "film.mp4" and report["thumbnails"]["candidates"]
+    assert media_md5(folder / "film-no-music.mp4", "0:v") == media_md5(finished_film.out / "final.mp4", "0:v")
+    full, dry = ffmpeg.loudness(folder / "film.mp4"), ffmpeg.loudness(folder / "film-no-music.mp4")
+    assert dry["range"] != full["range"] or dry["integrated"] != full["integrated"]
+
+
+def test_a_film_asks_for_its_other_shapes_from_the_storyboard(finished_film, capsys):
+    assert main(["deliver", "-p", str(finished_film.root), "--for", "tiktok"]) == 1
+    assert "film render --cutdowns" in capsys.readouterr().err

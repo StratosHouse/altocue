@@ -281,11 +281,7 @@ class FasterWhisper(LocalEngine):
             condition_on_previous_text=False,
             temperature=0.0,
         )
-        return [
-            Word(text=w.word.strip(), start=float(w.start), end=float(w.end), confidence=float(w.probability))
-            for segment in segments
-            for w in segment.words or []
-        ]
+        return [Word(text=w.word.strip(), start=float(w.start), end=float(w.end), confidence=float(w.probability)) for segment in segments for w in segment.words or []]
 
 
 class Parakeet(LocalEngine):
@@ -391,21 +387,15 @@ class ElevenLabs:
             with http.open_keyed(request, timeout=1800) as response:
                 return scribe_words(json.load(response))
         except urllib.error.HTTPError as error:
-            raise AltocueError(
-                f"ElevenLabs refused the audio (HTTP {error.code}).", fix="Check ELEVENLABS_API_KEY and your ElevenLabs plan."
-            ) from error
+            raise AltocueError(f"ElevenLabs refused the audio (HTTP {error.code}).", fix="Check ELEVENLABS_API_KEY and your ElevenLabs plan.") from error
         except urllib.error.URLError as error:
-            raise AltocueError(
-                f"Could not reach {self.host}: {error.reason}.", fix="Check your connection, or use a local engine."
-            ) from error
+            raise AltocueError(f"Could not reach {self.host}: {error.reason}.", fix="Check your connection, or use a local engine.") from error
 
 
 def multipart(fields: dict[str, str], path: Path) -> tuple[bytes, str]:
     boundary = uuid.uuid4().hex
     parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode() for name, value in fields.items()]
-    head = (
-        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\nContent-Type: audio/wav\r\n\r\n'.encode()
-    )
+    head = f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\nContent-Type: audio/wav\r\n\r\n'.encode()
     return b"".join([*parts, head, path.read_bytes(), f"\r\n--{boundary}--\r\n".encode()]), f"multipart/form-data; boundary={boundary}"
 
 
@@ -490,9 +480,7 @@ def clean(words: list[Word], *, duration: float, envelope: Envelope | None = Non
     found = drop_stock_phrases(found)
     found = [shorten(word, envelope) for word in found]
     if envelope is not None and envelope.reliable:
-        found = [
-            w for w in found if envelope.speech[max(0, int((w.start - GHOST_MARGIN) / HOP)) : math.ceil((w.end + GHOST_MARGIN) / HOP)].any()
-        ]
+        found = [w for w in found if envelope.speech[max(0, int((w.start - GHOST_MARGIN) / HOP)) : math.ceil((w.end + GHOST_MARGIN) / HOP)].any()]
     return separate(found, duration)
 
 
@@ -580,11 +568,7 @@ def separate(words: list[Word], duration: float) -> list[Word]:
     for word in words:
         start = min(max(word.start, previous), max(duration - MIN_WORD, 0.0))
         end = min(max(word.end, start + MIN_WORD), duration)
-        out.append(
-            dataclasses.replace(
-                word, text=word.text.strip(), start=round(start, 3), end=round(end, 3), confidence=round(word.confidence, 3)
-            )
-        )
+        out.append(dataclasses.replace(word, text=word.text.strip(), start=round(start, 3), end=round(end, 3), confidence=round(word.confidence, 3)))
         previous = end
     return out
 
@@ -623,9 +607,7 @@ def quiet_marks(envelope: Envelope, duration: float, piece: float | None = None)
     return marks
 
 
-def in_pieces(
-    engine: Transcriber, wav: Path, envelope: Envelope, duration: float, *, language: str, prompt: str, piece: float | None = None
-) -> list[Word]:
+def in_pieces(engine: Transcriber, wav: Path, envelope: Envelope, duration: float, *, language: str, prompt: str, piece: float | None = None) -> list[Word]:
     """Hand a local engine the recording a piece at a time, clearing up after each, so memory stays flat however long it runs."""
     marks = [] if engine.hosted else quiet_marks(envelope, duration, piece)
     words: list[Word] = []
@@ -719,9 +701,7 @@ def transcribe_project(project: Project, engine: str | Transcriber | None = None
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
-    parser.add_argument(
-        "--engine", default=None, help=f"auto or one of {', '.join(ENGINES)}. Hosted engines run only when named here or in altocue.toml"
-    )
+    parser.add_argument("--engine", default=None, help=f"auto or one of {', '.join(ENGINES)}. Hosted engines run only when named here or in altocue.toml")
     parser.add_argument("--force", action="store_true", help="Transcribe clips that already have a word file")
     parser.add_argument("--speakers", nargs="?", type=int, const=0, default=None, metavar="N", help="Also work out who said each word. Give N if you know how many spoke")
 

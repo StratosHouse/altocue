@@ -47,9 +47,7 @@ def _vision(images: list[Path]) -> list[dict[str, Any]]:
     binary = vision_binary()
     found: list[dict[str, Any]] = []
     for start in range(0, len(images), BATCH):
-        done = subprocess.run(
-            [str(binary), *[str(p) for p in images[start : start + BATCH]]], capture_output=True, text=True, errors="replace"
-        )
+        done = subprocess.run([str(binary), *[str(p) for p in images[start : start + BATCH]]], capture_output=True, text=True, errors="replace")
         for line in done.stdout.splitlines():
             try:
                 record = json.loads(line)
@@ -129,9 +127,7 @@ def sample(file: Path, fps: float, cuts: list[float], folder: Path) -> dict[str,
     """Write whole frames, tiles and every cut's first frame. Returns image name to time."""
     ffmpeg.run(["-i", str(file), "-vf", f"fps={fps}", "-q:v", "2", str(folder / "full_%05d.jpg")])
     for name, crop in TILES.items():
-        ffmpeg.run(
-            ["-i", str(file), "-vf", f"fps={fps},crop={crop},scale=iw*2:ih*2:flags=lanczos", "-q:v", "2", str(folder / f"{name}_%05d.jpg")]
-        )
+        ffmpeg.run(["-i", str(file), "-vf", f"fps={fps},crop={crop},scale=iw*2:ih*2:flags=lanczos", "-q:v", "2", str(folder / f"{name}_%05d.jpg")])
     times = {p.name: (int(re.search(r"_(\d+)\.jpg$", p.name).group(1)) - 1) / fps for p in folder.glob("*.jpg")}  # type: ignore[union-attr]
     for index, at in enumerate(cuts):
         name = f"cut_{index:05d}.jpg"

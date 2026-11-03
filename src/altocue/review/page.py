@@ -126,10 +126,7 @@ def jump(at: float, text: str, *, extra: str = "") -> str:
 
 def verdict_html(verdict: dict[str, Any]) -> str:
     if "waiting" in verdict:
-        return (
-            '<div class="verdict none"><p class="word">No verdict yet</p>'
-            f'<p>{escape(verdict["waiting"])} Next: <code>{escape(verdict["next"])}</code></p></div>'
-        )
+        return f'<div class="verdict none"><p class="word">No verdict yet</p><p>{escape(verdict["waiting"])} Next: <code>{escape(verdict["next"])}</code></p></div>'
     word = str(verdict["verdict"])
     reviewer = verdict.get("reviewer") or {}
     lines = []
@@ -144,9 +141,7 @@ def verdict_html(verdict: dict[str, Any]) -> str:
     reasons = "".join(f"<li>{escape(str(reason))}</li>" for reason in verdict.get("reasons") or [])
     return (
         f'<div class="verdict {escape(word.lower())}"><p class="word">{escape(word)}</p>'
-        f'<p class="who">{"<br>".join(escape(line) for line in lines)}</p>'
-        + (f"<ul>{reasons}</ul>" if reasons else "")
-        + "</div>"
+        f'<p class="who">{"<br>".join(escape(line) for line in lines)}</p>' + (f"<ul>{reasons}</ul>" if reasons else "") + "</div>"
     )
 
 
@@ -157,7 +152,7 @@ def note_html(note: dict[str, Any], index: int) -> str:
     return (
         f'<li class="note {escape(str(note["severity"]))}">{jump(start, spoken, extra=" note-jump")}'
         f'<div><p class="meta">{escape(str(note["severity"]))}, {escape(str(note["dimension"]))}</p>'
-        f'<p>{escape(str(note["observed"]))}</p>' + (f'<p class="fix">Fix: {escape(fix)}</p>' if fix else "") + "</div></li>"
+        f"<p>{escape(str(note['observed']))}</p>" + (f'<p class="fix">Fix: {escape(fix)}</p>' if fix else "") + "</div></li>"
     )
 
 
@@ -185,9 +180,7 @@ def _left(at: float, duration: float) -> str:
     return f"{min(at / max(duration, 0.001), 1.0) * 100:.3f}"
 
 
-def timeline_html(
-    duration: float, wave: str, cuts: list[float], captions: list[dict[str, Any]], gates: list[dict[str, Any]], notes: list[dict[str, Any]]
-) -> str:
+def timeline_html(duration: float, wave: str, cuts: list[float], captions: list[dict[str, Any]], gates: list[dict[str, Any]], notes: list[dict[str, Any]]) -> str:
     """Mouse and touch only. Every moment here is also a button in a list below, for a keyboard or a screen reader."""
     ticks = "".join(f'<i class="tick cut" style="left:{_left(at, duration)}%"></i>' for at in cuts)
     spans = "".join(

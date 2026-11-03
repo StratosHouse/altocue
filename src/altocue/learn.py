@@ -151,14 +151,14 @@ def read_export(path: Path, *, exported: date, platform: str | None = None, mapp
     if chosen is None:
         raise AltocueError(
             f"{path.name} does not look like a YouTube Studio or Meta export.",
-            fix=f"It has: {', '.join(fields)}. Pass --platform, and --map \"Your column=views\" for anything named differently.",
+            fix=f'It has: {", ".join(fields)}. Pass --platform, and --map "Your column=views" for anything named differently.',
         )
     columns = {field: [lower[alias] for alias in aliases if alias in lower] for field, aliases in COLUMNS[chosen].items()}
     for name, field in (mapping or {}).items():
         columns.setdefault(field, []).insert(0, name)
     missing = [field for field in ("key", "published") if not columns.get(field)]
     if missing:
-        raise AltocueError(f"{path.name} has no {' or '.join(missing)} column.", fix=f"It has: {', '.join(fields)}. Use --map \"Your column=key\".")
+        raise AltocueError(f"{path.name} has no {' or '.join(missing)} column.", fix=f'It has: {", ".join(fields)}. Use --map "Your column=key".')
     rows, skipped = [], 0
     for row in reader:
         value = {field: next((row[name] for name in names if str(row.get(name, "")).strip()), "") for field, names in columns.items()}

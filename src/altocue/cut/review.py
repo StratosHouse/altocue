@@ -165,13 +165,7 @@ def load_rulings(path: str | Path) -> dict[str, tuple[str, str]]:
         raise AltocueError(f"{target} should hold one JSON object.", fix=RULING_HELP)
     rulings: dict[str, tuple[str, str]] = {}
     for key, value in raw.items():
-        decision, reason = (
-            (value, "")
-            if isinstance(value, str)
-            else (value.get("decision"), value.get("reason", ""))
-            if isinstance(value, dict)
-            else (None, "")
-        )
+        decision, reason = (value, "") if isinstance(value, str) else (value.get("decision"), value.get("reason", "")) if isinstance(value, dict) else (None, "")
         if decision not in {"cut", "keep"}:
             raise AltocueError(f"Ruling for {key} must be cut or keep.", fix=RULING_HELP)
         rulings[key] = (decision, reason)

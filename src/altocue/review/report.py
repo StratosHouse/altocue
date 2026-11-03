@@ -56,13 +56,8 @@ def limits(result: dict[str, Any], gates: list[GateResult]) -> list[str]:
     found: list[str] = []
     if sees == "video":
         fps = reviewer.get("sampled_fps") or 1
-        found.append(
-            f"The reviewer sampled the picture at {fps} frames a second, so a fault shorter than {1 / fps:.2f}s can fall between frames."
-        )
-        found.append(
-            reviewer.get("audio_note", "The reviewer's hearing is limited.")
-            + " Hiss, clipping and harshness come from the gates or not at all."
-        )
+        found.append(f"The reviewer sampled the picture at {fps} frames a second, so a fault shorter than {1 / fps:.2f}s can fall between frames.")
+        found.append(reviewer.get("audio_note", "The reviewer's hearing is limited.") + " Hiss, clipping and harshness come from the gates or not at all.")
     elif sees == "stills":
         found.append(
             "The reviewer saw still frames: contact sheets every 2 seconds, frames around cuts, the first 3 seconds and timeline sheets. "
@@ -70,9 +65,7 @@ def limits(result: dict[str, Any], gates: list[GateResult]) -> list[str]:
         )
         found.append("The reviewer heard nothing. It read a transcript and measurements, and saw level and silence drawn on the timeline sheets.")
         if reviewer.get("images", 0) < reviewer.get("images_in_pack", 0):
-            found.append(
-                f"Only {reviewer['images']} of the pack's {reviewer['images_in_pack']} images were sent, so not every cut was shown."
-            )
+            found.append(f"Only {reviewer['images']} of the pack's {reviewer['images_in_pack']} images were sent, so not every cut was shown.")
     else:
         found.append("No reviewer looked at or listened to this. Judgement did not run because a fact gate failed.")
     found += [f"Gate `{g.id}` did not run: {g.detail}" for g in gates if g.skipped and g.value != NOT_APPLICABLE]
@@ -151,9 +144,7 @@ def facts_section(measured: dict[str, Any] | None) -> list[str]:
     return ["", "## Measured facts", "", facts.AFTER_SCORING, "", *facts.rows(measured)]
 
 
-def write(
-    project: Project, file: Path, result: dict[str, Any], gates: list[GateResult], log: dict[str, Any], *, measured: dict[str, Any] | None = None
-) -> Path:
+def write(project: Project, file: Path, result: dict[str, Any], gates: list[GateResult], log: dict[str, Any], *, measured: dict[str, Any] | None = None) -> Path:
     result["notes"].sort(key=lambda n: (SEVERITY_ORDER[n["severity"]], n["start_seconds"]))
     frames = note_frames(project, file, result["notes"])
     reviewer = result["reviewer"]
@@ -175,8 +166,7 @@ def write(
     if log["handed_off"]:
         lines += [
             "",
-            "**Handed to a human.** Both fix rounds are used. The list below is open, "
-            "and no further automated review runs on a new render until `--reset-rounds`.",
+            "**Handed to a human.** Both fix rounds are used. The list below is open, and no further automated review runs on a new render until `--reset-rounds`.",
         ]
     if result["reasons"]:
         lines += ["", "## Why", "", *[f"- {reason}" for reason in result["reasons"]]]

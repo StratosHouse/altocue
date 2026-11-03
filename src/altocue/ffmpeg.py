@@ -59,7 +59,7 @@ STILL_BRANDS = {b"heic", b"heix", b"mif1", b"msf1", b"avif", b"avis"}
 
 
 def sniff(path: str | Path) -> str | None:
-    """"video", "image" or None, from the first bytes. A name proves nothing: ffmpeg follows a playlist or a list hidden in any file."""
+    """ "video", "image" or None, from the first bytes. A name proves nothing: ffmpeg follows a playlist or a list hidden in any file."""
     with Path(path).open("rb") as handle:
         head = handle.read(16)
     if head[4:8] == b"ftyp":

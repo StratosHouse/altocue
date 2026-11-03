@@ -38,6 +38,7 @@ __all__ = [
     "removal_id",
     "run",
     "segment_ends",
+    "track",
     "validate",
     "write_script",
 ]
@@ -59,9 +60,7 @@ def envelope_of(clip: Clip) -> Envelope | None:
     return _envelope(str(path), path.stat().st_mtime) if path.exists() else None
 
 
-def bounds(
-    run: list[int], words: list[Word], clip: Clip, envelope: Envelope | None, fps: int, walls: tuple[Removed, ...] = ()
-) -> tuple[float, float]:
+def bounds(run: list[int], words: list[Word], clip: Clip, envelope: Envelope | None, fps: int, walls: tuple[Removed, ...] = ()) -> tuple[float, float]:
     """Where a run of kept words starts and ends: snapped, kept clear of its neighbours, on the grid.
 
     `walls` are cut pauses that hold an unheard sound, such as an "um". Snapping follows sound, so
@@ -183,11 +182,7 @@ def runs(words: list[Word], cuts: list[Removed]) -> list[list[int]]:
     for index, word in enumerate(words):
         if covering(word, cuts):
             continue
-        joined = (
-            found
-            and found[-1][-1] == index - 1
-            and not any(words[index - 1].end - 1e-6 <= item.start and item.end <= word.start + 1e-6 for item in cuts)
-        )
+        joined = found and found[-1][-1] == index - 1 and not any(words[index - 1].end - 1e-6 <= item.start and item.end <= word.start + 1e-6 for item in cuts)
         if joined:
             found[-1].append(index)
         else:
@@ -201,11 +196,7 @@ def removals(project: Project, within: tuple[int, int] | None = None) -> list[Re
     words = {clip.id: project.words(clip.id)[slice(*within) if within else slice(None)] for clip in clips}
     max_pause = float(project.setting("cut", "max_pause", 0.4))
     remove_fillers = bool(project.setting("cut", "remove_fillers", True))
-    found = [
-        item
-        for clip in clips
-        for item in certain(clip, words[clip.id], max_pause=max_pause, remove_fillers=remove_fillers, envelope=envelope_of(clip))
-    ]
+    found = [item for clip in clips for item in certain(clip, words[clip.id], max_pause=max_pause, remove_fillers=remove_fillers, envelope=envelope_of(clip))]
     found += candidates(clips, words, {clip.id: envelope_of(clip) for clip in clips})
     return [item.removed() for item in sorted(found, key=lambda c: (c.clip, c.start, c.end))]
 
@@ -254,9 +245,7 @@ def cuts_through(word: Word, segment: Segment, envelope: Envelope | None, tolera
         return False
     if envelope is None or not envelope.reliable:
         return True
-    left_out = (head > tolerance and envelope.has_speech(word.start, segment.start)) or (
-        tail > tolerance and envelope.has_speech(segment.end, word.end)
-    )
+    left_out = (head > tolerance and envelope.has_speech(word.start, segment.start)) or (tail > tolerance and envelope.has_speech(segment.end, word.end))
     left_in = envelope.has_speech(max(word.start, segment.start), min(word.end, segment.end))
     return left_out and left_in
 
@@ -313,9 +302,7 @@ def refuse(project: Project, edl: Edl) -> None:
     if problems:
         shown = "\n".join(f"  {p}" for p in problems[:12])
         more = f"\n  and {len(problems) - 12} more" if len(problems) > 12 else ""
-        raise AltocueError(
-            f"Refusing this cut:\n{shown}{more}", fix="Run `altocue cut` again, or correct edl.json so every edge sits between words."
-        )
+        raise AltocueError(f"Refusing this cut:\n{shown}{more}", fix="Run `altocue cut` again, or correct edl.json so every edge sits between words.")
 
 
 def kept(project: Project, edl: Edl) -> list[tuple[Segment, Word]]:
@@ -330,9 +317,7 @@ def kept(project: Project, edl: Edl) -> list[tuple[Segment, Word]]:
             if not plays(word, segment.start, segment.end, tolerance=tolerance):
                 continue
             if (segment.clip, index) in seen:
-                raise AltocueError(
-                    f'"{word.text}" at {segment.clip} {word.start:.2f} s plays twice.', fix="Remove the overlap between segments."
-                )
+                raise AltocueError(f'"{word.text}" at {segment.clip} {word.start:.2f} s plays twice.', fix="Remove the overlap between segments.")
             seen.add((segment.clip, index))
             played.append((segment, word))
     return played
@@ -356,6 +341,31 @@ def segment_ends(edl: Edl) -> dict[str, float]:
         frame += frame_count(segment.start, segment.end, edl.fps)
         ends[segment.id] = round(frame / edl.fps, 3)
     return ends
+
+
+def track(project: Project, clip: str | None = None) -> dict[str, Any]:
+    """One take's real cut: every word it says, what was kept and what went, with each removal's kind. For showing a cut, not making one.
+
+    `clip` names the take. By default it is the one the cut keeps most of. Times are in the take's own seconds.
+    """
+    edl = project.edl()
+    used = [segment.clip for segment in edl.segments] + [removal.clip for removal in edl.removed]
+    if not used:
+        raise AltocueError("This cut keeps and removes nothing.", fix="Run `altocue cut`.")
+    chosen = clip or max(dict.fromkeys(used), key=lambda name: sum(s.end - s.start for s in edl.segments if s.clip == name))
+    if chosen not in used:
+        raise AltocueError(f"The cut never uses the clip {chosen}.", fix=f"Use one of {', '.join(dict.fromkeys(used))}.")
+    kept = [segment for segment in edl.segments if segment.clip == chosen]
+    frames = sum(frame_count(segment.start, segment.end, edl.fps) for segment in kept)
+    return {
+        "clip": chosen,
+        "raw": project.clip(chosen).duration,
+        "kept_seconds": round(frames / edl.fps, 3),
+        "removals": sum(1 for removal in edl.removed if removal.clip == chosen),
+        "words": [{"text": w.text, "start": w.start, "end": w.end, "kind": w.kind} for w in project.words(chosen)],
+        "kept": [{"start": segment.start, "end": segment.end} for segment in kept],
+        "removed": [{"start": r.start, "end": r.end, "kind": r.kind} for r in edl.removed if r.clip == chosen],
+    }
 
 
 def map_words(project: Project, edl: Edl) -> list[dict[str, Any]]:
@@ -384,9 +394,7 @@ def map_words(project: Project, edl: Edl) -> list[dict[str, Any]]:
             start_frame = max(start_frame, previous[1])
         end_frame = max(end_frame, start_frame + 1)
         if end_frame > last:
-            raise AltocueError(
-                f'"{word.text}" does not fit {segment.id} at {fps} fps.', fix="Keep more of this segment, or use a higher frame rate."
-            )
+            raise AltocueError(f'"{word.text}" does not fit {segment.id} at {fps} fps.', fix="Keep more of this segment, or use a higher frame rate.")
         previous = (segment.id, end_frame)
         offset = first / fps
         end = max(tail, head + MIN_WORD)

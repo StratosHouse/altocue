@@ -18,7 +18,7 @@ from ..brand import Brand
 from ..errors import AltocueError
 from . import compositions, formats
 from .formats import kit
-from .html import base_css, caption_html, item_html, root_tokens
+from .html import base_css, caption_html, geometry, item_html, root_tokens
 
 PANEL_WIDTH = 880.0  # what a panel format fills at full scale
 SLOW_SAMPLES = 6  # keys a second on a slow drift
@@ -39,7 +39,7 @@ FRAME_CAPTION_SHARE = 0.06  # font size as a share of the frame's width, for one
 SEAM_CAPTION_SHARE = 0.072  # font size as a share of the frame's width, for captions over the line between two halves
 SEAM_LINE = 4  # pixels. The accent line between two halves
 HALVES = ("half_top", "half_bottom")  # edge to edge, for a split screen: footage in one, graphics in the other
-STEADY = ("corner_stamp", "say_line")  # held still over the camera: a push would carry a line at the foot out of the safe zone
+STEADY = ("corner_stamp", "say_line", "feature_badge")  # held still over the camera: a push would carry a line at the foot out of the safe zone
 
 # Named places on the canvas as left, top, right, bottom shares. Left and right stack on a tall canvas, so a two-column scene recomposes instead of cropping.
 ZONES = {
@@ -141,12 +141,21 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     width, height = size
     box = f"left:{left * width:.0f}px;right:{(1 - right) * width:.0f}px;top:{top * height:.0f}px;bottom:{(1 - bottom) * height:.0f}px"
     if item["type"] == "footage":
-        at = "head" if bottom > zone_box("foot", size)[1] else "foot"  # captions and lines for the sound off run at the foot
+        across = isinstance(item.get("captions"), dict) and item["captions"].get("place") == "frame"
+        at = "head" if bottom > zone_box("foot", size)[1] or across else "foot"  # captions and lines for the sound off run at the foot
         place = f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"
         if zone in HALVES:  # the inner edge, where the two halves meet
             return {**item, "place": place, "label_at": at, "seam": round((top if top > 0 else bottom) * height)}
+        if item.get("shapes"):
+            boxes = [shape_box(str(shape), (left * width, top * height, (right - left) * width, (bottom - top) * height)) for shape in item["shapes"]]
+            first = boxes[0]
+            place = f"left:{first[0]:.0f}px;top:{first[1]:.0f}px;width:{first[2]:.0f}px;height:{first[3]:.0f}px"
+            whole = f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"
+            return {**item, "place": place, "label_at": at, "boxes": boxes, "zone_place": whole}
         return {**item, "place": place, "label_at": at}
     if area == "full":
+        if storyboard.number(item.get("scale")):  # larger or smaller than the frame's own scale, as a panel can be
+            box += f";--scale:{geometry(width, height)['scale'] * float(item['scale']):.3f}"
         return {**item, "place": box}
     scale = fit_scale(fmt, zone, size, float(item.get("scale", 1.0)))
     return {**item, "place": f"{box};--scale:{scale};--gutter:0px;--rail:0px", "zone_class": "zone mid" if item.get("align") == "center" else "zone"}
@@ -370,6 +379,7 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
     """The same shape `altocue render` writes, so every later stage can read a film like any other project."""
     scenes = done["scenes"]
     total = done["total"]
+
     def steady(item: dict[str, Any]) -> bool:  # a half sits still under every camera, so its seam stays on its line
         return bool(item.get("fixed", item["type"] in STEADY or item.get("carry") or item.get("zone") in HALVES))
 
@@ -408,8 +418,9 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
     if item["type"] == "footage":
         attrs = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track}"'
         name = escape(formats.stage_name(item["file"]))
-        focus = _focus_style(item.get("focus"))
-        place = f' style="{";".join(part for part in (item.get("place"), focus) if part)}"' if item.get("place") or focus else ""
+        rule, moving_style, notes = _reframe(item, track) if item.get("boxes") else ("", "", "")
+        styles = [part for part in (item.get("place"), moving_style or _focus_style(item.get("focus"))) if part]
+        place = f' style="{";".join(styles)}"' if styles else ""
         look = "clip footage framed" if item.get("zone") and "seam" not in item else "clip footage"
         trim = f' data-media-start="{float(item["from"]):.3f}"' if item.get("from") else ""
         moving = Path(item["file"]).suffix.lower() in (".mp4", ".mov", ".webm")
@@ -421,6 +432,8 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
         if "seam" in item:
             line = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 2000}"'
             tag += f'\n<div class="clip seam" {line} style="top:{item["seam"] - SEAM_LINE / 2:.0f}px;height:{SEAM_LINE}px"></div>'
+        if notes:
+            return f"{rule}{tag}\n{notes}"
         if not item.get("label"):
             return tag
         timing = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 1000}"'
@@ -441,17 +454,82 @@ def _focus_style(focus: Any) -> str:
     return f"object-position:{across * 100:.1f}% {down * 100:.1f}%"
 
 
+SHAPE_TURN = 0.36  # seconds a reframe takes to move from one shape to the next
+
+
+def shape_box(shape: str, zone: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """The largest frame of one aspect, such as 9:16, that fits a zone, centred in it, in pixels."""
+    found = re.fullmatch(r"(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)", shape)
+    if not found or not float(found.group(1)) or not float(found.group(2)):
+        raise AltocueError(f"The shape {shape} is not an aspect.", fix="Use shapes such as 16:9, 9:16 and 1:1.")
+    ratio = float(found.group(1)) / float(found.group(2))
+    left, top, wide, tall = zone
+    width, height = (tall * ratio, tall) if wide / tall > ratio else (wide, wide / ratio)
+    return left + (wide - width) / 2, top + (tall - height) / 2, width, height
+
+
+def _reframe(item: dict[str, Any], track: int) -> tuple[str, str, str]:
+    """One picture that changes shape in place, holding each aspect in turn, with the aspect named beneath it.
+
+    The frame stays filled and a face stays in it: `focus` is where to hold, as shares across and down.
+    """
+    boxes, shapes = item["boxes"], [str(shape) for shape in item["shapes"]]
+    span = max(float(item["end"]) - float(item["start"]), 0.1)
+    focus = item.get("focus") or [0.5, 0.3]
+    held = f"object-position:{100 * float(focus[0]):.1f}% {100 * float(focus[1]):.1f}%"
+    if len(boxes) == 1:  # one shape only fits the picture to its zone, and the shape needs no name
+        return "", held, ""
+    share = span / len(boxes)
+    keys = []
+    for index, box in enumerate(boxes):
+        pose = f"left:{box[0]:.0f}px;top:{box[1]:.0f}px;width:{box[2]:.0f}px;height:{box[3]:.0f}px"
+        begin = 0.0 if index == 0 else index * share + SHAPE_TURN / 2
+        end = span if index == len(boxes) - 1 else (index + 1) * share - SHAPE_TURN / 2
+        keys += [f"{100 * min(max(begin, 0), span) / span:.3f}%{{{pose}}}", f"{100 * min(max(end, 0), span) / span:.3f}%{{{pose}}}"]
+    name = f"shape-{track}"
+    rule = f"<style>@keyframes {name}{{{''.join(keys)}}}</style>"
+    style = f"animation:{name} {span:.3f}s cubic-bezier(.65,0,.3,1) both;{held}"
+    notes = []
+    under = _below({**item, "place": item.get("zone_place") or item.get("place")})
+    for index, shape in enumerate(shapes):
+        begin = float(item["start"]) + index * share
+        timing = f'data-start="{begin:.3f}" data-duration="{share:.3f}" data-track-index="{track + 1000 + index}"'
+        said = f"{shape}, {item['label']}" if item.get("label") else shape
+        notes.append(f'<div class="clip footnote" {timing}{under}><span>{escape(said)}</span></div>')
+    return rule + "\n", style, "\n".join(notes)
+
+
 def _box(item: dict[str, Any]) -> dict[str, float]:
     found = dict(part.split(":", 1) for part in str(item.get("place") or "").split(";") if ":" in part)
     return {key: float(found[key].removesuffix("px")) for key in ("left", "top", "width", "height") if key in found}
 
 
-def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture", who: str = "") -> list[dict[str, Any]]:
+def tagged(words: list[dict[str, Any]], tags: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each word inside a span a cut removed carries that span's kind, so the captions can show what goes. The shortest span wins.
+
+    Spans are in the clip's own seconds, as `edl.json` writes them: `{"start": 0.8, "end": 0.96, "kind": "filler"}`.
+    """
+    from .formats.film import CUT_TAGS
+
+    spans = [(float(tag["start"]), float(tag["end"]), str(tag.get("kind") or "manual")) for tag in tags]
+    made = []
+    for word in words:
+        middle = (float(word["start"]) + float(word["end"])) / 2
+        holding = [span for span in spans if span[0] <= middle <= span[1]]
+        kind = min(holding, key=lambda span: span[1] - span[0])[2] if holding else None
+        made.append({**word, "tag": CUT_TAGS.get(kind, kind)} if kind else word)
+    return made
+
+
+def caption_pages(
+    item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture", who: str = "", scale: float = 1.0
+) -> list[dict[str, Any]]:
     """A clip's own speech as word-timed pages, in film seconds.
 
     `picture` sets them across the foot of the clip's own picture, sized to its width. `frame` sets one track across the
     foot of the whole frame, where a line for the sound off sits, held still over the camera and large enough for a phone.
     `seam` centres them on the line between the two halves of a split screen, so they never sit on the presenter's face.
+    `scale` sets the type larger or smaller than that. A page grows up from the foot, so it never leaves the frame.
     `who` names the speaker on every page, such as a label for a generated presenter.
     """
     named = {"name": who} if who else {}
@@ -459,7 +537,10 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
     if len(box) < 4:
         raise AltocueError(f"Captions on {item.get('file')} need the footage in a zone.", fix="Give the footage a zone, such as phone.")
     begin = float(item["start"]) - float(item.get("from") or 0)
-    said = [{"text": w["text"], "start": begin + float(w["start"]), "end": begin + float(w["end"]), "segment": 0} for w in words]
+    said = [
+        {"text": w["text"], "start": begin + float(w["start"]), "end": begin + float(w["end"]), "segment": 0, **({"tag": w["tag"]} if w.get("tag") else {})}
+        for w in words
+    ]
     inside = [w for w in said if item["start"] - 0.01 <= w["start"] < item["end"] - CAPTION_LAST]
     if place == "seam":
         if "seam" not in item:
@@ -481,6 +562,7 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
         lift = FOOTNOTE_LIFT if item.get("label") else CAPTION_INSET  # clear of the footage's own label
         across, under, inset = box["width"], size[1] - (box["top"] + box["height"]) + lift, box["width"] * 0.05
         left_px = box["left"]
+    font = round(font * scale, 1)
     style = f"left:{left_px:.0f}px;width:{across:.0f}px;right:auto;top:auto;bottom:{under:.0f}px;padding:0 {inset:.0f}px;font-size:{font}px"
     pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
     steady = {"steady": True} if place == "frame" else {}

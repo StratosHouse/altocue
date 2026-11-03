@@ -359,3 +359,17 @@ def test_the_real_thing(tmp_path, capsys):
     assert demo.run(args(keep=str(tmp_path / "kept"), renderer="basic")) == 0
     assert (tmp_path / "kept" / "film" / "out" / "final.mp4").exists()
     assert (tmp_path / "kept" / "film" / "review" / "page.html").exists()
+
+
+def test_a_made_up_name_split_into_three_words_is_joined_back(tmp_path):
+    """Whisper hears Altocue under music as "all to cue", three words where a fix of two could not reach."""
+    from altocue.models import Word
+    from altocue.project import Project
+
+    project = Project.create(tmp_path / "video")
+    path = project.root / "altocue.toml"
+    heading = "[transcribe.fix]        # names the transcript gets wrong, heard = written"
+    path.write_text(path.read_text().replace(heading, '[transcribe.fix]\n"All to cue" = "Altocue"\n"Alta Q" = "Altocue"', 1))
+    project = Project.open(project.root)
+    said = [Word("is", 0.0, 0.2), Word("all", 0.3, 0.4), Word("to", 0.4, 0.5), Word("cue.", 0.5, 0.8), Word("Alta", 1.0, 1.2), Word("Q", 1.2, 1.3)]
+    assert [(w.text, w.end) for w in project.corrected_all(said)] == [("is", 0.2), ("Altocue.", 0.8), ("Altocue", 1.3)]

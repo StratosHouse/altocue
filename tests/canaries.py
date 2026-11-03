@@ -33,7 +33,7 @@ RATE = 48000
 SAFE_Y = 0.68
 FACE_Y = 0.34
 SCRIPT = "the first thing you need is a plan and the second thing you need is a reason to keep going".split()
-RUSHED = (SCRIPT + "when the plan stops working and nobody is watching you do it".split())  # 320 words a minute, past reading
+RUSHED = SCRIPT + "when the plan stops working and nobody is watching you do it".split()  # 320 words a minute, past reading
 PHRASE_AT = 12
 PHRASE = ["you", "need", "is"]
 CLAIMING = "i tried this serum for a month and it changed my life so i bought two more and my results keep getting better every day".split()
@@ -163,9 +163,7 @@ CANARIES = [
     Case(
         "graphic outside the safe zone",
         "safe_zone",
-        Recipe(
-            items=[{"type": "chip", "text": "Follow this plan", "start": 1.0, "end": 3.0}], burn_text=[("Follow this plan", 0.94, 1.0, 3.0)]
-        ),
+        Recipe(items=[{"type": "chip", "text": "Follow this plan", "start": 1.0, "end": 3.0}], burn_text=[("Follow this plan", 0.94, 1.0, 3.0)]),
     ),
     Case(
         "labelled synthetic host claims experience in speech and captions",
@@ -333,8 +331,7 @@ def render(path: Path, recipe: Recipe, work: Path, pages: list[dict[str, Any]]) 
         "-f",
         "lavfi",
         "-i",
-        f"color=c=0x7f8c99:s={WIDTH // 4}x{HEIGHT // 4}:r={recipe.rate}:d={total},"
-        f"noise=alls=9:allf=t+u,scale={WIDTH}:{HEIGHT}:flags=neighbor",
+        f"color=c=0x7f8c99:s={WIDTH // 4}x{HEIGHT // 4}:r={recipe.rate}:d={total},noise=alls=9:allf=t+u,scale={WIDTH}:{HEIGHT}:flags=neighbor",
         "-i",
         str(audio),
         "-loop",
@@ -414,9 +411,7 @@ def build(case: Case, root: Path) -> Built:
 
     third = recipe.seconds / 3
     labels = recipe.labels or ["", "", ""]
-    edl = Edl(
-        fps=FPS, segments=[Segment(id=f"s{i + 1}", clip="take", start=i * third, end=(i + 1) * third, label=labels[i]) for i in range(3)]
-    )
+    edl = Edl(fps=FPS, segments=[Segment(id=f"s{i + 1}", clip="take", start=i * third, end=(i + 1) * third, label=labels[i]) for i in range(3)])
     project.save_edl(edl)
     project.save_clips([Clip(id="take", path=str(source), duration=recipe.seconds, fps=FPS, width=WIDTH, height=HEIGHT)])
     write_json(
@@ -434,10 +429,7 @@ def build(case: Case, root: Path) -> Built:
         (project.root / "rules.json").write_text(json.dumps(recipe.rules))
     if recipe.brief:
         (project.root / "brief.md").write_text(recipe.brief)
-    mapped = [
-        {"text": w, "start": a, "end": b, "segment": f"s{min(2, int(a // third)) + 1}", "kind": "word"}
-        for w, a, b in timed(expected, recipe.seconds)
-    ]
+    mapped = [{"text": w, "start": a, "end": b, "segment": f"s{min(2, int(a // third)) + 1}", "kind": "word"} for w, a, b in timed(expected, recipe.seconds)]
     return Built(case, project, file, expected, mapped, [Word(text=w, start=a, end=b) for w, a, b in timed(heard, recipe.seconds)])
 
 

@@ -30,11 +30,7 @@ def timed(text: str, *, start: float = 0.0, step: float = 0.3, gap: float = 0.0)
 
 def speech(seconds: float, spans: list[tuple[float, float]], *, level: float = 0.25, noise: float = 0.0, seed: int = 1) -> np.ndarray:
     """Tone bursts stand in for speech: what matters here is where the energy is."""
-    samples = (
-        np.random.default_rng(seed).normal(0, noise, int(RATE * seconds)).astype(np.float32)
-        if noise
-        else np.zeros(int(RATE * seconds), dtype=np.float32)
-    )
+    samples = np.random.default_rng(seed).normal(0, noise, int(RATE * seconds)).astype(np.float32) if noise else np.zeros(int(RATE * seconds), dtype=np.float32)
     for start, end in spans:
         a, b = int(start * RATE), int(end * RATE)
         samples[a:b] += level * np.sin(2 * np.pi * 180 * np.arange(b - a) / RATE).astype(np.float32)
@@ -367,20 +363,14 @@ def test_cue_turns_a_repeat_into_a_sure_cut(tmp_path):
 
 
 def test_cue_with_no_later_match_flags_the_line_before_it():
-    words = (
-        timed("This sentence came out badly.", step=0.2)
-        + timed("Redo.", start=1.6)
-        + timed("Totally different words follow now.", start=2.6, step=0.2)
-    )
+    words = timed("This sentence came out badly.", step=0.2) + timed("Redo.", start=1.6) + timed("Totally different words follow now.", start=2.6, step=0.2)
     found = [c for c in detect(words) if c.kind == "retake"]
     assert [c.decision for c in found] == ["review"]
     assert "cue" in found[0].reason
 
 
 def test_retake_in_the_next_clip_is_a_review_item(tmp_path):
-    first = timed("Once the bread has cooled we can slice the whole loaf for the table.", step=0.2) + timed(
-        "Well I do not", start=4.0, step=0.2
-    )
+    first = timed("Once the bread has cooled we can slice the whole loaf for the table.", step=0.2) + timed("Well I do not", start=4.0, step=0.2)
     second = timed("Once the bread has cooled we can cut the whole loaf for the big table tonight.", step=0.2)
     clips = {"a": (add_clip(tmp_path, "a", 6.0, None), first), "b": (add_clip(tmp_path, "b", 5.0, None), second)}
     project = make_project(tmp_path, clips)
@@ -526,9 +516,7 @@ def test_a_long_word_gets_no_tolerance_on_the_80_ms_rule():
 # Refusals.
 
 
-def handmade(
-    words: list[Word], segment: tuple[float, float], tmp_path: Path, *, audio: list[tuple[float, float]] | None = None, fps: int = 30
-) -> tuple[Project, Edl]:
+def handmade(words: list[Word], segment: tuple[float, float], tmp_path: Path, *, audio: list[tuple[float, float]] | None = None, fps: int = 30) -> tuple[Project, Edl]:
     duration = words[-1].end + 0.5
     project = make_project(tmp_path, {"a": (add_clip(tmp_path, "a", duration, audio), words)}, fps=fps)
     return project, Edl(fps=fps, segments=[Segment(id="s001", clip="a", start=segment[0], end=segment[1])])
@@ -672,9 +660,7 @@ def test_words_too_tight_for_the_frame_rate_are_pushed_not_collided(tmp_path):
 def test_a_word_cut_at_a_rounded_segment_end_still_fits(tmp_path):
     words = timed("one two", start=30.0, step=8.6)
     project = silent_project(tmp_path, words, seconds=48.0, fps=24)
-    edl = Edl(
-        fps=24, segments=[Segment(id="s001", clip="a", start=29.875, end=47.166667)], removed=[Removed("a", 0.0, 29.9, "silence", "t")]
-    )
+    edl = Edl(fps=24, segments=[Segment(id="s001", clip="a", start=29.875, end=47.166667)], removed=[Removed("a", 0.0, 29.9, "silence", "t")])
     project.save_words("a", [Word("one", 30.0, 47.2), Word("two", 47.4, 47.6)], "test")
     edl.removed.append(Removed("a", 47.3, 48.0, "silence", "t"))
     mapped = map_words(project, edl)

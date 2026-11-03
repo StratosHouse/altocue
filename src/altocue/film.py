@@ -13,6 +13,7 @@ import json
 import math
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -176,13 +177,42 @@ def read(path: Path, what: str) -> dict[str, Any]:
         raise AltocueError(f"{path.name} is not valid JSON: {error}.", fix="Fix the file and run this again.") from None
 
 
+def voice_span(scene: dict[str, Any], length: float) -> tuple[float, float]:
+    """The part of a voice file a scene plays: `voice_from` and `voice_to`, in the file's own seconds, or all of it."""
+    start = float(scene.get("voice_from") or 0.0)
+    end = float(scene["voice_to"]) if scene.get("voice_to") is not None else length
+    if not 0 <= start < min(end, length):
+        raise AltocueError(
+            f"Scene {scene.get('id')} plays {start:g} to {end:g} s of a voice that runs {length:.2f} s.", fix='Set "voice_from" and "voice_to" inside the file.'
+        )
+    return start, min(end, length)
+
+
+LEVEL_FLOOR, LEVEL_TOP = -60.0, -6.0  # dBFS drawn as an empty bar and a full one
+
+
+def levels(path: Path, count: int, *, start: float = 0.0, end: float | None = None) -> list[float]:
+    """A file's sound as `count` bars from 0 to 1, for the waveform format. One fixed dB scale for every file, so a quieter take draws lower."""
+    with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
+        wav = ffmpeg.extract_wav(path, Path(scratch) / "level.wav", rate=16000, start=start or None, end=end)
+        samples, _ = ffmpeg.read_wav(wav)
+    if count < 1 or len(samples) < count:
+        raise AltocueError(f"{path.name} is too short for {count} bars.", fix="Ask for fewer bars.")
+    bars = []
+    for piece in np.array_split(samples.astype(np.float64), count):
+        loud = 10 * math.log10(float(np.mean(piece * piece)) + 1e-12)
+        bars.append(round(min(max((loud - LEVEL_FLOOR) / (LEVEL_TOP - LEVEL_FLOOR), 0.0), 1.0), 3))
+    return bars
+
+
 def voice_lengths(project: Project, board: dict[str, Any]) -> dict[str, float]:
     """How long each recorded line really runs. The timeline is built from these."""
     found = {}
     for scene in board.get("scenes", []):
         relative = scene.get("voice")
         if relative and (project.root / relative).is_file():
-            found[str(scene["id"])] = float(ffmpeg.probe_json(project.root / relative)["format"]["duration"])
+            start, end = voice_span(scene, float(ffmpeg.probe_json(project.root / relative)["format"]["duration"]))
+            found[str(scene["id"])] = end - start
     return found
 
 
@@ -258,6 +288,25 @@ def music_of(film: Film) -> Path | None:
     return path
 
 
+def music_entry(film: Film) -> dict[str, Any]:
+    """The chosen track's settings, from the storyboard or else from `altocue music get` in motion.json."""
+    chosen = film.board.get("music") or {}
+    motion_file = film.project.root / "motion.json"
+    if not chosen.get("path") and motion_file.exists():
+        chosen = {**(json.loads(motion_file.read_text()).get("music") or {}), **{key: value for key, value in chosen.items() if key != "path"}}
+    return chosen
+
+
+def music_start(film: Film) -> float | None:
+    """Where in a chosen track the film begins, such as a downbeat: `"music": {"path": "...", "from": 100.69}`. None plays it backtimed to the end."""
+    found = music_entry(film).get("from")
+    if found is None:
+        return None
+    if not storyboard.number(found) or found < 0:
+        raise AltocueError(f'The music\'s "from" is {found!r}.', fix="Give the second of the track the film starts on, such as 100.69.")
+    return float(found)
+
+
 def track_beats(project: Project, track: Path) -> list[float]:
     """The beat map of a chosen track, from the renderer's own detector, kept until the file changes."""
     digest = hashlib.sha256(track.read_bytes()).hexdigest()[:16]
@@ -291,11 +340,9 @@ def music_from(film: Film) -> float | None:
     None leaves the track backtimed, so its own ending lands on the film's last frame. That only suits a film whose cuts
     are not on the track's beats, because the beats are counted from the top of the file.
     """
-    chosen = (film.board.get("music") or {}).get("from")
+    chosen = music_start(film)
     if chosen is not None:
-        if not storyboard.number(chosen) or chosen < 0:
-            raise AltocueError(f'The music "from" of {chosen!r} is not a time in the track.', fix='Set "from" to the seconds into the track the film starts at.')
-        return float(chosen)
+        return chosen
     return 0.0 if wants_grid(film.board) else None
 
 
@@ -306,8 +353,10 @@ def timing(film: Film, aspect: str, *, board: dict[str, Any] | None = None, fps:
     voice = {**estimated_voice(filled), **film.voice}
     track = music_of(film)
     if track:
-        start = music_from(film) or 0.0
-        beats = [beat - start for beat in track_beats(film.project, track) if beat >= start] if wants_grid(filled) else None
+        start = music_from(film)
+        beats = track_beats(film.project, track) if wants_grid(filled) else None
+        if beats is not None and start is not None:  # the grid in film seconds, since the film opens that far into the track
+            beats = [round(beat - start, 4) for beat in beats if beat >= start - 1e-3]
         return storyboard.resolve(filled, fps=rate, aspect=aspect, beats=beats, voice=voice)
     done = storyboard.resolve(filled, fps=rate, aspect=aspect, voice=voice)
     if wants_grid(filled):
@@ -334,16 +383,28 @@ def film_line(film: Film, aspect: str, *, board: dict[str, Any] | None = None, f
         if item["type"] == "footage" and item.get("captions")
         for page in scenes.caption_pages(
             item,
-            spelled(words_of(film.project, film.project.root / item["file"]), item["captions"]),
+            spelled(said(film.project, item), item["captions"]),
             SIZES[aspect],
             place=str(item["captions"].get("place", "picture")) if isinstance(item["captions"], dict) else "picture",
             who=str(item["captions"].get("who", "")) if isinstance(item["captions"], dict) else "",
+            scale=float(item["captions"].get("scale", 1.0)) if isinstance(item["captions"], dict) else 1.0,
         )
     ]
     for page, item in ((page, item) for item in line["items"] if isinstance(item.get("captions"), dict) for page in line["captions"]):
         if page["scene"] == item["scene"] and item["captions"].get("spell"):
             page["spelled"] = dict(item["captions"]["spell"])  # QA reads the heard words through these, and says so
     return line, brand
+
+
+def said(project: Project, item: dict[str, Any]) -> list[dict[str, Any]]:
+    """The words a footage item's captions show. `"verbatim": true` keeps every um and every spoken cue, and `"tags"` marks the spans a cut removed.
+
+    `"file"` reads the words from another clip with the same timing, such as the mastered take whose sound the scene plays.
+    """
+    captions = item["captions"] if isinstance(item["captions"], dict) else {}
+    path = project.root / str(captions.get("file") or item["file"])  # a clean picture with no sound reads its words from the take that has it
+    words = words_of(project, path, every=True) if captions.get("verbatim") else words_of(project, path)
+    return scenes.tagged(words, captions.get("tags") or [])
 
 
 def spelled(words: list[dict[str, Any]], captions: Any) -> list[dict[str, Any]]:
@@ -356,17 +417,21 @@ def spelled(words: list[dict[str, Any]], captions: Any) -> list[dict[str, Any]]:
     return made
 
 
-def words_of(project: Project, path: Path) -> list[dict[str, Any]]:
-    """What a clip says, word by word, read once with Altocue's own transcriber and kept until the file changes."""
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-    cache = project.work / "film" / f"words-{digest}.json"
-    if cache.exists():
-        return json.loads(cache.read_text())["words"]
-    from . import transcribe
+def words_of(project: Project, path: Path, *, every: bool = False) -> list[dict[str, Any]]:
+    """What a clip says, word by word, read once with Altocue's own transcriber and kept until the file changes.
 
-    heard = [{"text": w.text, "start": round(w.start, 3), "end": round(w.end, 3)} for w in transcribe.transcribe_file(path) if w.kind == "word"]
-    write_json(cache, {"file": path.name, "words": heard})
-    return heard
+    Fillers and spoken cues stay out, as captions leave them out. `every` keeps them, each with its kind, for a raw take shown as it was said.
+    """
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    cache = project.work / "film" / f"said-{digest}.json"
+    if cache.exists():
+        heard = json.loads(cache.read_text())["words"]
+    else:
+        from . import transcribe
+
+        heard = [{"text": w.text, "start": round(w.start, 3), "end": round(w.end, 3), "kind": w.kind} for w in transcribe.transcribe_file(path)]
+        write_json(cache, {"file": path.name, "words": heard})
+    return heard if every else [{key: value for key, value in w.items() if key != "kind"} for w in heard if w.get("kind", "word") == "word"]
 
 
 def ready(project: Project, item: dict[str, Any]) -> dict[str, Any]:
@@ -380,7 +445,47 @@ def ready(project: Project, item: dict[str, Any]) -> dict[str, Any]:
         if item.get("comp"):  # the pass goes in only where and when the change happens, and the plate stays the shot
             path = kinds.build_comp(path, (project.root / item["comp"]["file"]).resolve(), item["comp"], project.work / "film" / "comp")
         return {**item, "stage_images": {formats.stage_name(item["file"]): str(path)}}
-    return formats.place_images(project.root, item)
+    return formats.place_images(project.root, stills_of(project, item))
+
+
+MOVING = (".mp4", ".mov", ".m4v", ".webm")
+
+
+def still(project: Project, clip: str, at: float) -> str:
+    """One frame of a clip, as a picture inside the project, kept until the clip changes. Returned relative to the project."""
+    path = (project.root / clip).resolve()
+    if not path.is_file() or not path.is_relative_to(project.root.resolve()):
+        raise AltocueError(f"No clip at {clip} to take a frame from.", fix="Keep your clips in assets/ and generated ones in generated/.")
+    length = ffmpeg.probe_clip(path).duration
+    if not 0 <= at < length:
+        raise AltocueError(f"{clip} runs {length:.2f} s, so it has no frame at {at:g} s.", fix='Set "frame" inside the clip.')
+    key = hashlib.sha256(f"{hashlib.sha256(path.read_bytes()).hexdigest()}|{at:.3f}".encode()).hexdigest()[:16]
+    dest = project.work / "film" / "frames" / f"{path.stem}-{key}.png"
+    if not dest.is_file():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        ffmpeg.frame(path, at, dest)
+    return str(dest.relative_to(project.root))
+
+
+def stills_of(project: Project, item: dict[str, Any]) -> dict[str, Any]:
+    """A picture a graphic names can be a moment of a clip: `{"image": "assets/take.mp4", "frame": 5.0}` shows it at 5 s.
+
+    The key is `frame`, never `at`, because a row's `at` is a time in the film.
+    """
+
+    def one(row: dict[str, Any]) -> dict[str, Any]:
+        found = row.get("image")
+        if isinstance(found, str) and Path(found).suffix.lower() in MOVING:
+            if not storyboard.number(row.get("frame")):
+                raise AltocueError(f'{item["type"]}: the picture {found} is a clip, so it needs "frame", the second to show.', fix='Add "frame": 2.5.')
+            return {**{key: value for key, value in row.items() if key != "frame"}, "image": still(project, found, float(row["frame"]))}
+        return row
+
+    made = one(item)
+    for key, value in item.items():
+        if isinstance(value, list):
+            made[key] = [one(row) if isinstance(row, dict) else row for row in value]
+    return made
 
 
 def slug(aspect: str) -> str:
@@ -428,7 +533,12 @@ def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -
         wav.parent.mkdir(parents=True, exist_ok=True)
         ffmpeg.extract_wav(path, wav)
         line, _ = ffmpeg.read_wav(wav)
-        line = line[round(float(scene.get("voice_from", 0)) * mix.RATE) :]  # a take whose opening belongs to another film
+        start, end = voice_span(scene, len(line) / mix.RATE)
+        line = line[round(start * mix.RATE) : round(end * mix.RATE)].copy()
+        edge = min(round(mix.FADE_MS / 1000 * mix.RATE), len(line) // 2)
+        if edge and (scene.get("voice_from") or scene.get("voice_to") is not None):  # a line cut from a longer take never starts or stops on a click
+            line[:edge] *= np.linspace(0.0, 1.0, edge)
+            line[-edge:] *= np.linspace(1.0, 0.0, edge)
         begin = max(round((starts[scene["id"]] + float(scene.get("voice_offset", 0))) * mix.RATE), 0)
         end = min(begin + len(line), count)
         track[begin:end] += line[: end - begin]
@@ -468,12 +578,12 @@ def scored(film: Film, done: dict[str, Any]) -> tuple[Path, dict[str, Any]]:
     return wav, info
 
 
-def make_sound(film: Film, line: dict[str, Any], done: dict[str, Any], board: dict[str, Any], folder: Path) -> tuple[Path, dict[str, Any]]:
+def make_sound(film: Film, line: dict[str, Any], done: dict[str, Any], board: dict[str, Any], folder: Path, *, stems: Path | None = None) -> tuple[Path, dict[str, Any]]:
     track = music_of(film)
     voice = voice_track(film.project, board, done)
     report: dict[str, Any]
     if track:
-        music, report = track, {"made_by": "you", "label": f"Chosen track: {track.name}."}
+        music, report = track, {"made_by": "you", "label": f"Chosen track: {track.name}.", "from": music_from(film)}
     else:
         music, report = scored(film, done)
         warning = score.remember(film.project.root.name, report)
@@ -482,11 +592,22 @@ def make_sound(film: Film, line: dict[str, Any], done: dict[str, Any], board: di
             report = {**report, "warning": warning}
     dest = folder / "mix.wav"
     start = music_from(film) if track else None
-    end = "own" if not track else "land" if start is None else "fade"
-    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end=end, music_from=start or 0.0)
-    if start is not None:
-        report = {**report, "from": start}
+    enter = float(music_entry(film).get("enter") or 0.0) if start is not None else 0.0  # the track comes in on a later beat of its own grid
+    mix.mix_bed(
+        voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end="land" if track else "own", music_from=start, music_enter=enter, stems=stems
+    )
     return dest, report
+
+
+def stems(project: Project, folder: Path) -> dict[str, Path]:
+    """The master's voice, music and effects as WAV files, mixed again from the same storyboard, so the three add up to its sound."""
+    film = load(project)
+    aspect = str(project.setting("output", "aspect", "16:9"))
+    line, _ = film_line(film, aspect)
+    done = timing(film, aspect)
+    with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
+        make_sound(film, line, done, storyboard.fill(film.board), Path(scratch), stems=folder)
+    return {name: folder / f"{name}.wav" for name in mix.STEMS}
 
 
 # Rendering
@@ -586,6 +707,9 @@ def run_render(args: argparse.Namespace) -> int:
         report["films"].append("final.mp4")
         line, _ = film_line(film, master_aspect, fps=DRAFT_FPS if args.draft else project.fps)
         write_json(project.timeline_path, line)
+        owed = credits.write_txt(project)  # read from the timeline and motion.json, so a track or a picture that owes a credit always has it beside the film
+        if owed:
+            print(f"Credits: {owed.relative_to(project.root)}. `altocue credits` prints them for a description.")
     if cutdowns and not final.exists():
         raise AltocueError("There is no master to cut down from.", fix="Run `altocue film render` first.")
     before = hashlib.sha256(final.read_bytes()).hexdigest() if cutdowns else ""

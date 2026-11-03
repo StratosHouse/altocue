@@ -284,5 +284,3 @@ def run(args: argparse.Namespace) -> int:
     else:
         print("Removed the demo files. Run `altocue demo --keep` to look at the film and its review page.")
     return 0 if passed else 1
-
-

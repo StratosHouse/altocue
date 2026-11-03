@@ -37,12 +37,12 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 - **Sound.** Noise and hum out, each phrase levelled, room tone in the holes, mastered to a measured loudness and true peak.
 - **Colour.** HDR to SDR, white balance and exposure read from the face, film looks or your own LUT, with skin protected.
 - **Captions.** Word by word, never across a cut, only words really said. Speakers can be named or coloured.
-- **Motion graphics.** 123 original formats in 12 groups, timed to speech and placed clear of faces.
+- **Motion graphics.** 126 original formats in 12 groups, timed to speech and placed clear of faces.
 - **Stock and B-roll.** It finds the spots that want a cutaway and fills them from your clips, free stock with no key, or generation.
 - **Music and effects.** Sound you are allowed to use, with the licence and credit shown before anything downloads.
 - **Films with no footage.** Launch films, explainers, demos, ad cards and more, drawn in code from a storyboard.
 - **Long video to shorts.** It finds complete thoughts in your own recordings and cuts each into its own project.
-- **Deliverables.** Subtitles, chapters, thumbnails, stems and a version for each platform, with the master untouched.
+- **Deliverables.** Subtitles, chapters, thumbnails, stems, a version with no music for an app's own song library, and a version for each platform, with the master untouched.
 - **Data checks.** It measures the finished film and learns from your own results. It predicts nothing.
 - **The Editor in Chief.** It does not mark its own homework. Fact gates in code, then a separate reviewer, then code decides SHIP or FIX.
 
@@ -117,7 +117,7 @@ altocue run
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/frame-tile.svg" width="56" alt=""><br><strong>Frame</strong><br>Any aspect ratio up to 4:1 either way. Face-aware crops per shot, with punch-ins that hide jump cuts.</td>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/caption-tile.svg" width="56" alt=""><br><strong>Caption</strong><br>Word-by-word highlight. Never crosses a cut. Only shows words really said. Can name or colour each speaker.</td>
-    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/motion-tile.svg" width="56" alt=""><br><strong>Motion</strong><br>123 original formats: kinetic type, stats, steps, products, maps, paper and more, timed to speech and placed clear of faces.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/motion-tile.svg" width="56" alt=""><br><strong>Motion</strong><br>126 original formats: kinetic type, stats, steps, products, maps, paper and more, timed to speech and placed clear of faces.</td>
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/direct-tile.svg" width="56" alt=""><br><strong>Direct</strong><br>Story shape, beats, keyframes and shot lists, with the craft rules built in.</td>
@@ -140,11 +140,11 @@ altocue run
 
 `altocue library search` finds formats, motion, stock, music, sound, fonts, looks and more, with the licence and what may ship. It works offline. `altocue library add` fetches an open item into your project, and `altocue library update` gets the latest catalog. Excluded sources stay listed with their reason.
 
-The catalog that ships holds 773 entries: 131 built in, 461 to fetch, 47 live searches and 134 links. It judges 171 sources and refuses 78 items, each with its reason.
+The catalog that ships holds 776 entries: 134 built in, 461 to fetch, 47 live searches and 134 links. It judges 171 sources and refuses 78 items, each with its reason.
 
 | Kind | Entries | What they are |
 |---|---:|---|
-| Motion | 432 | Built-in formats, and blocks from the HyperFrames registry |
+| Motion | 435 | Built-in formats, and blocks from the HyperFrames registry |
 | Transitions | 212 | Wipes and shader transitions |
 | 3D | 28 | Isometric and camera formats, scenes and tools |
 | Maps | 22 | Map formats, map blocks and map data |

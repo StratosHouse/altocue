@@ -85,13 +85,13 @@ def _decode(item: dict) -> str:
             index += 1
         cells.append(f'<span class="word{" hot" if hot else ""}">{"".join(strips)}</span>')
         index += 1
-    label = f'<p>{kit.esc(item["label"])}</p>' if item.get("label") else ""
+    label = f"<p>{kit.esc(item['label'])}</p>" if item.get("label") else ""
     return f'<h1 class="lift">{" ".join(cells)}</h1>{label}'
 
 
 def _marker(item: dict) -> str:
     parts = str(item["text"]).split("*")
-    body = "".join(f'<mark><i></i><span>{kit.esc(part)}</span></mark>' if i % 2 else kit.esc(part) for i, part in enumerate(parts))
+    body = "".join(f"<mark><i></i><span>{kit.esc(part)}</span></mark>" if i % 2 else kit.esc(part) for i, part in enumerate(parts))
     return f"<p>{body}</p>"
 
 
@@ -200,7 +200,7 @@ def _word_swap(item: dict) -> str:
     cells = []
     for index, row in enumerate(rows):
         last = index == len(rows) - 1
-        leaves = "calc(var(--dur) - .48s)" if last else f'{rows[index + 1]["delay"]:.3f}s'
+        leaves = "calc(var(--dur) - .48s)" if last else f"{rows[index + 1]['delay']:.3f}s"
         cells.append(f'<span class="w{" last" if last else ""}" style="--in:{row["delay"]:.3f}s;--out:{leaves}">{kit.esc(_plain(row["text"]))}</span>')
     lead = f'<span class="lead"><span>{kit.emphasis(item["lead"])}</span></span>' if item.get("lead") else ""
     return f'<div class="lock"><i class="scrim"></i><h1 style="--size:{size}px">{lead}<span class="slot">{"".join(cells)}</span></h1></div>'
@@ -769,7 +769,15 @@ $scrimkeys""",
 )
 
 
-MACROS = {"$scrimkeys": SCRIM_KEYS, "$scrim": SCRIM, "$drop": DROP, "$curve": CURVE, "$length": str(CURVE_LENGTH), "$start": str(CURVE_LENGTH - CURVE_LEFT), "$right": str(CURVE_RIGHT)}
+MACROS = {
+    "$scrimkeys": SCRIM_KEYS,
+    "$scrim": SCRIM,
+    "$drop": DROP,
+    "$curve": CURVE,
+    "$length": str(CURVE_LENGTH),
+    "$start": str(CURVE_LENGTH - CURVE_LEFT),
+    "$right": str(CURVE_RIGHT),
+}
 
 
 def _expand(css: str) -> str:

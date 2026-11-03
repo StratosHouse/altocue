@@ -171,7 +171,9 @@ def graph(items: list[dict[str, Any]], base: str, c: Any, next_input: int) -> tu
             lines.append(f"[{base}]vignette=angle={0.2 + amount * 0.95:.4f}{_when(item)}[{after}]")
         elif kind == "grain":
             soft = max(c.width / 1080, 0.4) * 0.6
-            lines.append(f"color=c=gray:s={c.width}x{c.height}:r={c.fps},format=yuv420p,lutyuv=y={GREY},noise=c0s=48:c0f=t+u:c0_seed={SEED},gblur=sigma={soft:.3f}[plate{index}]")
+            lines.append(
+                f"color=c=gray:s={c.width}x{c.height}:r={c.fps},format=yuv420p,lutyuv=y={GREY},noise=c0s=48:c0f=t+u:c0_seed={SEED},gblur=sigma={soft:.3f}[plate{index}]"
+            )
             lines.append(f"[{base}]format=yuv420p[under{index}]")
             lines.append(f"[under{index}][plate{index}]blend=c0_mode=hardlight:c0_opacity={amount:.4f}:shortest=1{_when(item)}[{after}]")
         elif kind == "light_leak":

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PIL import Image
 from test_grade import bars_hdr, make_project, scene, write_clip, write_hdr
 
 from altocue import grade, looks
@@ -182,3 +183,13 @@ def test_the_comparison_sheet_is_written(tmp_path):
     project = graded_project(tmp_path)
     dest = looks.sheet(project)
     assert dest.exists() and dest.stat().st_size > 1000
+
+
+def test_the_comparison_also_keeps_each_look_alone_and_the_raw_frame(tmp_path):
+    """A film shows one take raw against graded, then its looks one by one, so each needs its own picture."""
+    project = graded_project(tmp_path)
+    dest = looks.sheet(project)
+    singles = dest.parent / "looks"
+    assert {path.stem for path in singles.glob("*.jpg")} == {"raw", *looks.ALL}
+    with Image.open(singles / "raw.jpg") as raw, Image.open(singles / "natural.jpg") as natural:
+        assert raw.size == natural.size and raw.width >= 320

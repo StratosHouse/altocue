@@ -89,7 +89,7 @@ def _pointer(start: tuple[float, float], stops: list[tuple[float, float, float]]
         cx, cy = dx * mid - dy / distance * bend, dy * mid + dx / distance * bend
         seconds = max(min(travel * (0.7 + distance / 1500), travel * 1.4), 0.24) if index < len(stops) else 0.7
         go = max(at - seconds - dwell, 0.0) if index < len(stops) else at
-        inner = f"<div class=\"leg\" style=\"offset-path:path('M0 0Q{cx:.1f} {cy:.1f} {dx:.1f} {dy:.1f}');--t:{go:.3f}s;--n:{seconds:.3f}s\">{inner}</div>"
+        inner = f'<div class="leg" style="offset-path:path(\'M0 0Q{cx:.1f} {cy:.1f} {dx:.1f} {dy:.1f}\');--t:{go:.3f}s;--n:{seconds:.3f}s">{inner}</div>'
         px, py = x, y
     return f'<div class="ptr" style="left:calc({start[0]:.1f}px * var(--scale));top:calc({start[1]:.1f}px * var(--scale))">{inner}</div>'
 
@@ -206,16 +206,37 @@ def _body(kind: str) -> str:
     if kind == "tasks":
         return (
             '<div class="kpi"><span>Done this week</span><strong>18 of 24</strong></div><div class="meter"><i></i></div>'
-            + _list([("", "Draft the release", "Mon"), ("", "Check the numbers", "Tue"), ("3", "Book the review", "Wed"), ("4", "Tell the team", "Thu"), ("5", "Ship it", "Fri")], done=2)
+            + _list(
+                [
+                    ("", "Draft the release", "Mon"),
+                    ("", "Check the numbers", "Tue"),
+                    ("3", "Book the review", "Wed"),
+                    ("4", "Tell the team", "Thu"),
+                    ("5", "Ship it", "Fri"),
+                ],
+                done=2,
+            )
             + '<div class="duo last"><div><span>On track</span><strong>92%</strong></div><div><span>Blocked</span><strong>1</strong></div></div>'
         )
     if kind == "bars":
         heights = (38, 62, 46, 78, 55, 96, 71)
         bars = "".join(f'<i class="{"hi" if value == 96 else ""}" style="--h:{value}%;--i:{index}"></i>' for index, value in enumerate(heights))
-        return f'<div class="chart">{bars}</div><div class="duo"><div><span>Saved</span><strong>6.2h</strong></div><div><span>Streak</span><strong>14</strong></div></div>'
+        return (
+            f'<div class="chart">{bars}</div><div class="duo"><div><span>Saved</span><strong>6.2h</strong></div><div><span>Streak</span><strong>14</strong></div></div>'
+        )
     if kind == "inbox":
-        return _list([("AK", "Ana sent the brief", "9:41"), ("MR", "Milo left a note", "9:32"), ("NS", "Noor approved it", "8:58"), ("JT", "Jo booked a slot", "8:14"), ("EL", "Eli shared a file", "7:50")])
-    return f'<div class="kpi"><span>Active today</span><strong>2,418</strong><em>+12%</em></div>{GRAPH}' + _list([("IN", "New sign-ups", "128"), ("UP", "Upgrades", "36")])
+        return _list(
+            [
+                ("AK", "Ana sent the brief", "9:41"),
+                ("MR", "Milo left a note", "9:32"),
+                ("NS", "Noor approved it", "8:58"),
+                ("JT", "Jo booked a slot", "8:14"),
+                ("EL", "Eli shared a file", "7:50"),
+            ]
+        )
+    return f'<div class="kpi"><span>Active today</span><strong>2,418</strong><em>+12%</em></div>{GRAPH}' + _list(
+        [("IN", "New sign-ups", "128"), ("UP", "Upgrades", "36")]
+    )
 
 
 def _screen(kind: str, heading: str, start: float, image: Any = None) -> str:
@@ -242,7 +263,9 @@ def _cursor_shot(item: dict[str, Any], rows: list[dict[str, Any]], hits: list[fl
         stops.append((x, y, hits[index]))
         ends = hits[index + 1] if index + 1 < len(rows) else 99.0
         side = "right:calc(100% - 22px)" if x > width * 0.55 else "left:22px"
-        notes.append(f'<div class="say" style="left:calc({x:.1f}px * var(--scale));top:calc({y:.1f}px * var(--scale));--t:{hits[index] + 0.06:.3f}s;--e:{ends - 0.08:.3f}s"><span style="{side}">{kit.esc(row["text"])}</span></div>')
+        notes.append(
+            f'<div class="say" style="left:calc({x:.1f}px * var(--scale));top:calc({y:.1f}px * var(--scale));--t:{hits[index] + 0.06:.3f}s;--e:{ends - 0.08:.3f}s"><span style="{side}">{kit.esc(row["text"])}</span></div>'
+        )
     ripples = "".join(_ripple(x, y, at) for x, y, at in stops)
     last = hits[-1] + 0.5
     return (
@@ -390,7 +413,9 @@ def _floating_device(item: dict[str, Any]) -> str:
     screen = _screen("pulse" if kind == "phone" else "bars", item.get("screen") or "Overview", 0.62, item.get("image"))
     line = f"<p>{kit.esc(item['label'])}</p>" if item.get("label") else ""
     title = f'<div class="ttl"><h1>{kit.emphasis(item["text"])}</h1>{line}</div>'
-    return f'<div class="bg"></div><div class="stage {kind}">{title}<div class="slot"><div class="float"><div class="enter">{_device(kind, screen)}</div></div></div></div>'
+    return (
+        f'<div class="bg"></div><div class="stage {kind}">{title}<div class="slot"><div class="float"><div class="enter">{_device(kind, screen)}</div></div></div></div>'
+    )
 
 
 DEVICE_CSS = """
@@ -508,8 +533,12 @@ def _chat_exchange(item: dict[str, Any]) -> str:
         at = times[index]
         if side == "them" and index:
             wait = min(0.72, max(at - times[index - 1] - 0.2, 0.24))
-            out.append(f'<div class="msg them wait" style="--a:{at - wait:.3f}s;--t:{at:.3f}s"><div class="in"><div class="bub dots"><i></i><i></i><i></i></div></div></div>')
-        out.append(f'<div class="msg {"me" if side == "me" else "them"}" style="--a:{at:.3f}s"><div class="in"><div class="bub">{kit.emphasis(row["text"])}</div></div></div>')
+            out.append(
+                f'<div class="msg them wait" style="--a:{at - wait:.3f}s;--t:{at:.3f}s"><div class="in"><div class="bub dots"><i></i><i></i><i></i></div></div></div>'
+            )
+        out.append(
+            f'<div class="msg {"me" if side == "me" else "them"}" style="--a:{at:.3f}s"><div class="in"><div class="bub">{kit.emphasis(row["text"])}</div></div></div>'
+        )
     return f'<div class="thread">{"".join(out)}</div>'
 
 
@@ -605,7 +634,9 @@ def _code_typing(item: dict[str, Any]) -> str:
         begin = clock
         cells, clock = _code_cells(line, clock, unit)
         clock += unit * 3
-        rows.append(f'<div class="row" style="--t:{begin:.3f}s;--e:{clock:.3f}s"><i class="hl"></i><span class="no">{number}</span><code>{cells or "&nbsp;"}</code></div>')
+        rows.append(
+            f'<div class="row" style="--t:{begin:.3f}s;--e:{clock:.3f}s"><i class="hl"></i><span class="no">{number}</span><code>{cells or "&nbsp;"}</code></div>'
+        )
     name = kit.esc(item.get("name") or "main.py")
     return f'<div class="card"><div class="tab"><span>{name}</span></div><div class="ed">{"".join(rows)}</div></div>'
 
@@ -916,7 +947,10 @@ def _state_morph(item: dict[str, Any]) -> str:
     width = 2 * 62 + 27 * len(str(rows[0]["text"]))
     done_w = min(2 * 52 + 76 + 25 * len(str(rows[-1]["text"])), 840)
     sizes = {"pill": (width, 128, 64), "bar": (780, 30, 15), "dot": (156, 156, 78), "done": (done_w, 128, 64)}
-    box = ";".join(f"--w{i}:calc({sizes[kind][0]}px * var(--scale));--h{i}:calc({sizes[kind][1]}px * var(--scale));--r{i}:calc({sizes[kind][2]}px * var(--scale))" for i, kind in enumerate(kinds))
+    box = ";".join(
+        f"--w{i}:calc({sizes[kind][0]}px * var(--scale));--h{i}:calc({sizes[kind][1]}px * var(--scale));--r{i}:calc({sizes[kind][2]}px * var(--scale))"
+        for i, kind in enumerate(kinds)
+    )
     moments = ";".join(f"--m{i}:{times[i] - 0.1:.3f}s" for i in range(1, count))
     layers = []
     for index, kind in enumerate(kinds):
@@ -986,7 +1020,9 @@ def _form_success(item: dict[str, Any]) -> str:
     cells = []
     for row in rows:
         typed, finished = _typed(str(row["text"]), clock + 0.12, share - 0.26)
-        cells.append(f'<label style="--t:{clock:.3f}s;--e:{finished + 0.1:.3f}s"><span>{kit.esc(row.get("label") or "Field")}</span><div class="input">{typed}</div></label>')
+        cells.append(
+            f'<label style="--t:{clock:.3f}s;--e:{finished + 0.1:.3f}s"><span>{kit.esc(row.get("label") or "Field")}</span><div class="input">{typed}</div></label>'
+        )
         clock = finished + 0.14
     press = clock + 0.18
     burst = press + 0.14
@@ -1033,7 +1069,7 @@ def _logo_sting(item: dict[str, Any]) -> str:
     )
     mark = f'<div class="pic"><img src="{kit.esc(image)}" alt=""></div>' if image else f'<div class="turn">{arcs}</div>'
     letters = kit.letters(str(item["text"]))
-    line = f'<p>{kit.esc(item["label"])}</p>' if item.get("label") else ""
+    line = f"<p>{kit.esc(item['label'])}</p>" if item.get("label") else ""
     call = f'<div class="call"><span>{kit.esc(item["cta"])}<i class="shine"></i></span></div>' if item.get("cta") else ""
     return f'<div class="bg"></div><div class="lock"><div class="mark">{mark}</div><div class="name"><h1>{letters}</h1>{line}</div>{call}</div>'
 
@@ -1065,9 +1101,87 @@ $ .shine{position:absolute;top:-20%;bottom:-20%;left:-30%;width:26%;background:l
 """
 
 
+SEARCH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/></svg>'  # Tabler Icons, MIT
+KEY_GAP = 0.055  # seconds between letters, a quick typist
+
+
+def _library_scroll(item: dict[str, Any]) -> str:
+    """A search types itself, then a wall of real results scrolls past, each picture with its licence on it."""
+    seconds = kit.seconds(item)
+    query = str(item.get("query", ""))
+    begin = min(0.18, seconds * 0.06)
+    gap = min(KEY_GAP, seconds * 0.3 / max(len(query), 1))
+    keys = "".join(f'<b class="k" style="--t:{begin + index * gap:.3f}s">{kit.esc(char)}</b>' for index, char in enumerate(query))
+    typed = begin + len(query) * gap
+    reveal = typed + 0.22 if query else 0.1
+    rows = kit.rows(item, "items")
+    lanes = 2 if len(rows) <= 6 else 3
+    made = []
+    for lane in range(lanes):
+        mine = rows[lane::lanes] or rows
+        tiles = []
+        for index, row in enumerate(mine * 2):  # twice over, so the lane never runs out before the graphic ends
+            picture = f'<img src="{kit.esc(row["image"])}" alt="">' if row.get("image") else '<span class="none"></span>'
+            arrive = reveal + 0.05 * (index % len(mine)) + 0.07 * lane
+            tiles.append(f'<figure class="tile" style="--t:{arrive:.3f}s">{picture}<figcaption>{kit.esc(row.get("text", ""))}</figcaption></figure>')
+        made.append(f'<div class="lane {"lf" if lane % 2 == 0 else "rt"}">{"".join(tiles)}</div>')
+    run = max(seconds - reveal, 0.4)
+    bar = f'<div class="sb" style="--t:{typed:.3f}s"><span class="mg">{SEARCH_ICON}</span><span class="q">{keys}<i class="cr"></i></span></div>' if query else ""
+    return f'<div class="ls{"" if query else " bare"}">{bar}<div class="wall" style="--t:{reveal:.3f}s;--run:{run:.3f}s">{"".join(made)}</div></div>'
+
+
+SCROLL_CSS = """
+$ .ls{position:relative;width:880u;max-width:100%;text-align:left}
+$ .sb{position:relative;display:flex;align-items:center;gap:20u;height:104u;padding:0 34u;border-radius:99u;background:color-mix(in srgb,var(--surface) 92%,var(--panel));
+box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 14%,transparent) inset,0 30u 80u rgba(0,0,0,.45);animation:lsin .5s cubic-bezier(.16,1,.3,1) both,lsgo .5s ease-out var(--t) both}
+$ .mg{flex:none;display:grid;place-items:center;width:52u;height:52u;color:var(--accent)}
+$ .mg svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+$ .q{display:flex;align-items:center;min-width:0;font-size:50u;font-weight:600;letter-spacing:-.02em;white-space:pre}
+$ .k{font-weight:inherit;opacity:0;animation:lskey .01s linear var(--t) forwards}
+$ .cr{display:inline-block;width:4u;height:56u;margin-left:4u;border-radius:2u;background:var(--accent);animation:lsblink 1s steps(2,jump-none) infinite}
+$ .wall{position:relative;display:flex;flex-direction:column;gap:18u;margin-top:30u;padding:4u 0;overflow:hidden;
+-webkit-mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent)}
+$ .bare .wall{margin-top:0}
+$ .lane{display:flex;gap:18u;width:max-content;animation:lsleft var(--run) linear var(--t) both}
+$ .lane.rt{animation-name:lsright}
+$ .tile{position:relative;flex:none;margin:0;width:300u;height:169u;border-radius:16u;overflow:hidden;background:color-mix(in srgb,var(--ink) 10%,var(--panel));
+box-shadow:0 16u 40u rgba(0,0,0,.4);opacity:0;transform:scale(.86);animation:lspop .4s cubic-bezier(.2,1.3,.4,1) var(--t) forwards}
+$ .tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+$ .none{position:absolute;inset:0;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 34%,var(--panel)),color-mix(in srgb,var(--surface) 80%,var(--panel)))}
+$ figcaption{position:absolute;left:10u;bottom:10u;padding:5u 13u 6u;border-radius:99u;font-size:22u;font-weight:600;letter-spacing:.005em;line-height:1.2;white-space:nowrap;
+color:var(--panel);background:var(--accent)}
+@keyframes lsin{from{opacity:0;transform:translateY(30u)}to{opacity:1;transform:none}}
+@keyframes lsgo{0%{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 14%,transparent) inset,0 30u 80u rgba(0,0,0,.45)}40%{box-shadow:0 0 0 3u var(--accent) inset,0 30u 80u rgba(0,0,0,.45)}100%{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent) 50%,transparent) inset,0 30u 80u rgba(0,0,0,.45)}}
+@keyframes lskey{to{opacity:1}}
+@keyframes lsblink{from{opacity:1}to{opacity:0}}
+@keyframes lspop{to{opacity:1;transform:none}}
+@keyframes lsleft{from{transform:translateX(0)}to{transform:translateX(-30%)}}
+@keyframes lsright{from{transform:translateX(-30%)}to{transform:translateX(0)}}
+"""
+
+
 IMAGE = Slot("image", kind="path", required=False)
 
 FORMATS = (
+    Format(
+        id="library_scroll",
+        title="Library scroll",
+        summary="A search types itself, then a wall of real results scrolls past, each with its licence or name on it.",
+        group="product",
+        jobs=("prove", "explain"),
+        slots=(Slot("query", limit=28, required=False), Slot("items", kind="list", limit=18, each=20)),
+        example={
+            "query": "sample search",
+            "items": [{"text": "CC0"}, {"text": "Public domain"}, {"text": "CC BY 4.0"}, {"text": "CC0"}, {"text": "Public domain"}, {"text": "CC BY 4.0"}],
+        },
+        draw=_library_scroll,
+        seconds=3.6,
+        shortest=2.4,
+        longest=10.0,
+        tall=690,
+        sound=None,
+        css=_scoped("library_scroll", SCROLL_CSS),
+    ),
     Format(
         id="cursor_walk",
         title="Cursor walkthrough",
@@ -1166,7 +1280,10 @@ FORMATS = (
         group="product",
         jobs=("prove", "explain"),
         slots=(Slot("text", limit=80), Slot("result", limit=190), Slot("status", limit=20, required=False)),
-        example={"text": "Summarise last week's feedback in one line", "result": "People love the new export, but *setup takes too long*. Shortening the first step would help most."},
+        example={
+            "text": "Summarise last week's feedback in one line",
+            "result": "People love the new export, but *setup takes too long*. Shortening the first step would help most.",
+        },
         draw=_prompt_result,
         seconds=8.2,
         shortest=3.2,

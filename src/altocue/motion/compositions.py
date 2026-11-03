@@ -29,7 +29,9 @@ QUOTED_URL = re.compile(r"""(?<=["'`(])https?://[^\s"'`<>()\\${}]+(?=["'`)])""")
 LOADED_URL = re.compile(
     r"""(?:<(?:script|img|video|audio|source|iframe|link)\b[^>]*?\b(?:src|href)=["']|url\(\s*["']?|\bfrom\s+["']|\bimport\s*\(\s*["']|\bfetch\s*\(\s*["'])(https?://[^"'`)\s]+)"""
 )
-FONT_CSS = re.compile(r"""<link\b[^>]*?href=["'](https://fonts\.googleapis\.com/css[^"']*)["'][^>]*>|@import\s+url\(\s*["']?(https://fonts\.googleapis\.com/css[^"')]*)["']?\s*\)\s*;?""")
+FONT_CSS = re.compile(
+    r"""<link\b[^>]*?href=["'](https://fonts\.googleapis\.com/css[^"']*)["'][^>]*>|@import\s+url\(\s*["']?(https://fonts\.googleapis\.com/css[^"')]*)["']?\s*\)\s*;?"""
+)
 STYLE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.DOTALL | re.IGNORECASE)
 EMBEDDED = re.compile(r'<style data-hyperframes-deterministic-fonts="true">(.*?)</style>', re.DOTALL)
 FONT_TEXT = "".join(map(chr, range(0x20, 0x7F))) + "".join(map(chr, range(0xA0, 0x100))) + "\u2018\u2019\u201c\u201d\u2013\u2014\u2026\u2022\u20ac\u2122"

@@ -121,9 +121,7 @@ def best_top(
     return min(scored)[2] if scored else None
 
 
-def place(
-    items: list[dict[str, Any]], picture: Path | None, size: tuple[int, int], brand: Brand, zone: dict[str, float] | None = None
-) -> list[dict[str, Any]]:
+def place(items: list[dict[str, Any]], picture: Path | None, size: tuple[int, int], brand: Brand, zone: dict[str, float] | None = None) -> list[dict[str, Any]]:
     """Add `y` to any graphic that would land on a face. A hand-set `y` is left alone."""
     if picture is None or not picture.exists():
         return items

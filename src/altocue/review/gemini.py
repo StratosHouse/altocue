@@ -58,9 +58,7 @@ def require(project: Project, *, upload: bool, paid: bool) -> None:
             fix="Pass --paid-key to confirm yours is on a billed project, or set paid_key = true under [review] in altocue.toml.",
         )
     if not os.environ.get("GEMINI_API_KEY"):
-        raise AltocueError(
-            "GEMINI_API_KEY is not set.", fix="Create a key at https://aistudio.google.com/apikey and export it, or use --reviewer pack."
-        )
+        raise AltocueError("GEMINI_API_KEY is not set.", fix="Create a key at https://aistudio.google.com/apikey and export it, or use --reviewer pack.")
 
 
 def ready(project: Project, *, upload: bool, paid: bool) -> bool:
@@ -110,13 +108,9 @@ def _send(request: urllib.request.Request, key: str, *, timeout: int = 60) -> tu
             return reply.read(), reply.headers
     except urllib.error.HTTPError as error:
         body = _clean(error.read().decode("utf-8", "replace"), key)
-        raise AltocueError(
-            f"Gemini said {error.code}: {body}", fix="Check the key, its billing, and the model id in review/models.toml."
-        ) from error
+        raise AltocueError(f"Gemini said {error.code}: {body}", fix="Check the key, its billing, and the model id in review/models.toml.") from error
     except urllib.error.URLError as error:
-        raise AltocueError(
-            f"Could not reach Gemini: {_clean(str(error.reason), key)}", fix="Check your connection and try again."
-        ) from error
+        raise AltocueError(f"Could not reach Gemini: {_clean(str(error.reason), key)}", fix="Check your connection and try again.") from error
 
 
 def upload_file(path: Path, key: str, config: dict[str, Any]) -> dict[str, Any]:
@@ -197,11 +191,7 @@ def read_answer(data: dict[str, Any]) -> str:
     if data.get("status") != "completed":
         raise AltocueError(f"Gemini did not finish: {data.get('status')}.", fix="Try again, or use --reviewer pack.")
     return "".join(
-        part.get("text", "")
-        for step in data.get("steps", [])
-        if step.get("type") == "model_output"
-        for part in step.get("content", [])
-        if part.get("type") == "text"
+        part.get("text", "") for step in data.get("steps", []) if step.get("type") == "model_output" for part in step.get("content", []) if part.get("type") == "text"
     )
 
 

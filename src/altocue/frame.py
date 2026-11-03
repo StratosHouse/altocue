@@ -187,9 +187,7 @@ def read_rgb(clip: Clip, at: float, side: int = DETECT_SIDE) -> np.ndarray | Non
     try:
         done = subprocess.run(cmd, capture_output=True, timeout=READ_TIMEOUT)
     except subprocess.TimeoutExpired as error:
-        raise AltocueError(
-            f"Reading {clip.path} stalled.", fix="If the file lives in iCloud, download it first, then run this again."
-        ) from error
+        raise AltocueError(f"Reading {clip.path} stalled.", fix="If the file lives in iCloud, download it first, then run this again.") from error
     expected = width * height * 3 * 2
     if done.returncode != 0 or len(done.stdout) < expected:
         return None
@@ -435,19 +433,14 @@ def frame_project(project: Project, force: bool = False) -> Edl:
     clips = {clip.id: clip for clip in project.clips()}
     missing = sorted({s.clip for s in edl.segments} - set(clips))
     if missing:
-        raise AltocueError(
-            f"The cut names clips that are not in this project: {', '.join(missing)}.", fix="Run `altocue ingest`, then `altocue cut`."
-        )
+        raise AltocueError(f"The cut names clips that are not in this project: {', '.join(missing)}.", fix="Run `altocue ingest`, then `altocue cut`.")
 
     edits = {} if force else hand_set(project, edl)
     punch = float(project.setting("frame", "punch_in", PUNCH_ZOOM))
     push = float(project.setting("frame", "push_in", 0.0))
     zooms = plan_zooms(edl.segments, edl.fps)
     samples = _sample_faces(clips, edl.segments)
-    found = [
-        choose_subject(find_tracks(faces), *crop_size(clips[s.clip].display_size, target))
-        for s, faces in zip(edl.segments, samples, strict=True)
-    ]
+    found = [choose_subject(find_tracks(faces), *crop_size(clips[s.clip].display_size, target)) for s, faces in zip(edl.segments, samples, strict=True)]
     subjects = hold_through_gaps(edl.segments, found)
     last_crop: dict[str, list[float]] = {}
     rows = []

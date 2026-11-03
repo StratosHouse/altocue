@@ -35,8 +35,23 @@ ARRIVING_STAGES: set[str] = set()
 ARRIVING_SKILLS: set[str] = set()
 # Names a skill invents as an example, in place of something the user brings. Altocue reads none of them by name.
 EXAMPLE_FILES = {
-    "a.mov", "b.mov", "approved_claims.json", "bed.mp3", "brand.json", "clip.mp4", "desk.mp4", "decisions.json", "door.wav", "export.csv", "Inter-Variable.ttf",
-    "logo.png", "photo.jpg", "rows.csv", "show.cube", "street.mp4", "shot-1.mp4",
+    "a.mov",
+    "b.mov",
+    "approved_claims.json",
+    "bed.mp3",
+    "brand.json",
+    "clip.mp4",
+    "desk.mp4",
+    "decisions.json",
+    "door.wav",
+    "export.csv",
+    "Inter-Variable.ttf",
+    "logo.png",
+    "photo.jpg",
+    "rows.csv",
+    "show.cube",
+    "street.mp4",
+    "shot-1.mp4",
 }
 # Words an agent must never carry from a skill to a user. Set by the owner: Altocue never launches or scripts a third-party application.
 OTHER_EDITORS = re.compile(r"(?i:Premiere|DaVinci|Final Cut|FCPXML|altocue export|hand(?:ing|s|ed)? (?:\w+ ){0,2}off to an editor|editor handoff)|\bResolve\b")
@@ -385,5 +400,3 @@ def test_real_names_pass():
 
 def test_a_format_list_catches_a_stranger():
     assert formats_section("## Formats\n\n- `word_slam`, `nonsense_format`\n\n## Next\n\n- `other`\n") == ["word_slam", "nonsense_format"]
-
-

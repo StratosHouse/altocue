@@ -51,9 +51,7 @@ def draw_face(image: np.ndarray, cx: int, cy: int, s: int, skin: tuple[int, int,
         cv2.ellipse(image, (ex, ey - int(s * 0.13)), (int(s * 0.2), int(s * 0.05)), 0, 180, 360, hair, max(2, int(s * 0.04)), cv2.LINE_AA)
     nose = (int(skin[0] * 0.75), int(skin[1] * 0.72), int(skin[2] * 0.75))
     cv2.line(image, (cx, cy - int(s * 0.05)), (cx - int(s * 0.06), cy + int(s * 0.22)), nose, max(1, int(s * 0.03)), cv2.LINE_AA)
-    cv2.line(
-        image, (cx - int(s * 0.06), cy + int(s * 0.22)), (cx + int(s * 0.06), cy + int(s * 0.24)), nose, max(1, int(s * 0.03)), cv2.LINE_AA
-    )
+    cv2.line(image, (cx - int(s * 0.06), cy + int(s * 0.22)), (cx + int(s * 0.06), cy + int(s * 0.24)), nose, max(1, int(s * 0.03)), cv2.LINE_AA)
     cv2.ellipse(image, (cx, cy + int(s * 0.5)), (int(s * 0.28), int(s * 0.1)), 0, 0, 180, lip, max(2, int(s * 0.06)), cv2.LINE_AA)
 
 
@@ -95,9 +93,7 @@ def write_clip(path: Path, frames: list[np.ndarray], *, fps: int = 30, rotation:
     ]
     subprocess.run(args, input=b"".join(f.tobytes() for f in frames), check=True)
     if rotation is not None:
-        subprocess.run(
-            ["ffmpeg", "-v", "error", "-y", "-display_rotation", str(rotation), "-i", str(target), "-c", "copy", str(path)], check=True
-        )
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-display_rotation", str(rotation), "-i", str(target), "-c", "copy", str(path)], check=True)
     return path
 
 
