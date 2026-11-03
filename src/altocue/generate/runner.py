@@ -376,8 +376,8 @@ def reserve(
         row = {"shot": shot, "state": "open", "provider": provider, "recipe": recipe, "credits": credits, "usd": usd}
         row |= {"usd_per_credit": rate, "rate_as_of": as_of, "at": store.now()}
         store.save_reservations(project, [*store.read_reservations(project), row])
-    amount = f"{credits:g} credit{'' if credits == 1 else 's'}, ${usd:.2f}" if credits is not None else f"${usd:.2f}"
-    out(f"{shot}: reserved {amount}. Spend it, then register the result with --import, or free it with --release.")
+    booked = f"{credits:g} credit{'' if credits == 1 else 's'}, ${usd:.2f}" if credits is not None else f"${usd:.2f}"
+    out(f"{shot}: reserved {booked}. Spend it, then register the result with --import, or free it with --release.")
     return row
 
 

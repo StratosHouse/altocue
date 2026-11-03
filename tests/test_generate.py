@@ -1580,7 +1580,10 @@ def test_import_needs_a_cost_or_credits(project, tmp_path, capsys):
 
 def set_generate(project: Project, key: str, value: str) -> None:
     text = (project.root / "altocue.toml").read_text()
-    text = re.sub(rf"(?m)^{key} = .*$", f"{key} = {value}", text) if re.search(rf"(?m)^{key} = ", text) else text.replace("[generate]\n", f"[generate]\n{key} = {value}\n")
+    if re.search(rf"(?m)^{key} = ", text):
+        text = re.sub(rf"(?m)^{key} = .*$", f"{key} = {value}", text)
+    else:
+        text = text.replace("[generate]\n", f"[generate]\n{key} = {value}\n")
     (project.root / "altocue.toml").write_text(text)
 
 
