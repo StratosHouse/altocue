@@ -729,6 +729,38 @@ def test_planned_text_is_not_baked_text(tmp_path):
     assert gate.passed, gate.detail
 
 
+def read_as(monkeypatch, records: list[dict]) -> None:
+    """Stand in for the reader: the same boxes at two moments, so each finding is firm."""
+    monkeypatch.setattr(ocr, "reader", lambda: ("tesseract", ""))
+    monkeypatch.setattr(ocr, "read_video", lambda *_: [{**r, "reader": "tesseract", "confidence": 0.9, "time": t} for t in (0.5, 1.0) for r in records])
+
+
+WHOLE_LINE = {"file": "full_00002.jpg", "text": "Follow this plan", "box": [0.3, 0.5, 0.4, 0.03]}
+
+
+def test_a_tile_cut_through_a_planned_line_is_not_baked_text(tmp_path, monkeypatch):
+    """Tesseract garbles the words a tile's edge slices through. The whole frame reads the same line as planned."""
+    cut = {"file": "br_00002.jpg", "text": "wis plan", "box": [0.0, 0.17, 0.4, 0.05]}  # on the whole frame: x 0.4 to 0.64, y 0.502
+    read_as(monkeypatch, [WHOLE_LINE, cut])
+    item = {"type": "chip", "text": "Follow this plan", "start": 0.0, "end": 6.0}
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[item])["baked_text"]
+    assert gate.passed, gate.detail
+
+
+def test_garbled_text_away_from_any_planned_line_is_still_baked_text(tmp_path, monkeypatch):
+    elsewhere = {"file": "tl_00002.jpg", "text": "wis plan", "box": [0.1, 0.1, 0.4, 0.05]}
+    read_as(monkeypatch, [WHOLE_LINE, elsewhere])
+    item = {"type": "chip", "text": "Follow this plan", "start": 0.0, "end": 6.0}
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[item])["baked_text"]
+    assert not gate.passed and "wis plan" in gate.detail
+
+
+def test_a_tile_box_is_placed_back_on_the_whole_frame():
+    assert ocr.frame_box({"file": "/x/br_00003.jpg", "box": [0.0, 0.5, 0.5, 0.1]}) == pytest.approx([0.4, 0.7, 0.3, 0.06])
+    assert ocr.frame_box({"file": "/x/full_00003.jpg", "box": [0.1, 0.2, 0.3, 0.4]}) == [0.1, 0.2, 0.3, 0.4]
+    assert ocr.frame_box({"file": "/x/cut_00000.jpg", "box": [0.1, 0.2, 0.3, 0.4]}) == [0.1, 0.2, 0.3, 0.4]
+
+
 def test_the_real_product_label_can_be_allowed(tmp_path):
     built = build(Case("label", "", Recipe(heard=CALM, expected=CALM, burn_text=[("OAK AND ASH", 0.5, 0.0, 6.0)])), tmp_path / "label")
     config = built.project.root / "altocue.toml"

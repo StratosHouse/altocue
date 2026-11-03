@@ -1217,6 +1217,14 @@ def _expected(token: str, planned: set[str]) -> bool:
     return token in planned or any(token in word or (len(word) > 2 and word in token) for word in planned)
 
 
+def _mostly_inside(box: list[float], line: list[float]) -> bool:
+    """Tesseract garbles the words a tile's edge cuts through. A read that sits on a planned line is that line, read badly."""
+    x, y, w, h = box
+    lx, ly, lw, lh = line
+    overlap = max(0.0, min(x + w, lx + lw) - max(x, lx)) * max(0.0, min(y + h, ly + lh) - max(y, ly))
+    return w * h > 0 and overlap / (w * h) >= 0.5
+
+
 def gate_baked_text(c: Context) -> GateResult:
     """Models burn in their own subtitles. Anything read that the edit did not plan, and the product does not print, is baked in."""
     chosen, reason = ocr.reader()
@@ -1228,10 +1236,18 @@ def gate_baked_text(c: Context) -> GateResult:
     planned = {token for item in (rules.on_screen(c.timeline) if c.timeline and not c.plate else []) for token in rules.tokens(item["text"])}
     planned |= {token for line in c.project.setting("ugc", "label_text", []) for token in rules.tokens(str(line))}
     hits: dict[str, list[dict[str, Any]]] = {}
+    unplanned: list[tuple[list[str], dict[str, Any]]] = []
+    planned_lines: dict[float, list[list[float]]] = {}
     for record in records:
         said = rules.tokens(record["text"])
-        known = sum(_expected(token, planned) for token in said)
-        if said and sum(len(t) for t in said) >= 3 and known / len(said) < BAKED_MATCH:
+        if not said:
+            continue
+        if sum(_expected(token, planned) for token in said) / len(said) >= BAKED_MATCH:
+            planned_lines.setdefault(record["time"], []).append(ocr.frame_box(record))
+        elif sum(len(t) for t in said) >= 3:
+            unplanned.append((said, record))
+    for said, record in unplanned:
+        if not any(_mostly_inside(ocr.frame_box(record), line) for line in planned_lines.get(record["time"], [])):
             hits.setdefault(" ".join(said), []).append(record)
     firm = [text for text, seen in hits.items() if ocr.confidence(seen) == "high"]
     doubtful = [text for text in hits if text not in firm]
