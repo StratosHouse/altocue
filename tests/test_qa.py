@@ -863,6 +863,18 @@ def test_captions_are_left_out_of_the_reading_gate():
     assert rules.reading_time(timeline, 3.0) == []
 
 
+def test_captions_are_read_through_the_spellings_a_film_declares():
+    """A transcriber that hears a name wrong must not fail the caption that spells it right, and the report says so."""
+    said = [Word(text=text, start=index * 0.3, end=index * 0.3 + 0.2) for index, text in enumerate("This is AltaQ. It fixes the color.".split())]
+    shown = [{"text": text, "start": 0.0, "end": 1.0} for text in "This is Altocue It fixes the colour".split()]
+    pages = [{"start": 0.0, "end": 2.2, "words": shown, "spelled": {"AltaQ": "Altocue", "color": "colour"}}]
+    c = SimpleNamespace(timeline={"scenes": [{"id": "a", "voice": "v.wav"}], "captions": pages}, edl=None, rules=None, heard=lambda: (said, ""), project=None)
+    found = {gate.id: gate for gate in gates.word_gates(c)}["captions_match"]
+    assert found.passed and "AltaQ as Altocue" in found.detail and "color as colour" in found.detail
+    del pages[0]["spelled"]
+    assert not {gate.id: gate for gate in gates.word_gates(c)}["captions_match"].passed
+
+
 def context_with(timeline, reading=None):
     project = SimpleNamespace(setting=lambda section, key, default=None: reading if reading and key == "reading_wps" else default)
     return SimpleNamespace(timeline=timeline, project=project)

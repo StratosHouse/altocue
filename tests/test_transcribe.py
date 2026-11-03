@@ -542,6 +542,19 @@ def test_memory_goes_back_after_every_piece(tmp_path, monkeypatch):
     assert freed == [1, 2, 3]
 
 
+def test_a_render_is_read_back_in_shorter_pieces(tmp_path, monkeypatch):
+    """Under a score, parakeet drops whole lines from a long stretch that it hears in a short one."""
+    wav = steady_wav(tmp_path / "a.wav", 70.0, [(29.5, 30.5)])
+    assert transcribe.quiet_marks(Envelope.from_wav(wav), 70.0) == []
+    assert transcribe.quiet_marks(Envelope.from_wav(wav), 70.0, piece=transcribe.READBACK_PIECE) == pytest.approx([30.0], abs=0.6)
+    seen: dict = {}
+    monkeypatch.setattr(transcribe, "transcribe_clip", lambda clip, engine, **kwargs: seen.update(kwargs) or [])
+    monkeypatch.setattr(transcribe, "select", lambda engine=None: object())
+    monkeypatch.setattr(transcribe.ffmpeg, "probe_clip", lambda path: object())
+    transcribe.transcribe_file(tmp_path / "film.mp4")
+    assert seen["piece"] == transcribe.READBACK_PIECE
+
+
 def test_a_piece_fits_inside_the_engines_own_chunk():
     assert transcribe.PIECE + transcribe.REACH <= transcribe.Parakeet.chunk
     assert transcribe.PIECE * 1.5 <= transcribe.Parakeet.chunk

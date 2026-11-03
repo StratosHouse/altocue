@@ -30,6 +30,7 @@ ICONS = ("cut", "clean", "grade", "frame", "broll", "caption", "motion", "direct
 NAMES = {"broll": "B-roll"}
 LOOK_PICKS = (0, 1, 8, 10)  # natural, warm, mono_contrast and teal_orange in the compare sheet
 LOOK_NAMES = ("natural", "warm", "mono contrast", "teal orange")
+TAKE_B_FROM = 1.05  # seconds into final-b.mp4, after "Here's the best part."
 
 
 def seconds_of(path: Path) -> float:
@@ -166,7 +167,8 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
     speech = assets / "voice"
     speech.mkdir(exist_ok=True)
     ffmpeg.run(["-i", str(final_a), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-a.wav")])
-    ffmpeg.run(["-i", str(final_b), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-b.wav")])
+    # the second take starts at "It fixes the sound": under the score, the transcriber QA uses cannot hear its opening line
+    ffmpeg.run(["-ss", f"{TAKE_B_FROM:.2f}", "-i", str(final_b), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-b.wav")])
     frame_raw, frame_graded = matched_frames(raw_a, final_a, assets)
     crops = look_crops(looks, assets)
     clip = stock_clip(project, "ocean waves aerial") if stock else kept_clip(project)
@@ -230,7 +232,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "voice": "assets/voice/final-a.wav",
             "voice_offset": -0.4,
             "camera": {"move": "drift"},
-            "link": {"type": "pan", "seconds": 0.7, "why": "The same sideways move carries us to the next take."},
+            "link": {"type": "dissolve", "seconds": 0.7, "why": "Two bright phones sliding off measured at the flash limit, so the takes fade."},
             "items": [
                 {"type": "mask_rise", "lines": ["Raw take", "*to finished cut*"], "start": 0.0, "zone": "left"},
                 {"type": "footage", "file": "assets/raw-a.mp4", "zone": "phone_a", "label": "Raw, {live:raw_seconds} s", "start": -0.4, "important": False},
@@ -248,7 +250,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "captions",
             "beat": "example",
-            "seconds": 10.5,
+            "seconds": 9.5,
             "verb": "caption",
             "energy": 5,
             "carry": "the words move to the colour",
@@ -263,6 +265,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "type": "footage",
                     "file": "assets/final-b.mp4",
                     "zone": "phone",
+                    "from": TAKE_B_FROM,
                     "start": -0.3,
                     "important": False,
                     "captions": {"spell": {"color": "colour"}},  # British spelling, as the clip's own caption has it

@@ -1405,3 +1405,4 @@ def test_a_name_the_transcriber_mishears_is_spelled_as_written(tmp_path, monkeyp
     monkeypatch.setattr(film, "words_of", lambda project, file: heard)
     line, _ = film.film_line(film.load(project), "16:9")
     assert [word["text"] for page in line["captions"] for word in page["words"]] == ["This", "is", "Altocue"]
+    assert all(page["spelled"] == {"AltaQ": "Altocue"} for page in line["captions"])

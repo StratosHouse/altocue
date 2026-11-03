@@ -561,22 +561,37 @@ def word_gates(c: Context) -> list[GateResult]:
     elif not c.timeline.get("captions"):
         results.append(not_applicable("captions_match", "This project has no captions."))
     else:
-        reference = captioned if captioned is not None else ([w.text for w in heard] if heard is not None else None)
+        spelled = declared_spellings(c.timeline) if captioned is None else {}
+        reference = captioned if captioned is not None else ([read_as(w.text, spelled) for w in heard] if heard is not None else None)
         if reference is None:
             results.append(skipped("captions_match", why_not, CAPTIONS_NEEDED))
         else:
             shown = [w["text"] for page in c.timeline["captions"] for w in page["words"]]
             rate = match_rate(reference, shown)
+            through = f", reading {', '.join(f'{heard_as} as {written}' for heard_as, written in spelled.items())} as the film declares" if spelled else ""
             results.append(
                 GateResult(
                     id="captions_match",
                     passed=rate >= CAPTIONS_NEEDED,
                     value=round(rate, 4),
                     threshold=CAPTIONS_NEEDED,
-                    detail=f"{rate:.1%} of {len(norm(reference))} words",
+                    detail=f"{rate:.1%} of {len(norm(reference))} words{through}",
                 )
             )
     return results
+
+
+def declared_spellings(timeline: dict[str, Any]) -> dict[str, str]:
+    """Names a film says its transcriber hears wrong, as heard to written. They sit on the caption pages and in the report."""
+    found: dict[str, str] = {}
+    for page in timeline.get("captions") or []:
+        found.update({str(heard): str(written) for heard, written in (page.get("spelled") or {}).items()})
+    return found
+
+
+def read_as(text: str, spelled: dict[str, str]) -> str:
+    core = text.strip(".,!?;:\"'")
+    return spelled.get(core, text)
 
 
 def fastest_stretch(pages: list[dict[str, Any]]) -> tuple[float, float]:
