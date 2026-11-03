@@ -503,6 +503,18 @@ def test_an_excluded_source_never_becomes_an_entry():
     assert [(row["id"], row["tier"], row["kind"], row["also"]) for row in rows] == [("pixabay", "search", "stock", ["photo"])]
 
 
+def test_the_sync_says_how_far_the_pin_is_behind(monkeypatch):
+    monkeypatch.setattr(build, "_get_json", lambda url: {"version": "0.9.6"})
+    assert build.release_drift("0.9.5") == "HyperFrames 0.9.6 is out. The pin is 0.9.5."
+    assert build.release_drift("0.9.6") == "The pinned HyperFrames 0.9.6 is the latest release."
+
+    def down(url):
+        raise AltocueError("offline")
+
+    monkeypatch.setattr(build, "_get_json", down)
+    assert "Could not read" in build.release_drift("0.9.5")
+
+
 def test_the_build_keeps_its_date_when_nothing_changed(tmp_path):
     first = build.assemble([entry("a")], [], [], {"hyperframes": "0.9.5"}, previous=None)
     again = build.assemble([entry("a")], [], [], {"hyperframes": "0.9.5"}, previous={**first, "generated": "2020-01-01T00:00:00Z"})
@@ -593,7 +605,8 @@ def fake_font_tool(folder: Path, css: str, fail: str = "") -> None:
     """Stands in for `hyperframes-localize-fonts`: HTML in, the same HTML with a deterministic font block out."""
     tool = folder / "renderer" / "node_modules" / ".bin" / "hyperframes-localize-fonts"
     reply = f'<style data-hyperframes-deterministic-fonts="true">{css}</style>'
-    body = f"print({fail!r}, file=sys.stderr)\nraise SystemExit(1)" if fail else f"pathlib.Path({str(folder / 'probe.html')!r}).write_text(page)\nprint(page.replace('</head>', {reply!r} + '</head>'))"
+    keep = f"pathlib.Path({str(folder / 'probe.html')!r}).write_text(page)"
+    body = f"print({fail!r}, file=sys.stderr)\nraise SystemExit(1)" if fail else f"{keep}\nprint(page.replace('</head>', {reply!r} + '</head>'))"
     tool.write_text(f"#!{sys.executable}\nimport pathlib, sys\npage = sys.stdin.read()\n{body}\n")
     tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
 

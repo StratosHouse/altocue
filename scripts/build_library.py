@@ -27,6 +27,7 @@ REPORT = ROOT / "library" / "report.json"
 
 REGISTRY_PAGE = "https://github.com/heygen-com/hyperframes/tree"
 NPM_INDEX = "https://registry.npmjs.org/gl-transitions/latest"
+NPM_RENDERER = "https://registry.npmjs.org/hyperframes/latest"
 SHADER_INDEX = "https://cdn.jsdelivr.net/npm/gl-transitions@{version}/gl-transitions.json"
 SHADER_PAGE = "https://github.com/gl-transitions/gl-transitions/blob/master/transitions"
 SHADER_LICENCES = {"MIT": "MIT", "BSD 3 Clause": "BSD-3-Clause", "BSD 2 Clause": "BSD-2-Clause"}
@@ -338,6 +339,15 @@ def check_links(sources: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def release_drift(version: str) -> str:
+    """HyperFrames ships several releases a day, so say how far the pin has fallen behind."""
+    try:
+        latest = _get_json(NPM_RENDERER)["version"]
+    except (AltocueError, KeyError, ValueError) as error:
+        return f"Could not read the latest HyperFrames release: {error}"
+    return f"The pinned HyperFrames {version} is the latest release." if latest == version else f"HyperFrames {latest} is out. The pin is {version}."
+
+
 def registry_drift(version: str) -> str:
     """The catalog follows the pin, so say what upstream has added since."""
     try:
@@ -355,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.check_links:
         print(check_links(read_sources(SOURCES)))
-        print(f"\n{registry_drift(renderer_version())}")
+        print(f"\n{release_drift(renderer_version())} {registry_drift(renderer_version())}")
         return 0
     catalog = build()
     refused = dict(Counter(row["rule"] for row in catalog["refused"]))
