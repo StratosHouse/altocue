@@ -1109,6 +1109,44 @@ def test_captions_are_read_through_the_spellings_a_film_declares():
     assert not {gate.id: gate for gate in gates.word_gates(c)}["captions_match"].passed
 
 
+def test_a_stumble_the_captions_tag_is_shown_on_purpose_not_said_twice():
+    """A film that opens on the raw take tags its stumble on screen. Saying it there is the point; saying it untagged is not."""
+    said = [Word(text=text, start=index * 0.3, end=index * 0.3 + 0.2) for index, text in enumerate("so this is this is Altocue".split())]
+    shown = [{"text": text, "start": index * 0.3, "end": index * 0.3 + 0.2} for index, text in enumerate("so this is this is Altocue".split())]
+    for word in shown[1:3]:
+        word["tag"] = "stutter"
+    pages = [{"start": 0.0, "end": 2.0, "words": shown}]
+    c = SimpleNamespace(timeline={"scenes": [{"id": "a", "voice": "v.wav"}], "captions": pages}, edl=None, rules=None, heard=lambda: (said, ""), project=None)
+    found = {gate.id: gate for gate in gates.word_gates(c)}["doubled_phrase"]
+    assert found.passed and "1 shown on purpose" in found.detail
+    for word in shown:
+        word.pop("tag", None)
+    found = {gate.id: gate for gate in gates.word_gates(c)}["doubled_phrase"]
+    assert not found.passed and found.detail == "said twice: this is"
+
+
+def test_a_film_says_where_its_voice_is_so_only_there_is_read_back():
+    scenes = [
+        {"id": "open", "start": 0.0, "end": 1.9, "voice": "raw.mp4", "voice_to": 1.9},
+        {"id": "hook", "start": 1.9, "end": 4.8},
+        {"id": "promise", "start": 4.8, "end": 9.2, "voice": "done.mp4", "voice_to": 4.1},
+        {"id": "next", "start": 9.2, "end": 12.0, "voice": "done.mp4", "voice_from": 4.1, "voice_to": 6.0, "voice_offset": 0.2},
+    ]
+    spans = gates.voiced_spans({"scenes": scenes, "total": 12.0})
+    assert spans == [(0.0, 2.05), (4.65, 11.45)]
+    del scenes[2]["voice_to"]
+    assert gates.voiced_spans({"scenes": scenes, "total": 12.0}) is None
+    assert gates.voiced_spans({"scenes": [{"id": "a", "start": 0, "end": 3}]}) is None
+    assert gates.voiced_spans(None) is None
+
+
+def test_only_a_repeat_whose_first_copy_is_tagged_is_let_through():
+    tokens = "so this is this is it".split()
+    assert gates.doubled_phrases(tokens, shown=[False, True, True, False, False, False]) == []
+    assert gates.doubled_phrases(tokens, shown=[False, True, False, False, False, False]) == ["this is"]
+    assert gates.doubled_phrases(tokens, shown=[False, False, False, True, True, False]) == ["this is"]
+
+
 def context_with(timeline, reading=None):
     project = SimpleNamespace(setting=lambda section, key, default=None: reading if reading and key == "reading_wps" else default)
     return SimpleNamespace(timeline=timeline, project=project)

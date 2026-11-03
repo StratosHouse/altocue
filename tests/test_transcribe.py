@@ -561,6 +561,28 @@ def test_a_render_is_read_back_in_shorter_pieces(tmp_path, monkeypatch):
     assert seen["piece"] == transcribe.READBACK_PIECE
 
 
+def test_a_film_is_read_back_only_where_it_has_a_voice(tmp_path, monkeypatch):
+    """A line either side of a stretch of music is read on its own, in film seconds, so the two never run together."""
+    wav = steady_wav(tmp_path / "film.wav", 10.0, [])
+    seen: list[float] = []
+
+    class Spans:
+        hosted = False
+        needs_gb = 0.0
+        name = "fake"
+
+        def transcribe(self, piece, *, language, prompt):
+            samples, rate = ffmpeg.read_wav(piece)
+            seen.append(len(samples) / rate)
+            return [Word(text="said", start=0.2, end=0.6)]
+
+    monkeypatch.setattr(transcribe, "select", lambda engine=None: Spans())
+    monkeypatch.setattr(transcribe.ffmpeg, "probe_clip", lambda path: SimpleNamespace(path=wav, duration=10.0))
+    words = transcribe.transcribe_file(tmp_path / "film.mp4", spans=[(0.3, 1.8), (5.8, 7.2)])
+    assert seen == pytest.approx([1.5, 1.4], abs=0.02)
+    assert [(w.start, w.end) for w in words] == pytest.approx([(0.5, 0.9), (6.0, 6.4)])
+
+
 def test_a_piece_fits_inside_the_engines_own_chunk():
     assert transcribe.PIECE + transcribe.REACH <= transcribe.Parakeet.chunk
     assert transcribe.PIECE * 1.5 <= transcribe.Parakeet.chunk

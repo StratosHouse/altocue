@@ -39,6 +39,9 @@ CAPTIONS_NEEDED = 0.98
 READING_MOST = 24.0  # characters a second. Netflix allows 20 for subtitles read in silence, and these follow the voice, so a fifth more. Not yet calibrated on real clips
 READING_STRETCH = 2.0  # seconds on screen. One quick page is fine, because the next gives the time back
 REPEAT_LONGEST = 8
+VOICE_PAD = 0.15  # seconds read either side of a film's line, so its first and last words are whole
+VOICE_JOIN = 0.5  # lines closer than this are read as one
+TAG_SLACK = 0.05  # seconds a heard word may sit past a tagged caption word and still be that word
 OCR_FPS = 4.0
 TEXT_SAMPLES = 16
 FACE_SAMPLES = 8
@@ -224,7 +227,7 @@ class Context:
     def heard(self) -> tuple[list[Word] | None, str]:
         if self._heard is None:
             language = str(self.project.setting("transcribe", "language", "en"))
-            words, reason = transcribe(self.file, language)
+            words, reason = transcribe(self.file, language, voiced_spans(self.timeline))
             self._heard = (self.project.corrected_all(words) if words is not None else None, reason)
         return self._heard
 
@@ -239,7 +242,29 @@ class Context:
         return None
 
 
-def transcribe(path: str | Path, language: str = "en") -> tuple[list[Word] | None, str]:
+def voiced_spans(timeline: dict[str, Any] | None) -> list[tuple[float, float]] | None:
+    """Where a film plays its recorded lines, padded a little and joined where they meet. None reads the whole file.
+
+    Only a film whose every line states where it stops can say where its voice is; any other is read whole.
+    """
+    scenes = (timeline or {}).get("scenes") or []
+    lines = [scene for scene in scenes if scene.get("voice")]
+    if not lines or any(scene.get("voice_to") is None for scene in lines):
+        return None
+    total = float((timeline or {}).get("total") or max(float(scene["end"]) for scene in scenes))
+    spans: list[list[float]] = []
+    for scene in sorted(lines, key=lambda scene: float(scene["start"])):
+        start = float(scene["start"]) + float(scene.get("voice_offset") or 0.0)
+        end = start + float(scene["voice_to"]) - float(scene.get("voice_from") or 0.0)
+        start, end = max(start - VOICE_PAD, 0.0), min(end + VOICE_PAD, total)
+        if spans and start <= spans[-1][1] + VOICE_JOIN:
+            spans[-1][1] = max(spans[-1][1], end)
+        else:
+            spans.append([start, end])
+    return [(round(a, 3), round(b, 3)) for a, b in spans]
+
+
+def transcribe(path: str | Path, language: str = "en", spans: list[tuple[float, float]] | None = None) -> tuple[list[Word] | None, str]:
     """A missing transcriber makes the word gates skip. It can never make them pass."""
     try:
         module = importlib.import_module("altocue.transcribe")
@@ -248,7 +273,7 @@ def transcribe(path: str | Path, language: str = "en") -> tuple[list[Word] | Non
     if not hasattr(module, "transcribe_file"):
         return None, "The transcribe stage has no way to read a rendered file."
     try:
-        return module.transcribe_file(path, language=language), ""
+        return (module.transcribe_file(path, language=language, spans=spans) if spans else module.transcribe_file(path, language=language)), ""
     except AltocueError as error:
         return None, str(error)
 
@@ -496,8 +521,12 @@ def match_rate(expected: list[str], heard: list[str]) -> float:
     return max(0.0, 1 - distance(ref, hyp) / len(ref))
 
 
-def doubled_phrases(words: list[str], allow: list[str] | None = None) -> list[str]:
-    """Runs of two or more words said twice in a row. One word repeated is often just emphasis."""
+def doubled_phrases(words: list[str], allow: list[str] | None = None, shown: list[bool] | None = None) -> list[str]:
+    """Runs of two or more words said twice in a row. One word repeated is often just emphasis.
+
+    `shown` marks each word the film shows on purpose as a stumble, tagged on screen. A repeat whose first copy is all
+    tagged is the stumble being shown, not one left in by mistake.
+    """
     allowed = {" ".join(rules.tokens(a)) for a in allow or []}
     found: list[str] = []
     i = 0
@@ -506,7 +535,7 @@ def doubled_phrases(words: list[str], allow: list[str] | None = None) -> list[st
             run = words[i : i + size]
             if run == words[i + size : i + 2 * size] and len(set(run)) > 1:
                 phrase = " ".join(run)
-                if phrase not in allowed:
+                if phrase not in allowed and not (shown and all(shown[i : i + size])):
                     found.append(phrase)
                 i += size - 1
                 break
@@ -545,14 +574,19 @@ def word_gates(c: Context) -> list[GateResult]:
                     detail=f"{rate:.1%} of {len(norm(expected))} expected words",
                 )
             )
-        doubled = doubled_phrases(tokens, c.rules.allow_repeats if c.rules else None)
+        allow = c.rules.allow_repeats if c.rules else None
+        doubled = doubled_phrases(tokens, allow)
+        shown = tagged_tokens(heard, c.timeline) if doubled else None
+        kept = doubled_phrases(tokens, allow, shown) if shown and any(shown) else doubled
+        meant = len(doubled) - len(kept)
+        on_purpose = f"; {meant} shown on purpose, tagged on screen as a stumble" if meant else ""
         results.append(
             GateResult(
                 id="doubled_phrase",
-                passed=not doubled,
-                value=len(doubled),
+                passed=not kept,
+                value=len(kept),
                 threshold=0,
-                detail=f"said twice: {'; '.join(doubled[:5])}" if doubled else "no phrase said twice in a row",
+                detail=(f"said twice: {'; '.join(kept[:5])}" if kept else "no phrase said twice in a row") + on_purpose,
             )
         )
 
@@ -579,6 +613,21 @@ def word_gates(c: Context) -> list[GateResult]:
                 )
             )
     return results
+
+
+def tagged_tokens(heard: list[Word], timeline: dict[str, Any] | None) -> list[bool]:
+    """For each heard token, whether it was said while the captions show a tagged word: a stumble kept on screen on purpose."""
+    spans = [
+        (float(word["start"]), float(word["end"]))
+        for page in (timeline or {}).get("captions") or []
+        for word in page["words"]
+        if word.get("tag") and "start" in word and "end" in word
+    ]
+    marks: list[bool] = []
+    for word in heard:
+        inside = any(word.start < end + TAG_SLACK and word.end > start - TAG_SLACK for start, end in spans)
+        marks.extend([inside] * len(rules.tokens(word.text)))
+    return marks
 
 
 def declared_spellings(timeline: dict[str, Any]) -> dict[str, str]:

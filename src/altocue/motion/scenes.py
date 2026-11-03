@@ -383,7 +383,8 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
     def steady(item: dict[str, Any]) -> bool:  # a half sits still under every camera, so its seam stays on its line
         return bool(item.get("fixed", item["type"] in STEADY or item.get("carry") or item.get("zone") in HALVES))
 
-    items = [_place({**item, "fixed": steady(item)}, size) for item in done["items"]]
+    held = hard_cuts(scenes) if (board or {}).get("route") == "montage" else []
+    items = [_place({**item, "fixed": steady(item), **({"held": True} if _ends_on(item, held) else {})}, size) for item in done["items"]]
     return {
         "width": size[0],
         "height": size[1],
@@ -408,6 +409,15 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
         "loop": bool((board or {}).get("loop")),
         "one_take": (board or {}).get("one_take"),
     }
+
+
+def hard_cuts(scenes: list[dict[str, Any]]) -> list[float]:
+    """Where one scene meets the next on a hard cut. A montage cuts on the beat, so what is on screen holds to the cut."""
+    return [float(scene["end"]) for scene in scenes[:-1] if _link(scene)["type"] == "cut"]
+
+
+def _ends_on(item: dict[str, Any], cuts: list[float]) -> bool:
+    return any(abs(float(item["end"]) - at) < 1e-3 for at in cuts)
 
 
 def everything(timeline_: dict[str, Any]) -> list[dict[str, Any]]:

@@ -585,6 +585,40 @@ def test_a_camera_link_overlaps_the_two_scenes():
     assert float(problem.group(2)) == pytest.approx(3.7)
 
 
+def montage_page(made: dict) -> str:
+    resolved = storyboard.resolve(made, fps=60, aspect="1920x1080")
+    return scenes.compose(scenes.timeline(resolved, size=(1920, 1080), fps=60, brand=default_brand(), board=made), default_brand())
+
+
+def _leave(page: str, text: str) -> tuple[float, float]:
+    """The run and the leave of the graphic that shows `text`, or of the first graphic of format `f-<id>`."""
+    after = re.escape(text) if not text.startswith("f-") else ""
+    within = r'[^"]*' + re.escape(text) + r'\b[^"]*"' if text.startswith("f-") else r'[^"]*"'
+    found = re.search(r'class="clip [^"]*fmt-leaves' + within + r'[^>]*--dur:([\d.]+)s;--leave:([\d.]+)s[^>]*>(?:(?!<div class="clip).)*?' + after, page, re.S)
+    assert found, text
+    return float(found.group(1)), float(found.group(2))
+
+
+def test_a_montage_holds_its_graphics_to_each_hard_cut():
+    """A fade before a cut on the beat softens the cut into a dip, and the cut no longer lands where the plan puts it."""
+    seconds, leave = _leave(montage_page(board(route="montage")), "f-word_slam")
+    assert leave == pytest.approx(seconds)
+
+
+def test_a_graphic_that_ends_inside_its_scene_still_fades():
+    seconds, leave = _leave(montage_page(board(route="montage")), "Nobody reads")
+    assert seconds == pytest.approx(4.0) and leave == pytest.approx(3.8)
+
+
+def test_other_routes_and_softer_links_keep_the_fade_before_a_cut():
+    seconds, leave = _leave(montage_page(board()), "f-word_slam")
+    assert leave == pytest.approx(seconds - 0.2)
+    made = board(route="montage")
+    made["scenes"][0]["link"] = {"type": "dissolve", "seconds": 0.4}
+    seconds, leave = _leave(montage_page(made), "f-word_slam")
+    assert leave == pytest.approx(seconds - 0.2)
+
+
 def test_a_cutdown_comes_from_the_same_storyboard_at_its_own_size():
     made = board()
     wide = timeline_for(made)

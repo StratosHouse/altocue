@@ -163,8 +163,9 @@ def _style(item: dict[str, Any], *, leave: bool = False) -> str:
         parts.append(f"top:{float(item['y']):g}px")
     if item.get("place"):
         parts.append(str(item["place"]))  # a film fits the graphic to a zone of the frame
-    if leave:
-        parts.append(f"--dur:{max(item['end'] - item['start'], 0.04):.3f}s;--leave:{max(item['end'] - item['start'] - 0.2, 0):.3f}s")
+    if leave:  # a graphic held to a hard cut starts to leave on the cut itself, so its last frame is whole
+        seconds = max(item["end"] - item["start"], 0.04)
+        parts.append(f"--dur:{seconds:.3f}s;--leave:{seconds if item.get('held') else max(seconds - 0.2, 0):.3f}s")
     return f'style="{";".join(parts)}"' if parts else ""
 
 

@@ -662,10 +662,26 @@ def reading_back() -> Iterator[None]:
         READING_BACK.reset(token)
 
 
-def transcribe_file(path: str | Path, engine: str | None = None, language: str = "en") -> list[Word]:
-    """Read any media file back to words, for checks on a finished render. A render has music under it, so it goes in shorter pieces."""
+def transcribe_file(path: str | Path, engine: str | None = None, language: str = "en", spans: list[tuple[float, float]] | None = None) -> list[Word]:
+    """Read any media file back to words, for checks on a finished render. A render has music under it, so it goes in shorter pieces.
+
+    `spans` are the stretches, in seconds, where the render has a voice. Each is read on its own, so a line on one side of a
+    stretch of music is never run together with a line on the other, and music alone is never heard as words.
+    """
     with heavy("reading the render back"), reading_back():
-        return transcribe_clip(ffmpeg.probe_clip(path), select(engine), language=language, prompt="", cues=[], piece=READBACK_PIECE)
+        clip, chosen = ffmpeg.probe_clip(path), select(engine)
+        if not spans:
+            return transcribe_clip(clip, chosen, language=language, prompt="", cues=[], piece=READBACK_PIECE)
+        check_room(chosen, clip.duration)
+        with tempfile.TemporaryDirectory() as folder:
+            wav = ffmpeg.extract_wav(clip.path, Path(folder) / "audio.wav", rate=RATE)
+            envelope = Envelope.from_wav(wav)
+            raw: list[Word] = []
+            for start, end in spans:
+                piece = ffmpeg.extract_wav(wav, Path(folder) / "span.wav", rate=RATE, start=start, end=end)
+                raw += [dataclasses.replace(word, start=word.start + start, end=word.end + start) for word in chosen.transcribe(piece, language=language, prompt="")]
+                release_memory()
+        return classify(clean(raw, duration=clip.duration, envelope=envelope), cues=[])
 
 
 def transcribe_project(project: Project, engine: str | Transcriber | None = None, force: bool = False) -> dict[str, int]:
