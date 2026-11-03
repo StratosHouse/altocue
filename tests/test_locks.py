@@ -23,6 +23,7 @@ with locks.heavy("a test"):
 
 def test_a_second_heavy_job_waits_its_turn(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("ALTOCUE_HEAVY_JOBS", raising=False)  # a render PC sets more slots for every job it runs
     holder = subprocess.Popen([sys.executable, "-c", HOLD], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     assert holder.stdout.readline().strip() == "held"
     second = subprocess.Popen(
