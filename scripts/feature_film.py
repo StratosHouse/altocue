@@ -30,6 +30,7 @@ ICONS = ("cut", "clean", "grade", "frame", "broll", "caption", "motion", "direct
 NAMES = {"broll": "B-roll"}
 LOOK_PICKS = (0, 1, 8, 10)  # natural, warm, mono_contrast and teal_orange in the compare sheet
 LOOK_NAMES = ("natural", "warm", "mono contrast", "teal orange")
+TAKE_B_FROM = 1.05  # seconds into final-b.mp4, after "Here's the best part."
 
 
 def seconds_of(path: Path) -> float:
@@ -166,7 +167,8 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
     speech = assets / "voice"
     speech.mkdir(exist_ok=True)
     ffmpeg.run(["-i", str(final_a), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-a.wav")])
-    ffmpeg.run(["-i", str(final_b), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-b.wav")])
+    # the second take starts at "It fixes the sound": under the score, the transcriber QA uses cannot hear its opening line
+    ffmpeg.run(["-ss", f"{TAKE_B_FROM:.2f}", "-i", str(final_b), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-b.wav")])
     frame_raw, frame_graded = matched_frames(raw_a, final_a, assets)
     crops = look_crops(looks, assets)
     clip = stock_clip(project, "ocean waves aerial") if stock else kept_clip(project)
@@ -203,7 +205,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "energy": 3,
             "carry": "the line falls into the footage",
             "camera": {"move": "push", "amount": 0.1},
-            "link": {"type": "dive", "seconds": 0.9, "zoom": 4.0, "why": "We fall through the promise into the raw take it is about."},
+            "link": {"type": "dive", "seconds": 0.9, "zoom": 1.6, "why": "We fall through the promise into the raw take it is about."},
             "items": [
                 {
                     "type": "word_slam",
@@ -230,7 +232,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "voice": "assets/voice/final-a.wav",
             "voice_offset": -0.4,
             "camera": {"move": "drift"},
-            "link": {"type": "pan", "seconds": 0.7, "why": "The same sideways move carries us to the next take."},
+            "link": {"type": "dissolve", "seconds": 0.7, "why": "Two bright phones sliding off measured at the flash limit, so the takes fade."},
             "items": [
                 {"type": "mask_rise", "lines": ["Raw take", "*to finished cut*"], "start": 0.0, "zone": "left"},
                 {"type": "footage", "file": "assets/raw-a.mp4", "zone": "phone_a", "label": "Raw, {live:raw_seconds} s", "start": -0.4, "important": False},
@@ -248,7 +250,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "captions",
             "beat": "example",
-            "seconds": 10.5,
+            "seconds": 9.5,
             "verb": "caption",
             "energy": 5,
             "carry": "the words move to the colour",
@@ -259,7 +261,15 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "link": {"type": "through", "seconds": 0.7, "why": "We push through the face into the same frame, corrected."},
             "items": [
                 {"type": "mask_rise", "lines": ["Captions", "*to the word*"], "start": -0.3, "zone": "left"},
-                {"type": "footage", "file": "assets/final-b.mp4", "zone": "phone", "start": -0.3, "important": False, "captions": True},
+                {
+                    "type": "footage",
+                    "file": "assets/final-b.mp4",
+                    "zone": "phone",
+                    "from": TAKE_B_FROM,
+                    "start": -0.3,
+                    "important": False,
+                    "captions": {"spell": {"color": "colour"}},  # British spelling, as the clip's own caption has it
+                },
             ],
         },
         {
@@ -271,7 +281,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "carry": "the sweep turns into the waveform",
             "shows": ["colour"],
             "camera": {"move": "push", "amount": 0.04},
-            "link": {"type": "pan", "seconds": 0.7, "why": "The divider's sweep carries on into the sound."},
+            "link": {"type": "dissolve", "seconds": 0.7, "why": "A bright face sliding off flashed, so the picture fades into the sound."},
             "items": [
                 {"type": "mask_rise", "lines": ["Colour", "*per clip*"], "start": -0.3, "zone": "left"},
                 {
@@ -282,10 +292,8 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     ],
                     "start": -0.3,
                     "zone": "right",
-                    "scale": 0.82,
                     "important": False,
                 },
-                say("Raw on the left, finished on the right."),
             ],
         },
         {
@@ -384,7 +392,6 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "shows": ["maps"],
             "link": {"type": "shape_match", "label": "Shape match", "why": "Each format hands over with a wipe from the library."},
             "items": [
-                stamp("MAPS", aspects={"1:1": {"corner": "bl"}}),
                 {
                     "type": "flight_route",
                     "text": "Real maps, *drawn in code*",
@@ -423,16 +430,15 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "shows": ["isometric"],
             "link": {"type": "iris", "label": "Iris", "why": "Each format hands over with a wipe from the library."},
             "items": [
-                stamp("ISOMETRIC"),
+                stamp("ISOMETRIC", aspects={"1:1": {"corner": "bl"}}),
                 {
                     "type": "iso_stack",
-                    "title": "Layers *in real depth*",
+                    "title": "Depth, for ideas *built in layers*",  # the stack reaches the foot, so its title carries the line
                     "layers": [{"text": "Your footage", "on": True}, {"text": "Captions"}, {"text": "Graphics"}],
                     "move": "explode",
                     "aspects": {"1:1": {"zone": "full"}},
                     "start": 0.0,
                 },
-                say("Depth, for ideas built in layers."),
             ],
         },
         {
@@ -485,7 +491,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "carry": "the row becomes search results",
             "shows": ["looks"],
             "camera": {"move": "drift"},
-            "link": {"type": "pan", "seconds": 0.7, "why": "The row slides on to the library."},
+            "link": {"type": "dissolve", "seconds": 0.7, "why": "Four bright frames sliding off flashed, so the row fades into the library."},
             "items": [
                 {
                     "type": "stage_strip",
@@ -521,8 +527,15 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "rate": 9,
                     "important": False,
                 },
-                {"type": "terminal_run", "text": f'altocue library search "{search_words}"'[:36], "name": "library", "output": found, "start": 0.2, "zone": "right"},
-                say("Your agent searches it by what you need.", start=1.0),
+                {
+                    "type": "terminal_run",
+                    "text": f'altocue library search "{search_words}"'[:36],
+                    "name": "library",
+                    "output": found,
+                    "start": 0.2,
+                    "zone": "right",
+                    "aspects": {"1:1": {"scale": 0.8}},
+                },
             ],
         },
         {
@@ -546,13 +559,14 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "from": "{live:gates}",
                     "to": 0,
                     "label": "to check",
+                    "aspects": {"1:1": {"scale": 0.8}},
                     "done": "{live:passed} passed, {live:failed} failed, {live:na} not needed",
                     "rows": gate_rows(),
                     "start": -0.3,
                     "zone": "center",
                     "align": "center",
                 },
-                say("Each gate is a measurement, not an opinion.", start=0.6),
+                say("Measurements, not opinions.", start=0.6),
             ],
             "sound": [{"name": "tick", "at": 1.5}, {"name": "tick", "at": 2.4}, {"name": "tick", "at": 3.3}],
         },

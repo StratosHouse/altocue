@@ -45,6 +45,7 @@ LOOP_FILLER, LOOP_WORD, LOOP_PHRASE = 3, 6, 4
 STOCK_CONFIDENCE = 0.5
 PIECE = 60.0  # speech goes to a local engine in pieces this long, so its memory follows the piece and not the file
 REACH = 10.0  # how far either side of a mark to look for the quietest moment
+READBACK_PIECE = 30.0  # a finished render has music under the speech, and parakeet drops whole lines from a long stretch of it
 MLX_CACHE_BYTES = 256 * 2**20  # MLX keeps freed buffers, and by default that cache may grow past the machine's memory
 MLX_LIMIT_BYTES = 5 * 2**30  # a 60 second piece peaks near 3 GB
 MIN_FREE_DISK_GB = 5.0  # swap lives on this disk too, and a full disk with no swap took a 16 GB Mac down
@@ -578,28 +579,32 @@ def prompt_for(project: Project, *, engine: str) -> str:
     return " ".join([FILLER_PROMPT, *words])
 
 
-def quiet_marks(envelope: Envelope, duration: float) -> list[float]:
+def quiet_marks(envelope: Envelope, duration: float, piece: float | None = None) -> list[float]:
     """Where to split a recording: the quietest pause near each mark, so no word is cut in two.
 
     The marks follow the clip's length and the envelope stops where the sound does, so past the sound there is nothing to split.
     """
-    if duration <= PIECE * 1.5 or not len(envelope.db):
+    length = piece or PIECE
+    reach = min(REACH, length / 3)
+    if duration <= length * 1.5 or not len(envelope.db):
         return []
     held = np.convolve(envelope.db, np.ones(QUIET_WINDOW) / QUIET_WINDOW, "same")
     marks: list[float] = []
-    place = PIECE
-    while place < duration - PIECE / 2:
-        first, last = int((place - REACH) / HOP), int((place + REACH) / HOP)
+    place = length
+    while place < duration - length / 2:
+        first, last = int((place - reach) / HOP), int((place + reach) / HOP)
         if first >= len(held):
             break
         marks.append(round((first + int(np.argmin(held[first:last]))) * HOP, 3))
-        place = marks[-1] + PIECE
+        place = marks[-1] + length
     return marks
 
 
-def in_pieces(engine: Transcriber, wav: Path, envelope: Envelope, duration: float, *, language: str, prompt: str) -> list[Word]:
+def in_pieces(
+    engine: Transcriber, wav: Path, envelope: Envelope, duration: float, *, language: str, prompt: str, piece: float | None = None
+) -> list[Word]:
     """Hand a local engine the recording a piece at a time, clearing up after each, so memory stays flat however long it runs."""
-    marks = [] if engine.hosted else quiet_marks(envelope, duration)
+    marks = [] if engine.hosted else quiet_marks(envelope, duration, piece)
     words: list[Word] = []
     edges = [0.0, *marks, duration]
     for start, end in zip(edges, edges[1:], strict=False):
@@ -630,19 +635,19 @@ def check_room(engine: Transcriber, seconds: float) -> None:
         )
 
 
-def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: str, cues: list[str]) -> list[Word]:
+def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: str, cues: list[str], piece: float | None = None) -> list[Word]:
     check_room(engine, clip.duration)
     with tempfile.TemporaryDirectory() as folder:
         wav = ffmpeg.extract_wav(clip.path, Path(folder) / "audio.wav", rate=RATE)
         envelope = Envelope.from_wav(wav)
-        raw = in_pieces(engine, wav, envelope, clip.duration, language=language, prompt=prompt)
+        raw = in_pieces(engine, wav, envelope, clip.duration, language=language, prompt=prompt, piece=piece)
     return classify(clean(raw, duration=clip.duration, envelope=envelope), cues=cues)
 
 
 def transcribe_file(path: str | Path, engine: str | None = None, language: str = "en") -> list[Word]:
-    """Read any media file back to words, for checks on a finished render."""
+    """Read any media file back to words, for checks on a finished render. A render has music under it, so it goes in shorter pieces."""
     with heavy("reading the render back"):
-        return transcribe_clip(ffmpeg.probe_clip(path), select(engine), language=language, prompt="", cues=[])
+        return transcribe_clip(ffmpeg.probe_clip(path), select(engine), language=language, prompt="", cues=[], piece=READBACK_PIECE)
 
 
 def transcribe_project(project: Project, engine: str | Transcriber | None = None, force: bool = False) -> dict[str, int]:
