@@ -171,3 +171,11 @@ def test_every_engine_fix_names_a_real_extra():
 def test_doctor_checks_the_filters_the_required_stages_use():
     needed = {"highpass", "bandreject", "equalizer", "deesser", "afftdn", "asendcmd", "aresample", "apad", "atrim", "silencedetect", "astats"}
     assert needed <= set(doctor.REQUIRED_FILTERS)
+
+
+def test_no_command_takes_an_abbreviated_option(capsys):
+    """On Ubuntu's Python 3.12.3, `learn pair --a` read as an abbreviation of learn's own --age or --as-of."""
+    with pytest.raises(SystemExit) as stopped:
+        main(["status", "--proj", "."])
+    assert stopped.value.code == 2
+    assert "unrecognized arguments: --proj" in capsys.readouterr().err
