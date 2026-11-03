@@ -2005,6 +2005,21 @@ def test_new_terms_lapse_the_opt_in(project, capsys):
     assert "2027-01-01" in capsys.readouterr().err
 
 
+def test_new_packaged_terms_lapse_the_opt_in_even_under_a_project_catalog(project, capsys, monkeypatch, tmp_path):
+    """A project's own models.toml keeps the terms date it was copied with, so the packaged date counts too."""
+    from altocue.generate import catalog
+
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    newer = tmp_path / "packaged-models.toml"
+    newer.write_text(catalog.PACKAGED.read_text().replace('terms_as_of = "2026-10-23"', 'terms_as_of = "2027-01-01"'))
+    monkeypatch.setattr(catalog, "PACKAGED", newer)
+    capsys.readouterr()
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    assert "2027-01-01" in capsys.readouterr().err
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert "2027-01-01" in capsys.readouterr().out
+
+
 def test_a_stale_catalog_cannot_switch_the_gate_off(project, capsys):
     local = project.root / "models.local.toml"
     text = local.read_text()
