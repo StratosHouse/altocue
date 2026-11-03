@@ -285,3 +285,12 @@ def test_a_track_can_be_laid_from_a_point_inside_it(tmp_path):
     assert report(tmp_path / "from.wav")["music"]["starts_at"] == pytest.approx(3.0, abs=0.01)
     top = stereo(mix.mix_bed(None, tmp_path / "top.wav", music=track, seconds=4.0, music_end="fade"))
     assert rms_db(top[RATE // 10 : RATE // 2]) < -60
+
+
+def test_a_track_laid_from_a_point_under_a_voice_with_a_room_tail(tmp_path):
+    """The voice path fills its tail with room tone. That tail's own start must never be taken for the music's."""
+    track = ffmpeg.write_wav(tmp_path / "track.wav", np.concatenate([np.zeros(3 * RATE), tone(9.0, 300)]), RATE)
+    voice = ffmpeg.write_wav(tmp_path / "voice.wav", tone(3.0, 700, 0.3), RATE)
+    room = ffmpeg.write_wav(tmp_path / "room.wav", tone(1.0, 120, 0.001), RATE)
+    mix.mix_bed(voice, tmp_path / "mix.wav", music=track, room=room, tail=1.0, music_end="fade", music_from=3.0)
+    assert report(tmp_path / "mix.wav")["music"]["starts_at"] == pytest.approx(3.0, abs=0.01)

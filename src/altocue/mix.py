@@ -655,7 +655,7 @@ def mix_bed(
             out, report = _no_voice(Path(music) if music else None, cues, total, music_end, folder, layers, start=music_from)
         else:
             music_path, room_path = Path(music) if music else None, Path(room) if room else None
-            out, report = _with_voice(Path(voice), samples, music_path, cues, total, tail, room_path, music_end, folder, layers, start=music_from)
+            out, report = _with_voice(Path(voice), samples, music_path, cues, total, tail, room_path, music_end, folder, layers, music_from=music_from)
     peak = float(np.abs(out).max())
     if stems:
         _write_stems(Path(stems), out, layers or {}, PEAK_LIMIT / peak if peak > PEAK_LIMIT else 1.0)
@@ -687,7 +687,7 @@ def _with_voice(
     end: str,
     folder: Path,
     layers: dict[str, np.ndarray] | None = None,
-    start: float = 0.0,
+    music_from: float = 0.0,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """The voice leads. Music ducks under it, and effects are levelled against it."""
     level = _voice_level(voice)
@@ -702,7 +702,7 @@ def _with_voice(
         layers["voice"] = out.copy()
     report: dict[str, Any] = {"mode": "voice", "voice_lufs": level, "music": None, "sfx": []}
     if music:
-        bed, report["music"] = _music_bed(music, level - MUSIC_UNDER_VOICE_LU, total, end, folder, start=start)
+        bed, report["music"] = _music_bed(music, level - MUSIC_UNDER_VOICE_LU, total, end, folder, start=music_from)
         ridden, under = _ride(bed, samples, level - RIDER_GATE_BELOW_VOICE_DB)
         report["music"]["under_voice_db"] = round(under, 1)
         out += ridden
