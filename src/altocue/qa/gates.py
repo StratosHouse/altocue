@@ -1048,6 +1048,9 @@ def _used_files(c: Context) -> list[tuple[Path, list[tuple[float, float]]]]:
     found: list[tuple[Path, list[tuple[float, float]]]] = []
     for item in (c.timeline or {}).get("inserts", []):
         found.append((c.project.root / item["file"], [(float(item["start"]), float(item["end"]))]))
+    for item in (c.timeline or {}).get("items", []):  # a film plays its takes as footage, not as a cut
+        if item.get("type") == "footage" and item.get("file"):
+            found.append((c.project.root / item["file"], [(float(item["start"]), float(item["end"]))]))
     try:
         clips = {clip.id: Path(clip.path) for clip in c.project.clips()}
     except AltocueError:
