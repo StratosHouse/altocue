@@ -131,6 +131,12 @@ def test_a_freeze_past_the_end_is_refused():
         layout([30], [], [freeze(25, 10)])
 
 
+def test_a_freeze_before_the_start_is_refused_with_a_fix():
+    with pytest.raises(AltocueError, match="before the film starts") as caught:
+        layout([30, 30], [], [freeze(-3, 5)])
+    assert caught.value.fix
+
+
 def edl_of(*spans: tuple[float, float]) -> Edl:
     return Edl(fps=30, segments=[Segment(id=f"s{i}", clip="a", start=a, end=b) for i, (a, b) in enumerate(spans)])
 
