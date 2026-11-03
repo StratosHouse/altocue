@@ -41,9 +41,9 @@ background:color-mix(in srgb,var(--panel) 84%%,transparent);box-shadow:0 0 0 1px
 .cap.rail{font-weight:600;font-size:calc(var(--cap-size) * .76px);letter-spacing:-.008em}
 .cap.rail b.on{transform:none}
 @keyframes capin{from{transform:scale(.94)}to{transform:none}}
-.cap b.tg{position:relative;color:#fff;background:#e5484d;border-radius:.18em;padding:0 .12em}
+.cap b.tg{position:relative;color:#fff;background:#c42b35;border-radius:.18em;padding:0 .12em}
 .cap b.tg i{position:absolute;left:50%%;bottom:100%%;margin-bottom:.14em;transform:translateX(-50%%);padding:.14em .44em .16em;border-radius:.34em;font-size:.36em;font-style:normal;
-font-weight:700;letter-spacing:.06em;line-height:1.1;text-transform:uppercase;white-space:nowrap;color:#fff;background:#e5484d}
+font-weight:700;letter-spacing:.06em;line-height:1.1;text-transform:uppercase;white-space:nowrap;color:#fff;background:#c42b35}
 .cap b.tg.new{animation:tagin .3s cubic-bezier(.2,1.6,.4,1) both}
 @keyframes tagin{from{transform:scale(.55)}to{transform:none}}
 

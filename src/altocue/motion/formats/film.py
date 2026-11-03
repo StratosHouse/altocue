@@ -523,7 +523,7 @@ $ .w{position:relative;display:inline-block;white-space:pre;vertical-align:basel
 $ .x{animation:tcred .18s linear var(--s) forwards,tcfold .5s cubic-bezier(.6,0,.3,1) var(--c) forwards}
 $ .x u{position:absolute;left:-.04em;right:.22em;top:54%;height:.1em;border-radius:.05em;background:var(--hot);transform:scaleX(0);transform-origin:0 50%;animation:tcline .22s ease-out var(--s) forwards}
 $ .tg{display:inline-block;margin:0 .34em 0 0;padding:.1em .42em .14em;border-radius:.42em;font-size:.6em;font-style:normal;font-weight:700;letter-spacing:.04em;line-height:1.2;
-text-transform:uppercase;vertical-align:.18em;white-space:nowrap;color:#fff;background:var(--hot);opacity:0;transform:scale(.5);animation:tcpop .32s cubic-bezier(.2,1.6,.4,1) var(--s) forwards,tcgone .5s cubic-bezier(.6,0,.3,1) var(--c) forwards}
+text-transform:uppercase;vertical-align:.18em;white-space:nowrap;color:#fff;background:#c42b35;opacity:0;transform:scale(.5);animation:tcpop .32s cubic-bezier(.2,1.6,.4,1) var(--s) forwards,tcgone .5s cubic-bezier(.6,0,.3,1) var(--c) forwards}
 $ .bar{position:relative;margin-top:26u;height:30u}
 $ .trk{display:flex;height:100%;border-radius:10u;overflow:hidden}
 $ .sg{flex:none;width:var(--w);height:100%;box-shadow:-2u 0 0 color-mix(in srgb,var(--surface) 90%,var(--panel)) inset}
