@@ -55,7 +55,7 @@ A label does not cure a blocked line. Offer a rewrite in the host's voice, about
 
 ## 5. Disclose
 
-- **Put a label on screen.** Add a chip such as `AI-generated actor` in `motion.json`, in the caption-safe area, for at least 2 seconds. `altocue qa` reports the film if it is missing. Set your own words under `[disclosure] label`.
+- **Put a label on screen.** Add a chip such as `AI-generated actor` in `motion.json`, in the caption-safe area, for at least 2 seconds. `altocue qa` reports the film if it is missing. Set your own words, two or more, under `[disclosure] label`.
 - **Say it near the start.** Reveal a generated presenter and a cloned voice early. [source] The gate checks that a label exists, not when it lands, so place it yourself.
 - **Say truly how it was made.** Any line about how the film was made matches what was done. [source]
 - **An exemption is a recorded decision.** Set `[disclosure] exempt` with the reason in your own words. Nobody checks it, so ask the user.

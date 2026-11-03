@@ -445,6 +445,16 @@ def test_curly_quotes_and_capitals_do_not_hide_a_claim():
     assert claims.experience("I\u2019VE BEEN USING IT")
 
 
+@pytest.mark.parametrize(("label", "text"), [(" ", "Twist the cap and pour."), ("a", "Twist the cap and pour."), ("AI", "Pour it again."), ("x", "Box it up.")])
+def test_a_label_too_short_to_name_anything_does_not_disclose(label, text):
+    """A space or a letter is inside almost any text, so it cannot stand for a disclosure."""
+    assert not claims.discloses(text, label)
+
+
+def test_a_label_of_two_words_still_discloses():
+    assert claims.discloses("Played by a digital double", "digital double")
+
+
 def test_the_honesty_gates_have_nothing_to_do_without_a_synthetic_person(clean):
     context = gates.Context.open(clean.project, clean.file)
     with planted(clean):
@@ -581,6 +591,15 @@ def test_disclosure_says_it_is_not_legal_advice(tmp_path):
     with planted(built):
         context = gates.Context.open(built.project, built.file)
         assert "not legal advice" in gates.gate_disclosure(context).detail.lower()
+
+
+def test_a_one_letter_label_is_named_as_too_short(tmp_path):
+    built = synthetic(tmp_path, items=[{"type": "chip", "text": "Shop now", "start": 0.0, "end": 6.0}])
+    config = built.project.root / "altocue.toml"
+    config.write_text(config.read_text().replace('label = "AI-generated actor"', 'label = "o"'))
+    with planted(built):
+        gate = gates.gate_disclosure(gates.Context.open(Project.open(built.project.root), built.file))
+    assert not gate.passed and "too short" in gate.detail
 
 
 def test_a_project_can_name_its_own_label(tmp_path):

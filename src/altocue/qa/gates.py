@@ -1128,7 +1128,10 @@ def gate_disclosure(c: Context) -> GateResult:
     if seconds >= wanted:
         return GateResult(id="disclosure", passed=True, value=round(seconds, 2), threshold=wanted, detail=f"On screen for {seconds:.1f}s. {claims.NOT_LEGAL_ADVICE}")
     said = f"on screen for only {seconds:.1f}s" if shown else "nowhere on screen"
-    detail = f"{names} is a synthetic performer, and the disclosure is {said}. {claims.NOT_LEGAL_ADVICE}"
+    ignored = ""
+    if label.strip() and not claims.usable_label(label):
+        ignored = f" The project's label {label.strip()!r} is too short to count, so use two words or more, such as AI-generated actor."
+    detail = f"{names} is a synthetic performer, and the disclosure is {said}.{ignored} {claims.NOT_LEGAL_ADVICE}"
     return GateResult(id="disclosure", passed=False, value=round(seconds, 2), threshold=wanted, detail=detail)
 
 
