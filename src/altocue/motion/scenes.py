@@ -444,7 +444,10 @@ def tail(scene: dict[str, Any], lap: float) -> float:
 
 
 def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
-    """One page. Ground, then the world, then a camera per scene, then anything laid over the lot."""
+    """One page. Ground, then the world, then a camera per scene, then anything laid over the lot.
+
+    CSS animates it, so the root says it has no timeline, as HyperFrames lint asks.
+    """
     width, height, total = line["width"], line["height"], line["total"]
     css, geo = base_css(line, brand)
     scenes = line["scenes"]
@@ -484,12 +487,13 @@ def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
     tokens = root_tokens(line, brand, geo)
     sheet = css + formats.stylesheet(everything(line)) + FILM_CSS + "\n".join(keyframes)
     blur_attrs = f'data-motion-blur="on" data-motion-blur-shutter="{SHUTTER}"' if blur else 'data-motion-blur="off"'
+    size = f'data-start="0" data-duration="{total:.3f}" data-width="{width}" data-height="{height}"'
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
 <style>{sheet}</style></head>
 <body>
-<div id="root" data-composition-id="root" data-start="0" data-duration="{total:.3f}" data-width="{width}" data-height="{height}" {blur_attrs} style="{tokens}">
+<div id="root" data-composition-id="root" data-no-timeline {size} {blur_attrs} style="{tokens}">
 <div class="ground"></div>
 <div class="world" style="animation:world {total:.3f}s linear 0s both">
 {chr(10).join(behind)}

@@ -549,6 +549,12 @@ def test_a_camera_is_css_on_an_html_wrapper():
     assert "<script src" not in page
 
 
+def test_the_film_page_says_css_animates_it():
+    """HyperFrames lint counts a root with no timeline as an error, and a producer that trusts it waits for one."""
+    page = scenes.compose(timeline_for(board()), default_brand())
+    assert re.search(r'<div id="root" data-composition-id="root" data-no-timeline ', page)
+
+
 def test_the_camera_never_animates_svg_or_pseudo_elements():
     page = scenes.compose(timeline_for(board()), default_brand())
     css = page[page.index("<style>") : page.index("</style>")]

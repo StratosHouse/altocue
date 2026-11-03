@@ -282,10 +282,8 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     ],
                     "start": -0.3,
                     "zone": "right",
-                    "scale": 0.82,
                     "important": False,
                 },
-                say("Raw on the left, finished on the right."),
             ],
         },
         {
@@ -384,7 +382,6 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "shows": ["maps"],
             "link": {"type": "shape_match", "label": "Shape match", "why": "Each format hands over with a wipe from the library."},
             "items": [
-                stamp("MAPS", aspects={"1:1": {"corner": "bl"}}),
                 {
                     "type": "flight_route",
                     "text": "Real maps, *drawn in code*",
@@ -423,16 +420,15 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "shows": ["isometric"],
             "link": {"type": "iris", "label": "Iris", "why": "Each format hands over with a wipe from the library."},
             "items": [
-                stamp("ISOMETRIC"),
+                stamp("ISOMETRIC", aspects={"1:1": {"corner": "bl"}}),
                 {
                     "type": "iso_stack",
-                    "title": "Layers *in real depth*",
+                    "title": "Depth, for ideas *built in layers*",  # the stack reaches the foot, so its title carries the line
                     "layers": [{"text": "Your footage", "on": True}, {"text": "Captions"}, {"text": "Graphics"}],
                     "move": "explode",
                     "aspects": {"1:1": {"zone": "full"}},
                     "start": 0.0,
                 },
-                say("Depth, for ideas built in layers."),
             ],
         },
         {
@@ -521,8 +517,15 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "rate": 9,
                     "important": False,
                 },
-                {"type": "terminal_run", "text": f'altocue library search "{search_words}"'[:36], "name": "library", "output": found, "start": 0.2, "zone": "right"},
-                say("Your agent searches it by what you need.", start=1.0),
+                {
+                    "type": "terminal_run",
+                    "text": f'altocue library search "{search_words}"'[:36],
+                    "name": "library",
+                    "output": found,
+                    "start": 0.2,
+                    "zone": "right",
+                    "aspects": {"1:1": {"scale": 0.8}},
+                },
             ],
         },
         {
@@ -546,13 +549,14 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "from": "{live:gates}",
                     "to": 0,
                     "label": "to check",
+                    "aspects": {"1:1": {"scale": 0.8}},
                     "done": "{live:passed} passed, {live:failed} failed, {live:na} not needed",
                     "rows": gate_rows(),
                     "start": -0.3,
                     "zone": "center",
                     "align": "center",
                 },
-                say("Each gate is a measurement, not an opinion.", start=0.6),
+                say("Measurements, not opinions.", start=0.6),
             ],
             "sound": [{"name": "tick", "at": 1.5}, {"name": "tick", "at": 2.4}, {"name": "tick", "at": 3.3}],
         },
