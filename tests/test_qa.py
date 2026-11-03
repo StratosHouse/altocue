@@ -93,6 +93,32 @@ def test_banned_spelling_and_required_findings():
     assert sorted(f["kind"] for f in found) == ["banned", "required", "spelling", "spelling"]
 
 
+def test_a_banned_word_said_aloud_is_found_where_it_is_said():
+    """c123: a banned claim spoken in a voiceover passed, because only on-screen strings were read."""
+    spoken = [{"text": w, "start": i * 0.5, "end": i * 0.5 + 0.4} for i, w in enumerate("It is guaranteed and totally risk free".split())]
+    found = rules.check([], rules.Rules(banned=["guaranteed", "risk free", "cure"]), spoken)
+    assert [(f["term"], f["source"], f["start"]) for f in found] == [("guaranteed", "speech", 1.0), ("risk free", "speech", 2.5)]
+    assert rules.check([], rules.Rules(banned=["guaranteed"]), [{"text": "Guaranted,", "start": 0, "end": 1}])  # one letter off, as on screen
+
+
+def test_rules_strings_says_which_source_a_hit_came_from(clean):
+    context = gates.Context.open(clean.project, clean.file)
+    context.rules = rules.Rules(banned=["guaranteed"])
+    context._heard = ([Word("Results", 0.2, 0.6), Word("guaranteed.", 0.7, 1.3)], "")
+    gate = gates.gate_rules_strings(context)
+    assert not gate.passed and "banned 'guaranteed' said at" in gate.detail
+    context.timeline = {**context.timeline, "items": [{"type": "chip", "text": "Guaranteed", "start": 1.0, "end": 2.0}]}
+    assert "on screen in chip" in gates.gate_rules_strings(context).detail
+
+
+def test_banned_words_with_no_transcript_are_skipped_not_passed(clean):
+    context = gates.Context.open(clean.project, clean.file)
+    context.rules = rules.Rules(banned=["guaranteed"])
+    context._heard, context.edl = (None, "No transcriber here."), None
+    gate = gates.gate_rules_strings(context)
+    assert gate.skipped and not gate.passed and "banned words in speech" in gate.detail
+
+
 def test_required_line_must_be_up_while_the_word_is_said():
     ruleset = rules.Rules(required=[{"id": "terms", "when_spoken": "free", "on_screen": ["terms", "apply"]}])
     spoken = [{"text": "Free,", "start": 5.0, "end": 5.3}]
