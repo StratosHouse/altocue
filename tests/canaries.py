@@ -194,6 +194,7 @@ CANARIES = [
         "disclosure that flashes past",
         "disclosure",
         Recipe(performer=HOST_PROMPT, items=[{**LABEL_ITEM, "end": 0.5}], burn_text=[(LABEL, 0.12, 0.0, 0.5)]),
+        also=("text_readable",),
     ),
     Case(
         "graphic gone before it can be read",
