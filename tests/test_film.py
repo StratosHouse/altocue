@@ -1833,3 +1833,10 @@ def test_a_footage_item_names_its_presenter_from_its_captions(tmp_path, monkeypa
     monkeypatch.setattr(film, "words_of", lambda project, file: SAID)
     line, _ = film.film_line(film.load(project), "16:9")
     assert line["captions"] and all(page["name"] == "AI-generated presenter" for page in line["captions"])
+
+
+def test_the_phone_sheet_never_asks_for_a_frame_past_the_end():
+    """A film of 18.5 s asked for a frame at 18.5 s, which a file of that length does not hold, and film qa stopped."""
+    for total in (18.5, 24.0, 7.25, 30.0):
+        moments = film_qa.phone_times(total, fps=30)
+        assert moments and all(0 <= at <= total - 1 / 30 for at in moments)
