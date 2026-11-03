@@ -340,6 +340,18 @@ def test_a_draft_places_graphics_on_the_draft_plate(tmp_path, monkeypatch):
     assert [path.name for path in seen] == ["plate-draft.mp4", "plate.mp4"]
 
 
+def test_captions_made_for_another_cut_stop_the_timeline(tmp_path, monkeypatch):
+    project, edl = picture_project(tmp_path, *TWO)
+    project.save_edl(edl)
+    monkeypatch.setattr(timeline.cut, "map_words", lambda project, edl: [])
+    (project.work / "captions.json").write_text(json.dumps({"pages": [{"text": "an older cut", "start": 0.0, "end": 1.0}]}))
+    with pytest.raises(AltocueError, match="captions") as caught:
+        timeline.build(project)
+    assert "altocue caption" in caught.value.fix
+    (project.work / "captions.json").write_text(json.dumps({"cut": project.cut_mark(), "pages": []}))
+    assert timeline.build(project)["captions"] == []
+
+
 def test_a_freeze_the_edit_asked_for_is_not_a_fault(monkeypatch):
     monkeypatch.setattr(gates, "frozen_runs", lambda file, end: [(2.0, 2.6)])
     assert gates.gate_frozen(gate_context({"freezes": [{"start": 2.0, "end": 2.6}]})).passed

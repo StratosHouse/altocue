@@ -182,11 +182,22 @@ def chosen_broll(project: Project) -> list[dict[str, Any]]:
     return [{**insert, **edges(insert)} for insert in chosen.get("inserts", [])]
 
 
+def made_captions(project: Project) -> list[dict[str, Any]]:
+    """Captions sit on words, so they are only true for the cut they were made for."""
+    path = project.work / "captions.json"
+    if not path.exists():
+        return []
+    made = json.loads(path.read_text())
+    if made.get("cut") != project.cut_mark():
+        raise AltocueError("The captions were made for another cut.", fix="Run `altocue caption`, then this again. `altocue render` makes them fresh too.")
+    return made["pages"]
+
+
 def build(project: Project, *, draft: bool = False) -> dict[str, Any]:
     """`draft` says which plate the graphics are placed on. A final plate left from an earlier render is an older cut."""
     edl = project.edl()
     words = cut.map_words(project, edl)
-    captions = json.loads((project.work / "captions.json").read_text())["pages"] if (project.work / "captions.json").exists() else []
+    captions = made_captions(project)
     motion_file = project.root / "motion.json"
     motion = json.loads(motion_file.read_text()) if motion_file.exists() else {}
     duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
