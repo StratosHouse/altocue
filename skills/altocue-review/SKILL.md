@@ -18,12 +18,26 @@ The editor never signs off their own work.
    - **`pack`:** writes `review/PACK.md`. Give it to the `editor-in-chief` agent, or any fresh agent, then `altocue review --ingest review/verdict.json`.
 3. Read `review/REPORT.md`.
 4. Make every fix, in order. Re-render. Review again. At most two rounds, then hand the open list to the user.
+5. Offer `altocue review --page`. It writes `review/page.html`: the film beside each gate, note and caption, with a click on a note jumping to that moment. It is one file with no server and no network, and it prints its path. It opens a browser only with `--open`, so never add that unasked.
+
+## Tell the gates what the film must say
+
+A brief can list lines the film has to say, under a heading of its own in `brief.md`:
+
+```markdown
+## Must say
+
+- the free plan never expires
+- thirty day refund | 30 day refund
+```
+
+The `brief_coverage` gate checks each line against the transcript of the render. It reads words, not meaning, so a `|` offers other wordings. Whether the point lands is the reviewer's call. With no such list the gate is not applicable.
 
 ## Rules
 
 - **Never argue with a verdict in the report.** Fix it, or tell the user why you disagree.
 - **Never edit `verdict.json`.**
-- **Never show the reviewer your reasoning.** It gets the file, the brief, the rubric and the numbers. That keeps its read fresh.
+- **Never show the reviewer your reasoning.** It gets the file, the brief, the rubric and the numbers. That keeps its read fresh. `review/page.html` holds the verdict and the notes, so it never goes to a reviewer.
 - **Never show the reviewer facts, benchmarks or results.** `review/facts.json`, `bench/`, `results/` and `director-notes.md` stay out of its sight, and out of the brief. Numbers like these would anchor its hook and pacing scores. Facts reach the report only after scoring.
 - **If the reviewer shares a vendor with you, say so.** The report labels it.
 - **Always pass on the section "What this review could not see or hear".**
@@ -36,8 +50,8 @@ The gates catch what code can measure. These are yours. Most are [source], from 
 - **Measure as well as look:** every cut time, the size of an effect in pixels, and stray frames.
 - **Say what you saw before you change anything.** Timecode, what is in the frame, then the fix. Sampled frames mislead.
 - **Check stability in order:** first, middle and last frames, then whole, with and without sound. You work from frames, so tell the user they still need to watch it at normal speed, once with the sound off. That is a design check, not a claim about how people watch.
-- **Pull the exact first and last frames of each insert.** Look for a stray frame of the next shot. No gate does this yet.
-- **Count flashes across every fast run.** Three in any one second at most. See `altocue-transitions`.
+- **Pull the exact first and last frames of each insert.** The `stray_frames` gate compares the frames at each hard edge, and leaves an edge with a transition alone. Those are still yours to check.
+- **Flashes are measured.** The `flash_rate` gate holds a film to three in any one second. See `altocue-transitions`.
 - **Reject a beautiful shot that breaks the scene.** [thumb]
 - **Check every name, place, claim, phone number, likeness and brand.** Every factual claim holds up, and a hypothetical reads as one.
 - **When matching a reference, compare the same timecodes,** not similar moments.
