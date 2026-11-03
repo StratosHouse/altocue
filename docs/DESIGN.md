@@ -30,7 +30,7 @@ Altocue turns raw footage, a long recording or a brief into a finished video fro
 - **Never spend money silently.** Every paid generation shows its cost first and needs a yes.
 - **Never upload silently.** Every hosted step names where the footage is going.
 - **Never claim a check that did not run.**
-- **Never start a third-party application.** Altocue writes files and prints their paths. The timeline view is the HyperFrames studio at a local address it prints. A browser opens only for `--open`.
+- **Never open a window.** Altocue writes files and prints their paths. It never opens an application window, an editor or a browser on its own. The one exception is `altocue timeline`, which starts the HyperFrames studio at a local address it prints. Background command-line tools with no window are fine: ffmpeg, headless Chrome inside a render, npm during setup, and the codex and higgsfield CLIs when chosen.
 - **Never predict.** The data stages measure, compare and learn. There is no virality score.
 
 ## The pipeline

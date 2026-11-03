@@ -269,27 +269,25 @@ def test_no_film_says_how_to_make_one(film, tmp_path):
 
 
 def test_the_command_writes_prints_the_path_and_opens_nothing(film, monkeypatch, capsys):
-    """Altocue never launches another application unless it is told to."""
-    monkeypatch.setattr(page.webbrowser, "open", lambda url: pytest.fail("nothing opens without --open"))
+    """Altocue never opens an application window, editor or browser on its own."""
     monkeypatch.setattr(qa, "run_gates", lambda *_, **__: pytest.fail("the page only reads what was saved"))
     report(film.project, film.file)
     assert main(["review", "--page", "-p", str(film.project.root)]) == 0
     assert str(film.project.review_dir / "page.html") in capsys.readouterr().out
 
 
-def test_open_is_the_only_way_a_browser_starts(film, monkeypatch):
-    opened = []
-    monkeypatch.setattr(page.webbrowser, "open", lambda url: opened.append(url) or True)
+def test_there_is_no_flag_that_opens_a_browser(film, capsys):
     report(film.project, film.file)
-    assert main(["review", "--page", "--open", "-p", str(film.project.root)]) == 0
-    assert opened == [(film.project.review_dir / "page.html").as_uri()]
+    with pytest.raises(SystemExit) as stopped:
+        main(["review", "--page", "--open", "-p", str(film.project.root)])
+    assert stopped.value.code == 2
+    assert not hasattr(page, "show")
 
 
-def test_a_failed_browser_still_says_where_the_page_is(film, monkeypatch, capsys):
-    monkeypatch.setattr(page.webbrowser, "open", lambda url: False)
-    report(film.project, film.file)
-    assert main(["review", "--page", "--open", "-p", str(film.project.root)]) == 0
-    assert "Open it yourself" in capsys.readouterr().out
+def test_no_code_in_altocue_can_start_a_browser():
+    source = Path(page.__file__).parents[1]
+    found = [str(path.relative_to(source)) for path in source.rglob("*.py") if re.search(r"\bwebbrowser\b", path.read_text())]
+    assert found == []
 
 
 def test_the_page_stays_off_the_reviewers_list():

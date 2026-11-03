@@ -18,7 +18,7 @@ The editor never signs off their own work.
    - **`pack`:** writes `review/PACK.md`. Give it to the `editor-in-chief` agent, or any fresh agent, then `altocue review --ingest review/verdict.json`.
 3. Read `review/REPORT.md`.
 4. Make every fix, in order. Re-render. Review again. At most two rounds, then hand the open list to the user.
-5. Offer `altocue review --page`. It writes `review/page.html`: the film beside each gate, note and caption, with a click on a note jumping to that moment. It is one file with no server and no network, and it prints its path. It opens a browser only with `--open`, so never add that unasked.
+5. Offer `altocue review --page`. It writes `review/page.html`: the film beside each gate, note and caption, with a click on a note jumping to that moment. It is one file with no server and no network. It prints its path and opens nothing, so give the user the path.
 
 ## Tell the gates what the film must say
 

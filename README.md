@@ -102,7 +102,7 @@ altocue run
 
 - **Edit by transcript.** `script.md` holds every sentence. Keep, remove or reorder them, then run `altocue cut --from-script`. Gain, crops, zooms and order you set by hand survive a re-cut, and anything lost is reported.
 - **See the edit on a timeline.** `altocue timeline -p .` shows the cut, captions, every graphic, the inserts and the voice, music and effects in the HyperFrames studio, at a local address it prints. Nothing else opens. The studio is a view: change `edl.json` or `motion.json`, then run it again. Stop it with `altocue timeline --stop`.
-- **Check it anywhere.** `altocue review --page` writes one file you can open anywhere, even on a phone: the film beside every gate, note and caption. A click on a note jumps there. It opens nothing unless you pass `--open`.
+- **Check it anywhere.** `altocue review --page` writes one file you open yourself, with no server: the film beside every gate, note and caption. A click on a note jumps there. It prints the path and opens nothing.
 - **Know where you are.** `altocue status` shows what is done, what is stale and what comes next.
 
 ## The tools
@@ -204,7 +204,7 @@ Films that need real footage run on the editing stages: a reel in the style of o
 
 <div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/flow.png" alt="Footage goes through transcribe, clips, cut, clean, grade, frame, B-roll, direct, generate, sound, caption and motion. The library feeds the graphics. A film with no footage starts at render. Then master, QA gates, the Editor in Chief and the verdict. FIX notes go back to you or your agent. Passes go on to deliver and data." width="100%"></div>
 
-Every stage reads and writes plain files, so you or your agent can step in anywhere. The picture and sound edit is built with ffmpeg. Graphics render as a transparent layer on top, so changing a caption never re-encodes the edit. Altocue never launches a third-party application. The timeline view is the HyperFrames studio at a local address, and a browser opens only when you ask.
+Every stage reads and writes plain files, so you or your agent can step in anywhere. The picture and sound edit is built with ffmpeg. Graphics render as a transparent layer on top, so changing a caption never re-encodes the edit. Altocue never opens an application window, an editor or a browser on its own. The one exception is `altocue timeline`, which starts the HyperFrames studio and prints its local address. Some steps run command-line tools in the background, with no window: ffmpeg, headless Chrome inside a render, npm during setup, and the codex and higgsfield CLIs when you choose them.
 
 ## The Editor in Chief
 

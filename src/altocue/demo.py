@@ -127,7 +127,6 @@ def review_stage(project: Project) -> str:
             editor_vendor=None,
             reset_rounds=False,
             page=False,
-            open_page=False,
         )
     )
     pack = "pack written" if (project.review_dir / "PACK.md").exists() else "no pack, because a fact gate failed"
