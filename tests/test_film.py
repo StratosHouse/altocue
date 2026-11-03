@@ -13,7 +13,7 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from altocue import brand as brands
-from altocue import cli, ffmpeg, film, flash, score, storyboard, study
+from altocue import cli, ffmpeg, film, flash, kinds, score, storyboard, study
 from altocue.errors import AltocueError
 from altocue.motion import compositions, formats, hyperframes, scenes
 from altocue.motion.formats import kit, product
@@ -21,7 +21,7 @@ from altocue.project import Project
 from altocue.qa import film as film_qa
 
 REPO = Path(__file__).resolve().parents[1]
-TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music")
+TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate")
 LAUNCH_VARIANTS = ("15", "20", "24", "30")
 
 
@@ -993,6 +993,87 @@ def test_a_one_take_plan_names_every_seam_and_its_exact_length():
     found = errors(storyboard.check(brief(), take, film.load_type("launch"), fps=60))
     assert any("held black or white" in m for m in found) and any("plain cut" in m for m in found)
     assert any("exactly 1799" in m for m in errors(storyboard.check(brief(), {**take, "one_take": {"frames": 1799}}, film.load_type("launch"), fps=60)))
+
+
+# Plate Edit: one change to the user's own footage (b029, k002)
+
+
+def plate_and_pass(folder: Path, seconds: float = 2.0, size: str = "320x180") -> tuple[Path, Path]:
+    plate = silent(folder / "plate.mp4", f"testsrc2=size={size}:rate=30:duration={seconds}")
+    edit = silent(folder / "edit.mp4", f"color=c=blue:s={size}:r=30:d={seconds}")
+    return plate, edit
+
+
+def test_a_comp_runs_as_long_as_the_plate_whatever_the_pass(tmp_path):
+    plate = silent(tmp_path / "plate.mp4", "testsrc2=size=320x180:rate=30:duration=2")
+    longer = silent(tmp_path / "edit.mp4", "color=c=blue:s=320x180:r=30:d=3")
+    assert kinds.plate_diff(kinds.build_comp(plate, longer, COMP, tmp_path / "comp"), plate, COMP)["passed"]
+
+
+COMP = {"file": "edit.mp4", "region": [0.25, 0.25, 0.5, 0.5], "from": 0.5, "to": 1.5}
+
+
+def test_a_plate_edit_lands_only_inside_its_region_and_window(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    made = kinds.build_comp(plate, edit, COMP, tmp_path / "comp")
+    found = kinds.plate_diff(made, plate, COMP)
+    assert found["passed"], found["problems"]
+    assert kinds.build_comp(plate, edit, COMP, tmp_path / "comp") == made  # kept until a file or the comp changes
+
+
+def test_canary_a_change_outside_its_region_fails_the_plate_check(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    made = kinds.build_comp(plate, edit, COMP, tmp_path / "comp")
+    found = kinds.plate_diff(made, plate, {**COMP, "region": [0.0, 0.0, 0.2, 0.2]})
+    assert not found["passed"] and "outside the edit region" in found["problems"][0]
+    late = kinds.plate_diff(made, plate, {**COMP, "to": 1.0})
+    assert not late["passed"] and "outside the edit window" in late["problems"][0]
+
+
+def test_canary_the_generated_pass_used_as_the_shot_fails(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    assert not kinds.plate_diff(edit, plate, COMP)["passed"]
+
+
+def test_canary_a_pass_that_changed_the_timing_fails(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    made = kinds.build_comp(plate, edit, COMP, tmp_path / "comp")
+    found = kinds.plate_diff(made, plate, COMP, span=1.5)
+    assert not found["passed"] and "timing changed" in found["problems"][0]
+
+
+def silent(path: Path, source: str) -> Path:
+    """A picture of an exact length and no sound, so a duration read from the file is the picture's own."""
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-pix_fmt", "yuv420p", str(path)], check=True)
+    return path
+
+
+def plate_film(folder: Path, *, plate_seconds: float = 8.0, pass_seconds: float = 8.0) -> film.Film:
+    project = film.new_film("plate", str(folder))
+    silent(project.root / "assets" / "plate.mp4", f"testsrc2=size=180x320:rate=30:duration={plate_seconds}")
+    silent(project.root / "generated" / "edit.mp4", f"color=c=blue:s=180x320:r=30:d={pass_seconds}")
+    return film.load(project)
+
+
+def test_a_plate_edit_plan_locks_what_stays(tmp_path, capsys):
+    made = plate_film(tmp_path / "glass")
+    assert errors(kinds.plan(made)) == []
+    scene = made.board["scenes"][0]
+    scene["camera"] = {"move": "push", "amount": 0.05}
+    scene["items"][0]["comp"]["region"] = [0, 0, 1, 1]
+    scene["items"].append({"type": "chapter_card", "text": "Glass"})
+    found = " ".join(errors(kinds.plan(made)))
+    assert "camera move" in found and "whole frame" in found and "draw over the plate" in found
+
+
+def test_a_plate_edit_pass_must_keep_the_plates_timing(tmp_path, capsys):
+    found = kinds.plan(plate_film(tmp_path / "glass", pass_seconds=6.0))
+    assert any(p.message == "The edit pass runs 6.00 s and the plate 8.00 s." and "keeps the plate's timing" in p.fix for p in found)
+
+
+def test_a_plate_edit_with_no_plate_says_where_it_goes(tmp_path, capsys):
+    project = film.new_film("plate", str(tmp_path / "glass"))
+    assert "No plate at assets/plate.mp4" in " ".join(errors(film.problems_in(film.load(project))))
 
 
 def test_cuts_compare_against_the_plan_in_frames():

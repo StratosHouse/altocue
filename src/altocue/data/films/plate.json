@@ -1,0 +1,101 @@
+{
+  "id": "plate",
+  "name": "Plate Edit",
+  "promise": "One change to your own footage, comped back so everything outside it stays as you shot it.",
+  "cost": "$0 in code. The edit pass is generated where you choose, and quoted first.",
+  "generation": "optional",
+  "aspect": "9:16",
+  "fps": 30,
+  "default": "main",
+  "no_hook": true,
+  "checks": [
+    "plate"
+  ],
+  "beats": [
+    "change"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "plate",
+    "change",
+    "cue"
+  ],
+  "formats": [
+    "chapter_card",
+    "corner_stamp"
+  ],
+  "notes": [
+    "Bring your own clip as assets/plate.mp4 and the edit pass as generated/edit.mp4, made from that clip with every frame, cut and camera move locked. The pass is never the shot: only its region, inside its window, lands on the plate.",
+    "Start the change on a visible cue in the plate and end it before the plate ends. Keep titles and labels in a scene of their own, so nothing draws over the plate. To keep the clip's own sound under the score, set \"voice\": \"assets/plate.mp4\" on the scene."
+  ],
+  "brief": {
+    "example": true,
+    "company": "A short clip of a lobby, where one pillar turns to glass and back.",
+    "audience": "Followers of an invented architecture studio",
+    "goal": "Share it",
+    "message": "One thing changes, and everything else is real.",
+    "must_show": [
+      "the pillar turning to glass"
+    ],
+    "tone": "Quiet and exact",
+    "plate": "assets/plate.mp4, filmed on a phone on a tripod, 8 seconds",
+    "change": "The middle pillar turns to clear glass, the same single object, and back to concrete.",
+    "cue": "The door on the left opens at 2 seconds.",
+    "deliverables": [
+      "9:16"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Glass pillar",
+        "route": "continuous",
+        "clock": "reads",
+        "hero": {
+          "scene": "change",
+          "offset": 3.0
+        },
+        "scenes": [
+          {
+            "id": "change",
+            "beat": "change",
+            "seconds": 8,
+            "verb": "turn",
+            "energy": 4,
+            "shows": [
+              "the pillar turning to glass"
+            ],
+            "camera": {
+              "move": "drift",
+              "amount": 0
+            },
+            "items": [
+              {
+                "type": "footage",
+                "file": "assets/plate.mp4",
+                "start": 0,
+                "comp": {
+                  "file": "generated/edit.mp4",
+                  "region": [
+                    0.3,
+                    0.2,
+                    0.4,
+                    0.6
+                  ],
+                  "from": 2.0,
+                  "to": 6.5
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

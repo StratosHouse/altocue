@@ -499,6 +499,10 @@ def run_film(project: Project, film: Any) -> int:
     sheets = project.review_dir / "sheets"
     for path in sorted(project.out.glob("final*.mp4")):
         rows, found = report_rows(path, line, loop=bool(film.board.get("loop")))
+        if path.name == "final.mp4":  # a type's own checks read the master, which is the aspect its plan was made at
+            from .. import kinds
+
+            rows += kinds.finished(project, film, line, path)
         results[path.name] = {"checks": rows, "motion_curve": found["motion_curve"]}
         for row in rows:
             print(f"{row['level']:<4} {path.name} {row['check']}: {row['detail']}")

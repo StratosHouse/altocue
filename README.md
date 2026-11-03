@@ -186,7 +186,7 @@ altocue film qa
 
 That gives a 16:9 master at 60 fps, with 9:16 and 1:1 cutdowns re-rendered from the same storyboard rather than cropped. `--variant` picks a 30, 24, 20 or 15 second shape.
 
-There are 8 film types. `altocue film types` lists each with its promise and cost, and `altocue film new <type> <folder>` starts one from a working example.
+There are 9 film types. `altocue film types` lists each with its promise and cost, and `altocue film new <type> <folder>` starts one from a working example.
 
 | Type | What it makes |
 |---|---|
@@ -198,6 +198,7 @@ There are 8 film types. `altocue film types` lists each with its promise and cos
 | `case` | An event told like an evidence log, with timestamps and maps |
 | `line` | Record the voice first, and every spoken line gets its own picture, in sync |
 | `music` | A brand film cut to the sections of a song, every cut on the beat |
+| `plate` | One change to your own clip, comped back so everything outside it stays as you shot it |
 
 Films that need real footage run on the editing stages: a reel in the style of one you admire, one statement from a long recording as a short, or an ad cut from real product footage.
 

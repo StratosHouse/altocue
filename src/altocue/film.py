@@ -21,12 +21,12 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from . import brand as brands
-from . import ffmpeg, flash, live, locks, master, mix, score, storyboard, study
+from . import ffmpeg, flash, kinds, live, locks, master, mix, score, storyboard, study
 from .errors import AltocueError
 from .motion import compositions, formats, hyperframes, scenes
 from .project import CONFIG, SIZES, Project, write_json
 
-ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music")
+ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate")
 LOCK = "storyboard.lock.json"
 FOLDERS = ("assets", "assets/voice", "assets/music", "generated", "motion")
 DRAFT_FPS = 30
@@ -204,7 +204,7 @@ def load(project: Project) -> Film:
 def problems_in(film: Film) -> list[storyboard.Problem]:
     voice = {**estimated_voice(film.board), **film.voice}
     found = storyboard.check(film.brief, film.board, film.record, approved=film.approved, voice=voice, card=film.card, fps=film.project.fps)
-    return found + live.check(film.project.root, film.board)
+    return found + live.check(film.project.root, film.board) + kinds.plan(film)
 
 
 def print_problems(problems: list[storyboard.Problem]) -> int:
@@ -348,6 +348,8 @@ def ready(project: Project, item: dict[str, Any]) -> dict[str, Any]:
         path = (project.root / item["file"]).resolve()
         if not path.is_file() or not path.is_relative_to(project.root.resolve()):
             raise AltocueError(f"No footage at {item['file']}.", fix="Keep generated clips in generated/ and your own in assets/.")
+        if item.get("comp"):  # the pass goes in only where and when the change happens, and the plate stays the shot
+            path = kinds.build_comp(path, (project.root / item["comp"]["file"]).resolve(), item["comp"], project.work / "film" / "comp")
         return {**item, "stage_images": {formats.stage_name(item["file"]): str(path)}}
     return formats.place_images(project.root, item)
 
