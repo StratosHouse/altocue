@@ -39,7 +39,7 @@ The storyboard format, scene links, camera moves and motion rules are the same f
 
 A film can hold real pictures. Add `{"type": "footage", "file": "assets/take.mp4", "zone": "phone_a", "label": "Raw"}` to a scene. The zones `phone`, `phone_a` and `phone_b` keep a vertical clip upright at every aspect. Pictures stay muted. To hear a take, set `"voice"` on the scene, and `"voice_offset"` if the picture starts early.
 
-Add `"captions": true` to a footage item to caption what it says. Altocue reads the clip's own words once, keeps them until the file changes, and sets word-timed captions across the foot of that picture, sized to its width so they read on a phone. `film stills` measures them with everything else.
+Add `"captions": true` to a footage item to caption what it says. Altocue reads the clip's own words once, keeps them until the file changes, and sets word-timed captions across the foot of that picture, sized to its width so they read on a phone. `film stills` measures them with everything else. Read the words a clip's captions will show: if the transcriber mishears a name, write `"captions": {"spell": {"Heard": "Name"}}` so the caption spells it as written. A person still has to listen, because a misheard name can mean a voice that says it unclearly.
 
 Keep your own clips in `assets/` and generated ones in `generated/`, so either can be swapped without touching the motion.
 

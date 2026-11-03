@@ -312,9 +312,19 @@ def film_line(film: Film, aspect: str, *, board: dict[str, Any] | None = None, f
         page
         for item in line["items"]
         if item["type"] == "footage" and item.get("captions")
-        for page in scenes.caption_pages(item, words_of(film.project, film.project.root / item["file"]), SIZES[aspect])
+        for page in scenes.caption_pages(item, spelled(words_of(film.project, film.project.root / item["file"]), item["captions"]), SIZES[aspect])
     ]
     return line, brand
+
+
+def spelled(words: list[dict[str, Any]], captions: Any) -> list[dict[str, Any]]:
+    """A name the transcriber mishears, written the way the film spells it: `"captions": {"spell": {"AltaQ": "Altocue"}}`."""
+    spell = captions.get("spell", {}) if isinstance(captions, dict) else {}
+    made = []
+    for word in words:
+        core = word["text"].rstrip(".,!?;:")
+        made.append({**word, "text": str(spell.get(core, core)) + word["text"][len(core) :]})
+    return made
 
 
 def words_of(project: Project, path: Path) -> list[dict[str, Any]]:

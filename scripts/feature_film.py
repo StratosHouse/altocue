@@ -241,7 +241,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "label": "Cut, {live:cut_seconds} s",
                     "start": -0.4,
                     "important": False,
-                    "captions": True,
+                    "captions": {"spell": {"AltaQ": "Altocue"}},  # the transcriber hears the name this way
                 },
             ],
         },

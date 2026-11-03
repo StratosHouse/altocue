@@ -1385,3 +1385,17 @@ def test_a_hook_can_be_on_screen_from_the_first_frame():
     drawn = formats.find("word_slam").draw({"text": "You film it", "gap": 0.2, "lead": 0.3, "start": 0, "end": 3})
     assert "--gap:0.200s" in drawn and "--lead:0.300s" in drawn
     assert "var(--lead" in formats.find("word_slam").css
+
+
+def test_a_name_the_transcriber_mishears_is_spelled_as_written(tmp_path, monkeypatch):
+    project = small_film(tmp_path / "film")
+    (project.root / "assets" / "cut.mp4").write_bytes(b"clip")
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    footage = {"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0, "captions": {"spell": {"AltaQ": "Altocue"}}}
+    made["scenes"][1]["items"].append(footage)
+    path.write_text(json.dumps(made))
+    heard = [{"text": "This", "start": 0.1, "end": 0.3}, {"text": "is", "start": 0.3, "end": 0.4}, {"text": "AltaQ.", "start": 0.4, "end": 0.9}]
+    monkeypatch.setattr(film, "words_of", lambda project, file: heard)
+    line, _ = film.film_line(film.load(project), "16:9")
+    assert [word["text"] for page in line["captions"] for word in page["words"]] == ["This", "is", "Altocue"]
