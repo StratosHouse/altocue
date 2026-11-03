@@ -19,6 +19,15 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 - Any HyperFrames composition can be mounted as a graphic, and fetched items are kept self-contained so a render needs no network
 - Copy longer than a format allows fails before the render
 
+### Renderer
+
+- Graphics render through HyperFrames 0.9.5, up from 0.8.222, with undici held at 7.30.1, which clears 29 security advisories
+- Renders need no network: formats use only the fonts Altocue ships, and `altocue library add` embeds the fonts a fetched item names
+- Serif formats render in Instrument Serif, as designed. Renders had been drawing them in Inter
+- The graphics page is marked `data-no-timeline`
+- The weekly library sync says how far the HyperFrames pin is behind the latest release
+- A registry item that shares a name with a built-in format stays out of the catalog
+
 ### Stock, music and effects
 
 - Stock with no key: NASA, Wikimedia Commons, The Met and Cleveland, with Pixabay first when you have its key

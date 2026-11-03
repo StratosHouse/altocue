@@ -49,8 +49,8 @@ sources
   -> generate    images and video from model providers, behind a spend gate
   -> plate       one picture and sound edit, with transitions and freezes, no graphics
   -> caption     word-timed caption pages
-  -> motion      formats from the library as transparent layers, overlays under the captions
-  -> render      draft or final composite
+  -> motion      formats from the library as transparent layers
+  -> render      draft or final composite, with texture overlays under the captions
   -> master      two-pass loudness, true-peak limit
   -> qa          fact gates in code
   -> review      Editor in Chief verdict, SHIP or FIX
@@ -179,7 +179,7 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Built-ins are read live.** The catalog lists formats from this install, so a new format is in the library without a rebuild.
 - **A licence gate and a deny list.** An item without an allowed licence, or one that rebuilds a brand, is refused, and the reason is kept. Excluded sources stay listed with their reason.
 - **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it.
-- **A render needs no network.** Fetched items and the libraries they load are saved in the project and listed in `library.lock.json`.
+- **A render needs no network.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`.
 
 ## Films with no footage
 

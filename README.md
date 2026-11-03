@@ -57,6 +57,8 @@ altocue setup
 
 `setup` asks before it installs anything: the motion renderer, and a better noise remover where the Mac has no voice isolation built in. Both are optional. `altocue setup --yes` says yes to both.
 
+Graphics render offline. Altocue's formats use only the fonts it ships, and `altocue library add` embeds the fonts a fetched item names, so the network is needed only to fetch.
+
 **Prove it works:**
 
 ```bash
@@ -137,11 +139,11 @@ altocue run
 
 `altocue library search` finds formats, motion, stock, music, sound, fonts, looks and more, with the licence and what may ship. It works offline. `altocue library add` fetches an open item into your project, and `altocue library update` gets the latest catalog. Excluded sources stay listed with their reason.
 
-The catalog that ships holds 776 entries: 131 built in, 463 to fetch, 47 live searches and 135 links. It judges 171 sources and refuses 78 items, each with its reason.
+The catalog that ships holds 773 entries: 131 built in, 461 to fetch, 47 live searches and 134 links. It judges 171 sources and refuses 78 items, each with its reason.
 
 | Kind | Entries | What they are |
 |---|---:|---|
-| Motion | 435 | Built-in formats, and blocks from the HyperFrames registry |
+| Motion | 432 | Built-in formats, and blocks from the HyperFrames registry |
 | Transitions | 212 | Wipes and shader transitions |
 | 3D | 28 | Isometric and camera formats, scenes and tools |
 | Maps | 22 | Map formats, map blocks and map data |
@@ -200,7 +202,7 @@ Films that need real footage run on the editing stages: a reel in the style of o
 
 ## How it works
 
-<div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/flow.png" alt="Footage goes through transcribe, clips, cut, clean, grade, frame, B-roll, direct, generate, sound, caption and motion. The library feeds the graphics. A film with no footage starts at render. Then master, QA gates, the Editor in Chief and the verdict. FIX notes loop back to the cut. Passes go on to deliver and data." width="100%"></div>
+<div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/flow.png" alt="Footage goes through transcribe, clips, cut, clean, grade, frame, B-roll, direct, generate, sound, caption and motion. The library feeds the graphics. A film with no footage starts at render. Then master, QA gates, the Editor in Chief and the verdict. FIX notes go back to you or your agent. Passes go on to deliver and data." width="100%"></div>
 
 Every stage reads and writes plain files, so you or your agent can step in anywhere. The picture and sound edit is built with ffmpeg. Graphics render as a transparent layer on top, so changing a caption never re-encodes the edit. Altocue never launches a third-party application. The timeline view is the HyperFrames studio at a local address, and a browser opens only when you ask.
 
@@ -281,7 +283,7 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **Real phones have not opened the review page.** The demo take has not been transcribed on Linux.
 - **The flash and stray-frame gates have only seen test clips.** The flash gate has run on synthetic footage only, and the stray-frame gate has not met real inserts.
 - **The named fixes in the skills have not been run end to end on a real film.**
-- **Offline renders through HyperFrames need checking.** It fetches Google fonts during its check and snapshot.
+- **Linux renders on HyperFrames 0.9.5 are untried,** and so is non-Latin text in fetched items offline.
 - **The TikTok safe zone rests on a third party's reading** of the app.
 
 Report what you find.

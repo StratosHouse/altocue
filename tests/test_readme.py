@@ -54,15 +54,17 @@ FIXED = [
 
 
 def bundled() -> dict:
-    """The catalog that ships, with the built-in formats read from this install, as `altocue library stats` reads it."""
-    catalog = json.loads(library.bundled_path().read_text())
-    return {**catalog, "entries": library.builtins() + [row for row in catalog["entries"] if row["tier"] != "built-in"]}
+    """The catalog that ships, read the way `altocue library stats` reads it, with any catalog downloaded to this machine set aside."""
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(library, "updated_path", lambda: ROOT / "no-downloaded-catalog.json")
+        return library.current()
 
 
 STATS = library.stats(bundled())
 FORMATS = formats.load()
 LAUNCH = json.loads((Path(film.__file__).parent / "data" / "films" / "launch.json").read_text())
 USABLE = [recipe for recipe in recipes.load_recipes().values() if not recipe.excluded]
+RENDERER = json.loads((Path(film.__file__).parent / "data" / "renderer" / "package.json").read_text())["dependencies"]["hyperframes"]
 
 
 def most_priced_date() -> str:
@@ -79,6 +81,7 @@ CLAIMS: dict[str, tuple[str, Callable[[], list[object]]]] = {
     "film looks": (r"\b(\d+) film looks", lambda: [len(looks.IDS)]),
     "widest aspect": (r"up to (\d+):1 either way", lambda: [int(project.WIDEST)]),
     "node": (r"Node (\d+) or later", lambda: [doctor.NODE_MINIMUM]),
+    "renderer": (r"HyperFrames (\d+\.\d+\.\d+)", lambda: [RENDERER]),
     "library": (
         r"holds (\d+) entries: (\d+) built in, (\d+) to fetch, (\d+) live searches and (\d+) links",
         lambda: [STATS["entries"], *(STATS["tiers"].get(tier, 0) for tier in ("built-in", "fetch", "search", "link"))],
