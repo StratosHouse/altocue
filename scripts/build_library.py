@@ -26,8 +26,9 @@ BUNDLED = ROOT / "src" / "altocue" / "data" / "library" / "catalog.json"
 REPORT = ROOT / "library" / "report.json"
 
 REGISTRY_PAGE = "https://github.com/heygen-com/hyperframes/tree"
-NPM_INDEX = "https://registry.npmjs.org/gl-transitions/latest"
+NPM_SHADERS = "https://registry.npmjs.org/gl-transitions/latest"
 NPM_RENDERER = "https://registry.npmjs.org/hyperframes/latest"
+SHADER_VERSION = "2.2.0"  # pinned like the renderer, so a new upstream release reaches users only through a reviewed change here
 SHADER_INDEX = "https://cdn.jsdelivr.net/npm/gl-transitions@{version}/gl-transitions.json"
 SHADER_PAGE = "https://github.com/gl-transitions/gl-transitions/blob/master/transitions"
 SHADER_LICENCES = {"MIT": "MIT", "BSD 3 Clause": "BSD-3-Clause", "BSD 2 Clause": "BSD-2-Clause"}
@@ -268,8 +269,7 @@ def fetch_registry(version: str) -> list[dict[str, Any]]:
 
 
 def fetch_transitions() -> tuple[list[dict[str, Any]], str]:
-    version = _get_json(NPM_INDEX)["version"]
-    return _get_json(SHADER_INDEX.format(version=version)), version
+    return _get_json(SHADER_INDEX.format(version=SHADER_VERSION)), SHADER_VERSION
 
 
 def write_catalog(catalog: dict[str, Any], path: Path) -> None:
@@ -348,6 +348,15 @@ def release_drift(version: str) -> str:
     return f"The pinned HyperFrames {version} is the latest release." if latest == version else f"HyperFrames {latest} is out. The pin is {version}."
 
 
+def shader_drift(version: str) -> str:
+    """The gl-transitions pin moves only by hand, so say when upstream has moved on."""
+    try:
+        latest = _get_json(NPM_SHADERS)["version"]
+    except (AltocueError, KeyError, ValueError) as error:
+        return f"Could not read the latest gl-transitions release: {error}"
+    return f"The pinned gl-transitions {version} is the latest release." if latest == version else f"gl-transitions {latest} is out. The pin is {version}."
+
+
 def registry_drift(version: str) -> str:
     """The catalog follows the pin, so say what upstream has added since."""
     try:
@@ -365,7 +374,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.check_links:
         print(check_links(read_sources(SOURCES)))
-        print(f"\n{release_drift(renderer_version())} {registry_drift(renderer_version())}")
+        print(f"\n{release_drift(renderer_version())} {registry_drift(renderer_version())} {shader_drift(SHADER_VERSION)}")
         return 0
     catalog = build()
     refused = dict(Counter(row["rule"] for row in catalog["refused"]))

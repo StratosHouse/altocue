@@ -178,7 +178,7 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **One catalog, four tiers.** Built in ships with Altocue. Fetch is open items from the HyperFrames registry and GL shaders, copied into a project with their licence files. Search is a live service. Link is a pointer only, with no items indexed from a closed site.
 - **Built-ins are read live.** The catalog lists formats from this install, so a new format is in the library without a rebuild.
 - **A licence gate and a deny list.** An item without an allowed licence, or one that rebuilds a brand, is refused, and the reason is kept. Excluded sources stay listed with their reason.
-- **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it.
+- **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it as a pull request that a person reviews before it reaches main.
 - **A render works offline.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`. Two exceptions: a face `library add` could not embed is fetched at render time when the cache lacks it, and headless Chrome is fetched on the first render if setup missed it.
 
 ## Films with no footage
