@@ -211,7 +211,7 @@ def assemble(project: Project, edl: Edl, c: Canvas, pieces: list[Piece], folder:
     with locks.heavy("building the picture"):
         parts = [_build_piece(project, piece, edl, clips, c, folder) for piece in pieces]
         listing = folder / "list.ffconcat"
-        listing.write_text("ffconcat version 1.0\n" + "\n".join(f"file '{p.name}'" for p in parts) + "\n")
+        ffmpeg.concat_list(listing, parts)
         ffmpeg.run(["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(picture)])
     return picture
 

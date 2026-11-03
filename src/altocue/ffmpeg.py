@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -42,6 +43,16 @@ def run_bytes(args: list[str]) -> bytes:
     if done.returncode != 0:
         raise AltocueError(f"ffmpeg failed:\n{done.stderr.decode(errors='replace')[-400:]}")
     return done.stdout
+
+
+def concat_list(listing: Path, parts: list[Path]) -> Path:
+    """An ffconcat list that names each part from the list's own folder, with any quote escaped, so no path can break it."""
+    lines = []
+    for part in parts:
+        name = os.path.relpath(Path(part).resolve(), listing.parent.resolve()).replace("'", "'\\''")
+        lines.append(f"file '{name}'")
+    listing.write_text("ffconcat version 1.0\n" + "\n".join(lines) + "\n")
+    return listing
 
 
 def probe_json(path: str | Path) -> dict:
