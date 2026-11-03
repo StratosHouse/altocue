@@ -37,7 +37,7 @@ def pick(name: str = "auto") -> Renderer:
 def render_layers(project: Project, *, renderer: str = "auto", draft: bool = False) -> Layer:
     from .. import timeline as timelines
 
-    timeline = timelines.build(project)
+    timeline = timelines.build(project, draft=draft)
     chosen = pick(renderer)
     return chosen.render(timeline, brands.load(project), project.layers_dir, draft=draft)
 

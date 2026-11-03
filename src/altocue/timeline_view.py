@@ -187,7 +187,7 @@ def write_stage(project: Project) -> tuple[Path, Path | None, str | None]:
         picture, voice = plate.build(project, draft=draft)
         edl = project.edl()
         caption.build(project)
-        timeline = timelines.build(project)
+        timeline = timelines.build(project, draft=draft)
         brand = brands.load(project)
         install_assets(timeline, brand, stage)
         layers = _shots(edl, stage, picture) + _hold(timeline, picture, stage)

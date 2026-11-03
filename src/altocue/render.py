@@ -175,7 +175,7 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
         picture, voice = plate.build(project, draft=draft)
         caption.build(project)
-        timeline = timelines.build(project)
+        timeline = timelines.build(project, draft=draft)
         credits.write_txt(project)
         layer = motion.render_layers(project, renderer=renderer, draft=draft)
         audio = mix_film(project, timeline, voice, project.work / "mix.wav")

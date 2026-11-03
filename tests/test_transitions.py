@@ -326,6 +326,20 @@ def gate_context(timeline: dict) -> SimpleNamespace:
     return SimpleNamespace(file="x", footage_end=10.0, timeline=timeline, planned=lambda *args: [], inserts=lambda: [], unplanned=unplanned)
 
 
+def test_a_draft_places_graphics_on_the_draft_plate(tmp_path, monkeypatch):
+    """A final plate left from an earlier render is an older cut, so a draft must not sample it."""
+    project, edl = picture_project(tmp_path, *TWO)
+    project.save_edl(edl)
+    for name in ("plate.mp4", "plate-draft.mp4"):
+        (project.work / name).write_bytes(b"picture")
+    seen = []
+    monkeypatch.setattr(timeline.cut, "map_words", lambda project, edl: [])
+    monkeypatch.setattr(timeline.placement, "place", lambda items, picture, *rest: seen.append(picture) or items)
+    timeline.build(project, draft=True)
+    timeline.build(project)
+    assert [path.name for path in seen] == ["plate-draft.mp4", "plate.mp4"]
+
+
 def test_a_freeze_the_edit_asked_for_is_not_a_fault(monkeypatch):
     monkeypatch.setattr(gates, "frozen_runs", lambda file, end: [(2.0, 2.6)])
     assert gates.gate_frozen(gate_context({"freezes": [{"start": 2.0, "end": 2.6}]})).passed

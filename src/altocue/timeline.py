@@ -182,7 +182,8 @@ def chosen_broll(project: Project) -> list[dict[str, Any]]:
     return [{**insert, **edges(insert)} for insert in chosen.get("inserts", [])]
 
 
-def build(project: Project) -> dict[str, Any]:
+def build(project: Project, *, draft: bool = False) -> dict[str, Any]:
+    """`draft` says which plate the graphics are placed on. A final plate left from an earlier render is an older cut."""
     edl = project.edl()
     words = cut.map_words(project, edl)
     captions = json.loads((project.work / "captions.json").read_text())["pages"] if (project.work / "captions.json").exists() else []
@@ -194,7 +195,8 @@ def build(project: Project) -> dict[str, Any]:
     items = [compositions.resolve(project, item) if item["type"] == "composition" else formats.place_images(project.root, item) for item in items]
     width, height = project.size
     brand = brands.load(project)
-    picture = next((path for path in (project.work / "plate.mp4", project.work / "plate-draft.mp4") if path.exists()), None)
+    plates = ("plate-draft.mp4", "plate.mp4") if draft else ("plate.mp4", "plate-draft.mp4")
+    picture = next((project.work / name for name in plates if (project.work / name).exists()), None)
     zone = platforms.zone_of(project)
     items = placement.place(items, picture, (width, height), brand, zone)
     house, cues = resolve_sfx(motion.get("sfx"), words, duration + tail, project.root)
