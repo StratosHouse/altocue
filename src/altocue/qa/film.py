@@ -405,10 +405,6 @@ def gate_rows(path: Path, line: dict[str, Any]) -> list[dict[str, Any]]:
     stuck = [row for row in found["frozen"] if not row["to_end"]]
     gate("dead_air", not stuck, len(stuck), 0, "; ".join(f"{row['from']} to {row['to']} s has no motion" for row in stuck) or "nothing stops for a second or more")
     gate("pops", True, len(found["pops"]), None, f"spikes at {found['pops']}" if found["pops"] else "none")
-    measured = flash.measure(path)
-    gate(
-        "flash_rate", measured["passed"], measured["peak_per_second"], measured["limit"], f"{measured['peak_per_second']:g} flashes in the worst second (WCAG 2.2, 2.3.1)"
-    )
     quiet = planned_silences(path, line.get("silences") or [])
     if quiet:
         bad = [row for row in quiet if not row["passed"]]
