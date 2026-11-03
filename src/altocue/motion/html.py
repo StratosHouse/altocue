@@ -220,6 +220,28 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
     raise ValueError(kind)
 
 
+def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
+    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film."""
+    width, height = timeline["width"], timeline["height"]
+    css, geo = base_css(timeline, brand)
+    items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
+    tokens = root_tokens(timeline, brand, geo)
+    style = brand.caption["style"]
+    upper = brand.caption.get("uppercase")
+    captions = "\n".join(caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"])
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
+<style>{css}{formats.stylesheet(timeline["items"])}</style></head>
+<body>
+<div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
+{under + chr(10) if under else ""}{captions}
+{items_html}
+</div>
+</body></html>
+"""
+
+
 def base_css(timeline: dict[str, Any], brand: Brand) -> tuple[str, dict[str, float]]:
     """The shared stylesheet and the layout it was filled in for."""
     width, height = timeline["width"], timeline["height"]
@@ -243,25 +265,3 @@ def base_css(timeline: dict[str, Any], brand: Brand) -> tuple[str, dict[str, flo
 def root_tokens(timeline: dict[str, Any], brand: Brand, geo: dict[str, float]) -> str:
     size = caption_size(timeline["width"], timeline["height"], brand)
     return f'--cap-y:{geo["cap_y"]}px;--cap-size:{size};--top:{geo["top"]}px;--lt-y:{geo["lt_y"]}px;--rail:{geo["rail"]}px'
-
-
-def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
-    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film."""
-    width, height = timeline["width"], timeline["height"]
-    css, geo = base_css(timeline, brand)
-    items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
-    tokens = root_tokens(timeline, brand, geo)
-    style = brand.caption["style"]
-    upper = brand.caption.get("uppercase")
-    captions = "\n".join(caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"])
-    return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
-<style>{css}{formats.stylesheet(timeline["items"])}</style></head>
-<body>
-<div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
-{under + chr(10) if under else ""}{captions}
-{items_html}
-</div>
-</body></html>
-"""
