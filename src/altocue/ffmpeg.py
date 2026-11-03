@@ -36,6 +36,14 @@ def run(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess
     return done
 
 
+def run_bytes(args: list[str]) -> bytes:
+    """Run ffmpeg and hand back what it wrote to stdout, for raw frames."""
+    done = subprocess.run([require("ffmpeg"), "-hide_banner", "-nostdin", "-v", "error", *args], capture_output=True)
+    if done.returncode != 0:
+        raise AltocueError(f"ffmpeg failed:\n{done.stderr.decode(errors='replace')[-400:]}")
+    return done.stdout
+
+
 def probe_json(path: str | Path) -> dict:
     cmd = [require("ffprobe"), "-v", "error", "-show_format", "-show_streams", "-of", "json", str(path)]
     done = subprocess.run(cmd, capture_output=True, text=True, errors="replace")

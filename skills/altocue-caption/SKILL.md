@@ -20,7 +20,7 @@ Set `caption.style` in the brand file: `clean` (default), `bold`, `boxed`, `rail
 
 ## Speakers
 
-Run `altocue transcribe --speakers`, or give the number with `--speakers 2` when you know it, which is more reliable. It needs `pip install "altocue[speakers]"` and `altocue setup --speakers`. Then, in `altocue.toml`:
+Run `altocue transcribe --speakers`, or give the number with `--speakers 2` when you know it, which is more reliable. It needs `uv tool install --force "altocue[speakers] @ git+https://github.com/StratosHouse/altocue"` and `altocue setup --speakers`. Then, in `altocue.toml`:
 
 ```toml
 [speakers]
