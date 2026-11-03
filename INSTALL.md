@@ -3,7 +3,11 @@
 These steps work for a person or for a coding agent. Ask before running anything that installs software.
 
 1. **Check for uv.** If `uv --version` fails, install it: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-2. **Check for ffmpeg.** If `ffmpeg -version` fails, install it: `brew install ffmpeg` on macOS, `sudo apt install ffmpeg` on Ubuntu or Debian. On a Mac, check for the Xcode command line tools with `xcode-select -p`, and if it fails, install them with `xcode-select --install`: QA reads text in the picture through them, and Apple voice isolation needs them. On Linux, or on a Mac without them, add `tesseract-ocr` so QA can read text in the picture.
+2. **Check for ffmpeg.** If `ffmpeg -version` fails, install it: `brew install ffmpeg` on macOS, `sudo apt install ffmpeg` on Ubuntu or Debian. On a Mac, QA reads text in the picture through the Xcode command line tools, and Apple voice isolation needs them. If `xcode-select -p` fails, install them:
+   ```bash
+   xcode-select --install
+   ```
+   On Linux, or on a Mac without them, add `tesseract-ocr` so QA can read text in the picture.
 3. **Install Altocue from PyPI.** `uv tool install altocue`
 4. **Add the optional extras.** `altocue setup` asks before installing the motion renderer, which needs Node 22 or later, and a better noise remover where the Mac has no voice isolation built in.
 5. **Confirm.** `altocue doctor` lists what is ready and how to fix what is not.

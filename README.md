@@ -48,9 +48,10 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 
 ## Install
 
-You need [uv](https://docs.astral.sh/uv/) and ffmpeg. Stock Homebrew or apt ffmpeg is fine. On a Mac, install the Xcode command line tools with `xcode-select --install`: QA reads text in the picture through them, and Apple voice isolation needs them. On Linux, or on a Mac without them, add tesseract so QA can read text in the picture. Motion graphics and films need Node 22 or later. 16 GB of memory is comfortable. Keep 5 GB of disk free: 2.5 GB goes to the speech model, about 0.3 GB to the renderer, and each render needs room. `altocue doctor` warns under that, and transcription will not start.
+You need [uv](https://docs.astral.sh/uv/) and ffmpeg. Stock Homebrew or apt ffmpeg is fine. On a Mac, install the Xcode command line tools, as below: QA reads text in the picture through them, and Apple voice isolation needs them. On Linux, or on a Mac without them, add tesseract so QA can read text in the picture. Motion graphics and films need Node 22 or later. 16 GB of memory is comfortable. Keep 5 GB of disk free: 2.5 GB goes to the speech model, about 0.3 GB to the renderer, and each render needs room. `altocue doctor` warns under that, and transcription will not start.
 
 ```bash
+xcode-select --install   # on a Mac, once, unless xcode-select -p already finds them
 uv tool install altocue
 altocue setup
 ```
