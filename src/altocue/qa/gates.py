@@ -220,7 +220,7 @@ class Context:
         if self._heard is None:
             language = str(self.project.setting("transcribe", "language", "en"))
             words, reason = transcribe(self.file, language)
-            self._heard = ([self.project.corrected(w) for w in words] if words is not None else None, reason)
+            self._heard = (self.project.corrected_all(words) if words is not None else None, reason)
         return self._heard
 
     def spoken(self) -> list[dict[str, Any]] | None:

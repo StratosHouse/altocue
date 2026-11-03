@@ -13,7 +13,7 @@ import pytest
 
 from altocue import claims, cut, demo, locks, qa
 from altocue.errors import AltocueError
-from altocue.models import Edl, Removed, Segment
+from altocue.models import Edl, Removed, Segment, Word
 
 
 def args(**more) -> argparse.Namespace:
@@ -149,6 +149,8 @@ def test_the_name_is_spelled_right_in_captions(tmp_path):
     demo.spell_the_name(project)
     project = demo.Project.open(project.root)
     assert project.fix_text("AltaQ.") == "Altocue." and project.fix_text("Altoque") == "Altocue"
+    split = [Word("is", 0.0, 0.2), Word("Alta", 0.2, 0.5), Word("Q.", 0.5, 0.8), Word("It's", 1.0, 1.2)]
+    assert [(w.text, w.end) for w in project.corrected_all(split)] == [("is", 0.2), ("Altocue.", 0.8), ("It's", 1.2)]
 
 
 def test_the_files_are_removed_unless_told_to_keep_them(monkeypatch, tmp_path, capsys):

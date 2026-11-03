@@ -41,6 +41,7 @@ from typing import Any
 
 from altocue import caption, cut, demo, ffmpeg, qa
 from altocue.errors import AltocueError
+from altocue.models import Segment
 from altocue.project import Project, write_json
 from altocue.review import pack, rubric
 
@@ -49,6 +50,7 @@ QUIET_DB = -12.0
 LATE = 0.9
 DRAGGED = 0.66  # playing speed of the dragged sentence
 DRAG_SPAN = (7.7, 11.04)  # seconds in the take. It is pinned by hash, so these cannot drift
+OPENING = (0.04, 0.79)  # seconds in the take: "Okay, so"
 SENTENCE = ("it's", "agent")  # the middle sentence, which is where the sound and pace faults land
 
 
@@ -57,7 +59,7 @@ class Fault:
     name: str
     dimensions: tuple[str, ...]  # the rubric dimensions that count as naming it
     what: str = ""
-    keep_false_start: bool = False
+    soft_open: bool = False
     stop_early: bool = False
     drag: bool = False
     quiet: bool = False
@@ -66,7 +68,7 @@ class Fault:
 
 CONTROL = Fault("clean control", (), what="Nothing planted.")
 FAULTS = [
-    Fault("weak hook", ("hook",), what="The film opens on the presenter's 'Okay, so' before anything is said.", keep_false_start=True),
+    Fault("weak hook", ("hook",), what="The film opens on the presenter's 'Okay, so', with no hook on screen.", soft_open=True),
     Fault("flat ending", ("ending",), what="The speech stops mid-sentence on 'and the', so the point never lands.", stop_early=True),
     Fault("dragged stretch", ("pacing",), what=f"One sentence plays at {DRAGGED:.0%} speed in a film otherwise at full pace.", drag=True),
     Fault("quiet stretch", ("sound_as_speech",), what=f"One sentence sits {abs(QUIET_DB):g} dB under the rest. Whole-file loudness still passes.", quiet=True),
@@ -122,6 +124,13 @@ def quieten(render: Path, span: tuple[float, float], db: float = QUIET_DB) -> No
 
 def plant(fault: Fault, project: Project, step: str) -> None:
     """Runs after the named stage, on what that stage left."""
+    if step == "cut" and fault.soft_open:
+        edl = project.edl()
+        edl.removed = [item for item in edl.removed if item.start >= OPENING[1]]
+        edl.segments.insert(0, Segment(id="s000", clip=edl.segments[0].clip, start=OPENING[0], end=OPENING[1]))
+        project.save_edl(edl)
+        plan = json.loads((project.root / "motion.json").read_text())
+        write_json(project.root / "motion.json", {**plan, "items": [item for item in plan["items"] if item["type"] != "hook"]})
     if step == "cut" and fault.stop_early:
         edl = cut.remove_segments(project, [project.edl().segments[-1].id], "planted")
         project.save_edl(edl)
@@ -131,7 +140,7 @@ def plant(fault: Fault, project: Project, step: str) -> None:
 
 def edit(fault: Fault, root: Path, take: Path) -> Project:
     """The real stages through to the master, with the fault going in where it would really happen."""
-    source = slowed(take, root.parent / f"{root.name}-take.mp4") if fault.drag else take
+    source = slowed(take, take.with_name("dragged.mp4")) if fault.drag else take  # beside the take, because a name in films/ would give the fault away
     root.mkdir(parents=True, exist_ok=True)
     project = demo.start_project(root, source)
     made_pages = caption.build
@@ -141,8 +150,7 @@ def edit(fault: Fault, root: Path, take: Path) -> Project:
         write_json(target.work / "captions.json", {"pages": pages})
         return pages
 
-    ruling = (lambda _: None) if fault.keep_false_start else demo.rule_on_the_cut
-    with swapped(demo, "rule_on_the_cut", ruling), swapped(caption, "build", late_pages if fault.late else made_pages):
+    with swapped(caption, "build", late_pages if fault.late else made_pages):
         for step in demo.steps(project, "basic"):
             if step.name == "qa":
                 break
@@ -154,7 +162,7 @@ def edit(fault: Fault, root: Path, take: Path) -> Project:
 def window_of(fault: Fault, project: Project) -> tuple[float, float]:
     edl = project.edl()
     words = cut.map_words(project, edl)
-    if fault.keep_false_start:
+    if fault.soft_open:
         return between(words, "okay", "altocue")
     if fault.stop_early:
         return float(words[-3]["start"]), edl.duration

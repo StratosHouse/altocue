@@ -108,12 +108,12 @@ def test_every_fault_has_something_to_catch_it_by():
 
 
 def test_the_clean_film_has_nothing_planted():
-    assert not (CONTROL.keep_false_start or CONTROL.stop_early or CONTROL.drag or CONTROL.quiet or CONTROL.late)
+    assert not (CONTROL.soft_open or CONTROL.stop_early or CONTROL.drag or CONTROL.quiet or CONTROL.late)
 
 
 def test_every_fault_plants_something():
     for fault in FAULTS:
-        assert fault.keep_false_start or fault.stop_early or fault.drag or fault.quiet or fault.late, fault.name
+        assert fault.soft_open or fault.stop_early or fault.drag or fault.quiet or fault.late, fault.name
 
 
 def test_every_film_starts_from_the_published_take():

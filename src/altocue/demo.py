@@ -31,7 +31,7 @@ SAMPLE_HOST = "www.stratosagency.ai"
 SAMPLE_SHA256 = "6bb66493c3396ce2d8f9b39e9d491a6547e9088314855b4a17fa78d4b7c54390"
 SAMPLE_MOST = 5_000_000  # bytes. The take is about 730 KB
 SAMPLE_NAME = "raw-a.mp4"
-HEARD_AS = ("AltaQ", "Alta-Q", "Altoque", "AltoQ", "Altacue", "Altaq")  # a made-up name, so the transcriber guesses
+HEARD_AS = ("AltaQ", "Alta-Q", "Alta Q", "Altoque", "AltoQ", "Alto Q", "Altacue", "Alta cue", "Alto cue")  # a made-up name, so the transcriber guesses
 BRIEF = """# Brief
 
 A short reel for developers: what Altocue is and what it does. The presenter is generated, and the film says so on screen.
