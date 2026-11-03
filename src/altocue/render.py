@@ -63,6 +63,20 @@ def write_stems(project: Project, timeline: dict[str, Any], voice: Path, folder:
     return [folder / f"{name}.wav" for name in mix.STEMS]
 
 
+def insert_frames(insert: dict[str, Any], fps: int) -> tuple[int, int]:
+    """An insert's first frame and length in frames. Times from a hand-edited motion.json or broll.json are checked here."""
+    name = insert.get("file", "an insert")
+    try:
+        start, end = float(insert["start"]), float(insert["end"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise AltocueError(f"The insert {name} has no usable start and end.", fix="Give it a start and an end in seconds.") from error
+    first, frames = round(start * fps), round((end - start) * fps)
+    if first < 0 or frames < 1:
+        fix = "Start it at 0 seconds or later, and end it after it starts."
+        raise AltocueError(f"The insert {name} runs from {start:g}s to {end:g}s, which is not a span of the film.", fix=fix)
+    return first, frames
+
+
 def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Layer, timeline: dict[str, Any], c: plate.Canvas, dest: Path) -> list[str]:
     inputs = ["-i", str(picture), "-i", str(audio)]
     graph: list[str] = []
@@ -72,8 +86,7 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
     next_input = 2
     for index, insert in enumerate(timeline["inserts"]):
         source = (project.root / insert.get("baked", insert["file"])).resolve()
-        first = round(float(insert["start"]) * c.fps)
-        frames = round((float(insert["end"]) - float(insert["start"])) * c.fps)
+        first, frames = insert_frames(insert, c.fps)
         loop = ["-loop", "1", "-framerate", str(c.fps)] if source.suffix.lower() in timelines.STILL_TYPES else []
         inputs += [*loop, "-t", f"{(frames + 2) / c.fps:.6f}", "-i", str(source)]
         fit = f"scale={c.width}:{c.height}:force_original_aspect_ratio=increase,crop={c.width}:{c.height},fps={c.fps},setsar=1"
@@ -126,7 +139,7 @@ def bake_insert(project: Project, insert: dict[str, Any], picture: Path, c: plat
     The transitions sit inside the span, so the insert never covers more of the film than it was given.
     """
     source = (project.root / insert["file"]).resolve()
-    first, frames = round(float(insert["start"]) * c.fps), round((float(insert["end"]) - float(insert["start"])) * c.fps)
+    first, frames = insert_frames(insert, c.fps)
     arrive = max(2, round(insert["in"]["duration"] * c.fps)) if insert.get("in") else 0
     leave = max(2, round(insert["out"]["duration"] * c.fps)) if insert.get("out") else 0
     if arrive + leave > frames:
