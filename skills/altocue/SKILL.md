@@ -15,7 +15,8 @@ Run `altocue doctor --json`.
 
 - If `altocue` is not found, ask the user, then run `uv tool install git+https://github.com/StratosHouse/altocue`, then `altocue setup`.
 - If `uv` is not found, show `curl -LsSf https://astral.sh/uv/install.sh | sh` and ask first.
-- If doctor reports a missing tool, show its `fix` line and ask before running it.
+- If doctor reports a missing tool, show its `fix` line and ask before running it. The table under `capabilities` says what this machine can run and gives the one command that closes each gap.
+- After a new install, offer `altocue demo`. It downloads one small demo take, a generated presenter, and edits it through every free stage in about 3 minutes, with no keys and no spending. If the download fails it stops and says so.
 
 ## Hard rules
 
@@ -71,6 +72,9 @@ Run `altocue doctor --json`.
 | A UGC-style ad, a generated host, an AI actor | `altocue-ugc` |
 | A hosted effect or command, and what it costs | `altocue recipes` |
 | A verdict before publishing | `altocue-review` |
+| To watch the film beside its gates and notes | `altocue review --page` |
+| What is done, what is stale, and what comes next | `altocue status` |
+| Proof this machine works | `altocue demo` |
 | Facts about the film, benchmarks, learning from results | `altocue-data` |
 | Subtitles, chapters, thumbnails, versions for each app, a dub | `altocue-deliver` |
 | To see the edit on a timeline | `altocue timeline`, in the HyperFrames studio |
