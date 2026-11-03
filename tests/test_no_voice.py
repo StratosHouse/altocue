@@ -275,3 +275,13 @@ def test_every_bundled_sound_says_how_to_place_it():
 def test_a_film_can_set_these_from_motion_json():
     _, cues = resolve_sfx([{"name": "boom", "at": 1.0, "over_db": 9, "dip_db": 8, "align": "peak", "offset_ms": 10}], [], 4.0, Path("."))
     assert cues[0]["over_db"] == 9 and cues[0]["dip_db"] == 8 and cues[0]["align"] == "peak"
+
+
+def test_a_track_can_be_laid_from_a_point_inside_it(tmp_path):
+    """Silence, then a tone from 3 s. Laid from 3 s, the tone is there from the top of the film."""
+    track = ffmpeg.write_wav(tmp_path / "track.wav", np.concatenate([np.zeros(3 * RATE), tone(9.0, 300)]), RATE)
+    laid = stereo(mix.mix_bed(None, tmp_path / "from.wav", music=track, seconds=4.0, music_end="fade", music_from=3.0))
+    assert rms_db(laid[RATE // 10 : RATE // 2]) > -40
+    assert report(tmp_path / "from.wav")["music"]["starts_at"] == pytest.approx(3.0, abs=0.01)
+    top = stereo(mix.mix_bed(None, tmp_path / "top.wav", music=track, seconds=4.0, music_end="fade"))
+    assert rms_db(top[RATE // 10 : RATE // 2]) < -60

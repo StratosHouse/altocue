@@ -280,18 +280,36 @@ def music_settings(film: Film) -> dict[str, Any]:
     return {"style": style, "seed": seed, "tempo": chosen.get("tempo")}
 
 
+def wants_grid(board: dict[str, Any]) -> bool:
+    return bool(board.get("snap") or any(cue.get("snap") for scene in board.get("scenes", []) for cue in scene.get("sound", [])))
+
+
+def music_from(film: Film) -> float | None:
+    """Where in a chosen track the film's first frame sits. Set by `"from"`, and the top of the track for a film cut to its beats.
+
+    None leaves the track backtimed, so its own ending lands on the film's last frame. That only suits a film whose cuts
+    are not on the track's beats, because the beats are counted from the top of the file.
+    """
+    chosen = (film.board.get("music") or {}).get("from")
+    if chosen is not None:
+        if not storyboard.number(chosen) or chosen < 0:
+            raise AltocueError(f'The music "from" of {chosen!r} is not a time in the track.', fix='Set "from" to the seconds into the track the film starts at.')
+        return float(chosen)
+    return 0.0 if wants_grid(film.board) else None
+
+
 def timing(film: Film, aspect: str, *, board: dict[str, Any] | None = None, fps: int | None = None) -> dict[str, Any]:
     """Everything in film seconds, with cues on the music's grid where a cue asks for it."""
     filled = storyboard.fill(board or film.board)
     rate = fps or film.project.fps
     voice = {**estimated_voice(filled), **film.voice}
     track = music_of(film)
-    wants_grid = filled.get("snap") or any(cue.get("snap") for scene in filled.get("scenes", []) for cue in scene.get("sound", []))
     if track:
-        beats = track_beats(film.project, track) if wants_grid else None
+        start = music_from(film) or 0.0
+        beats = [beat - start for beat in track_beats(film.project, track) if beat >= start] if wants_grid(filled) else None
         return storyboard.resolve(filled, fps=rate, aspect=aspect, beats=beats, voice=voice)
     done = storyboard.resolve(filled, fps=rate, aspect=aspect, voice=voice)
-    if wants_grid:
+    if wants_grid(filled):
         settings = music_settings(film)
         beats = score.grid(done["scenes"], style=settings["style"], seed=settings["seed"], tempo=settings["tempo"])["beats"]
         unsnapped = {key: value for key, value in filled.items() if key != "snap"}
@@ -457,7 +475,11 @@ def make_sound(film: Film, line: dict[str, Any], done: dict[str, Any], board: di
             print(f"Warning: {warning}")
             report = {**report, "warning": warning}
     dest = folder / "mix.wav"
-    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end="land" if track else "own")
+    start = music_from(film) if track else None
+    end = "own" if not track else "land" if start is None else "fade"
+    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end=end, music_from=start or 0.0)
+    if start is not None:
+        report = {**report, "from": start}
     return dest, report
 
 
