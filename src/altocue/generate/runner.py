@@ -456,6 +456,24 @@ def spend_report(project: Project) -> list[str]:
     return lines
 
 
+def ancestry(project: Project, names: Sequence[str]) -> tuple[list[str], list[str], str]:
+    """The provenance ids, synthetic flags and script of the assets these shot ids or job ids name.
+
+    A file made from a generated one, such as an upscale, keeps what it was made from, so the honesty gates still find the person in it.
+    """
+    wanted = set(names)
+    ids: set[str] = set()
+    flags: set[str] = set()
+    script = ""
+    for shot, entry in store.read_manifest(project).items():
+        data = store.read_provenance(project.root / entry["asset"]) or {}
+        if shot in wanted or (data.get("job_id") and data["job_id"] in wanted):
+            ids |= store.lineage(data)
+            flags |= {*(data.get("synthetic") or []), *(entry.get("synthetic") or [])}
+            script = script or str(data.get("script") or "")
+    return sorted(ids), sorted(flags), script
+
+
 def _ready(project: Project, item: Planned) -> bool:
     return all(_still(project, shot) for shot in item.upstream)
 
@@ -561,6 +579,8 @@ class Run:
         cost = float((item.record or {}).get("cost_usd", item.cost.usd))
         lead = Path(assets[0].path)
         check = run_check(item.shot.check, lead, store.generated_dir(self.project) / "checks" / item.shot.id)
+        ancestors, inherited, _ = ancestry(self.project, item.upstream)
+        flags = sorted({*item.shot.synthetic, *inherited})
         for asset in assets:
             store.write_provenance(
                 Path(asset.path),
@@ -585,11 +605,13 @@ class Run:
                         "last_frame": item.shot.last_frame,
                         "refs": item.shot.refs,
                         "check": check,
+                        "synthetic": flags,
+                        "derived_from": ancestors,
                     },
                 ),
             )
         self._log(item, "succeeded", cost)
-        meta = {"synthetic": item.shot.synthetic}
+        meta = {"synthetic": flags}
         store.record_asset(self.project, item.shot.id, asset=lead, digest=item.hash, imported=False, check_passed=check["passed"], meta=meta)
         if item.record is not None:
             item.record["check_passed"] = check["passed"]
@@ -812,7 +834,8 @@ def import_asset(
     catalog = catalog_for(project)
     config = catalog.providers.get(provider, {})
     terms = terms_url or str(catalog.provider(provider)["terms_url"])
-    flags = sorted({*(known.synthetic if known else ()), *(used.synthetic if used else ()), *synthetic})
+    ancestors, inherited, their_script = ancestry(project, upstream)
+    flags = sorted({*(known.synthetic if known else ()), *(used.synthetic if used else ()), *synthetic, *inherited})
     digest = store.sha256(source)[:12]
     asset = store.generated_dir(project) / f"{shot}-{digest}{source.suffix.lower()}"
     asset.parent.mkdir(parents=True, exist_ok=True)
@@ -830,6 +853,7 @@ def import_asset(
         "surface": surface,
         "recipe": recipe,
         "upstream": list(upstream),
+        "derived_from": ancestors,
         "synthetic": flags,
         "claims": _claims_record(project, claims),
         "consent": consent,
@@ -843,6 +867,7 @@ def import_asset(
     if held:
         extra |= {"reserved_usd": held["usd"], "reserved_credits": held["credits"], "over_reservation_usd": held["over_usd"]}
     data = _provenance(known, prompt=prompt, provider=provider, model=model, seed=seed, cost=usd, terms=terms, route="import", extra=extra)
+    data["script"] = data["script"] or their_script
     store.write_provenance(asset, {**data, "shot": shot, "kind": kind})
     meta = {"synthetic": flags, "recipe": recipe, "unreserved": held is None}
     store.record_asset(project, shot, asset=asset, digest=digest, imported=True, check_passed=check["passed"], meta=meta)

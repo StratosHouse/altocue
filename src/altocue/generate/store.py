@@ -8,6 +8,7 @@ import json
 import math
 import os
 import socket
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -123,7 +124,36 @@ def provenance_path(asset: Path) -> Path:
 
 
 def write_provenance(asset: Path, data: dict[str, Any]) -> Path:
-    return atomic_json(provenance_path(asset), {"asset": asset.name, "sha256": sha256(asset), **data})
+    """Every asset gets a provenance id. A file Altocue makes from it later carries that id, so the honesty gates can follow it."""
+    return atomic_json(provenance_path(asset), {"asset": asset.name, "sha256": sha256(asset), "provenance_id": uuid.uuid4().hex, **data})
+
+
+def read_provenance(path: Path) -> dict[str, Any] | None:
+    """The provenance beside a file, or beside the file a link points to."""
+    sidecar = provenance_path(Path(path).resolve())
+    try:
+        data = json.loads(sidecar.read_text()) if sidecar.is_file() else None
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def lineage(data: dict[str, Any] | None) -> set[str]:
+    """Every provenance id a file stands for: its own, and each one it was made from. An older record with no id goes by its bytes."""
+    if not data:
+        return set()
+    own = data.get("provenance_id") or data.get("sha256")
+    return {str(item) for item in [own, *(data.get("derived_from") or [])] if item}
+
+
+def carry_provenance(source: Path, dest: Path, how: str) -> Path | None:
+    """A trim, upscale or re-encode of a generated file is still that file, so its record goes with it."""
+    data = read_provenance(source)
+    if data is None:
+        return None
+    keep = {key: data[key] for key in ("shot", "purpose", "kind", "prompt", "script", "provider", "model", "synthetic", "consent", "claims") if key in data}
+    made = {**keep, "made_by": how, "made_from": Path(source).name, "derived_from": sorted(lineage(data)), "date": now()}
+    return write_provenance(Path(dest), made)
 
 
 def ledger_path(project: Project) -> Path:

@@ -297,6 +297,10 @@ def run(args: argparse.Namespace) -> int:
         result = master_file(src, dest, loudness=loudness, true_peak=true_peak, silent_film=True)
     if project:
         write_json(project.audio_dir / "master.json", result)
+    else:
+        from .generate import store
+
+        store.carry_provenance(src, dest, "altocue master")  # a re-encode of a generated clip is still that clip
     if result["mode"] == "silent":
         print(f"This film has nothing to hear, so {dest} is the render as it was.")
         return 0

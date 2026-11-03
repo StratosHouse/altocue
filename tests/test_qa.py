@@ -502,6 +502,47 @@ def test_a_flagged_take_that_is_not_in_the_cut_is_not_in_the_film(tmp_path):
     assert "unused" in gate.detail
 
 
+def disclosure_in(built, source: Path):
+    """The disclosure gate on `built`, with `source` as the one clip its cut plays."""
+    built.project.save_clips([Clip(id="take", path=str(source), duration=6.0, fps=30, width=1080, height=1920)])
+    with planted(built):
+        return gates.gate_disclosure(gates.Context.open(built.project, built.file))
+
+
+def test_an_upscale_of_a_flagged_take_is_still_the_generated_person(tmp_path):
+    """New bytes used to lose the flag: the original went unplaced, the copy was not flagged, and both gates said not applicable."""
+    clean = fresh(tmp_path)
+    take = make_clip(tmp_path / "take.mp4", seconds=1.0, audio=False)
+    import_asset(clean.project, file=take, shot="host", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    bigger = import_asset(clean.project, file=clean.file, shot="host-4k", prompt="upscale", model="m", cost=0, upstream=["host"], out=lambda _: None)
+    gate = disclosure_in(clean, bigger)
+    assert gate.value != gates.NOT_APPLICABLE and not gate.passed
+    assert "host" in gate.detail
+
+
+def test_a_trim_of_a_flagged_take_is_still_the_generated_person(tmp_path):
+    from altocue import clips
+
+    first = fresh(tmp_path)
+    flagged = import_asset(first.project, file=first.file, shot="host", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    child = tmp_path / "child-sources"
+    child.mkdir()
+    trimmed, _ = clips.copy_stretch(Clip(id="host", path=str(flagged), duration=6.0, fps=30, width=1080, height=1920), 0.0, 6.0, child)
+    other = build(CLEAN, tmp_path / "other")  # a project whose manifest never saw the take, as after `altocue clips cut`
+    gate = disclosure_in(other, trimmed)
+    assert gate.value != gates.NOT_APPLICABLE and not gate.passed
+
+
+def test_a_re_encode_of_a_flagged_take_is_still_the_generated_person(tmp_path):
+    first = fresh(tmp_path)
+    flagged = import_asset(first.project, file=first.file, shot="host", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    louder = tmp_path / "louder.mp4"
+    assert main(["master", "-i", str(flagged), "-o", str(louder)]) in (0, 1)
+    other = build(CLEAN, tmp_path / "other")
+    gate = disclosure_in(other, louder)
+    assert gate.value != gates.NOT_APPLICABLE and not gate.passed
+
+
 def test_with_no_edit_on_disk_a_flagged_take_counts_as_in_the_film(tmp_path):
     clean = fresh(tmp_path)
     take = make_clip(tmp_path / "take.mp4", seconds=1.0, audio=False)

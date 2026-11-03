@@ -55,6 +55,7 @@ First find the recipe: `altocue recipes search <words>`, then `altocue recipes s
      --claims approved_claims.json --consent none-generated-adult
    ```
    This settles the reservation. If the job is dropped, run `--release` so the money comes back.
+   An upscale, or any file made from an earlier asset, names it with `--upstream <shot or job id>`. Its synthetic flags and provenance id carry over, so the claims and disclosure gates still find the person. Altocue's own trims (`clips cut`) and re-encodes (`master --input`) carry them too. A file changed outside Altocue does not, so register it with `--import` and `--upstream`.
 
 A clip made through a recipe's fal fallback is not that recipe: import it with `--from fal` and no `--recipe`, and pass its flags with `--synthetic`.
 

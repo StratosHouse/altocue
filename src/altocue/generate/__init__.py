@@ -70,7 +70,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--terms-url", help="With --import: terms URL, if the provider is not in models.toml")
     parser.add_argument("--surface", default="", choices=["", "mcp", "cli", "api", "web"], help="With --import: how it was made")
     parser.add_argument("--recipe", default="", help="With --import: the recipe that made it, from `altocue recipes`")
-    parser.add_argument("--upstream", default="", help="With --import: job ids this was built from, comma separated")
+    parser.add_argument("--upstream", default="", help="With --import: the shot ids or job ids this was built from, comma separated. Their flags carry over")
     parser.add_argument("--synthetic", default="", help="With --import: what is generated: person, voice, scene, product, comma separated")
     parser.add_argument("--claims", default="", help="With --import: a file of approved claims, or a statement such as observable-only")
     parser.add_argument("--consent", default="", help="With --import: whose likeness or voice this is, such as none-generated-adult")
