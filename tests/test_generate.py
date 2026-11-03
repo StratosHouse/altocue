@@ -37,6 +37,19 @@ from altocue.project import Project
 
 PACKAGE = Path(generate.__file__).parent
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+
+
+def _picture() -> bytes:
+    from io import BytesIO
+
+    from PIL import Image
+
+    out = BytesIO()
+    Image.new("RGB", (64, 64), (40, 90, 160)).save(out, "PNG")
+    return out.getvalue()
+
+
+PICTURE = _picture()  # a still the fake provider sends back, so a still shot is a real picture
 PROMPT = "She walks to the door, the coat swinging. Slow dolly in, ending on her hands."
 
 
@@ -68,6 +81,7 @@ class FakeFal:
 
     def __init__(self, media: bytes):
         self.media = media
+        self.picture = PICTURE
         self.calls: list[dict] = []
         self.statuses: list[str] = ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
         self.result_code = 200
@@ -150,6 +164,8 @@ class FakeFal:
                     if fake.media_failures:
                         fake.media_failures -= 1
                         return self._send(500)
+                    if path.endswith(".png"):
+                        return self._send(200, fake.picture, "image/png")
                     return self._send(200, fake.media, "video/mp4")
                 match = re.fullmatch(r"/[^/]+/[^/]+/requests/(req-\d+)(/status)?", path)
                 if not match:
@@ -910,6 +926,38 @@ def test_cancel_command(project, fal, monkeypatch, capsys):
     assert jobs(project)[0]["state"] == "canceled"
 
 
+def test_a_cancelled_job_keeps_its_cost_on_the_cap_until_billing_says_it_was_not_charged(tmp_path, fal, monkeypatch, capsys):
+    """Cancelling took the cost off the cap, though the job may still finish and be billed, so a rerun could pay twice past the cap."""
+    project = capped(tmp_path, fal, 1.0)
+    write_shots(project, shot())
+
+    def die(seconds):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("altocue.generate.runner.sleep", die)
+    with pytest.raises(KeyboardInterrupt):
+        go(project, "--yes")
+    monkeypatch.setattr("altocue.generate.runner.sleep", lambda seconds: None)
+    capsys.readouterr()
+    assert go(project, "--cancel", "s01") == 0
+    out = capsys.readouterr().out
+    assert "stays on the cap" in out and "--not-billed s01" in out
+    assert generate.runner.store.committed_usd(project) == pytest.approx(0.7735)
+    assert go(project, "--report") == 0
+    assert "may still be billed" in capsys.readouterr().out
+    assert go(project, "--yes") == 1  # a second try would be $1.55 against $1
+    assert len(fal.submits) == 1
+    assert go(project, "--not-billed", "s01") == 0
+    assert generate.runner.store.committed_usd(project) == 0
+    assert go(project, "--yes") == 0
+    assert len(fal.submits) == 2
+
+
+def test_not_billed_with_nothing_cancelled_is_explained(project, capsys):
+    assert go(project, "--not-billed", "s01") == 1
+    assert "s01" in capsys.readouterr().err
+
+
 def test_cancel_with_nothing_running(project, capsys):
     write_shots(project, shot())
     assert go(project, "--cancel", "s01") == 1
@@ -1273,6 +1321,53 @@ def test_import_needs_every_provenance_field(project, tmp_path, capsys):
     assert "--prompt" in err and "--model" in err and "--cost" in err
 
 
+@pytest.mark.parametrize("name", ["../../../outside", "..", "a/b", ".hidden", "-x", "ABSOLUTE"])
+def test_a_shot_id_from_the_command_line_must_stay_inside_the_project(project, tmp_path, capsys, name):
+    """--shot went straight into a file name, so ../ wrote the asset and its provenance outside the project."""
+    name = str(tmp_path / "outside") if name == "ABSOLUTE" else name
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), f"--shot={name}", "--prompt", "p", "--model", "m", "--cost", "1") == 1
+    assert go(project, f"--reserve={name}", "--credits", "5", "--yes") == 1
+    assert go(project, f"--release={name}") == 1
+    assert go(project, f"--cancel={name}") == 1
+    assert go(project, f"--not-billed={name}") == 1
+    assert "letters, digits" in capsys.readouterr().err
+    assert not [path for path in tmp_path.rglob("outside*")]
+    assert reservations(project) == [] and spend(project) == []
+
+
+def playlist(path: Path, target: Path) -> Path:
+    """Text that ffmpeg would follow to another file, dressed as media."""
+    path.write_text(f"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:1.0,\n{target}\n#EXT-X-ENDLIST\n")
+    return path
+
+
+def test_import_refuses_a_playlist_dressed_as_a_video_before_ffmpeg_reads_it(project, tmp_path, capsys):
+    real = make_clip(tmp_path / "elsewhere.mp4", seconds=1.0, audio=False)
+    fake = playlist(tmp_path / "from-mcp.mp4", real)
+    assert imported(project, fake) == 1
+    assert "not a video" in capsys.readouterr().err
+    assert fake.exists() and generated_asset(project, "s01", missing_ok=True) is None
+
+
+def test_import_refuses_text_dressed_as_a_picture(project, tmp_path, capsys):
+    fake = tmp_path / "still.png"
+    fake.write_text("ffconcat version 1.0\nfile '/etc/hosts'\n")
+    write_shots(project, still())
+    assert imported(project, fake) == 1
+    assert "not a picture" in capsys.readouterr().err
+
+
+def test_a_generated_download_that_is_not_a_video_is_never_read(project, fal, tmp_path, capsys):
+    fal.media = playlist(tmp_path / "list.m3u8", make_clip(tmp_path / "elsewhere.mp4", seconds=1.0, audio=False)).read_bytes()
+    write_shots(project, shot())
+    assert go(project, "--yes") == 1
+    assert "not a video" in capsys.readouterr().out
+    assert generated_asset(project, "s01", missing_ok=True) is None
+    assert not [path for path in (project.work / "generated").glob("s01-*") if not path.name.endswith(".json")]
+    assert spend(project)[-1]["usd"] == pytest.approx(0.7735)  # it was billed, so the cap still counts it
+
+
 def test_import_refuses_negative_cost(project, tmp_path):
     source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
     assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", "--cost", "-1") == 1
@@ -1592,7 +1687,7 @@ def set_generate(project: Project, key: str, value: str) -> None:
 def test_reserve_refuses_any_figure_that_is_not_a_finite_number_above_zero(tmp_path, fal, capsys, flag, value):
     """NaN and infinity pass every comparison, so one of them used to switch the cap off for the life of the project."""
     project = capped(tmp_path, fal, 5.0)
-    args = ["--reserve", "s01", flag, value, "--yes"] + (["--from", "fal"] if flag == "--cost" else [])
+    args = ["--reserve", "s01", f"{flag}={value}", "--yes"] + (["--from", "fal"] if flag == "--cost" else [])
     assert go(project, *args) == 1
     assert reservations(project) == []
     assert go(project, "--reserve", "s02", "--credits", "1000", "--yes") == 1  # $80 against $5: the cap still holds
@@ -1602,7 +1697,7 @@ def test_reserve_refuses_any_figure_that_is_not_a_finite_number_above_zero(tmp_p
 @pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-1"])
 def test_import_refuses_any_figure_that_is_not_a_finite_number(project, tmp_path, capsys, flag, value):
     source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
-    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", flag, value) == 1
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", f"{flag}={value}") == 1
     assert spend(project) == []
     assert generated_asset(project, "s01", missing_ok=True) is None
 

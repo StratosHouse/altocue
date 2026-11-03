@@ -17,7 +17,7 @@ from time import monotonic, sleep
 from typing import Any
 
 from .. import __version__, ffmpeg
-from ..direct import IMAGE_SUFFIXES, SYNTHETIC, Review, Shot, full_prompt, load_shots, require_valid, run_check
+from ..direct import IMAGE_SUFFIXES, SHOT_ID, SYNTHETIC, Review, Shot, full_prompt, load_shots, require_valid, run_check
 from ..errors import AltocueError
 from ..project import Project
 from . import recipes, store, uploads
@@ -281,6 +281,13 @@ def show_plan(project: Project, plan: list[Planned], provider: GenProvider, out:
     return total
 
 
+def shot_id(value: str, flag: str = "--shot") -> str:
+    """A shot id names files, so one from the command line follows the shot list's rule and can never leave the project."""
+    if not SHOT_ID.fullmatch(str(value)):
+        raise AltocueError(f"{flag} {value} is not a shot id.", fix="A shot id is letters, digits, hyphens and underscores, and starts with a letter or digit.")
+    return str(value)
+
+
 def amount(value: float | None, flag: str, *, zero_ok: bool = False) -> float | None:
     """A price is a finite number above zero. NaN and infinity pass every comparison, so one of them would switch the cap off.
 
@@ -388,6 +395,7 @@ def reserve(
     out: Out = print,
 ) -> dict[str, Any]:
     """Book money against the cap before an agent spends it through a provider's MCP server."""
+    shot = shot_id(shot, "--reserve")
     _upload_gate(project, shot, provider=provider, recipe=recipe, shots_file=shots_file)
     _refuse_claims(project, shot, shots_file)
     if credits is None and cost is None:
@@ -417,6 +425,7 @@ def _refuse_reserved(project: Project, shot: str) -> None:
 
 def release(project: Project, shot: str, *, out: Out = print) -> None:
     """Give a reservation back, because the job was dropped or never ran."""
+    shot = shot_id(shot, "--release")
     with store.booking(project):
         rows = store.read_reservations(project)
         row = next((item for item in rows if item["shot"] == shot and item["state"] == "open"), None)
@@ -453,6 +462,8 @@ def spend_report(project: Project) -> list[str]:
     path = store.ledger_path(project)
     ledger = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
     lines += [f"Imported with no reservation: {r['shot']}, ${r['usd']:.2f}, job {r.get('job_id') or 'unknown'}." for r in ledger if r.get("unreserved")]
+    waiting = [r for r in ledger if r.get("may_be_billed") and not r.get("not_billed")]
+    lines += [f"Cancelled, may still be billed: {r['shot']}, ${r['usd']:.2f}, job {r.get('job_id')}. It stays on the cap." for r in waiting]
     return lines
 
 
@@ -526,18 +537,27 @@ class Run:
         item.record = record
         item.state = state
 
-    def _log(self, item: Planned, state: str, usd: float) -> None:
+    def _row(self, item: Planned, state: str, usd: float) -> dict[str, Any]:
         job = item.job
         row = {"run": self.id, "shot": item.shot.id, "provider": self.provider.id, "model": item.model, "usd": usd, "state": state}
         row |= {"basis": self.provider.cost_basis if usd else "no output", "job_id": job.job_id if job else ""}
         if job and job.meta.get("billable_units"):
             row["billable_units"] = job.meta["billable_units"]
-        store.log_spend(self.project, row)
+        return row
+
+    def _log(self, item: Planned, state: str, usd: float) -> None:
+        store.log_spend(self.project, self._row(item, state, usd))
 
     def _stop(self, item: Planned, state: str, detail: str) -> None:
-        """A job that ended without an asset. Moderated jobs stay stopped until the prompt changes."""
+        """A job that ended without an asset. Moderated jobs stay stopped until the prompt changes.
+
+        A cancelled job may have run and been billed, so its cost stays on the cap until billing shows otherwise.
+        """
         self._save(item, state, detail=detail)
-        self._log(item, state, 0)
+        if state == "canceled":
+            store.log_spend(self.project, self._row(item, state, float((item.record or {}).get("cost_usd") or item.cost.usd)) | CANCELED_ROW)
+        else:
+            self._log(item, state, 0)
         if state == "moderated":
             self.outcome.moderated.append(item.shot.id)
             self.out(f"{item.shot.id}: moderated by {self.provider.id}. Not retried. Change the prompt to try again. {detail}".rstrip())
@@ -577,6 +597,17 @@ class Run:
             self.out(f"{item.shot.id}: finished at {self.provider.id} but could not be saved. {error}")
             return
         cost = float((item.record or {}).get("cost_usd", item.cost.usd))
+        try:
+            for asset in assets:
+                ffmpeg.require_media(asset.path, item.shot.kind, f"What {self.provider.id} sent for {item.shot.id}")
+        except AltocueError as error:
+            for asset in assets:
+                Path(asset.path).unlink(missing_ok=True)
+            self._log(item, "succeeded", cost)  # it was billed, so the cap keeps counting it
+            self._save(item, "failed", detail=str(error))
+            self.outcome.failed.append(item.shot.id)
+            self.out(f"{item.shot.id}: {error} It was deleted unread.")
+            return
         lead = Path(assets[0].path)
         check = run_check(item.shot.check, lead, store.generated_dir(self.project) / "checks" / item.shot.id)
         ancestors, inherited, _ = ancestry(self.project, item.upstream)
@@ -770,7 +801,12 @@ def generate_shots(
             store.close_hold(project, run.id)
 
 
+CANCELED_ROW = {"may_be_billed": True, "basis": "cancelled, may still be billed"}
+
+
 def cancel_shot(project: Project, shot: str, *, out: Out = print) -> None:
+    """Ask the provider to stop a job. Its cost stays on the cap, because a job already running may still be billed."""
+    shot = shot_id(shot, "--cancel")
     open_jobs = [r for r in store.JobStore(project).for_shot(shot) if r.get("job") and r["state"] not in {*TERMINAL, "done"}]
     if not open_jobs:
         raise AltocueError(f"{shot} has no job running.")
@@ -778,8 +814,26 @@ def cancel_shot(project: Project, shot: str, *, out: Out = print) -> None:
     for record in open_jobs:
         job = JobRef.from_dict(record["job"])
         get_provider(record["provider"], catalog, project=project).cancel(job)
-        store.JobStore(project).save({**record, "state": "canceled", "updated": store.now()})
-        out(f"{shot}: asked {record['provider']} to cancel {job.job_id}. A job already running may still finish and be billed.")
+        usd = store.usd(record.get("cost_usd"))
+        with store.booking(project):  # the ledger row and the job record change together, so the cost is counted once
+            row = {"run": "cancel", "shot": shot, "provider": record["provider"], "model": record.get("model", ""), "usd": usd}
+            store.log_spend(project, {**row, "state": "canceled", "job_id": job.job_id, **CANCELED_ROW})
+            store.JobStore(project).save({**record, "state": "canceled", "updated": store.now()})
+        out(
+            f"{shot}: asked {record['provider']} to cancel {job.job_id}. A job already running may still finish and be billed, "
+            f"so its ${usd:.2f} stays on the cap until {record['provider']} confirms it was not charged. "
+            f"Once its billing shows no charge, free it with: altocue generate --not-billed {shot}"
+        )
+
+
+def not_billed(project: Project, shot: str, *, out: Out = print) -> None:
+    """Take a cancelled job's cost off the cap, once the provider's billing shows it was not charged."""
+    shot = shot_id(shot, "--not-billed")
+    with store.booking(project):
+        cleared = store.clear_canceled(project, shot)
+    if not cleared:
+        raise AltocueError(f"{shot} has no cancelled job waiting on billing.", fix="See them with: altocue generate --report")
+    out(f"{shot}: ${sum(row['usd'] for row in cleared):.2f} taken off the cap, recorded as not billed.")
 
 
 def _kind_of(path: Path) -> str:
@@ -812,6 +866,7 @@ def import_asset(
 
     The file is copied byte for byte, so a provider's labels and marks stay on it.
     """
+    shot = shot_id(shot)
     source = Path(file).expanduser().resolve()
     if not source.is_file():
         raise AltocueError(f"Not found: {source}")
@@ -823,11 +878,12 @@ def import_asset(
         raise AltocueError("An MCP import needs --job-id.", fix="Keep every job id from the run. It is how a charge is traced to a file.")
     usd, rate, rate_as_of = priced_call(project, provider, cost=cost, credits=credits)
     used = _upload_gate(project, shot, provider=provider, recipe=recipe, shots_file=shots_file)
+    kind = _kind_of(source)
+    ffmpeg.require_media(source, kind, source.name)  # before ffmpeg reads it, as stock downloads are checked
     probe = ffmpeg.probe_json(source)
     known = None
     if (project.root / shots_file).exists():
         known = next((s for s in load_shots(project.root / shots_file).shots if s.id == shot), None)
-    kind = _kind_of(source)
     if known and known.kind != kind:
         fix = "Import the right file, or change the shot's kind."
         raise AltocueError(f"{shot} is a {known.kind} shot and {source.name} is a {kind}.", fix=fix)

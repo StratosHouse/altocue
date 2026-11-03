@@ -10,7 +10,7 @@ from ..project import Project
 from . import uploads
 from .base import CAPABILITIES, TERMINAL, Asset, Cost, CostLine, GenProvider, GenRequest, JobRef, JobStatus, Moderated, SubmitUnknown
 from .catalog import Catalog, ModelEntry, capability_of, catalog_for, load_catalog
-from .runner import cancel_shot, estimate, generate_shots, get_provider, import_asset, release, reserve, spend_report
+from .runner import cancel_shot, estimate, generate_shots, get_provider, import_asset, not_billed, release, reserve, spend_report
 from .store import generated_asset
 
 __all__ = [
@@ -37,6 +37,7 @@ __all__ = [
     "get_provider",
     "import_asset",
     "load_catalog",
+    "not_billed",
     "release",
     "reserve",
     "run",
@@ -53,7 +54,8 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--only", nargs="+", metavar="SHOT", help="Only these shots")
     parser.add_argument("--resubmit", nargs="+", default=[], metavar="SHOT", help="Submit again after checking the job does not exist")
     parser.add_argument("--timeout", type=float, default=30, help="Minutes to wait for jobs. They keep running and can be collected later")
-    parser.add_argument("--cancel", metavar="SHOT", help="Cancel a running job")
+    parser.add_argument("--cancel", metavar="SHOT", help="Cancel a running job. Its cost stays on the cap until billing shows it was not charged")
+    parser.add_argument("--not-billed", metavar="SHOT", help="After the provider's billing shows a cancelled job was not charged, take its cost off the cap")
     parser.add_argument("--import", dest="import_file", metavar="FILE", help="Register a file made elsewhere, with its provenance")
     parser.add_argument("--shot", help="With --import: the shot this file is for")
     parser.add_argument("--prompt", help="With --import: the prompt that made it")
@@ -141,6 +143,9 @@ def run(args: argparse.Namespace) -> int:
         return _import(args, project)
     if args.cancel:
         cancel_shot(project, args.cancel)
+        return 0
+    if args.not_billed:
+        not_billed(project, args.not_billed)
         return 0
     outcome = generate_shots(
         project,

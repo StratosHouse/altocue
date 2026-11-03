@@ -184,8 +184,26 @@ def usd(value: Any) -> float:
 
 
 def spent_usd(project: Project) -> float:
+    """Every ledger row, less a cancelled job the provider's billing showed was not charged."""
     path = ledger_path(project)
-    return sum(usd(json.loads(line).get("usd")) for line in path.read_text().splitlines()) if path.exists() else 0.0
+    rows = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    return sum(usd(row.get("usd")) for row in rows if not row.get("not_billed"))
+
+
+def clear_canceled(project: Project, shot: str) -> list[dict[str, Any]]:
+    """Call inside `booking`. Marks this shot's cancelled jobs as not billed, and returns them."""
+    path = ledger_path(project)
+    if not path.exists():
+        return []
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    cleared = [row for row in rows if row.get("shot") == shot and row.get("may_be_billed") and not row.get("not_billed")]
+    for row in cleared:
+        row["not_billed"] = now()
+    if cleared:
+        part = path.with_name(path.name + ".tmp")
+        part.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
+        os.replace(part, path)
+    return cleared
 
 
 def in_flight_usd(project: Project) -> float:
