@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from . import doctor, ffmpeg, locks, motion, qa
+from .cli import stage_args
 from .errors import AltocueError
 from .generate import http, import_asset, store
 from .project import CONFIG, Project, write_json
@@ -117,7 +118,8 @@ def review_run(namespace: argparse.Namespace) -> int:
 def review_stage(project: Project) -> str:
     """Gates, then the pack. Free by construction: it costs nothing and sends nothing, whatever keys this machine holds."""
     review_run(
-        argparse.Namespace(
+        stage_args(
+            "review",
             project=str(project.root),
             file=None,
             reviewer="pack",
@@ -137,7 +139,7 @@ def deliver_stage(project: Project, renderer: str) -> str:
     from . import deliver
 
     reason = "The demo has no reviewer, so this film has no SHIP verdict. These files are for looking at, not for release."
-    deliver.run(argparse.Namespace(project=str(project.root), platforms=None, loudness=None, renderer=renderer, override=reason))
+    deliver.run(stage_args("deliver", project=str(project.root), platforms=None, loudness=None, renderer=renderer, override=reason))
     saved = json.loads((project.root / "deliver" / "deliver.json").read_text())
     return f"subtitles, {len(saved['thumbnails']['candidates'])} thumbnails, film with soft subtitles"
 
@@ -185,7 +187,7 @@ def qa_detail(project: Project) -> str:
 def steps(project: Project, renderer: str) -> list[Step]:
     from . import run as runner
 
-    table = runner.stages(project, argparse.Namespace(start="ingest", end="qa", draft=False, renderer=renderer))
+    table = runner.stages(project, stage_args("run", start="ingest", end="qa", draft=False, renderer=renderer))
     words = lambda: f"{sum(len(project.words(clip.id)) for clip in project.clips())} words"  # noqa: E731
     used = lambda: f"{renderer if renderer != 'auto' else motion.pick('auto').id} renderer"  # noqa: E731
     then = lambda stage, detail: lambda: (table[stage](), detail(project))[1]  # noqa: E731

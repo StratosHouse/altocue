@@ -332,6 +332,28 @@ def test_too_little_disk_for_a_first_download_stops_before_anything_runs(monkeyp
         demo.preflight()
 
 
+class Stop(Exception):
+    pass
+
+
+def test_the_demo_hands_deliver_every_option_deliver_has(tmp_path, monkeypatch):
+    """The real run crashed at deliver with "no attribute 'stems'": the options were typed by hand."""
+    from altocue import cli, deliver
+    from altocue.project import Project
+
+    seen = {}
+
+    def capture(args):
+        seen.update(vars(args))
+        raise Stop
+
+    monkeypatch.setattr(deliver, "run", capture)
+    with pytest.raises(Stop):
+        demo.deliver_stage(Project.create(tmp_path / "film"), "basic")
+    assert set(vars(cli.stage_args("deliver"))) <= set(seen)
+    assert seen["stems"] is False and seen["renderer"] == "basic" and "no reviewer" in seen["override"]
+
+
 @pytest.mark.slow
 def test_the_real_thing(tmp_path, capsys):
     assert demo.run(args(keep=str(tmp_path / "kept"), renderer="basic")) == 0

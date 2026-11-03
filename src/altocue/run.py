@@ -6,6 +6,7 @@ import argparse
 import importlib
 from collections.abc import Callable
 
+from .cli import stage_args
 from .project import Project
 
 ORDER = ("ingest", "transcribe", "cut", "clean", "grade", "frame", "render", "master", "qa", "review")
@@ -48,8 +49,10 @@ def stages(project: Project, args: argparse.Namespace) -> dict[str, Callable[[],
             load("frame").frame_project(project)
 
     def do_review() -> int:
-        chosen = argparse.Namespace(project=str(project.root), file=None, reviewer=None, ingest=None)
-        return load("review").run(argparse.Namespace(**vars(chosen), upload=False, paid_key=False, editor_vendor=None, reset_rounds=False))
+        chosen = stage_args(
+            "review", project=str(project.root), file=None, reviewer=None, ingest=None, upload=False, paid_key=False, editor_vendor=None, reset_rounds=False
+        )
+        return load("review").run(chosen)
 
     return {
         "ingest": lambda: load("ingest").ingest(project),
@@ -59,7 +62,7 @@ def stages(project: Project, args: argparse.Namespace) -> dict[str, Callable[[],
         "grade": lambda: load("grade").grade_project(project),
         "frame": do_frame,
         "render": lambda: load("render").build(project, draft=args.draft, renderer=args.renderer),
-        "master": lambda: load("master").run(argparse.Namespace(project=str(project.root), input=None, output=None, loudness=None, true_peak=None)),
+        "master": lambda: load("master").run(stage_args("master", project=str(project.root), input=None, output=None, loudness=None, true_peak=None)),
         "qa": do_qa,
         "review": do_review,
     }
