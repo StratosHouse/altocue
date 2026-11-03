@@ -363,8 +363,11 @@ def sheet_times(total: float, *, start: float = 0.0, stop: float | None = None, 
 
 
 def phone_times(total: float, *, fps: float) -> list[float]:
-    """Half a second into each step, and never past the last frame: a film of 18.5 s holds no frame at 18.5 s."""
-    last = total - 1 / max(fps, 1)
+    """Half a second into each step, and never past the last frame: a film of 18.5 s holds no frame at 18.5 s.
+
+    A seek to the last frame's own time can miss it by a rounding, so the latest still is two frames from the end.
+    """
+    last = total - 2 / max(fps, 1)
     return [min(at + 0.5, last) for at in sheet_times(total, step=max(total / 24, 1.0))]
 
 

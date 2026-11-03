@@ -1839,4 +1839,4 @@ def test_the_phone_sheet_never_asks_for_a_frame_past_the_end():
     """A film of 18.5 s asked for a frame at 18.5 s, which a file of that length does not hold, and film qa stopped."""
     for total in (18.5, 24.0, 7.25, 30.0):
         moments = film_qa.phone_times(total, fps=30)
-        assert moments and all(0 <= at <= total - 1 / 30 for at in moments)
+        assert moments and all(0 <= at <= total - 2 / 30 for at in moments)
