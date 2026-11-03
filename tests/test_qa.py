@@ -230,6 +230,35 @@ def test_no_reader_skips_with_a_stated_reason(clean, monkeypatch):
     assert zone.skipped and "No text reader" in zone.detail
 
 
+def test_tesseract_keeps_each_words_box(monkeypatch, tmp_path):
+    tsv = "\n".join(
+        [
+            "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext",
+            "5\t1\t1\t1\t1\t1\t10\t500\t4\t20\t60\t|",
+            "5\t1\t1\t1\t1\t2\t400\t500\t100\t40\t95\tthe",
+        ]
+    )
+    monkeypatch.setattr(ocr.subprocess, "run", lambda *_, **__: SimpleNamespace(stdout=tsv))
+    line = ocr._tesseract_lines(tmp_path / "f.jpg", tmp_path / "f.jpg", (1000, 1000))[0]
+    assert line["box"] == pytest.approx([0.01, 0.5, 0.49, 0.04])
+    assert [w["text"] for w in line["words"]] == ["|", "the"]
+    assert line["words"][1]["box"] == pytest.approx([0.4, 0.5, 0.1, 0.04])
+
+
+def test_a_string_is_placed_by_its_own_words_not_junk_read_beside_it():
+    """Ubuntu's tesseract read a window's bright edge into the caption's line: "| | \\ the ums", from x 0.012."""
+    junk = [{"text": t, "box": [x, 0.66, 0.004, 0.02]} for t, x in (("|", 0.012), ("|", 0.03), ("\\", 0.05))]
+    words = [*junk, {"text": "the", "box": [0.35, 0.66, 0.1, 0.04]}, {"text": "ums", "box": [0.46, 0.65, 0.14, 0.05]}]
+    record = {"text": "| | \\ the ums", "box": [0.012, 0.604, 0.59, 0.105], "words": words}
+    assert gates.placed_box(record, {"the", "ums"}) == pytest.approx([0.35, 0.65, 0.25, 0.05])
+    assert not gates.outside(gates.placed_box(record, {"the", "ums"}), {"left": 0.06, "right": 0.94, "top": 0.1, "bottom": 0.8})
+
+
+def test_a_line_with_no_word_boxes_keeps_its_own_box():
+    record = {"text": "the ums", "box": [0.3, 0.6, 0.3, 0.05]}
+    assert gates.placed_box(record, {"the", "ums"}) == [0.3, 0.6, 0.3, 0.05]
+
+
 def test_no_rules_means_nothing_to_check_not_a_pass(clean):
     gate = gates.gate_rules_ocr(gates.Context.open(clean.project, clean.file))
     assert gate.skipped and not gate.passed and gate.value == gates.NOT_APPLICABLE
