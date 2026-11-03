@@ -13,11 +13,12 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from .. import storyboard
+from .. import caption, storyboard
 from ..brand import Brand
+from ..errors import AltocueError
 from . import compositions, formats
 from .formats import kit
-from .html import base_css, item_html, root_tokens
+from .html import base_css, caption_html, item_html, root_tokens
 
 PANEL_WIDTH = 880.0  # what a panel format fills at full scale
 SLOW_SAMPLES = 6  # keys a second on a slow drift
@@ -28,6 +29,11 @@ LAST_HOLD = 0.5
 WORLD_DRIFT = 0.012  # scale added each scene, so the backdrop never settles
 WORLD_KICK = 0.05  # and a little more when the camera goes through a cut
 SHUTTER = 180
+CAPTION_WORDS = 3  # a phone frame is narrow
+CAPTION_SHARE = 0.1  # font size as a share of the picture's width
+CAPTION_LAST = 0.1  # seconds. A word that starts this close to the clip's end is left off
+CAPTION_INSET = 28
+FOOTNOTE_LIFT = 104
 
 # Named places on the canvas as left, top, right, bottom shares. Left and right stack on a tall canvas, so a two-column scene recomposes instead of cropping.
 ZONES = {
@@ -43,6 +49,7 @@ ZONES = {
         "phone_a": (0.47, 0.13, 0.705, 0.87),
         "phone_b": (0.725, 0.13, 0.96, 0.87),
         "phone": (0.62, 0.07, 0.885, 0.93),
+        "foot": (0.05, 0.885, 0.95, 0.945),
     },
     "tall": {
         "center": (0.07, 0.2, 0.93, 0.78),
@@ -56,6 +63,7 @@ ZONES = {
         "phone_a": (0.05, 0.36, 0.49, 0.8),
         "phone_b": (0.51, 0.36, 0.95, 0.8),
         "phone": (0.22, 0.41, 0.78, 0.86),
+        "foot": (0.06, 0.73, 0.94, 0.815),
     },
     "square": {
         "center": (0.08, 0.12, 0.92, 0.88),
@@ -69,6 +77,7 @@ ZONES = {
         "phone_a": (0.14, 0.33, 0.48, 0.93),
         "phone_b": (0.52, 0.33, 0.86, 0.93),
         "phone": (0.36, 0.38, 0.64, 0.93),
+        "foot": (0.06, 0.83, 0.94, 0.95),
     },
 }
 
@@ -397,6 +406,30 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
     return made.replace('class="clip ', f'class="clip {extra} ', 1) if extra else made
 
 
+def _box(item: dict[str, Any]) -> dict[str, float]:
+    found = dict(part.split(":", 1) for part in str(item.get("place") or "").split(";") if ":" in part)
+    return {key: float(found[key].removesuffix("px")) for key in ("left", "top", "width", "height") if key in found}
+
+
+def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int]) -> list[dict[str, Any]]:
+    """A clip's own speech as word-timed pages, set across the foot of its picture, in film seconds.
+
+    The size is a share of the picture's width, which keeps a caption on a small phone frame large enough to read on a phone.
+    """
+    box = _box(item)
+    if len(box) < 4:
+        raise AltocueError(f"Captions on {item.get('file')} need the footage in a zone.", fix="Give the footage a zone, such as phone.")
+    begin = float(item["start"]) - float(item.get("from") or 0)
+    said = [{"text": w["text"], "start": begin + float(w["start"]), "end": begin + float(w["end"]), "segment": 0} for w in words]
+    inside = [w for w in said if item["start"] - 0.01 <= w["start"] < item["end"] - CAPTION_LAST]
+    font = round(min(max(box["width"] * CAPTION_SHARE, 24.0), 64.0), 1)
+    lift = FOOTNOTE_LIFT if item.get("label") else CAPTION_INSET  # clear of the footage's own label
+    bottom = size[1] - (box["top"] + box["height"]) + lift
+    place = f"left:{box['left']:.0f}px;width:{box['width']:.0f}px;right:auto;top:auto;bottom:{bottom:.0f}px;padding:0 {box['width'] * 0.05:.0f}px;font-size:{font}px"
+    pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
+    return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": place, "size": font} for page in pages]
+
+
 def _below(item: dict[str, Any]) -> str:
     """A footage label sits across the foot of its picture."""
     found = dict(part.split(":", 1) for part in str(item.get("place") or "").split(";") if ":" in part)
@@ -437,6 +470,10 @@ def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
             if shown["end"] >= total - 1 / line["fps"]:
                 shown = {**shown, "end": total + LAST_HOLD}  # the last thing on screen stays up, so the film does not end on a fade
             inner.append(_clip(shown, brand, track))
+        spoken = [page for page in line.get("captions", []) if page.get("scene") == scene["id"] and page.get("place")]
+        if spoken:
+            track += 1
+            inner += [caption_html(page, "boxed", track, page["place"]) for page in spoken]
         seconds = spans["last"] - spans["first"]
         style = f"transform-origin:{fx * 100:.2f}% {fy * 100:.2f}%;animation:cam-{scene['id']} {seconds:.3f}s linear {max(spans['first'], 0):.3f}s both"
         cameras.append(f'<div class="cam" id="cam-{escape(str(scene["id"]))}" style="{style}">\n' + "\n".join(inner) + "\n</div>")

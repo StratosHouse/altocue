@@ -158,8 +158,8 @@ def _style(item: dict[str, Any], *, leave: bool = False) -> str:
     return f'style="{";".join(parts)}"' if parts else ""
 
 
-def caption_html(page: dict[str, Any], style: str, track: int) -> str:
-    """One clip per spoken word. Only the first one plays the entrance."""
+def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") -> str:
+    """One clip per spoken word. Only the first one plays the entrance. `place` sets the page somewhere other than the caption line."""
     out = []
     words = page["words"]
     for index, word in enumerate(words):
@@ -171,7 +171,8 @@ def caption_html(page: dict[str, Any], style: str, track: int) -> str:
         who = f'<i class="who">{escape(page["name"])}</i>' if page.get("name") else ""
         body = f'<span class="plate">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
         enter = " enter" if index == 0 and style != "rail" else ""
-        tint = f' style="color:{escape(page["colour"], quote=True)}"' if page.get("colour") else ""
+        css = ";".join(part for part in (place, f"color:{escape(page['colour'], quote=True)}" if page.get("colour") else "") if part)
+        tint = f' style="{css}"' if css else ""
         out.append(f'<div class="clip cap {style}{enter}"{tint} {_attrs(start, end, track)}>{body}</div>')
     return "\n".join(out)
 

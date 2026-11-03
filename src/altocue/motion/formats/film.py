@@ -13,6 +13,7 @@ TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path pathLength="1" d="M5 1
 COUNT_STEPS = 18
 TRACK_SAMPLES = 24
 SILHOUETTE_POSES = ("walk", "wave", "point")
+SAY_GAP = 0.16  # seconds between words as a line comes up
 
 
 def _count(start: int, end: int, begin: float, finish: float) -> str:
@@ -76,10 +77,19 @@ def _state_gauge(item: dict[str, Any]) -> str:
             cells.append(f'<b class="v" style="--t:{start:.3f}s;--o:{stop:.3f}s">{kit.esc(state.get("value", ""))}</b>')
             fills.append(f'<i class="fill{" hi" if state.get("hot") else ""}" style="--t:{start:.3f}s;--o:{stop:.3f}s;--a:{previous:.3f};--b:{level:.3f}"></i>')
             previous = level
-        made.append(f'<div class="rw" style="--i:{index}"><span class="lb">{kit.esc(row.get("text", ""))}</span><span class="vs">{"".join(cells)}</span><div class="mt">{"".join(fills)}</div></div>')
-    title = f'<h3>{kit.esc(item["title"])}</h3>' if item.get("title") else ""
+        made.append(
+            f'<div class="rw" style="--i:{index}"><span class="lb">{kit.esc(row.get("text", ""))}</span><span class="vs">{"".join(cells)}</span><div class="mt">{"".join(fills)}</div></div>'
+        )
+    title = f"<h3>{kit.esc(item['title'])}</h3>" if item.get("title") else ""
     note = f'<p class="nt">{kit.esc(item["note"])}</p>' if item.get("note") else ""
     return f'<div class="gauge">{title}{"".join(made)}{note}</div>'
+
+
+def _say_line(item: dict[str, Any]) -> str:
+    """The words come up at a speaking pace, then hold, so a viewer with the sound off is carried along."""
+    count = max(len(kit.tokens(item["text"])), 1)
+    gap = min(SAY_GAP, kit.seconds(item) * 0.3 / count)
+    return f'<p class="say" style="--gap:{gap:.3f}s">{kit.words(item["text"])}</p>'
 
 
 def _corner_stamp(item: dict[str, Any]) -> str:
@@ -106,9 +116,12 @@ def _tracking_marks(item: dict[str, Any]) -> str:
 
     rules, marks = [], []
     for index, point in enumerate(points):
-        steps = "".join(f"{100 * s / TRACK_SAMPLES:.1f}%{{left:{spot(point, s / TRACK_SAMPLES)[0]:.3f}%;top:{spot(point, s / TRACK_SAMPLES)[1]:.3f}%}}" for s in range(TRACK_SAMPLES + 1))
+        steps = "".join(
+            f"{100 * s / TRACK_SAMPLES:.1f}%{{left:{spot(point, s / TRACK_SAMPLES)[0]:.3f}%;top:{spot(point, s / TRACK_SAMPLES)[1]:.3f}%}}"
+            for s in range(TRACK_SAMPLES + 1)
+        )
         rules.append(f"@keyframes {name}p{index}{{{steps}}}")
-        text = f'<em>{kit.esc(labels[index])}</em>' if index < len(labels) else ""
+        text = f"<em>{kit.esc(labels[index])}</em>" if index < len(labels) else ""
         marks.append(f'<div class="mk" style="animation:{name}p{index} {span:.3f}s linear both"><i></i>{text}</div>')
     lines = []
     for index in range(count - 1):
@@ -117,7 +130,9 @@ def _tracking_marks(item: dict[str, Any]) -> str:
         for s in range(TRACK_SAMPLES + 1):
             ax, ay = spot(a, s / TRACK_SAMPLES)
             bx, by = spot(b, s / TRACK_SAMPLES)
-            steps.append(f"{100 * s / TRACK_SAMPLES:.1f}%{{clip-path:polygon({ax:.3f}% {ay:.3f}%,{bx:.3f}% {by:.3f}%,{bx:.3f}% {by + 0.14:.3f}%,{ax:.3f}% {ay + 0.14:.3f}%)}}")
+            steps.append(
+                f"{100 * s / TRACK_SAMPLES:.1f}%{{clip-path:polygon({ax:.3f}% {ay:.3f}%,{bx:.3f}% {by:.3f}%,{bx:.3f}% {by + 0.14:.3f}%,{ax:.3f}% {ay + 0.14:.3f}%)}}"
+            )
         rules.append(f"@keyframes {name}l{index}{{{''.join(steps)}}}")
         lines.append(f'<div class="ln" style="animation:{name}l{index} {span:.3f}s linear both"></div>')
     return f"<style>{''.join(rules)}</style>" + "".join(lines) + "".join(marks)
@@ -163,7 +178,9 @@ def _waveform(item: dict[str, Any]) -> str:
     for index, row in enumerate(item.get("rows") or []):
         values = [max(min(float(value), 1.0), 0.02) for value in row.get("values") or []]
         bars = "".join(f'<i style="--v:{value:.3f};--i:{position}"></i>' for position, value in enumerate(values))
-        made.append(f'<div class="track{" hot" if row.get("hot") else ""}" style="--r:{index}"><p><span>{kit.esc(row.get("text", ""))}</span><b>{kit.esc(row.get("note", ""))}</b></p><div class="bars">{bars}</div></div>')
+        made.append(
+            f'<div class="track{" hot" if row.get("hot") else ""}" style="--r:{index}"><p><span>{kit.esc(row.get("text", ""))}</span><b>{kit.esc(row.get("note", ""))}</b></p><div class="bars">{bars}</div></div>'
+        )
     title = f"<h2>{kit.emphasis(str(item['title']))}</h2>" if item.get("title") else ""
     return f'<div class="waves">{title}{"".join(made)}</div>'
 
@@ -220,6 +237,15 @@ $ .nt{margin:16u 0 0;font-size:22u;line-height:1.25;color:var(--soft)}
 @keyframes sgup{from{opacity:0;transform:translateY(.5em)}to{opacity:1;transform:none}}
 @keyframes sgout{to{opacity:0}}
 @keyframes sgfill{from{opacity:1;transform:scaleX(var(--a))}to{opacity:1;transform:scaleX(var(--b))}}
+"""
+
+SAY_CSS = """
+$.zone{justify-content:flex-end;align-items:center;text-align:center}
+$ .say{margin:0;display:inline-block;max-width:100%;padding:.2em .6em .26em;border-radius:.4em;font-size:64u;font-weight:650;line-height:1.14;letter-spacing:-.015em;
+color:var(--ink);text-wrap:balance;background:color-mix(in srgb,var(--panel) 70%,transparent)}
+$ .say .w{display:inline-block;animation:sayon .24s ease-out both;animation-delay:calc(var(--i) * var(--gap))}
+$ .say .w.hot{color:var(--accent)}
+@keyframes sayon{from{opacity:0;transform:translateY(.16em)}to{opacity:1;transform:none}}
 """
 
 STAMP_CSS = """
@@ -331,7 +357,11 @@ FORMATS = (
         summary="Real pictures land in a row, each with its name, one after another.",
         group="film",
         jobs=("explain", "prove"),
-        slots=(Slot("stages", kind="list", limit=10, each=16), Slot("title", limit=44, required=False), Slot("size", kind="choice", required=False, choices=("icons", "looks"))),
+        slots=(
+            Slot("stages", kind="list", limit=10, each=16),
+            Slot("title", limit=44, required=False),
+            Slot("size", kind="choice", required=False, choices=("icons", "looks")),
+        ),
         example={"title": "Every *stage* in one place", "stages": [{"text": "Cut"}, {"text": "Clean"}, {"text": "Grade"}, {"text": "Caption"}]},
         draw=_stage_strip,
         seconds=4.0,
@@ -364,7 +394,13 @@ FORMATS = (
         group="film",
         jobs=("prove", "explain"),
         slots=(Slot("rows", kind="list", limit=3, each=20), Slot("title", limit=40, required=False)),
-        example={"title": "Sample sound", "rows": [{"text": "Raw", "note": "-21 LUFS", "values": [0.2, 0.5, 0.3, 0.6, 0.2, 0.4]}, {"text": "Mastered", "note": "-14 LUFS", "hot": True, "values": [0.4, 0.8, 0.6, 0.9, 0.5, 0.7]}]},
+        example={
+            "title": "Sample sound",
+            "rows": [
+                {"text": "Raw", "note": "-21 LUFS", "values": [0.2, 0.5, 0.3, 0.6, 0.2, 0.4]},
+                {"text": "Mastered", "note": "-14 LUFS", "hot": True, "values": [0.4, 0.8, 0.6, 0.9, 0.5, 0.7]},
+            ],
+        },
         draw=_waveform,
         seconds=5.0,
         shortest=2.5,
@@ -387,7 +423,19 @@ FORMATS = (
             Slot("label", limit=12, required=False),
             Slot("done", limit=34, required=False),
         ),
-        example={"title": "Support *queue*", "from": 412, "to": 0, "label": "open", "done": "Queue *clear*", "rows": [{"text": "Refund for a sample order", "label": "Billing"}, {"text": "Reset a password", "label": "Account"}, {"text": "Where is my parcel", "label": "Orders"}, {"text": "Change the plan", "label": "Billing"}]},
+        example={
+            "title": "Support *queue*",
+            "from": 412,
+            "to": 0,
+            "label": "open",
+            "done": "Queue *clear*",
+            "rows": [
+                {"text": "Refund for a sample order", "label": "Billing"},
+                {"text": "Reset a password", "label": "Account"},
+                {"text": "Where is my parcel", "label": "Orders"},
+                {"text": "Change the plan", "label": "Billing"},
+            ],
+        },
         draw=_work_cascade,
         seconds=7.0,
         shortest=3.5,
@@ -403,7 +451,14 @@ FORMATS = (
         group="film",
         jobs=("prove", "explain"),
         slots=(Slot("title", limit=26, required=False), Slot("rows", kind="list", limit=4, each=20), Slot("note", limit=48, required=False)),
-        example={"title": "Sample battery", "rows": [{"text": "Charge", "states": [{"value": "12%", "level": 0.12}, {"value": "64%", "level": 0.64, "hot": True}]}, {"text": "Range", "states": [{"value": "40 km", "level": 0.2}, {"value": "210 km", "level": 0.7}]}], "note": "Invented figures for illustration"},
+        example={
+            "title": "Sample battery",
+            "rows": [
+                {"text": "Charge", "states": [{"value": "12%", "level": 0.12}, {"value": "64%", "level": 0.64, "hot": True}]},
+                {"text": "Range", "states": [{"value": "40 km", "level": 0.2}, {"value": "210 km", "level": 0.7}]},
+            ],
+            "note": "Invented figures for illustration",
+        },
         draw=_state_gauge,
         seconds=5.0,
         shortest=2.0,
@@ -411,6 +466,22 @@ FORMATS = (
         tall=360,
         sound="tick",
         css=scoped("state_gauge", GAUGE_CSS),
+    ),
+    Format(
+        id="say_line",
+        title="Say line",
+        summary="The line a narrator would say, set at the foot of the frame for a viewer with the sound off.",
+        group="film",
+        jobs=("explain",),
+        slots=(Slot("text", limit=56),),
+        example={"text": "Each number here is read from the *tool*"},
+        draw=_say_line,
+        seconds=3.0,
+        shortest=1.5,
+        longest=12.0,
+        tall=90,
+        sound=None,
+        css=scoped("say_line", SAY_CSS),
     ),
     Format(
         id="corner_stamp",

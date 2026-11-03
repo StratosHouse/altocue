@@ -65,9 +65,11 @@ def _lines(words: list[str], budget: int) -> list[list[int]]:
 
 
 def _word_slam(item: dict) -> str:
+    """`gap` sets the seconds between words. `lead` starts the run that far in, so a hook is on screen from the first frame."""
     count = max(len(kit.tokens(item["text"])), 1)
-    gap = min(kit.seconds(item) * 0.62 / count, 0.3)
-    return f'<h1 class="lift" style="--gap:{gap:.3f}s">{kit.words(item["text"])}</h1>'
+    gap = float(item["gap"]) if item.get("gap") is not None else min(kit.seconds(item) * 0.62 / count, 0.3)
+    lead = f";--lead:{float(item['lead']):.3f}s" if item.get("lead") is not None else ""
+    return f'<h1 class="lift" style="--gap:{gap:.3f}s{lead}">{kit.words(item["text"])}</h1>'
 
 
 def _decode(item: dict) -> str:
@@ -301,7 +303,7 @@ FORMATS = (
         summary="Big words hit one at a time, each landing with weight.",
         group="kinetic",
         jobs=("hook",),
-        slots=(Slot("text", limit=48),),
+        slots=(Slot("text", limit=48), Slot("gap", kind="number", required=False), Slot("lead", kind="number", required=False)),
         example={"text": "Stop *editing* by hand"},
         draw=_word_slam,
         seconds=2.4,
@@ -309,7 +311,7 @@ FORMATS = (
         sound="thud",
         css="""
 .f-word_slam h1{margin:0;font-size:calc(132px * var(--scale));font-weight:800;line-height:.96;letter-spacing:-.045em;text-wrap:balance}
-.f-word_slam .w{display:inline-block;animation:slam .36s cubic-bezier(.18,1.35,.32,1) both;animation-delay:calc(var(--i) * var(--gap))}
+.f-word_slam .w{display:inline-block;animation:slam .36s cubic-bezier(.18,1.35,.32,1) both;animation-delay:calc(var(--i) * var(--gap) - var(--lead, 0s))}
 .f-word_slam .w.hot{color:var(--accent)}
 @keyframes slam{from{opacity:0;transform:scale(1.7);filter:blur(10px)}55%{opacity:1;filter:blur(0)}to{opacity:1;transform:none;filter:blur(0)}}
 """,

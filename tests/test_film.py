@@ -1195,3 +1195,193 @@ def test_parked_types_are_explained_with_the_platform_rule():
 
 def test_film_commands_load_lazily():
     assert "altocue.film" in {module for module, _ in cli.STAGES.values()}
+
+
+# Numbers read from the tool
+
+
+def test_every_gate_a_run_measures_is_counted_once():
+    from altocue.qa import gates
+
+    found = gates.gate_ids()
+    assert len(found) == len(set(found))
+    assert {"loudness", "flash_rate", "frame_zero", "loop_seam"} <= set(found)
+
+
+def test_a_token_becomes_the_live_number_and_its_place_is_recorded(tmp_path, monkeypatch):
+    from altocue import live
+
+    monkeypatch.setattr(live, "count", lambda name: {"formats": 122, "gates": 31}[name])
+    made = {"scenes": [{"id": "a", "items": [{"type": "count_up", "value": "{live:formats}", "label": "{live:gates} fact gates"}]}]}
+    numbers = {"formats": {"source": {"count": "formats"}}, "gates": {"source": {"count": "gates"}}}
+    filled, record = live.fill(made, numbers, tmp_path)
+    item = filled["scenes"][0]["items"][0]
+    assert item["value"] == 122 and item["label"] == "31 fact gates"
+    places = {entry["name"]: entry["places"] for entry in record["numbers"]}
+    assert places == {"formats": [["scenes", 0, "items", 0, "value"]], "gates": [["scenes", 0, "items", 0, "label"]]}
+    assert not live.check(tmp_path, filled, record)
+
+
+def test_a_count_that_moved_since_the_build_fails_the_check(tmp_path, monkeypatch):
+    from altocue import live
+
+    monkeypatch.setattr(live, "count", lambda name: 28)
+    filled, record = live.fill(
+        {"scenes": [{"id": "a", "items": [{"type": "marker", "text": "{live:gates} fact gates"}]}]}, {"gates": {"source": {"count": "gates"}}}, tmp_path
+    )
+    monkeypatch.setattr(live, "count", lambda name: 31)
+    found = errors(live.check(tmp_path, filled, record))
+    assert found and "28" in found[0] and "31" in found[0]
+
+
+def test_a_number_edited_by_hand_fails_the_check(tmp_path, monkeypatch):
+    from altocue import live
+
+    monkeypatch.setattr(live, "count", lambda name: 13)
+    filled, record = live.fill(
+        {"scenes": [{"id": "a", "items": [{"type": "marker", "text": "{live:looks} looks"}]}]}, {"looks": {"source": {"count": "looks"}}}, tmp_path
+    )
+    filled["scenes"][0]["items"][0]["text"] = "14 looks"
+    assert any("looks" in text for text in errors(live.check(tmp_path, filled, record)))
+
+
+def test_launch_results_from_qa_on_older_gates_fail_the_check(tmp_path, monkeypatch):
+    from altocue import live
+    from altocue.qa import gates
+
+    launch = tmp_path / "launch"
+    (launch / "review").mkdir(parents=True)
+    (launch / "out").mkdir()
+    final = launch / "out" / "final.mp4"
+    final.write_bytes(b"film")
+    from altocue.qa import sha256
+
+    rows = [{"id": gate, "passed": True, "skipped": False, "value": 0} for gate in gates.gate_ids()[:-3]]
+    (launch / "review" / "qa.json").write_text(json.dumps({"file": str(final), "sha256": sha256(final), "gates": rows}))
+    with pytest.raises(AltocueError, match="older"):
+        live.value({"qa": str(launch), "read": "passed"}, tmp_path)
+    rows += [{"id": gate, "passed": False, "skipped": True, "value": "n/a"} for gate in gates.gate_ids()[-3:]]
+    (launch / "review" / "qa.json").write_text(json.dumps({"file": str(final), "sha256": sha256(final), "gates": rows}))
+    assert live.value({"qa": str(launch), "read": "passed"}, tmp_path) == len(rows) - 3
+    final.write_bytes(b"changed")
+    with pytest.raises(AltocueError, match="changed"):
+        live.value({"qa": str(launch), "read": "passed"}, tmp_path)
+
+
+def test_film_check_fails_a_film_whose_numbers_went_stale(tmp_path, capsys, monkeypatch):
+    from altocue import live
+
+    folder = tmp_path / "film"
+    altocue("film", "new", "launch", str(folder), "--variant", "15")
+    monkeypatch.setattr(live, "count", lambda name: 122)
+    path = folder / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["scenes"][0]["items"][0]["text"] = "{live:formats} formats"
+    filled, record = live.fill(made, {"formats": {"source": {"count": "formats"}}}, folder)
+    path.write_text(json.dumps(filled))
+    (folder / live.FILE).write_text(json.dumps(record))
+    assert altocue("film", "check", "-p", str(folder)) == 0
+    monkeypatch.setattr(live, "count", lambda name: 123)
+    assert altocue("film", "check", "-p", str(folder)) == 1
+    assert "123" in capsys.readouterr().out
+
+
+# Captions on footage, a line for the sound off, and a hook that is there from the first frame
+
+SAID = [
+    {"text": "It", "start": 0.2, "end": 0.4},
+    {"text": "fixes", "start": 0.45, "end": 0.8},
+    {"text": "the", "start": 0.85, "end": 0.95},
+    {"text": "sound.", "start": 1.0, "end": 1.4},
+    {"text": "later", "start": 6.0, "end": 6.5},
+]
+
+
+def test_footage_captions_follow_the_clip_and_sit_inside_its_picture():
+    item = scenes._place({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 4.0, "end": 9.0, "scene": "cut", "captions": True}, (1920, 1080))
+    pages = scenes.caption_pages(item, SAID, (1920, 1080))
+    assert pages[0]["start"] == pytest.approx(4.2) and pages[-1]["end"] <= 9.0
+    assert "later" not in [word["text"] for page in pages for word in page["words"]]
+    assert pages[0]["scene"] == "cut"
+    left = float(re.search(r"left:([\d.]+)px", pages[0]["place"]).group(1))
+    assert 0.725 * 1920 - 1 <= left
+    assert film_qa.read_size(1920, 1080, pages[0]["size"])["phone_px"] >= film_qa.PHONE_FLOOR
+
+
+def test_captions_are_drawn_on_the_footage_and_move_with_its_camera():
+    made = board()
+    made["scenes"][1]["items"].append({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0, "captions": True})
+    line = timeline_for(made)
+    item = next(i for i in line["items"] if i["type"] == "footage")
+    line["captions"] = scenes.caption_pages(item, SAID, (1920, 1080))
+    page = scenes.compose(line, default_brand())
+    camera = page.split('id="cam-problem"')[1].split('<div class="cam"')[0]
+    assert "clip cap boxed" in camera and ">fixes<" in camera
+
+
+def test_a_footage_item_that_asks_for_captions_gets_them_from_its_own_words(tmp_path, monkeypatch):
+    project = small_film(tmp_path / "film")
+    (project.root / "assets" / "cut.mp4").write_bytes(b"clip")
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["scenes"][1]["items"].append({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0, "captions": True})
+    path.write_text(json.dumps(made))
+    monkeypatch.setattr(film, "words_of", lambda project, file: SAID)
+    line, _ = film.film_line(film.load(project), "16:9")
+    assert [word["text"] for word in line["captions"][0]["words"]][:2] == ["It", "fixes"]
+
+
+def test_words_are_read_once_and_kept_until_the_clip_changes(tmp_path, monkeypatch):
+    from altocue import transcribe
+    from altocue.models import Word
+
+    project = small_film(tmp_path / "film")
+    clip = project.root / "assets" / "cut.mp4"
+    clip.write_bytes(b"clip")
+    calls = []
+
+    def heard(path, engine=None, language="en"):
+        calls.append(path)
+        return [Word(text="Hello", start=0.1, end=0.5), Word(text="um", start=0.6, end=0.7, kind="filler")]
+
+    monkeypatch.setattr(transcribe, "transcribe_file", heard)
+    assert [word["text"] for word in film.words_of(project, clip)] == ["Hello"]
+    film.words_of(project, clip)
+    assert len(calls) == 1
+    clip.write_bytes(b"another clip")
+    film.words_of(project, clip)
+    assert len(calls) == 2
+
+
+def test_phone_read_measures_the_captions_as_well(tmp_path, monkeypatch):
+    still = tmp_path / "still.png"
+    canvas = Image.new("RGB", (1920, 1080), (12, 18, 26))
+    ImageDraw.Draw(canvas).text((1400, 800), "fixes the sound", fill=(240, 244, 248), font=ImageFont.truetype(str(brands.data_path("fonts", "Geist-Variable.ttf")), 46))
+    canvas.save(still)
+    monkeypatch.setattr(film_qa.ocr, "reader", lambda: ("vision", ""))
+    monkeypatch.setattr(
+        film_qa.ocr, "read_images", lambda frames: [{"file": str(still), "text": "fixes the sound", "box": [1400 / 1920, 805 / 1080, 360 / 1920, 45 / 1080]}]
+    )
+    words = [{"text": "fixes", "start": 1.0, "end": 1.2}, {"text": "the", "start": 1.2, "end": 1.3}, {"text": "sound", "start": 1.3, "end": 1.6}]
+    line = {"width": 1920, "height": 1080, "scenes": [{"id": "cut"}], "items": [], "captions": [{"scene": "cut", "start": 1.0, "end": 1.6, "words": words}]}
+    rows = film_qa.phone_read(None, line, [still], [1.4])["rows"]
+    assert rows and rows[0]["role"] == "caption" and rows[0]["passed"]
+
+
+def test_a_line_for_the_sound_off_sits_at_the_foot_below_the_centre():
+    fmt = formats.find("say_line")
+    assert fmt and fmt.group == "film"
+    for size in ((1920, 1080), (1080, 1920), (1080, 1080)):
+        foot = scenes.zone_box("foot", size)
+        assert foot[1] >= scenes.zone_box("center", size)[3] - 0.05
+    placed = scenes._place({"type": "say_line", "text": "Every number is read from the tool.", "zone": "foot", "start": 0, "end": 3}, (1920, 1080))
+    assert (
+        "top:" in placed["place"]
+        and film_qa.read_size(1920, 1080, 64 * float(re.search(r"--scale:([\d.]+)", placed["place"]).group(1)))["phone_px"] >= film_qa.PHONE_FLOOR
+    )
+
+
+def test_a_hook_can_be_on_screen_from_the_first_frame():
+    drawn = formats.find("word_slam").draw({"text": "You film it", "gap": 0.2, "lead": 0.3, "start": 0, "end": 3})
+    assert "--gap:0.200s" in drawn and "--lead:0.300s" in drawn
+    assert "var(--lead" in formats.find("word_slam").css

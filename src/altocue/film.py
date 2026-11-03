@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from . import brand as brands
-from . import ffmpeg, flash, locks, master, mix, score, storyboard, study
+from . import ffmpeg, flash, live, locks, master, mix, score, storyboard, study
 from .errors import AltocueError
 from .motion import compositions, formats, hyperframes, scenes
 from .project import CONFIG, SIZES, Project, write_json
@@ -203,7 +203,8 @@ def load(project: Project) -> Film:
 
 def problems_in(film: Film) -> list[storyboard.Problem]:
     voice = {**estimated_voice(film.board), **film.voice}
-    return storyboard.check(film.brief, film.board, film.record, approved=film.approved, voice=voice, card=film.card, fps=film.project.fps)
+    found = storyboard.check(film.brief, film.board, film.record, approved=film.approved, voice=voice, card=film.card, fps=film.project.fps)
+    return found + live.check(film.project.root, film.board)
 
 
 def print_problems(problems: list[storyboard.Problem]) -> int:
@@ -307,7 +308,26 @@ def film_line(film: Film, aspect: str, *, board: dict[str, Any] | None = None, f
     line = scenes.timeline(done, size=SIZES[aspect], fps=fps or film.project.fps, brand=brand, board=filled)
     line["items"] = [ready(film.project, item) for item in line["items"]]
     line["backdrops"] = [ready(film.project, item) for item in line["backdrops"]]
+    line["captions"] = [
+        page
+        for item in line["items"]
+        if item["type"] == "footage" and item.get("captions")
+        for page in scenes.caption_pages(item, words_of(film.project, film.project.root / item["file"]), SIZES[aspect])
+    ]
     return line, brand
+
+
+def words_of(project: Project, path: Path) -> list[dict[str, Any]]:
+    """What a clip says, word by word, read once with Altocue's own transcriber and kept until the file changes."""
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    cache = project.work / "film" / f"words-{digest}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())["words"]
+    from . import transcribe
+
+    heard = [{"text": w.text, "start": round(w.start, 3), "end": round(w.end, 3)} for w in transcribe.transcribe_file(path) if w.kind == "word"]
+    write_json(cache, {"file": path.name, "words": heard})
+    return heard
 
 
 def ready(project: Project, item: dict[str, Any]) -> dict[str, Any]:

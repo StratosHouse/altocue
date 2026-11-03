@@ -1228,8 +1228,9 @@ def guarded(c: Context, ids: tuple[str, ...], measure: Callable[[Context], GateR
     return found if isinstance(found, list) else [found]
 
 
-def run_all(c: Context) -> list[GateResult]:
-    plan: list[tuple[tuple[str, ...], Callable[[Context], GateResult | list[GateResult]]]] = [
+def plan() -> list[tuple[tuple[str, ...], Callable[[Context], GateResult | list[GateResult]]]]:
+    """Every gate a normal run measures, in order, with the ids each one reports."""
+    return [
         (("loudness", "true_peak"), gate_loudness),
         (("black_frames",), gate_black),
         (("frozen_frames",), gate_frozen),
@@ -1254,7 +1255,15 @@ def run_all(c: Context) -> list[GateResult]:
         (("disclosure",), gate_disclosure),
         (FILM_GATES, film_gates),
     ]
-    return [result for ids, measure in plan for result in guarded(c, ids, measure)]
+
+
+def gate_ids() -> tuple[str, ...]:
+    """The ids a normal run reports, so a count of the gates is read from the code, never typed."""
+    return tuple(gate for ids, _ in plan() for gate in ids)
+
+
+def run_all(c: Context) -> list[GateResult]:
+    return [result for ids, measure in plan() for result in guarded(c, ids, measure)]
 
 
 def run_ugc(c: Context) -> list[GateResult]:

@@ -119,9 +119,31 @@ def hold_needed(words: int) -> float:
     return 0.4 + 0.2 * words
 
 
-def phone_read(project: Project, line: dict[str, Any], frames: list[Path], times: list[float]) -> dict[str, Any]:
-    """Size, contrast and hold time for the words that matter, measured on the stills."""
-    width, height = line["width"], line["height"]
+def _read_row(
+    still: Image.Image, rows: list[dict[str, Any]], size: tuple[int, int], *, scene: Any, wanted: str, role: str | None, seconds: float, held: bool
+) -> dict[str, Any]:
+    width, height = size
+    hits = matched(wanted, rows)
+    if not hits:
+        return {"scene": scene, "text": wanted, "passed": False, "role": role, "detail": "not read in the still: it may be cut off, faint or mid-move"}
+    biggest = max(hits, key=lambda hit: hit["box"][3])
+    x, y, w, h = biggest["box"]
+    pad = h * 0.15
+    measured = measure_text(still, [x * width - pad * width, y * height - pad * height, w * width + 2 * pad * width, h * height + 2 * pad * height], min(width, height))
+    sizes = read_size(width, height, measured["font_px"])
+    floor = TEXT_FLOORS.get(role or "", 0)
+    wanted_contrast = MIN_CONTRAST if role in TEXT_FLOORS else BODY_CONTRAST
+    ok = sizes["phone_px"] >= PHONE_FLOOR and sizes["player_px"] >= PLAYER_FLOOR and measured["font_px"] >= floor and measured["contrast"] >= wanted_contrast and held
+    detail = f"{measured['font_px']:g} px at 1080, {sizes['phone_px']:g} px on a phone, contrast {measured['contrast']:g}:1, held {seconds:.1f} s"
+    return {"scene": scene, "text": wanted, "role": role, "passed": bool(ok), "detail": detail, **measured, **sizes}
+
+
+def phone_read(project: Project | None, line: dict[str, Any], frames: list[Path], times: list[float]) -> dict[str, Any]:
+    """Size, contrast and hold time for the words that matter, and for any caption page up, measured on the stills.
+
+    A caption page keeps the pace of the speech, so it is held to size and contrast and never to a reading time.
+    """
+    size = (line["width"], line["height"])
     name, reason = ocr.reader()
     if name is None:
         return {"rows": [], "not_run": reason}
@@ -140,35 +162,15 @@ def phone_read(project: Project, line: dict[str, Any], frames: list[Path], times
             copies = storyboard.on_screen(item)
             if not copies or item.get("type") in storyboard.PASSING:
                 continue
-            role = storyboard._role(item, first)
+            seconds = item["end"] - item["start"]
             for wanted in copies[:1]:
-                hits = matched(wanted, rows)
-                seconds = item["end"] - item["start"]
-                needed = hold_needed(len(wanted.split()))
-                held = seconds >= needed
-                if not hits:
-                    report.append(
-                        {"scene": scene["id"], "text": wanted, "passed": False, "role": role, "detail": "not read in the still: it may be cut off, faint or mid-move"}
-                    )
-                    continue
-                biggest = max(hits, key=lambda hit: hit["box"][3])
-                x, y, w, h = biggest["box"]
-                pad = h * 0.15
-                measured = measure_text(
-                    still, [x * width - pad * width, y * height - pad * height, w * width + 2 * pad * width, h * height + 2 * pad * height], min(width, height)
-                )
-                sizes = read_size(width, height, measured["font_px"])
-                floor = TEXT_FLOORS.get(role or "", 0)
-                wanted_contrast = MIN_CONTRAST if role in TEXT_FLOORS else BODY_CONTRAST
-                ok = (
-                    sizes["phone_px"] >= PHONE_FLOOR
-                    and sizes["player_px"] >= PLAYER_FLOOR
-                    and measured["font_px"] >= floor
-                    and measured["contrast"] >= wanted_contrast
-                    and held
-                )
-                detail = f"{measured['font_px']:g} px at 1080, {sizes['phone_px']:g} px on a phone, contrast {measured['contrast']:g}:1, held {seconds:.1f} s"
-                report.append({"scene": scene["id"], "text": wanted, "role": role, "passed": bool(ok), "detail": detail, **measured, **sizes})
+                held = seconds >= hold_needed(len(wanted.split()))
+                report.append(_read_row(still, rows, size, scene=scene["id"], wanted=wanted, role=storyboard._role(item, first), seconds=seconds, held=held))
+        for page in line.get("captions", []):
+            if page.get("scene") != scene["id"] or not page["start"] <= at <= page["end"] + 0.01:
+                continue
+            wanted = " ".join(word["text"] for word in page["words"])
+            report.append(_read_row(still, rows, size, scene=scene["id"], wanted=wanted, role="caption", seconds=page["end"] - page["start"], held=True))
     return {"rows": report}
 
 

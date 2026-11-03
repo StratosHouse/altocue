@@ -39,6 +39,8 @@ The storyboard format, scene links, camera moves and motion rules are the same f
 
 A film can hold real pictures. Add `{"type": "footage", "file": "assets/take.mp4", "zone": "phone_a", "label": "Raw"}` to a scene. The zones `phone`, `phone_a` and `phone_b` keep a vertical clip upright at every aspect. Pictures stay muted. To hear a take, set `"voice"` on the scene, and `"voice_offset"` if the picture starts early.
 
+Add `"captions": true` to a footage item to caption what it says. Altocue reads the clip's own words once, keeps them until the file changes, and sets word-timed captions across the foot of that picture, sized to its width so they read on a phone. `film stills` measures them with everything else.
+
 Keep your own clips in `assets/` and generated ones in `generated/`, so either can be swapped without touching the motion.
 
 ## A hard length
@@ -48,6 +50,12 @@ Set `"cap_seconds": 90` in `brief.json` when a length is a limit and not a guide
 ## Numbers on screen
 
 A claim on screen must be true of what shipped. Read numbers from the tool when the storyboard is built, such as `altocue library stats`, and never type them from memory.
+
+When a script builds the storyboard, write each number as a token such as `{live:formats}` and fill it with `altocue.live.fill`. That writes `live.json`, which records where every number landed and what it was read from: a count of what ships (`formats`, `groups.<id>`, `library`, `gates`, `looks`), another film's QA or review, or a measurement of a file. `film check` reads them all again and fails a film whose numbers have moved, so a stale number can never render.
+
+## The sound off
+
+Most people watch with the sound off. Once the voice stops, carry the story with a `say_line` in the `foot` zone of each scene: the line a narrator would say, in under ten words, true of the picture. Keep the cards above the foot, with `scale` if a card reaches it. For a hook, set `"gap"` and `"lead"` on a `word_slam` so the first word is on screen in the first frame and the line has landed by about two seconds.
 
 ## Voice comes first when there is voice
 
