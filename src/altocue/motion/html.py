@@ -21,7 +21,7 @@ CSS = """
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:transparent}
 #root{position:relative;width:%(width)spx;height:%(height)spx;overflow:hidden;background:transparent;
-font-family:"Brand",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+font-family:"Brand",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
 .clip{position:absolute}
 em{font-style:normal;color:var(--accent)}
 

@@ -29,7 +29,12 @@ JOBS = ("hook", "prove", "explain", "transition", "close")
 AREAS = ("panel", "edge", "full")
 CORE_TYPES = {"hook", "chip", "lower_third", "stat", "quote", "steps", "title", "endcard", "composition"}
 FONT_FILES = {"mono": "GeistMono-Variable.ttf", "serif": "InstrumentSerif-Regular.ttf", "hand": "Caveat-Variable.ttf"}
-FONT_STACKS = {"mono": 'ui-monospace,Menlo,monospace', "serif": "Georgia,serif", "hand": "cursive"}
+# Only generic families behind the bundled fonts. HyperFrames swaps a named system font such as Arial,
+# Menlo or Georgia for a Google font and fetches it during every render, check and snapshot.
+FONT_STACKS = {"mono": "ui-monospace,monospace", "serif": "serif", "hand": "cursive"}
+# The page's own names for them. A face named "serif" reads as the generic keyword to HyperFrames,
+# which then puts Inter in front of it, so serif text rendered in Inter.
+FONT_FAMILIES = {"mono": "Altocue Mono", "serif": "Altocue Serif", "hand": "Altocue Hand"}
 
 IMAGE_KEYS = ("image", "src")
 IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".svg")
@@ -225,6 +230,6 @@ def stylesheet(items: Iterable[dict[str, Any]]) -> str:
     formats = used(items)
     if not formats:
         return ""
-    faces = "".join(f'@font-face{{font-family:"{name}";src:url("{FONT_FILES[name]}");font-weight:100 900}}\n' for name in fonts_for(items))
-    stacks = "".join(f'--{name}:"{name}",{FONT_STACKS[name]};' for name in fonts_for(items))
+    faces = "".join(f'@font-face{{font-family:"{FONT_FAMILIES[name]}";src:url("{FONT_FILES[name]}");font-weight:100 900}}\n' for name in fonts_for(items))
+    stacks = "".join(f'--{name}:"{FONT_FAMILIES[name]}",{FONT_STACKS[name]};' for name in fonts_for(items))
     return faces + (f":root{{{stacks}}}\n" if stacks else "") + BASE_CSS + "\n".join(scoped_css(fmt) for fmt in formats)

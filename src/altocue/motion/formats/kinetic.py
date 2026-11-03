@@ -470,7 +470,7 @@ $scrimkeys""",
 .f-text_match .l{display:flex;justify-content:flex-end;overflow:hidden}
 .f-text_match .l span,.f-text_match .r span{flex:none}
 .f-text_match .r{overflow:hidden}
-.f-text_match .gap,.f-text_match .key{padding:.05em .22em .09em;font-family:"Brand",Arial,sans-serif;font-size:calc(var(--key) * var(--scale));font-weight:700;line-height:1;letter-spacing:-.035em;white-space:nowrap}
+.f-text_match .gap,.f-text_match .key{padding:.05em .22em .09em;font-family:"Brand",sans-serif;font-size:calc(var(--key) * var(--scale));font-weight:700;line-height:1;letter-spacing:-.035em;white-space:nowrap}
 .f-text_match .gap{visibility:hidden}
 .f-text_match .key{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:.08em;background:var(--accent);color:var(--panel)}
 .f-text_match .paper{background:#f2ecdf;color:#231e16;font-family:var(--serif);font-size:calc(66px * var(--scale));line-height:1.12;letter-spacing:-.01em}
