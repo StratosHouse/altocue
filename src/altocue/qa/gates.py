@@ -66,6 +66,7 @@ COLD_OPEN = 0.4
 STATIC_OPEN = 0.3  # mean luma change between frames. A frozen start measures near zero. Not yet calibrated on real clips
 BAKED_FPS = 2.0
 BAKED_MATCH = 0.6
+BAKED_LETTERS_PER_EDIT = 5  # a misread of planned text may be one letter off in every five, so "wis plan" is "his plan"
 LIP_SHEET = 12
 LIP_WIDTH = 270
 
@@ -1232,6 +1233,27 @@ def _expected(token: str, planned: set[str]) -> bool:
     return token in planned or any(token in word or (len(word) > 2 and word in token) for word in planned)
 
 
+def _edits_to_stretch(text: str, run: str) -> int:
+    """The fewest single-letter edits that turn `text` into some stretch of `run`."""
+    previous = [0] * (len(run) + 1)
+    for i, letter in enumerate(text, 1):
+        current = [i]
+        for j, other in enumerate(run, 1):
+            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (letter != other)))
+        previous = current
+    return min(previous)
+
+
+def _misread_of(said: list[str], runs: list[str]) -> bool:
+    """A reader that drops spaces and swaps a letter at a cut still spells planned text, near enough.
+
+    Letters only, spaces gone. Short reads must sit in planned text exactly; longer ones may be one edit off in every five letters.
+    """
+    letters = "".join(said)
+    allowed = len(letters) // BAKED_LETTERS_PER_EDIT
+    return any(_edits_to_stretch(letters, run) <= allowed for run in runs)
+
+
 def _mostly_inside(box: list[float], line: list[float]) -> bool:
     """Tesseract garbles the words a tile's edge cuts through. A read that sits on a planned line is that line, read badly."""
     x, y, w, h = box
@@ -1248,8 +1270,10 @@ def gate_baked_text(c: Context) -> GateResult:
     picture = c.plate or c.file
     with tempfile.TemporaryDirectory(prefix="altocue-ocr-") as folder:
         records = ocr.read_video(picture, BAKED_FPS, [], Path(folder))
-    planned = {token for item in (rules.on_screen(c.timeline) if c.timeline and not c.plate else []) for token in rules.tokens(item["text"])}
-    planned |= {token for line in c.project.setting("ugc", "label_text", []) for token in rules.tokens(str(line))}
+    lines = [item["text"] for item in (rules.on_screen(c.timeline) if c.timeline and not c.plate else [])]
+    lines += [str(line) for line in c.project.setting("ugc", "label_text", [])]
+    planned = {token for line in lines for token in rules.tokens(line)}
+    runs = ["".join(rules.tokens(line)) for line in lines]
     hits: dict[str, list[dict[str, Any]]] = {}
     unplanned: list[tuple[list[str], dict[str, Any]]] = []
     planned_lines: dict[float, list[list[float]]] = {}
@@ -1259,7 +1283,7 @@ def gate_baked_text(c: Context) -> GateResult:
             continue
         if sum(_expected(token, planned) for token in said) / len(said) >= BAKED_MATCH:
             planned_lines.setdefault(record["time"], []).append(ocr.frame_box(record))
-        elif sum(len(t) for t in said) >= 3:
+        elif sum(len(t) for t in said) >= 3 and not _misread_of(said, runs):
             unplanned.append((said, record))
     for said, record in unplanned:
         if not any(_mostly_inside(ocr.frame_box(record), line) for line in planned_lines.get(record["time"], [])):
