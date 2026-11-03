@@ -425,6 +425,7 @@ def frame_project(project: Project, force: bool = False) -> Edl:
     edl = project.edl()
     if not project.setting("frame", "enabled", True):
         return edl
+    before = edl.to_dict()
     target = project.size
     stamp = _fingerprint(project, edl, target)
     path = _report_path(project)
@@ -482,7 +483,8 @@ def frame_project(project: Project, force: bool = False) -> Edl:
                 "moved": moved,
             }
         )
-    project.save_edl(edl)
+    if edl.to_dict() != before:  # every render frames first, and a rewrite with nothing new made a finished film look older than its cut
+        project.save_edl(edl)
     write_json(path, {"fingerprint": stamp, "target": list(target), "segments": rows})
     return edl
 
