@@ -61,6 +61,25 @@ def test_compose_highlights_one_word_per_clip(brand):
     assert 'data-composition-id="root"' in html and "gsap" not in html.lower()
 
 
+def test_a_word_that_pops_keeps_the_space_beside_it(brand):
+    """The spoken word grows by a transform, which never moves its neighbours, so a long word swelled into the gap.
+
+    The old take B caption read "ACOMPLETELY" while "completely" was lit. Every word now holds the room its popped
+    size needs: an unseen copy at that size sets its width, and only the visible word inside it grows.
+    """
+    said = [("A", 4.3, 4.45), ("completely", 4.45, 4.95), ("separate", 4.95, 5.4)]
+    words = [{"text": text, "start": start, "end": end} for text, start, end in said]
+    html = compose(timeline(captions=[{"start": 4.3, "end": 5.6, "segment": "a", "words": words}]), brand)
+    shown = re.findall(r'<b(?: class="on")? data-room="([^"]*)"><span>([^<]*)</span></b>', html)
+    assert len(shown) == 9 and all(room == text for room, text in shown)
+    assert html.count('<b class="on" data-room="completely">') == 1
+    pop = re.search(r"\.cap\{[^}]*--pop:([\d.]+)", html)
+    assert pop and float(pop.group(1)) > 1
+    assert re.search(r"\.cap b::after\{content:attr\(data-room\);[^}]*font-size:calc\(var\(--pop\) \* 1em\)", html)
+    assert re.search(r"\.cap b\.on>span\{[^}]*transform:scale\(var\(--pop\)\)", html)
+    assert not re.search(r"\.cap b\.on\{[^}]*transform", html)  # the word's own box never grows past its room
+
+
 def test_compose_escapes_copy(brand):
     html = compose(timeline(items=[{"type": "chip", "text": "<b>x</b>", "start": 0, "end": 1}]), brand)
     assert "<b>x</b>" not in html

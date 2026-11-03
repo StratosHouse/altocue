@@ -26,12 +26,17 @@ font-family:"Brand",sans-serif;color:var(--ink);-webkit-font-smoothing:antialias
 em{font-style:normal;color:var(--accent)}
 
 /* Captions */
-.cap{left:var(--gutter);right:calc(var(--gutter) + var(--rail,0px));top:var(--cap-y);display:flex;flex-wrap:wrap;justify-content:center;
+.cap{--pop:1.07;left:var(--gutter);right:calc(var(--gutter) + var(--rail,0px));top:var(--cap-y);display:flex;flex-wrap:wrap;justify-content:center;
 align-items:baseline;gap:.08em .26em;font-size:calc(var(--cap-size) * 1px);font-weight:700;line-height:1.12;letter-spacing:-.018em;text-align:center;
 text-wrap:balance;text-shadow:0 0 3px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.62),0 4px 22px rgba(0,0,0,.62),0 0 44px rgba(0,0,0,.34)}
 .cap.enter{animation:capin .13s var(--ease) both}
-.cap b{font-weight:inherit;display:inline-block}
-.cap b.on{color:var(--accent);transform:scale(1.07)}
+/* A transform never moves the words beside it, so each word holds the room its popped size needs */
+.cap b{font-weight:inherit;display:inline-grid;justify-items:center}
+.cap b>span,.cap b::after{grid-area:1/1}
+.cap b>span{display:block}
+.cap b::after{content:attr(data-room);font-size:calc(var(--pop) * 1em);height:0;overflow:hidden;visibility:hidden}
+.cap b.on{color:var(--accent)}
+.cap b.on>span{transform:scale(var(--pop))}
 .cap .who{flex:0 0 100%%;font-style:normal;font-size:.5em;font-weight:600;letter-spacing:0;line-height:1.3}
 .cap.bold{text-transform:uppercase;font-weight:800;letter-spacing:-.01em;line-height:1.04;
 text-shadow:0 0 2px #000,0 4px 0 rgba(0,0,0,.65),0 8px 30px rgba(0,0,0,.5)}
@@ -39,7 +44,7 @@ text-shadow:0 0 2px #000,0 4px 0 rgba(0,0,0,.65),0 8px 30px rgba(0,0,0,.5)}
 .cap.boxed .plate{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:.08em .24em;padding:.32em .6em .36em;border-radius:.42em;
 background:color-mix(in srgb,var(--panel) 84%%,transparent);box-shadow:0 0 0 1px rgba(255,255,255,.1) inset,0 18px 48px rgba(0,0,0,.34);max-width:100%%}
 .cap.rail{font-weight:600;font-size:calc(var(--cap-size) * .76px);letter-spacing:-.008em}
-.cap.rail b.on{transform:none}
+.cap.rail{--pop:1}
 @keyframes capin{from{transform:scale(.94)}to{transform:none}}
 
 /* Shared surfaces */
@@ -158,6 +163,12 @@ def _style(item: dict[str, Any], *, leave: bool = False) -> str:
     return f'style="{";".join(parts)}"' if parts else ""
 
 
+def _caption_word(text: str, on: bool) -> str:
+    """One word, with an unseen copy of itself that holds the room the word needs when it pops."""
+    lit = ' class="on"' if on else ""
+    return f'<b{lit} data-room="{escape(text, quote=True)}"><span>{escape(text)}</span></b>'
+
+
 def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") -> str:
     """One clip per spoken word. Only the first one plays the entrance. `place` sets the page somewhere other than the caption line."""
     out = []
@@ -167,7 +178,7 @@ def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") 
         end = page["end"] if index == len(words) - 1 else words[index + 1]["start"]
         if end - start < 0.02:
             continue
-        spans = "".join(f'<b class="on">{escape(w["text"])}</b>' if i == index else f"<b>{escape(w['text'])}</b>" for i, w in enumerate(words))
+        spans = "".join(_caption_word(w["text"], i == index) for i, w in enumerate(words))
         who = f'<i class="who">{escape(page["name"])}</i>' if page.get("name") else ""
         body = f'<span class="plate">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
         enter = " enter" if index == 0 and style != "rail" else ""
