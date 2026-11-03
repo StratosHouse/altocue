@@ -1072,7 +1072,7 @@ if args[:2] == ["generate", "get"]:
     status = statuses[index]
     data = {{"id": args[2], "status": status}}
     if status == "completed":
-        data["result_url"] = state["result_url"]
+        data["result_url"] = state.get("result_urls", {{}}).get(args[2], state["result_url"])
     out(data)
 die("unknown command " + " ".join(args))
 """
@@ -2052,7 +2052,8 @@ def test_a_cli_run_with_nothing_to_upload_needs_no_opt_in(hf_project, higgsfield
     assert go(hf_project, "--yes") == 0
 
 
-def test_a_still_made_in_this_run_is_not_the_projects_footage(hf_project, higgsfield):
+def test_a_still_made_in_this_run_is_not_the_projects_footage(hf_project, higgsfield, fal):
+    higgsfield.write(result_urls={"job-1": f"{fal.url}/media/key.png"})  # the still comes back as a picture
     write_shots(hf_project, still(id="key"), shot(id="s02", first_frame="@key"))
     assert go(hf_project, "--yes") == 0
 
