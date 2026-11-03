@@ -79,4 +79,4 @@ language = "en"          # Whisper and ElevenLabs. Parakeet takes no language se
 words = ["Altocue"]      # spellings for Whisper's prompt
 ```
 
-Install an engine with `pip install "altocue[parakeet]"`, `"altocue[mlx-whisper]"` or `"altocue[faster-whisper]"`.
+Install an engine with `uv tool install --force "altocue[parakeet] @ git+https://github.com/StratosHouse/altocue"`, or the same line with `mlx-whisper` or `faster-whisper` in the brackets.

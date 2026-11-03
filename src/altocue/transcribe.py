@@ -31,6 +31,7 @@ from .locks import free_memory_gb, heavy
 from .models import Clip, Word
 from .project import Project
 
+SOURCE = "git+https://github.com/StratosHouse/altocue"
 RATE = 16000
 HOP = 0.02  # envelope frame, seconds
 MIN_CONTRAST = 10.0  # dB between floor and loud level before the envelope can be trusted
@@ -208,7 +209,7 @@ class LocalEngine:
         return importlib.util.find_spec(self.module) is not None
 
     def install_fix(self) -> str:
-        return f'Run `pip install "altocue[{self.extra}]"`.'
+        return f'Run `uv tool install --force "altocue[{self.extra}] @ {SOURCE}"`.'
 
     def notice(self, seconds: float) -> str:
         return f"{self.name}: runs on this machine. The model is {self.download}, downloaded on first use."
