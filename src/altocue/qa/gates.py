@@ -1110,7 +1110,11 @@ def gate_claims(c: Context) -> GateResult:
 
 
 def gate_disclosure(c: Context) -> GateResult:
-    """A film with a synthetic performer says so on screen, or the project records why it need not."""
+    """A film with a synthetic performer says so on screen while that performer is on screen, or the project records why it need not.
+
+    Each performer needs the label for two seconds of their own time on screen, or all of it when they are on for less.
+    The value is the seconds of label the least covered performer gets.
+    """
     people = cast(c)
     placed = [p for p in people if p.placed]
     if not placed:
@@ -1123,16 +1127,35 @@ def gate_disclosure(c: Context) -> GateResult:
         return skipped("disclosure", NO_TIMELINE, DISCLOSURE_SECONDS)
     label = str(c.project.setting("disclosure", "label", "") or "")
     shown = [(float(s["start"]), float(s["end"])) for s in rules.on_screen(c.timeline) if claims.discloses(s["text"], label)]
-    seconds = _covered(shown)
-    wanted = min(DISCLOSURE_SECONDS, c.footage_end)
+    measured = []
+    for person in placed:
+        spans = person.spans or [(0.0, c.footage_end)]
+        measured.append((person, spans, _covered(_during(shown, spans)), min(DISCLOSURE_SECONDS, _covered(spans), c.footage_end)))
+    person, spans, seconds, wanted = min(measured, key=lambda row: row[2] - row[3])
     if seconds >= wanted:
-        return GateResult(id="disclosure", passed=True, value=round(seconds, 2), threshold=wanted, detail=f"On screen for {seconds:.1f}s. {claims.NOT_LEGAL_ADVICE}")
-    said = f"on screen for only {seconds:.1f}s" if shown else "nowhere on screen"
+        detail = f"On screen for {seconds:.1f}s while {names} {'is' if len(placed) == 1 else 'are'} on screen. {claims.NOT_LEGAL_ADVICE}"
+        return GateResult(id="disclosure", passed=True, value=round(seconds, 2), threshold=wanted, detail=detail)
+    if not shown:
+        said = "the disclosure is nowhere on screen"
+    elif not seconds:
+        said = f"the disclosure is on screen, but never while {person.shot} is"
+    else:
+        said = f"the disclosure is on screen for only {seconds:.1f}s of that time, and it needs {wanted:.1f}s"
     ignored = ""
     if label.strip() and not claims.usable_label(label):
         ignored = f" The project's label {label.strip()!r} is too short to count, so use two words or more, such as AI-generated actor."
-    detail = f"{names} is a synthetic performer, and the disclosure is {said}.{ignored} {claims.NOT_LEGAL_ADVICE}"
+    detail = f"{person.shot} is a synthetic performer, on screen {_spans_in_words(spans)}, and {said}.{ignored} {claims.NOT_LEGAL_ADVICE}"
     return GateResult(id="disclosure", passed=False, value=round(seconds, 2), threshold=wanted, detail=detail)
+
+
+def _during(shown: list[tuple[float, float]], spans: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """The parts of each shown range that fall inside one of the spans."""
+    return [(max(a, s), min(b, e)) for a, b in shown for s, e in spans if min(b, e) > max(a, s)]
+
+
+def _spans_in_words(spans: list[tuple[float, float]]) -> str:
+    first = sorted(spans)[:3]
+    return ", ".join(f"from {a:.1f}s to {b:.1f}s" for a, b in first) + (f" and {len(spans) - 3} more times" if len(spans) > 3 else "")
 
 
 def _covered(ranges: list[tuple[float, float]]) -> float:
