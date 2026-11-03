@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextvars
 import dataclasses
 import functools
 import gc
@@ -19,6 +20,8 @@ import urllib.error
 import urllib.request
 import uuid
 import wave
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -45,6 +48,7 @@ LOOP_FILLER, LOOP_WORD, LOOP_PHRASE = 3, 6, 4
 STOCK_CONFIDENCE = 0.5
 PIECE = 60.0  # speech goes to a local engine in pieces this long, so its memory follows the piece and not the file
 REACH = 10.0  # how far either side of a mark to look for the quietest moment
+READING_BACK = contextvars.ContextVar("reading_back", default=False)  # a finished render, read back for its checks
 READBACK_PIECE = 30.0  # a finished render has music under the speech, and parakeet drops whole lines from a long stretch of it
 MLX_CACHE_BYTES = 256 * 2**20  # MLX keeps freed buffers, and by default that cache may grow past the machine's memory
 MLX_LIMIT_BYTES = 5 * 2**30  # a 60 second piece peaks near 3 GB
@@ -270,6 +274,7 @@ class FasterWhisper(LocalEngine):
 
         segments, _ = WhisperModel(name, device=device, compute_type=compute).transcribe(
             samples,
+            vad_filter=READING_BACK.get(),  # music alone read as speech: "We'll be right back." in a film with no voice
             word_timestamps=True,
             language=language,
             initial_prompt=prompt or None,
@@ -662,9 +667,22 @@ def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: s
     return classify(clean(raw, duration=clip.duration, envelope=envelope), cues=cues)
 
 
+@contextmanager
+def reading_back() -> Iterator[None]:
+    """Mark a transcription as a finished render read back for its checks. Engines that can skip non-speech then do.
+
+    A raw take is never read this way: speech detection drops the fillers the cut has to find.
+    """
+    token = READING_BACK.set(True)
+    try:
+        yield
+    finally:
+        READING_BACK.reset(token)
+
+
 def transcribe_file(path: str | Path, engine: str | None = None, language: str = "en") -> list[Word]:
     """Read any media file back to words, for checks on a finished render. A render has music under it, so it goes in shorter pieces."""
-    with heavy("reading the render back"):
+    with heavy("reading the render back"), reading_back():
         return transcribe_clip(ffmpeg.probe_clip(path), select(engine), language=language, prompt="", cues=[], piece=READBACK_PIECE)
 
 

@@ -680,16 +680,22 @@ def test_free_memory_reads_something_here():
     assert found is None or 0 < found < locks.memory_gb() * 1.05
 
 
+seen: list[dict] = []  # the options each fake transcription was given
+
+
 def fake_whisper(monkeypatch, gpus: int, cuda_fails: bool = False) -> list[tuple[str, str, str]]:
     """faster-whisper and ctranslate2 stand-ins: record each model made, and fail on CUDA when its libraries are missing."""
     made: list[tuple[str, str, str]] = []
+    seen.clear()
 
     class Model:
         def __init__(self, name, device, compute_type):
             made.append((name, device, compute_type))
             self.device = device
 
-        def transcribe(self, samples, **_):
+        def transcribe(self, samples, **options):
+            seen.append(options)
+
             def segments():
                 if self.device == "cuda" and cuda_fails:
                     raise RuntimeError("Library libcublas.so.12 is not found or cannot be loaded")
@@ -726,3 +732,27 @@ def test_faster_whisper_stays_on_the_cpu_without_a_card_or_when_told(monkeypatch
     monkeypatch.setenv("ALTOCUE_WHISPER_DEVICE", "cpu")
     transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
     assert made == [("small.en", "cpu", "int8"), ("small.en", "cpu", "int8")]
+
+
+def test_a_finished_render_is_read_back_with_speech_detection(monkeypatch, tmp_path):
+    """On the render PC, large-v3-turbo heard "We'll be right back." in a film whose only sound was music."""
+    fake_whisper(monkeypatch, gpus=1)
+    with transcribe.reading_back():
+        transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert seen[-1]["vad_filter"] is True
+
+
+def test_a_raw_take_keeps_every_filler_without_speech_detection(monkeypatch, tmp_path):
+    """Speech detection dropped the "Um" in the guy's raw take, and the cut needs every filler."""
+    fake_whisper(monkeypatch, gpus=1)
+    transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert seen[-1]["vad_filter"] is False
+
+
+def test_transcribe_file_reads_back(monkeypatch, tmp_path):
+    flags = []
+    monkeypatch.setattr(transcribe, "transcribe_clip", lambda *a, **k: flags.append(transcribe.READING_BACK.get()) or [])
+    monkeypatch.setattr(transcribe.ffmpeg, "probe_clip", lambda path: object())
+    monkeypatch.setattr(transcribe, "select", lambda engine=None: object())
+    transcribe.transcribe_file(tmp_path / "film.mp4")
+    assert flags == [True] and transcribe.READING_BACK.get() is False
