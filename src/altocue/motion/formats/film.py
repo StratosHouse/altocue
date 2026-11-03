@@ -321,6 +321,8 @@ $ .strip{display:flex;flex-wrap:wrap;justify-content:center;gap:26u}
 $ figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:12u;animation:stland .5s cubic-bezier(.2,1.3,.4,1) var(--t) both}
 $ .icons img{display:block;width:118u;height:118u}
 $ .looks img{display:block;width:190u;height:338u;object-fit:cover;border-radius:18u;box-shadow:0 18u 44u rgba(0,0,0,.45)}
+$ .frames img{display:block;width:420u;height:206u;object-fit:cover;border-radius:16u;box-shadow:0 18u 44u rgba(0,0,0,.45)}
+$ .frames figcaption{font-size:44u}
 $ figcaption{font-size:30u;font-weight:500;letter-spacing:-.01em;color:var(--ink)}
 @keyframes stland{from{opacity:0;transform:translateY(34u) scale(.9)}to{opacity:1;transform:none}}
 """
@@ -330,7 +332,7 @@ $ .pair{position:relative;width:100%;aspect-ratio:9/12;max-height:100%;margin:0 
 $ img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 22%;display:block}
 $ .over{position:absolute;inset:0;animation:swsweep var(--dur) cubic-bezier(.65,0,.3,1) both}
 $ .bar{position:absolute;top:0;bottom:0;left:0;width:5u;background:var(--accent);box-shadow:0 0 22u var(--accent);animation:swline var(--dur) cubic-bezier(.65,0,.3,1) both}
-$ .tag{position:absolute;bottom:22u;padding:8u 24u;border-radius:99u;font-size:44u;font-weight:600;color:var(--panel);background:var(--ink)}
+$ .tag{position:absolute;bottom:22u;padding:8u 24u;border-radius:99u;font-size:72u;font-weight:600;color:var(--panel);background:var(--ink)}
 $ .lf{left:22u}
 $ .rt{right:22u;background:var(--accent)}
 @keyframes swsweep{0%{clip-path:inset(0 0 0 96%)}34%,44%{clip-path:inset(0 0 0 22%)}72%,80%{clip-path:inset(0 0 0 72%)}100%{clip-path:inset(0 0 0 46%)}}
@@ -360,7 +362,7 @@ FORMATS = (
         slots=(
             Slot("stages", kind="list", limit=10, each=16),
             Slot("title", limit=44, required=False),
-            Slot("size", kind="choice", required=False, choices=("icons", "looks")),
+            Slot("size", kind="choice", required=False, choices=("icons", "looks", "frames")),
         ),
         example={"title": "Every *stage* in one place", "stages": [{"text": "Cut"}, {"text": "Clean"}, {"text": "Grade"}, {"text": "Caption"}]},
         draw=_stage_strip,

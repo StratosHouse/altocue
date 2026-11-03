@@ -313,7 +313,12 @@ def film_line(film: Film, aspect: str, *, board: dict[str, Any] | None = None, f
         page
         for item in line["items"]
         if item["type"] == "footage" and item.get("captions")
-        for page in scenes.caption_pages(item, spelled(words_of(film.project, film.project.root / item["file"]), item["captions"]), SIZES[aspect])
+        for page in scenes.caption_pages(
+            item,
+            spelled(words_of(film.project, film.project.root / item["file"]), item["captions"]),
+            SIZES[aspect],
+            place=str(item["captions"].get("place", "picture")) if isinstance(item["captions"], dict) else "picture",
+        )
     ]
     for page, item in ((page, item) for item in line["items"] if isinstance(item.get("captions"), dict) for page in line["captions"]):
         if page["scene"] == item["scene"] and item["captions"].get("spell"):

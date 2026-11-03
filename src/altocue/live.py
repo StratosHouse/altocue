@@ -18,7 +18,7 @@ from .errors import AltocueError
 
 FILE = "live.json"
 TOKEN = re.compile(r"\{live:([\w.-]+)\}")
-COUNTS = ("formats", "groups", "library", "gates", "looks")
+COUNTS = ("formats", "groups", "library", "gates", "looks", "ship_at", "score_top")
 REBUILD = "Build the film again from the tool, so every number is read fresh. Never type a number in by hand."
 
 
@@ -38,6 +38,12 @@ def count(name: str) -> int:
         return len(gates.gate_ids())
     if name == "looks":
         return len(looks.ALL)
+    if name in ("ship_at", "score_top"):
+        from .review import rubric
+
+        if name == "ship_at":
+            return rubric.SHIP_AT
+        return max(int(top) for top in re.findall(r'"maximum": (\d+)', json.dumps(rubric.schema())))
     raise AltocueError(f"No live count called {name}.", fix=f"Use one of {', '.join(COUNTS)}.")
 
 
