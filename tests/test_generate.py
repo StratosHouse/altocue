@@ -1170,6 +1170,7 @@ if args[:2] == ["generate", "get"]:
     data = {{"id": args[2], "status": status}}
     if status == "completed":
         data["result_url"] = state.get("result_urls", {{}}).get(args[2], state["result_url"])
+        data.update(state.get("result_extra", {{}}))
     out(data)
 die("unknown command " + " ".join(args))
 """
@@ -1240,6 +1241,43 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     assert sidecar["cost_usd"] == pytest.approx(0.8)
     assert spend(hf_project)[0]["basis"] == "credits"
     assert "per credit" in capsys.readouterr().out
+
+
+def test_a_job_record_that_differs_from_the_request_is_kept_and_not_placed(hf_project, higgsfield, capsys):
+    """b015: the record holds the settings the model actually used, defaults nobody asked for included."""
+    used = {"aspect_ratio": "16:9", "duration": 5, "resolution": "720p", "generate_audio": True}
+    higgsfield.write(result_extra={"job_type": "seedance_2_0", "params": used})
+    write_shots(hf_project, shot(tier="standard"))
+    assert go(hf_project, "--yes") == 1
+    out = capsys.readouterr().out
+    assert "aspect_ratio 16:9, asked for 9:16" in out and "generate_audio True, asked for False" in out and "duration 5" not in out
+    assert json.loads((hf_project.work / "generated" / "manifest.json").read_text())["shots"]["s01"]["check_passed"] is False
+    assert generated_asset(hf_project, "s01", require_passed=False).exists()  # paid for, so it is kept
+
+
+def test_a_job_record_that_matches_the_request_passes(hf_project, higgsfield):
+    used = {"aspect_ratio": "9:16", "duration": "5", "resolution": "720p", "generate_audio": "false", "mode": "std"}
+    higgsfield.write(result_extra={"job_type": "seedance_2_0", "params": used})
+    write_shots(hf_project, shot(tier="standard"))
+    assert go(hf_project, "--yes") == 0
+
+
+def test_a_record_naming_another_model_or_seed_is_caught(project, fal, capsys):
+    fal.result_body = {"images": [{"url": f"{fal.url}/media/still.png"}], "seed": 99}
+    write_shots(project, still(seed=7))
+    assert go(project, "--yes") == 1
+    assert "seed 99, asked for 7" in capsys.readouterr().out
+
+
+def test_an_import_is_held_against_its_job_record(project, fal, capsys, tmp_path):
+    """c004: a web page kept an old duration. The record shows it before the file reaches the edit."""
+    write_shots(project, shot(duration=8))
+    take = make_clip(tmp_path / "take.mp4", seconds=1.0, size="160x284", audio=False)
+    (project.root / "job.json").write_text(json.dumps([{"id": "j1", "params": {"duration": 5, "aspect_ratio": "9:16"}}]))
+    asset = import_asset(project, file=take, shot="s01", prompt=PROMPT, model="m", cost=1.0, record="job.json", out=print)
+    assert "duration 5, asked for 8" in capsys.readouterr().out
+    sidecar = json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+    assert sidecar["check"]["passed"] is False and sidecar["record_mismatches"] == ["duration 5, asked for 8"]
 
 
 def test_a_prompt_that_starts_with_dashes_reaches_higgsfield_as_the_prompt(hf_project, higgsfield):

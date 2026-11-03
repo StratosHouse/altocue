@@ -20,7 +20,7 @@ from .. import __version__, ffmpeg
 from ..direct import IMAGE_SUFFIXES, SHOT_ID, SYNTHETIC, Review, Shot, full_prompt, load_shots, require_valid, run_check
 from ..errors import AltocueError
 from ..project import Project
-from . import recipes, store, uploads
+from . import recipes, records, store, uploads
 from .base import TERMINAL, Cost, CostLine, GenProvider, GenRequest, JobRef, JobStatus, Moderated, SubmitUnknown
 from .catalog import Catalog, catalog_for, credit_rate, load_catalog
 from .fal import FalProvider
@@ -631,6 +631,10 @@ class Run:
             return
         lead = Path(assets[0].path)
         check = run_check(item.shot.check, lead, store.generated_dir(self.project) / "checks" / item.shot.id)
+        result = item.job.meta.get("result") or {}
+        wrong = records.mismatches(result, asked(self.provider, item.req), model=item.model) if isinstance(result, dict) else []
+        if wrong:  # paid for and kept, but not placed: the take is not the shot that was asked for
+            check = {"check": "record", "passed": False, "detail": f"The job record does not match the request: {'; '.join(wrong)}."}
         ancestors, inherited, _ = ancestry(self.project, item.upstream)
         flags = sorted({*item.shot.synthetic, *inherited})
         for asset in assets:
@@ -657,6 +661,7 @@ class Run:
                         "last_frame": item.shot.last_frame,
                         "refs": item.shot.refs,
                         "motion": item.shot.motion,
+                        "record_mismatches": wrong,
                         "check": check,
                         "synthetic": flags,
                         "derived_from": ancestors,
@@ -671,7 +676,7 @@ class Run:
         self._save(item, "done", asset=str(lead.relative_to(self.project.root)))
         if check["passed"] is False:
             self.outcome.rejected.append(item.shot.id)
-            self.out(f"{item.shot.id}: saved but it failed its {item.shot.check} check, so it will not be placed. {check['detail']}")
+            self.out(f"{item.shot.id}: saved but it failed its {check['check']} check, so it will not be placed. {check['detail']}")
             return
         self.outcome.done.append(item.shot.id)
         self.out(f"{item.shot.id}: saved to {lead.relative_to(self.project.root)}")
@@ -733,6 +738,12 @@ class Run:
 
 def _takes_seed(provider: GenProvider, item: Planned) -> bool:
     return "seed" in provider.catalog.resolve(provider.id, item.req).fields
+
+
+def asked(provider: GenProvider, req: GenRequest) -> dict[str, Any]:
+    """The settings a request sent, by the model's own field names, with its media left out."""
+    plain = replace(req, first_frame=None, last_frame=None, refs=[], motion=None)
+    return provider.catalog.resolve(provider.id, req).payload(plain, str)
 
 
 def _provenance(
@@ -882,11 +893,13 @@ def import_asset(
     synthetic: Sequence[str] = (),
     claims: str = "",
     consent: str = "",
+    record: str = "",
     out: Out = print,
 ) -> Path:
     """Register a file that was generated elsewhere, such as through a provider's MCP server.
 
-    The file is copied byte for byte, so a provider's labels and marks stay on it.
+    The file is copied byte for byte, so a provider's labels and marks stay on it. With `record`, the
+    provider's job record is held against the shot first, so a page that kept an old duration is caught (c004).
     """
     shot = shot_id(shot)
     source = Path(file).expanduser().resolve()
@@ -919,6 +932,11 @@ def import_asset(
     asset.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, asset)
     check = run_check(known.check if known else "none", asset, store.generated_dir(project) / "checks" / shot)
+    job = _job_record(project, record) if record else {}
+    wrong = records.mismatches(job, _asked_of(known, seed), model=model) if record else []
+    if wrong:
+        check = {"check": "record", "passed": False, "detail": f"The job record does not match the shot: {'; '.join(wrong)}."}
+        out(f"{shot}: {check['detail']} It is kept, and it will not be placed.")
     held = settle(project, shot, usd=usd, credits=credits, job_id=job_id)
     extra = {
         "job_id": job_id,
@@ -935,6 +953,7 @@ def import_asset(
         "synthetic": flags,
         "claims": _claims_record(project, claims),
         "consent": consent,
+        "record_mismatches": wrong,
         "terms_as_of": str(config.get("terms_as_of", "")),
         "marks": {
             "c2pa": store.holds(source, C2PA_MARK),
@@ -955,6 +974,29 @@ def import_asset(
     if {"person", "voice"} & set(flags) and not consent:
         out(f"Warning: {shot} is flagged {', '.join(flags)} with no --consent note. Record whose likeness or voice this is, or that it is an invented adult.")
     return asset
+
+
+def _job_record(project: Project, name: str) -> dict[str, Any]:
+    path = Path(name) if Path(name).is_absolute() else project.root / name
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError) as error:
+        raise AltocueError(f"Cannot read the job record {name}: {error}", fix="Save the provider's job record as JSON, then import again.") from error
+    found = data[0] if isinstance(data, list) and data else data
+    if not isinstance(found, dict):
+        raise AltocueError(f"{name} is not a job record.", fix="Save the record the provider printed for this job, as JSON.")
+    return found
+
+
+def _asked_of(shot: Shot | None, seed: int | None) -> dict[str, Any]:
+    """A listed shot's settings under the names job records use. A record checks only what it states."""
+    if shot is None:
+        return {}
+    asked = {"aspect_ratio": shot.aspect, "aspect": shot.aspect}
+    if shot.kind == "video":
+        asked["duration"] = math.ceil(shot.duration)
+    chosen = seed if seed is not None else shot.seed
+    return {**asked, "seed": chosen} if chosen is not None else asked
 
 
 def _claims_record(project: Project, claims: str) -> dict[str, str] | str:

@@ -290,6 +290,23 @@ def test_a_prompt_that_restates_the_motion_videos_camera_warns():
     }
 
 
+def test_a_written_timeline_must_cover_the_shot_with_no_gaps():
+    """c004, c013: windows run from 0 to the duration, with no gap or overlap."""
+    assert "timeline" not in lint(prompt=f"{GOOD_PROMPT} 0-1.5 s she lifts it. 1.5-3.0 s she turns. 3.0-5.0 s she walks out.")
+    found = lint_prompt(direct.Shot.from_dict(shot(prompt=f"{GOOD_PROMPT} 0-1.5 s she lifts it. 2.0-4.0 s she turns.")))
+    message = next(f.message for f in found if f.rule == "timeline")
+    assert "a gap from 1.5s to 2s" in message and "ends at 4s" in message
+    overlap = lint_prompt(direct.Shot.from_dict(shot(prompt="[SHOT 1] 0-2s wide. [SHOT 2] 1.5-5s close.")))
+    assert "an overlap from 1.5s to 2s" in next(f.message for f in overlap if f.rule == "timeline")
+
+
+def test_settings_written_in_a_prompt_must_match_the_shot():
+    """c010 disagreed with its own settings on 7 of 12 durations and every aspect it stated."""
+    assert "settings" in lint(prompt=f"{GOOD_PROMPT} Framed 16:9.")
+    assert "settings" in lint(prompt=f"{GOOD_PROMPT} A 10-second shot.")
+    assert "settings" not in lint(prompt=f"{GOOD_PROMPT} A 5-second shot, framed 9:16.")
+
+
 def test_image_prompts_skip_camera_rules():
     found = lint(kind="image", check="still", prompt="A brass lantern on a wet stone step, warm practical light from the left.")
     assert not found & {"no-move", "endpoint", "one-move"}

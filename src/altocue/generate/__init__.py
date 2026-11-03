@@ -76,6 +76,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--synthetic", default="", help="With --import: what is generated: person, voice, scene, product, comma separated")
     parser.add_argument("--claims", default="", help="With --import: a file of approved claims, or a statement such as observable-only")
     parser.add_argument("--consent", default="", help="With --import: whose likeness or voice this is, such as none-generated-adult")
+    parser.add_argument("--record", default="", help="With --import: the provider's job record as JSON, checked against the shot before import")
 
 
 def _allow(project: Project, provider: str) -> int:
@@ -121,6 +122,7 @@ def _import(args: argparse.Namespace, project: Project) -> int:
         synthetic=_listed(args.synthetic),
         claims=args.claims,
         consent=args.consent,
+        record=args.record,
     )
     print(f"{args.shot}: registered {asset.relative_to(project.root)}")
     return 0

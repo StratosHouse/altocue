@@ -76,6 +76,15 @@ UNRELIABLE = r"\b(analog(ue)? clock|clock face|mirror(ed)? text|reversed text)\b
 BLOCK = r"\bHARD CUT\b|\bSHOT\s+1\b"
 BLOCK_SHOT = r"\bSHOT\s+\d+\s*-\s*([\d.]+)s?\s+to\s+([\d.]+)s?"
 AGGRESSIVE = r"\b(unstabili[sz]ed|jitter|shaky|shake)"
+SHOT_LABEL = re.compile(r"\[?\bSHOT\s+\d+\]?\s*[-:]?\s*", re.IGNORECASE)
+WINDOW = re.compile(r"(?<![\w.:])(\d+(?:\.\d+)?)\s*s?\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds)\b", re.IGNORECASE)
+SAID_LENGTH = re.compile(
+    r"\b(?:duration|length|runtime)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds)\b"
+    r"|\b(\d+(?:\.\d+)?)[- ]?(?:s|sec|second)s?[- ](?:clip|shot|video|take|film|sequence)\b",
+    re.IGNORECASE,
+)
+SAID_ASPECT = re.compile(r"(?<![\d:])(\d{1,2}:\d{1,2})(?![\d:])")
+SLACK = 0.05  # seconds a written time may be off before it counts
 
 
 @dataclass
@@ -276,6 +285,41 @@ def _honesty_findings(shots: list[Shot]) -> list[Finding]:
     return found
 
 
+def windows(prompt: str) -> list[tuple[float, float]]:
+    """The time windows a prompt writes, such as "0-1.5 s", "3.0 to 5.5 seconds" or "SHOT 2 - 2s to 4s", in order."""
+    return [(float(start), float(end)) for start, end in WINDOW.findall(SHOT_LABEL.sub(" ", prompt))]
+
+
+def timeline_problems(found: list[tuple[float, float]], duration: float) -> list[str]:
+    """A written timeline must start at 0, run on with no gap or overlap, and end at the shot's duration."""
+    problems = []
+    ordered = sorted(found)
+    if ordered[0][0] > SLACK:
+        problems.append(f"nothing is planned before {ordered[0][0]:g}s")
+    for (_, end), (start, _) in zip(ordered, ordered[1:], strict=False):
+        if start - end > SLACK:
+            problems.append(f"a gap from {end:g}s to {start:g}s")
+        elif end - start > SLACK:
+            problems.append(f"an overlap from {start:g}s to {end:g}s")
+    last = max(end for _, end in ordered)
+    if abs(last - duration) > SLACK:
+        problems.append(f"it ends at {last:g}s and the shot runs {duration:g}s")
+    return problems
+
+
+def settings_problems(shot: Shot) -> list[str]:
+    """Settings written in a prompt that disagree with the job's own. The model reads one, the bill the other (c004, c010)."""
+    problems = []
+    named = sorted({aspect for aspect in SAID_ASPECT.findall(shot.prompt) if aspect in ASPECTS} - {shot.aspect})
+    if named:
+        problems.append(f"the prompt says {', '.join(named)} and the shot is {shot.aspect}")
+    if shot.kind == "video":
+        said = sorted({float(a or b) for a, b in SAID_LENGTH.findall(shot.prompt)} - {float(shot.duration)})
+        if said:
+            problems.append(f"the prompt says {', '.join(f'{value:g}s' for value in said)} and the shot runs {shot.duration:g}s")
+    return problems
+
+
 def lint_prompt(shot: Shot) -> list[Finding]:
     """The craft rules that can be read off one shot's prompt."""
     prompt = shot.prompt
@@ -306,8 +350,16 @@ def lint_prompt(shot: Shot) -> list[Finding]:
         warn("drift", f"Identity drift grows with length. Consider two clips under {DRIFT_SECONDS}s.")
     if not shot.characters and has(OTS, 0):
         warn("ots-no-character", "Over-the-shoulder with no named character makes the model invent a person.")
+    settings = settings_problems(shot)
+    if settings:
+        warn("settings", f"{'; '.join(settings)}. Make the prompt and the shot's settings say the same thing, or the model and the bill disagree.")
     if shot.kind != "video":
         return found
+    written = windows(prompt)
+    if len(written) > 1:
+        gaps = timeline_problems(written, shot.duration)
+        if gaps:
+            warn("timeline", f"The written timeline has {'; '.join(gaps)}. Windows run from 0 to the duration with no gap, or the model fills them itself.")
 
     if shot.audio and not has(r"\bmusic\b"):
         warn("no-music", 'An open prompt tends to come back scored. Add "no music, only soft diegetic sound".')
