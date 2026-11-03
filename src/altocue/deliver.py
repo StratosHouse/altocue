@@ -549,13 +549,11 @@ def shots_of(edl: Edl) -> list[tuple[float, float]]:
 
 
 def write_textless(project: Project, folder: Path) -> dict[str, Any]:
-    """The cut picture with no captions or graphics, and the voice as cut with its room, mastered to the project's target.
+    """The cut picture with no captions or graphics, and the voice as cut, mastered to the project's target.
 
     It is what another film lays in a frame of its own, with its own captions, or what an app adds its own text to.
     """
-    picture, voice = project.work / "plate.mp4", project.work / "voice-room.wav"
-    if not voice.exists():
-        voice = project.work / "voice.wav"
+    picture, voice = project.work / "plate.mp4", project.work / "voice.wav"  # voice-room.wav beside it is only the room loop
     if not picture.exists() or not voice.exists():
         raise AltocueError("A textless copy is made from the render's own plate and voice, and one is missing.", fix="Run `altocue render`, then deliver again.")
     dest, joined = folder / "textless.mp4", folder / ".textless-joined.mov"
