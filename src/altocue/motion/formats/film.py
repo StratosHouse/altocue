@@ -178,6 +178,7 @@ def _split_wipe(item: dict[str, Any]) -> str:
 CUT_TAGS = {"silence": "pause", "quiet": "pause", "manual": "cut"}  # what each removal is called on screen, where the cut's own name is not plain
 CUT_TEXT_AREA = 812 * 360  # square units the words may fill at full scale, inside the card's padding
 CUT_TYPE = (20.0, 40.0)  # smallest and largest word size
+CUT_SLIVER = 0.25  # seconds. In a re-cut, a removal this short with no word in it is where two cuts' snapped edges meet, not a pause
 CUT_FIT = 0.55 * 1.52 * 1.15  # a glyph's width and a line's height in ems, and room for wrapping
 
 
@@ -225,6 +226,8 @@ def _rebased(item: dict[str, Any]) -> dict[str, Any]:
     for row in item.get("removed") or []:
         for s, e in pieces(float(row["start"]), float(row["end"])):
             removed += [{**row, "start": max(s, a), "end": min(e, b)} for a, b in gaps if min(e, b) - max(s, a) > 0.02]
+    middles = [(float(word["start"]) + float(word["end"])) / 2 for word in words]
+    removed = [row for row in removed if row["end"] - row["start"] >= CUT_SLIVER or any(row["start"] <= middle <= row["end"] for middle in middles)]
     return {**item, "words": words, "kept": [{"start": s, "end": e} for s, e in kept], "removed": removed, "raw": at, "base": []}
 
 

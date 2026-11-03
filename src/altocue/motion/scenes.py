@@ -131,7 +131,8 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     width, height = size
     box = f"left:{left * width:.0f}px;right:{(1 - right) * width:.0f}px;top:{top * height:.0f}px;bottom:{(1 - bottom) * height:.0f}px"
     if item["type"] == "footage":
-        at = "head" if bottom > zone_box("foot", size)[1] else "foot"  # captions and lines for the sound off run at the foot
+        across = isinstance(item.get("captions"), dict) and item["captions"].get("place") == "frame"
+        at = "head" if bottom > zone_box("foot", size)[1] or across else "foot"  # captions and lines for the sound off run at the foot
         place = f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"
         if item.get("shapes"):
             boxes = [shape_box(str(shape), (left * width, top * height, (right - left) * width, (bottom - top) * height)) for shape in item["shapes"]]
@@ -442,6 +443,10 @@ def _reframe(item: dict[str, Any], track: int) -> tuple[str, str, str]:
     """
     boxes, shapes = item["boxes"], [str(shape) for shape in item["shapes"]]
     span = max(float(item["end"]) - float(item["start"]), 0.1)
+    focus = item.get("focus") or [0.5, 0.3]
+    held = f"object-position:{100 * float(focus[0]):.1f}% {100 * float(focus[1]):.1f}%"
+    if len(boxes) == 1:  # one shape only fits the picture to its zone, and the shape needs no name
+        return "", held, ""
     share = span / len(boxes)
     keys = []
     for index, box in enumerate(boxes):
@@ -451,8 +456,7 @@ def _reframe(item: dict[str, Any], track: int) -> tuple[str, str, str]:
         keys += [f"{100 * min(max(begin, 0), span) / span:.3f}%{{{pose}}}", f"{100 * min(max(end, 0), span) / span:.3f}%{{{pose}}}"]
     name = f"shape-{track}"
     rule = f"<style>@keyframes {name}{{{''.join(keys)}}}</style>"
-    focus = item.get("focus") or [0.5, 0.3]
-    style = f"animation:{name} {span:.3f}s cubic-bezier(.65,0,.3,1) both;object-position:{100 * float(focus[0]):.1f}% {100 * float(focus[1]):.1f}%"
+    style = f"animation:{name} {span:.3f}s cubic-bezier(.65,0,.3,1) both;{held}"
     notes = []
     under = _below({**item, "place": item.get("zone_place") or item.get("place")})
     for index, shape in enumerate(shapes):

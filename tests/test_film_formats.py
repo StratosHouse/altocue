@@ -230,3 +230,17 @@ def test_a_recut_starts_from_the_cut_before_it():
     assert re.findall(r'<em class="tg[^"]*"[^>]*>([^<]+)</em>', drawn) == ["cut"]
     widths = [float(w) for w in re.findall(r'<i class="sg [kx]" style="--w:([\d.]+)%', drawn)]
     assert sum(widths) == pytest.approx(100, abs=0.1) and widths[0] == pytest.approx(0.65 / 1.2 * 100, abs=0.5)
+
+
+def test_a_recut_shows_no_pause_where_two_cuts_only_meet_at_an_edge():
+    """Snapped edges overlap the old removals by a few frames. Those slivers hold no word and were never a pause."""
+    item = track_item(
+        base=[{"start": 4.1, "end": 5.3}],
+        kept=[{"start": 4.1, "end": 4.75}],
+        removed=[{"start": 4.7, "end": 4.9, "kind": "stutter"}, {"start": 4.75, "end": 5.3, "kind": "manual"}, {"start": 5.2, "end": 5.6, "kind": "silence"}],
+        before="1.2 s",
+        after="0.6 s",
+        raw=None,
+    )
+    drawn = formats.find("timeline_cut").draw(item)
+    assert re.findall(r'<em class="tg[^"]*"[^>]*>([^<]+)</em>', drawn) == ["cut"]

@@ -1886,3 +1886,18 @@ def test_a_qa_report_still_reads_after_its_project_moves_to_another_machine(tmp_
     final.write_bytes(b"another film")
     with pytest.raises(AltocueError, match="changed"):
         live.value({"qa": str(moved), "read": "loudness"}, tmp_path)
+
+
+def test_a_label_moves_to_the_head_of_a_picture_whose_captions_run_across_the_foot():
+    """The caption track across the frame covers the foot of every picture above it, so a label there would sit under it."""
+    item = {"type": "footage", "file": "assets/cut.mp4", "zone": "center", "label": "AI-generated presenter", "start": 0, "end": 3, "scene": "a"}
+    assert scenes._place(item, (1920, 1080))["label_at"] == "foot"
+    assert scenes._place({**item, "captions": {"place": "frame"}}, (1920, 1080))["label_at"] == "head"
+
+
+def test_one_shape_fits_a_picture_without_naming_the_shape():
+    footage = {"type": "footage", "file": "assets/take.mp4", "zone": "center", "shapes": ["9:16"], "label": "Raw take", "start": 0, "end": 3, "scene": "a"}
+    item = scenes._place(footage, (1920, 1080))
+    drawn = scenes._clip(item, default_brand(), 4)
+    assert re.findall(r'class="clip footnote"[^>]*><span>([^<]+)</span>', drawn) == ["Raw take"]
+    assert "@keyframes" not in drawn and f"width:{item['boxes'][0][2]:.0f}px" in drawn
