@@ -446,13 +446,15 @@ def _box(item: dict[str, Any]) -> dict[str, float]:
     return {key: float(found[key].removesuffix("px")) for key in ("left", "top", "width", "height") if key in found}
 
 
-def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture") -> list[dict[str, Any]]:
+def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture", who: str = "") -> list[dict[str, Any]]:
     """A clip's own speech as word-timed pages, in film seconds.
 
     `picture` sets them across the foot of the clip's own picture, sized to its width. `frame` sets one track across the
     foot of the whole frame, where a line for the sound off sits, held still over the camera and large enough for a phone.
     `seam` centres them on the line between the two halves of a split screen, so they never sit on the presenter's face.
+    `who` names the speaker on every page, such as a label for a generated presenter.
     """
+    named = {"name": who} if who else {}
     box = _box(item)
     if len(box) < 4:
         raise AltocueError(f"Captions on {item.get('file')} need the footage in a zone.", fix="Give the footage a zone, such as phone.")
@@ -468,7 +470,7 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
         box = f"left:{left_px:.0f}px;width:{across:.0f}px;right:auto;bottom:auto;top:{item['seam'] - tall / 2:.0f}px;height:{tall:.0f}px"
         style = f"{box};align-items:center;align-content:center;padding:0;font-size:{font}px"
         pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
-        return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": style, "size": font, "steady": True} for page in pages]
+        return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": style, "size": font, "steady": True, **named} for page in pages]
     if place == "frame":
         left, top, right, bottom = zone_box("foot", size)
         font = round(min((bottom - top) * size[1] * 0.85, size[0] * FRAME_CAPTION_SHARE), 1)
@@ -482,7 +484,7 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
     style = f"left:{left_px:.0f}px;width:{across:.0f}px;right:auto;top:auto;bottom:{under:.0f}px;padding:0 {inset:.0f}px;font-size:{font}px"
     pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
     steady = {"steady": True} if place == "frame" else {}
-    return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": style, "size": font, **steady} for page in pages]
+    return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": style, "size": font, **steady, **named} for page in pages]
 
 
 def _below(item: dict[str, Any]) -> str:

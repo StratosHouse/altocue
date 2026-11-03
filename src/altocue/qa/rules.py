@@ -127,6 +127,8 @@ def on_screen(timeline: dict[str, Any]) -> list[dict[str, Any]]:
         strings.append(
             {"layer": "captions", "text": " ".join(w["text"] for w in page["words"]), "start": page["start"], "end": page["end"]}
         )
+        if page.get("name"):  # a speaker named on the page is on screen with it
+            strings.append({"layer": "captions", "text": str(page["name"]), "start": page["start"], "end": page["end"]})
     for item in timeline.get("items", []):
         if item.get("type") == "composition":
             texts = [value for value in item.get("vars", {}).values() if isinstance(value, str) and " " in value]

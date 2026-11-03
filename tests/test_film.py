@@ -1808,3 +1808,28 @@ def test_a_scene_can_start_its_voice_part_way_into_the_take(tmp_path):
     assert abs(track[: rate - 100]).max() < 1e-3  # nothing of the take before its scene
     assert np.median(abs(track[rate + 100 : 2 * rate - 100])) == pytest.approx(0.25, abs=0.01)  # the take from one second in
     assert abs(track[2 * rate + 100 :]).max() < 1e-3
+
+
+def test_captions_can_name_the_presenter_on_every_page():
+    """A split screen has no clear corner for a label, so the caption plate carries it, the way a speaker is named."""
+    item = scenes._place({"type": "footage", "file": "assets/cut.mp4", "zone": "half_bottom", "start": 4.0, "end": 9.0, "scene": "cut"}, TALL)
+    pages = scenes.caption_pages(item, SAID, TALL, place="seam", who="AI-generated presenter")
+    assert pages and all(page["name"] == "AI-generated presenter" for page in pages)
+    drawn = scenes.compose({**timeline_for(board(), size=TALL), "captions": pages}, default_brand())
+    assert '<i class="who">AI-generated presenter</i>' in drawn
+    from altocue.qa import rules
+
+    shown = [row for row in rules.on_screen({"captions": pages, "items": []}) if row["text"] == "AI-generated presenter"]
+    assert len(shown) == len(pages) and shown[0]["start"] == pages[0]["start"]
+
+
+def test_a_footage_item_names_its_presenter_from_its_captions(tmp_path, monkeypatch):
+    project = small_film(tmp_path / "film")
+    (project.root / "assets" / "cut.mp4").write_bytes(b"clip")
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["scenes"][1]["items"].append({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0, "captions": {"who": "AI-generated presenter"}})
+    path.write_text(json.dumps(made))
+    monkeypatch.setattr(film, "words_of", lambda project, file: SAID)
+    line, _ = film.film_line(film.load(project), "16:9")
+    assert line["captions"] and all(page["name"] == "AI-generated presenter" for page in line["captions"])
