@@ -593,9 +593,8 @@ def make_sound(film: Film, line: dict[str, Any], done: dict[str, Any], board: di
     dest = folder / "mix.wav"
     start = music_from(film) if track else None
     enter = float(music_entry(film).get("enter") or 0.0) if start is not None else 0.0  # the track comes in on a later beat of its own grid
-    mix.mix_bed(
-        voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end="land" if track else "own", music_from=start, music_enter=enter, stems=stems
-    )
+    end = "own" if not track else "land" if start is None else "fade"  # a track laid from a point fades out; only a backtimed one lands
+    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end=end, music_from=start, music_enter=enter, stems=stems)
     return dest, report
 
 
