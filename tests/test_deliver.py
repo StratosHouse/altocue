@@ -441,6 +441,22 @@ def test_disclosure_cannot_be_overridden(finished, capsys, monkeypatch):
     assert not (finished.root / "deliver").exists()
 
 
+def test_a_cut_at_another_frame_rate_than_the_output_is_refused_before_it_can_drift(finished, capsys):
+    """Picture was counted at the output rate and sound at the cut's, so they drifted apart over many cuts."""
+    toml = finished.root / "altocue.toml"
+    toml.write_text(re.sub(r"(?m)^fps = 0", "fps = 25", toml.read_text()))
+    project = Project.open(finished.root)
+    assert project.fps == 25 and project.edl().fps == 30
+    from altocue import plate
+
+    with pytest.raises(AltocueError, match="30 fps") as caught:
+        plate.build(project)
+    assert "drift" in str(caught.value) and caught.value.fix
+    assert main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"]) == 1
+    assert "drift" in capsys.readouterr().err
+    assert not (finished.root / "deliver").exists()
+
+
 def test_an_unknown_platform_stops_before_any_work(finished, capsys):
     assert main(["deliver", "-p", str(finished.root), "--for", "myspace"]) == 1
     assert "myspace" in capsys.readouterr().err

@@ -216,6 +216,15 @@ def assemble(project: Project, edl: Edl, c: Canvas, pieces: list[Piece], folder:
     return picture
 
 
+def same_rate(project: Project, edl: Edl) -> None:
+    """Picture is counted at the output rate, and sound, captions and transitions at the cut's. Two rates drift apart."""
+    if int(edl.fps) != int(project.fps):
+        raise AltocueError(
+            f"The cut is at {edl.fps} fps and the output is set to {project.fps} fps, so sound and picture would drift apart.",
+            fix=f"Set fps = {edl.fps} under [output] in altocue.toml, or run `altocue cut` again at the new rate.",
+        )
+
+
 def build(project: Project, *, draft: bool = False) -> tuple[Path, Path]:
     """Return the silent picture and the edited voice track."""
     from . import timeline as timelines
@@ -223,6 +232,7 @@ def build(project: Project, *, draft: bool = False) -> tuple[Path, Path]:
     edl = project.edl()
     if not edl.segments:
         raise AltocueError("The cut is empty.", fix="Run `altocue cut` and check edl.json.")
+    same_rate(project, edl)
     c = canvas(project, draft=draft)
     edits = timelines.picture_edits(project, edl)
     pieces = layout([segment_frames(s, c.fps) for s in edl.segments], edits["transitions"], edits["freezes"])

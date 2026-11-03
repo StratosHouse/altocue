@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from . import brand as brands
-from . import cut, ffmpeg, locks, master, motion, platforms, render, subtitles, thumbnails
+from . import cut, ffmpeg, locks, master, motion, plate, platforms, render, subtitles, thumbnails
 from . import timeline as timelines
 from .errors import AltocueError
 from .generate.store import generated_dir
@@ -450,6 +450,7 @@ def open_version(project: Project, platform: Platform, target: dict[str, Any], *
         config["frame"] = {**config.get("frame", {}), "enabled": True}
     version = Version(root=project.root, config=config, home=home)
     edl = project.edl()
+    plate.same_rate(project, edl)
     if same_shape:
         if (project.work / "frame.json").exists():
             shutil.copy(project.work / "frame.json", home / "frame.json")
@@ -562,6 +563,8 @@ def run(args: argparse.Namespace) -> int:
     digest = sha256(final)
     signoff = sign_off(project, final, digest, getattr(args, "override", None))
     edl = project.edl()
+    if wanted:
+        plate.same_rate(project, edl)  # a version re-renders the cut, so check before anything is written
     seconds = ffmpeg.probe_clip(final).duration
     folder = project.root / FOLDER
     folder.mkdir(exist_ok=True)
