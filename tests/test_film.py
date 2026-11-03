@@ -1842,3 +1842,47 @@ def test_a_quiet_take_draws_lower_bars_than_a_loud_one(tmp_path):
     low, high = film.levels(quiet, 8), film.levels(loud, 8)
     assert len(low) == len(high) == 8 and all(0 <= value <= 1 for value in low + high)
     assert max(low) < min(high)
+
+
+def test_captions_across_the_frame_can_be_set_larger():
+    """A phone at arm's length needs the one caption track bigger than the foot line allows by default."""
+    item = scenes._place({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 4.0, "end": 9.0, "scene": "cut"}, (1920, 1080))
+    plain = scenes.caption_pages(item, SAID, (1920, 1080), place="frame")
+    larger = scenes.caption_pages(item, SAID, (1920, 1080), place="frame", scale=1.6)
+    assert larger[0]["size"] == pytest.approx(plain[0]["size"] * 1.6, abs=0.2)
+    assert f"font-size:{larger[0]['size']}px" in larger[0]["place"]
+
+
+def test_captions_can_read_their_words_from_the_clip_that_carries_the_sound(tmp_path, monkeypatch):
+    """A finished take's clean picture has no sound of its own. Its words come from the mastered file the scene plays."""
+    project = small_film(tmp_path / "film")
+    for name in ("picture.mp4", "sound.mp4"):
+        (project.root / "assets" / name).write_bytes(name.encode())
+    asked = []
+    monkeypatch.setattr(film, "words_of", lambda project_, path: asked.append(path.name) or SAID)
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    footage = {"type": "footage", "file": "assets/picture.mp4", "zone": "phone", "start": 0, "captions": {"place": "frame", "file": "assets/sound.mp4"}}
+    made["scenes"][1]["items"].append(footage)
+    path.write_text(json.dumps(made))
+    line, _ = film.film_line(film.load(project), "16:9")
+    assert asked == ["sound.mp4"] and line["captions"]
+
+
+def test_a_qa_report_still_reads_after_its_project_moves_to_another_machine(tmp_path):
+    """A report records the film by its full path. On the render machine that path is under another home, so the film is found in out/."""
+    from altocue import live
+    from altocue.qa import gates, sha256
+
+    moved = tmp_path / "moved"
+    (moved / "review").mkdir(parents=True)
+    (moved / "out").mkdir()
+    final = moved / "out" / "final.mp4"
+    final.write_bytes(b"film")
+    rows = [{"id": gate, "passed": True, "skipped": False, "value": -14.0} for gate in gates.gate_ids()]
+    report = {"file": "/elsewhere/home/project/out/final.mp4", "sha256": sha256(final), "gates": rows}
+    (moved / "review" / "qa.json").write_text(json.dumps(report))
+    assert live.value({"qa": str(moved), "read": "loudness"}, tmp_path) == -14.0
+    final.write_bytes(b"another film")
+    with pytest.raises(AltocueError, match="changed"):
+        live.value({"qa": str(moved), "read": "loudness"}, tmp_path)

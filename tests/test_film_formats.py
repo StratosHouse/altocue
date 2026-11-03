@@ -211,3 +211,22 @@ def test_a_wall_can_show_pictures_with_no_search_typed():
     drawn = formats.find("library_scroll").draw({**wall(), "query": ""})
     assert 'class="sb"' not in drawn and 'class="ls bare"' in drawn
     assert float(re.search(r'class="wall" style="--t:([\d.]+)s', drawn).group(1)) < 0.2
+
+
+def test_a_recut_starts_from_the_cut_before_it():
+    """Edit the script and the take is cut again: only what the earlier cut kept is on the track, and only the new removal strikes."""
+    item = track_item(
+        base=[{"start": 4.1, "end": 5.3}],
+        kept=[{"start": 4.1, "end": 4.75}],
+        removed=[*[r.to_dict() for r in CUT.removed], {"start": 4.75, "end": 5.3, "kind": "manual"}],
+        before="1.2 s",
+        after="0.6 s",
+        raw=None,
+    )
+    drawn = formats.find("timeline_cut").draw(item)
+    struck = [text.strip() for text in re.findall(r'<span class="w x[^"]*" style="[^"]*"><u></u>([^<]+)</span>', drawn)]
+    kept = [text.strip() for text in re.findall(r'<span class="w">([^<]+)</span>', drawn)]
+    assert kept == ["This", "is"] and struck == ["it."]
+    assert re.findall(r'<em class="tg[^"]*"[^>]*>([^<]+)</em>', drawn) == ["cut"]
+    widths = [float(w) for w in re.findall(r'<i class="sg [kx]" style="--w:([\d.]+)%', drawn)]
+    assert sum(widths) == pytest.approx(100, abs=0.1) and widths[0] == pytest.approx(0.65 / 1.2 * 100, abs=0.5)

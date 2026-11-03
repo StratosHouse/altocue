@@ -47,6 +47,8 @@ Add `"captions": true` to a footage item to caption what it says. Altocue reads 
 
 Keep your own clips in `assets/` and generated ones in `generated/`, so either can be swapped without touching the motion.
 
+Real takes, part of a clip's sound, a raw take captioned word for word, frames of a clip, one picture through several shapes, and a track cut on its beats are in [real takes and music](references/takes.md).
+
 ## A hard length
 
 Set `"cap_seconds": 90` in `brief.json` when a length is a limit and not a guide. `film check` fails past it, and the render refuses any file that runs over.
@@ -55,7 +57,7 @@ Set `"cap_seconds": 90` in `brief.json` when a length is a limit and not a guide
 
 A claim on screen must be true of what shipped. Read numbers from the tool when the storyboard is built, such as `altocue library stats`, and never type them from memory.
 
-When a script builds the storyboard, write each number as a token such as `{live:formats}` and fill it with `altocue.live.fill`. That writes `live.json`, which records where every number landed and what it was read from: a count of what ships (`formats`, `groups.<id>`, `library`, `gates`, `looks`), another film's QA or review, or a measurement of a file. `film check` reads them all again and fails a film whose numbers have moved, so a stale number can never render.
+When a script builds the storyboard, write each number as a token such as `{live:formats}` and fill it with `altocue.live.fill`. That writes `live.json`, which records where every number landed and what it was read from: a count of what ships (`formats`, `groups.<id>`, `library`, `gates`, `looks`), another film's QA or review, a measurement of a file, or a project's cut (`raw`, `kept` or `removals`). Write paths from the home folder, such as `~/films/demo`, so the numbers read the same on a render machine. `film check` reads them all again and fails a film whose numbers have moved, so a stale number can never render.
 
 ## The sound off
 

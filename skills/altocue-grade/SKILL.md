@@ -18,7 +18,7 @@ compatibility: Requires the altocue CLI.
 Start with `natural`. Reach for a look only when the brief calls for one, and see them first:
 
 ```bash
-altocue grade --compare                        # every look on one real frame: work/luts/looks.jpg
+altocue grade --compare                        # every look on one real frame: work/luts/looks.jpg, and each alone in work/luts/looks/
 altocue grade --look teal_orange --look-strength 0.6
 altocue grade --lut ~/luts/show.cube
 ```

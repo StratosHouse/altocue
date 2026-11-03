@@ -42,7 +42,7 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 - **Music and effects.** Sound you are allowed to use, with the licence and credit shown before anything downloads.
 - **Films with no footage.** Launch films, explainers, demos, ad cards and more, drawn in code from a storyboard.
 - **Long video to shorts.** It finds complete thoughts in your own recordings and cuts each into its own project.
-- **Deliverables.** Subtitles, chapters, thumbnails, stems and a version for each platform, with the master untouched.
+- **Deliverables.** Subtitles, chapters, thumbnails, stems, a version with no music for an app's own song library, and a version for each platform, with the master untouched.
 - **Data checks.** It measures the finished film and learns from your own results. It predicts nothing.
 - **The Editor in Chief.** It does not mark its own homework. Fact gates in code, then a separate reviewer, then code decides SHIP or FIX.
 

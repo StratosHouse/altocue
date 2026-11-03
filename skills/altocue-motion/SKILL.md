@@ -42,6 +42,7 @@ Every built-in format goes in `"type"`, with its own slots and copy limits, and 
 - **Explain:** `stepped_list`, `flowchart`, `split_compare`, `whiteboard`, `cursor_walk`.
 - **Close:** `recap_check`, `logo_sting`, `follow_prompt`.
 - **Move between sections:** `chapter_card`, `iris`, `torn_wipe`.
+- **Show the tool itself:** `timeline_cut` for a take's real cut, from `cut.track`, `library_scroll` for a real search, `feature_badge` for a feature's icon and name.
 - **Real proof only:** `testimonial_card`, `star_fill`, `logo_wall`, `press_strip`, `comment_card`, `avatar_cloud`, `before_after`. Fill these from what the user gave you. A placeholder never ships.
 - **`white_flash` is a flash.** See the limit in `altocue-transitions`.
 

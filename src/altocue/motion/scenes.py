@@ -485,11 +485,14 @@ def tagged(words: list[dict[str, Any]], tags: list[dict[str, Any]]) -> list[dict
     return made
 
 
-def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture") -> list[dict[str, Any]]:
+def caption_pages(
+    item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture", scale: float = 1.0
+) -> list[dict[str, Any]]:
     """A clip's own speech as word-timed pages, in film seconds.
 
     `picture` sets them across the foot of the clip's own picture, sized to its width. `frame` sets one track across the
     foot of the whole frame, where a line for the sound off sits, held still over the camera and large enough for a phone.
+    `scale` sets the type larger or smaller than that. A page grows up from the foot, so it never leaves the frame.
     """
     box = _box(item)
     if len(box) < 4:
@@ -510,6 +513,7 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
         lift = FOOTNOTE_LIFT if item.get("label") else CAPTION_INSET  # clear of the footage's own label
         across, under, inset = box["width"], size[1] - (box["top"] + box["height"]) + lift, box["width"] * 0.05
         left_px = box["left"]
+    font = round(font * scale, 1)
     style = f"left:{left_px:.0f}px;width:{across:.0f}px;right:auto;top:auto;bottom:{under:.0f}px;padding:0 {inset:.0f}px;font-size:{font}px"
     pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
     steady = {"steady": True} if place == "frame" else {}

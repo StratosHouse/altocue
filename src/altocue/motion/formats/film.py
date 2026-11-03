@@ -196,8 +196,41 @@ def _cut_plan(item: dict[str, Any]) -> dict[str, float]:
     return {"from": sweep_from, "sweep": sweep, "fold": fold, "flip": fold + 0.3}
 
 
+def _rebased(item: dict[str, Any]) -> dict[str, Any]:
+    """A cut of a cut. With `base`, the spans an earlier cut kept, the track starts from that cut: only its words, on its own clock."""
+    base = sorted(_span(row) for row in item.get("base") or [])
+    if not base:
+        return item
+    starts, at = [], 0.0
+    for start, end in base:
+        starts.append(at)
+        at += end - start
+
+    def pieces(start: float, end: float) -> list[tuple[float, float]]:
+        return [(offset + max(start, a) - a, offset + min(end, b) - a) for (a, b), offset in zip(base, starts, strict=True) if min(end, b) > max(start, a)]
+
+    words = []
+    for word in item.get("words") or []:
+        middle = (float(word["start"]) + float(word["end"])) / 2
+        for (a, b), offset in zip(base, starts, strict=True):
+            if a <= middle <= b:
+                words.append({**word, "start": offset + max(float(word["start"]), a) - a, "end": offset + min(float(word["end"]), b) - a})
+    kept = sorted((s, e) for row in item.get("kept") or [] for s, e in pieces(*_span(row)))
+    gaps, cursor = [], 0.0  # what the new cut takes out of the old one. A removal the old cut already made only touches it at a snapped edge
+    for start, end in [*kept, (at, at)]:
+        if start - cursor > 0.02:
+            gaps.append((cursor, start))
+        cursor = max(cursor, end)
+    removed = []
+    for row in item.get("removed") or []:
+        for s, e in pieces(float(row["start"]), float(row["end"])):
+            removed += [{**row, "start": max(s, a), "end": min(e, b)} for a, b in gaps if min(e, b) - max(s, a) > 0.02]
+    return {**item, "words": words, "kept": [{"start": s, "end": e} for s, e in kept], "removed": removed, "raw": at, "base": []}
+
+
 def _timeline_cut(item: dict[str, Any]) -> str:
     """A take's real words on a track. The playhead strikes each removal as it passes, then the struck words and their time fold away."""
+    item = _rebased(item)
     words = [dict(row) for row in item.get("words") or []]
     kept = [_span(row) for row in item.get("kept") or []]
     removed = [{**row, "start": float(row["start"]), "end": float(row["end"])} for row in item.get("removed") or []]
@@ -560,6 +593,7 @@ FORMATS = (
             Slot("after", limit=8),
             Slot("title", limit=20, required=False),
             Slot("raw", kind="number", required=False),
+            Slot("base", kind="list", limit=16, required=False),
         ),
         example={
             "title": "Sample take",

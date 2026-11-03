@@ -371,6 +371,7 @@ def film_line(film: Film, aspect: str, *, board: dict[str, Any] | None = None, f
             spelled(said(film.project, item), item["captions"]),
             SIZES[aspect],
             place=str(item["captions"].get("place", "picture")) if isinstance(item["captions"], dict) else "picture",
+            scale=float(item["captions"].get("scale", 1.0)) if isinstance(item["captions"], dict) else 1.0,
         )
     ]
     for page, item in ((page, item) for item in line["items"] if isinstance(item.get("captions"), dict) for page in line["captions"]):
@@ -380,9 +381,12 @@ def film_line(film: Film, aspect: str, *, board: dict[str, Any] | None = None, f
 
 
 def said(project: Project, item: dict[str, Any]) -> list[dict[str, Any]]:
-    """The words a footage item's captions show. `"verbatim": true` keeps every um and every spoken cue, and `"tags"` marks the spans a cut removed."""
+    """The words a footage item's captions show. `"verbatim": true` keeps every um and every spoken cue, and `"tags"` marks the spans a cut removed.
+
+    `"file"` reads the words from another clip with the same timing, such as the mastered take whose sound the scene plays.
+    """
     captions = item["captions"] if isinstance(item["captions"], dict) else {}
-    path = project.root / item["file"]
+    path = project.root / str(captions.get("file") or item["file"])  # a clean picture with no sound reads its words from the take that has it
     words = words_of(project, path, every=True) if captions.get("verbatim") else words_of(project, path)
     return scenes.tagged(words, captions.get("tags") or [])
 

@@ -57,6 +57,16 @@ No-key sources are strong on nature, space, science, history and art, and weak o
 
 Commons has 213 hits for "people walking" and NASA has 100 for "city", so if the phrase is modern and everyday, tell the user a free Pixabay key is the fix rather than forcing an odd clip.
 
+## A search shown on screen
+
+A film that shows a search for footage needs real results, not mock-ups:
+
+```bash
+altocue broll --wall "ocean drone" --search pixabay --count 12
+```
+
+It needs no transcript. It keeps a frame of each result in `broll/wall/`, records each one's licence and any credit through `altocue credits`, and lists them in `broll/wall.json`, ready for the items of a `library_scroll`. Only the search words are sent.
+
 ## If you re-cut
 
 B-roll sits on words, so a new cut invalidates it. `altocue render` stops and says so. Run `altocue broll` and pick again. Your library and any search words you wrote carry over.

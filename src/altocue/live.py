@@ -67,6 +67,8 @@ def _qa(folder: Path, read: str) -> Any:
             fix=f"Run `altocue qa -p {folder}` again, then build the film again.",
         )
     file = Path(report["file"])
+    if not file.is_file():  # a project moved to another machine: its film is still in its own out/, and the hash still has to match
+        file = folder / "out" / file.name
     if not file.is_file() or _sha(file) != report["sha256"]:
         raise AltocueError(f"{file.name} in {folder.name} has changed since its QA.", fix=f"Run `altocue qa -p {folder}` again, then build the film again.")
     rows = report["gates"]
