@@ -50,8 +50,9 @@ def test_first_word(measured):
 
 
 def test_hook_words_end_inside_three_seconds(measured):
-    assert value(measured, "hook_word_count") == 16
-    assert value(measured, "hook_wps") == pytest.approx(5.33, abs=0.01)
+    """The canary script is 19 words over 6 seconds, so 10 of them end by 3 seconds."""
+    assert value(measured, "hook_word_count") == 10
+    assert value(measured, "hook_wps") == pytest.approx(3.33, abs=0.01)
 
 
 def test_cuts_come_from_the_edit(measured):
