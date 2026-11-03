@@ -580,7 +580,8 @@ def test_a_film_is_read_back_only_where_it_has_a_voice(tmp_path, monkeypatch):
     monkeypatch.setattr(transcribe.ffmpeg, "probe_clip", lambda path: SimpleNamespace(path=wav, duration=10.0))
     words = transcribe.transcribe_file(tmp_path / "film.mp4", spans=[(0.3, 1.8), (5.8, 7.2)])
     assert seen == pytest.approx([1.5, 1.4], abs=0.02)
-    assert [(w.start, w.end) for w in words] == pytest.approx([(0.5, 0.9), (6.0, 6.4)])
+    assert [w.start for w in words] == pytest.approx([0.5, 6.0])
+    assert [w.end for w in words] == pytest.approx([0.9, 6.4])
 
 
 def test_a_piece_fits_inside_the_engines_own_chunk():
