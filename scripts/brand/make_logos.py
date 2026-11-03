@@ -1,4 +1,8 @@
-"""Writes the Altocue mark and the ten tool logos. Every glyph carries the same slanted cut."""
+"""Writes the Altocue mark and the fifteen tool logos. Every glyph carries the same slanted cut.
+
+Each tool owns one hue on a pearl spectrum. The five added in 0.2 sit in the widest gaps the first ten left,
+so no two neighbours are closer than about 20 degrees.
+"""
 
 from pathlib import Path
 
@@ -15,6 +19,11 @@ TOOLS = {
     "generate": ("#fad5b1", "#f2b27c"),
     "broll": ("#f3e4a4", "#ddc26a"),
     "review": ("#d7f1a9", "#a9d873"),
+    "library": ("#deb9f8", "#bd84e6"),
+    "film": ("#f8c0b9", "#e68e84"),
+    "clips": ("#f8b9e5", "#e684c9"),
+    "deliver": ("#b9f8c4", "#84e695"),
+    "data": ("#c8f8b9", "#9be684"),
 }
 
 
@@ -40,6 +49,24 @@ GLYPHS = {
     + '<rect x="42" y="42" width="42" height="31" rx="7.5" fill="#fff"/>'
     + slash(25.5, 4.8),
     "review": '<path d="' + "M50 7 L61 15 L74 12 L80 24 L92 30 L89 43 L97 54 L88 64 L88 78 L75 81 L67 92 L54 88 L42 93 L33 83 L20 81 L18 67 L8 58 L14 46 L10 33 L22 26 L27 14 L40 15 Z" + '" fill="#fff" stroke="#fff" stroke-width="6" stroke-linejoin="round"/><path d="M33 51 L45 63 L68 37" fill="none" stroke="#000" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>',
+    # 0.2: the library, films with no footage, long video to shorts, deliverables and data.
+    "library": '<g transform="skewX(-10) translate(9 0)">'
+    + "".join(f'<rect x="{x}" y="{y}" width="{w}" height="{88 - y}" rx="5" fill="#fff" fill-opacity="{o}"/>' for x, y, w, o in ((8, 28, 16, 0.46), (28, 12, 19, 1), (51, 34, 14, 0.62), (69, 20, 19, 1)))
+    + "".join(f'<rect x="{x}" y="{y}" width="19" height="4.5" fill="#000"/>' for x, y in ((28, 22), (28, 73), (69, 30), (69, 75)))
+    + "</g>",
+    "film": '<rect x="8" y="18" width="84" height="64" rx="12" fill="#fff"/>'
+    + "".join(f'<rect x="{x}" y="{y}" width="8" height="7" rx="2" fill="#000"/>' for x in (14, 30, 46, 62, 78) for y in (24, 69))
+    + slash(47.6, 4.8),
+    "clips": '<g transform="skewX(-10) translate(9 0)"><rect x="8" y="12" width="84" height="17" rx="7" fill="#fff" fill-opacity=".46"/>'
+    + "".join(f'<rect x="{x}" y="37" width="24" height="51" rx="7" fill="#fff" fill-opacity="{o}"/>' for x, o in ((8, 0.62), (38, 1), (68, 0.62)))
+    + "</g>",
+    "deliver": '<g transform="skewX(-10) translate(9 0)">'
+    + '<path d="M14 54 V74 Q14 86 26 86 H74 Q86 86 86 74 V54" fill="none" stroke="#fff" stroke-opacity=".62" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>'
+    + '<path d="M50 64 V16 M31 34 L50 15 L69 34" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></g>',
+    "data": "".join(f'<rect x="{x - 8}" y="{y}" width="16" height="{90 - y}" rx="5" fill="#fff" fill-opacity=".3"/>' for x, y in ((16, 70), (38, 48), (60, 58), (84, 20)))
+    + '<path d="M16 70 L38 48 L60 58 L84 20" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>'
+    + "".join(f'<circle cx="{x}" cy="{y}" r="8.5" fill="#fff"/>' for x, y in ((16, 70), (38, 48), (60, 58), (84, 20)))
+    + slash(25.5, 4.8),
 }
 
 
