@@ -9,9 +9,9 @@ from pathlib import Path
 from ..errors import AltocueError
 from ..models import GateResult
 from ..project import Project, write_json
-from . import faces, gates, ocr, rules
+from . import faces, gates, ocr, proof, rules
 
-__all__ = ["add_arguments", "faces", "failed", "gates", "not_run", "ocr", "print_table", "rules", "run", "run_gates", "run_ugc", "sha256"]
+__all__ = ["add_arguments", "faces", "failed", "gates", "not_run", "ocr", "print_table", "proof", "rules", "run", "run_gates", "run_proof", "run_ugc", "sha256"]
 
 
 def sha256(path: str | Path) -> str:
@@ -62,6 +62,16 @@ def run_ugc(project: Project, file: str | Path, stage: str = "final") -> list[Ga
     return results
 
 
+def run_proof(project: Project, file: str | Path, stage: str = "final", *, ocr_fps: float = gates.OCR_FPS) -> list[GateResult]:
+    """Run Product Proof Spot's own checks against product.json, save `review/qa-proof.json`, and return the results."""
+    context = gates.Context.open(project, file, stage)
+    context.ocr_fps = ocr_fps
+    results = proof.run(context)
+    report = {"file": str(file), "sha256": sha256(file), "stage": stage, "passed": not failed(results) and not not_run(results)}
+    write_json(project.review_dir / "qa-proof.json", {**report, "gates": [g.to_dict() for g in results]})
+    return results
+
+
 def _cell(value: object) -> str:
     if isinstance(value, float):
         return f"{value:g}"
@@ -103,7 +113,11 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--stage", choices=["final", "draft"], default="final", help="Drafts skip the mastering gates")
     parser.add_argument("--rules", help="Rules file. Defaults to rules.json in the project")
     parser.add_argument("--ocr-fps", type=float, default=gates.OCR_FPS, help="Frames read per second when checking rules")
-    parser.add_argument("--check", choices=["ugc"], help="Run one extra set of checks instead: ugc is speech rate, cold open, baked text and lip closure")
+    parser.add_argument(
+        "--check",
+        choices=["ugc", "proof"],
+        help="Run one extra set of checks instead: ugc is speech rate, cold open, baked text and lip closure; proof is a product's label, framing and clear hands",
+    )
 
 
 def run(args: argparse.Namespace) -> int:
@@ -112,6 +126,9 @@ def run(args: argparse.Namespace) -> int:
     if args.check == "ugc":
         results = run_ugc(project, file, args.stage)
         saved = "qa-ugc.json"
+    elif args.check == "proof":
+        results = run_proof(project, file, args.stage, ocr_fps=args.ocr_fps)
+        saved = "qa-proof.json"
     else:
         results = run_gates(project, file, args.stage, rules_path=args.rules, ocr_fps=args.ocr_fps)
         saved = "qa.json"

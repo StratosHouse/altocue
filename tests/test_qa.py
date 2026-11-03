@@ -23,7 +23,7 @@ from altocue.generate import import_asset
 from altocue.models import Clip, GateResult, Word
 from altocue.motion import formats
 from altocue.project import Project, write_json
-from altocue.qa import edges, flashes, gates, ocr, rules
+from altocue.qa import edges, flashes, gates, hands, ocr, proof, rules
 from altocue.review import report, rubric
 
 CLEAN = CONTROLS[0]
@@ -771,6 +771,61 @@ def test_qa_check_ugc_runs_only_those_checks_and_saves_them(tmp_path, capsys):
     assert "speech_rate" in out and "lip_closure" in out and "black_frames" not in out
     saved = json.loads((built.project.review_dir / "qa-ugc.json").read_text())
     assert {g["id"] for g in saved["gates"]} == {"speech_rate", "cold_open", "baked_text", "lip_closure"}
+
+
+# Product Proof Spot's own checks (c309, c280)
+
+TRUTH = {"name": "Hedgerow jam", "label": ["Blackberry 55%", "300 g"]}
+
+
+def seen(text: str, at: float, box=(0.3, 0.4, 0.3, 0.1), name: str = "full_00001.jpg") -> dict:
+    return {"text": text, "time": at, "box": list(box), "file": name, "reader": "vision"}
+
+
+def test_a_label_line_read_with_one_digit_changed_is_warped():
+    """c309: a visible product name is not the same as every label line being right."""
+    found = proof.read_lines([seen("Blackberry 55% jam", 1.0), seen("800 g", 2.0)], TRUTH["label"])
+    assert found["Blackberry 55%"]["exact"] == [1.0] and not found["Blackberry 55%"]["warped"]
+    assert not found["300 g"]["exact"] and found["300 g"]["warped"][0]["text"] == "800 g"
+
+
+def test_product_label_fails_a_missing_or_steadily_warped_line_and_asks_about_a_single_misread():
+    firm = proof.gate_label(TRUTH, [seen("Blackberry 55%", 1.0), seen("800 g", 2.0), seen("800 g", 2.25)], 0.25)
+    assert not firm.passed and "'300 g' reads as '800 g'" in firm.detail
+    once = proof.gate_label(TRUTH, [seen("Blackberry 55%", 1.0), seen("300 g", 1.0), seen("800 g", 2.0)], 0.25)
+    assert once.passed and "Needs a human look" in once.detail
+    assert "'300 g' is never read" in proof.gate_label(TRUTH, [seen("Blackberry 55%", 1.0)], 0.25).detail
+
+
+def test_product_framed_fails_when_the_label_touches_the_edge():
+    inside = [seen("Blackberry 55%", 1.0), seen("Blackberry", 1.0, (0.7, 0.4, 0.4, 0.1), name="tr_00001.jpg")]
+    assert proof.gate_framed(TRUTH, inside, 0.25).passed  # a tile's box is in the tile, not the frame
+    cut = proof.gate_framed(TRUTH, [seen("Blackberr", 2.0), seen("Blackberry 6", 2.0, (0.75, 0.4, 0.249, 0.1))], 0.25)
+    assert not cut.passed and "edge" in cut.detail
+
+
+def test_hands_in_the_final_hold_fail_and_no_detector_skips(clean, monkeypatch):
+    context = gates.Context.open(clean.project, clean.file)
+    monkeypatch.setattr(hands, "detector", lambda: (True, ""))
+    monkeypatch.setattr(hands, "find", lambda frames: {f.name: ([[0.4, 0.5, 0.1, 0.2]] if f.name == "end_3.jpg" else []) for f in frames})
+    gate = proof.gate_hands(context, 1.5)
+    assert not gate.passed and "a hand in the final hold" in gate.detail
+    monkeypatch.setattr(hands, "find", lambda frames: {f.name: [] for f in frames})
+    assert proof.gate_hands(context, 1.5).passed
+    monkeypatch.setattr(hands, "detector", lambda: (False, hands.NO_DETECTOR))
+    assert proof.gate_hands(context, 1.5).skipped
+
+
+def test_qa_check_proof_reads_the_truth_list(tmp_path, capsys):
+    built = build(Case("proof", "", Recipe()), tmp_path / "proof")
+    with planted(built):
+        assert main(["qa", "--project", str(built.project.root), "--check", "proof"]) == 0
+    saved = json.loads((built.project.review_dir / "qa-proof.json").read_text())
+    assert {g["id"] for g in saved["gates"]} == {"product_label", "product_framed", "hands_clear"}
+    assert all(g["value"] == gates.NOT_APPLICABLE for g in saved["gates"])
+    (built.project.root / "product.json").write_text(json.dumps({**TRUTH, "price": "4"}))
+    assert main(["qa", "--project", str(built.project.root), "--check", "proof"]) == 1
+    assert "Unknown keys in product.json: price" in capsys.readouterr().err
 
 
 # Reading speed and the brief
