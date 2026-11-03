@@ -61,9 +61,23 @@ def build_parser(argv: list[str]) -> argparse.ArgumentParser:
     return parser
 
 
+def forget_expired_data(args: argparse.Namespace) -> None:
+    """Every command first deletes YouTube statistics past their date, wherever they were saved."""
+    from datetime import date
+
+    from . import retention
+
+    as_of = getattr(args, "as_of", None) if getattr(args, "module", "") == "altocue.benchmark" else None
+    try:
+        retention.purge_everywhere(getattr(args, "project", None), date.fromisoformat(as_of) if as_of else None)
+    except (OSError, ValueError) as error:
+        print(f"altocue: could not check for expired YouTube data: {error}", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     args = build_parser(argv).parse_args(argv)
+    forget_expired_data(args)
     try:
         return importlib.import_module(args.module).run(args) or 0
     except AltocueError as error:
