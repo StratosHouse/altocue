@@ -81,4 +81,4 @@ words = ["Altocue"]      # spellings for Whisper's prompt
 
 `[transcribe.fix]` corrects names, and a key of two words joins them, as in `"Alta Q" = "Altocue"`.
 
-Install an engine with `uv tool install --force "altocue[parakeet] @ git+https://github.com/StratosHouse/altocue"`, or the same line with `mlx-whisper` or `faster-whisper` in the brackets.
+Install an engine with `uv tool install --force "altocue[parakeet]"`, or the same line with `mlx-whisper` or `faster-whisper` in the brackets.
