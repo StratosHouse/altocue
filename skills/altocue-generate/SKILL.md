@@ -26,6 +26,8 @@ compatibility: Requires the altocue CLI, plus FAL_KEY for fal.ai, or the Higgsfi
 1. Write `shots.json` (see `altocue-direct`), then `altocue direct` to check it. Approve the still before any motion.
 2. Pick a provider: `[generate] provider = "fal"` or `"higgsfield"`.
 3. `altocue generate --yes` runs the approved shots. Jobs resume after a crash without paying twice. Start with the hardest shot, using `--only`.
+   - **A run holds its whole estimate under the cap while it works,** and gives back what it did not send when it ends.
+   - **`--cancel <shot>` keeps the job's cost on the cap,** because a job already running may still be billed. Once the provider's billing shows no charge, run `altocue generate --not-billed <shot>`. Ask the user first, since it frees money.
 4. Check every result: `altocue direct --check <file>` extracts frames and scores motion. View the frames with your own file-reading tool, never by launching an app, edges included. Generated phone footage can carry a strip of fake interface along one edge. Punch in past it with `zoom_from` and `zoom_to` in `edl.json`. Never crop away a real AI label or watermark. If you cannot tell which it is, leave it and ask.
 5. Place it. Over a B-roll spot, use `altocue broll --pick b1=shot:shot-1` (see `altocue-broll`). Anywhere else, use `motion.json`:
    ```json
