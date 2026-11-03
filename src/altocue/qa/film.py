@@ -64,6 +64,11 @@ FRAME_ZERO_MEAN = 8.0
 HOOK_SHEET_STEP = 0.5
 PHONE_WIDTH = 360
 READ_MATCH = 0.6
+SEAM_HOLD = 10  # frames of full black or white each side of a one-take seam. With 3, the next segment started from the last picture
+SEAM_SLACK = 2  # frames past the hold where the picture may still be arriving at black or white
+BLACK_MOST = 20.0  # mean grey out of 255
+WHITE_LEAST = 235.0
+HELD_SPREAD = 10.0  # a held black or white is flat, not a dark shot
 
 
 def measure_text(image: Image.Image, box: list[float], short: int) -> dict[str, float]:
@@ -267,6 +272,35 @@ def loop_seam(stats: dict[str, Any], median: float) -> dict[str, Any]:
     }
 
 
+def seams_of(line: dict[str, Any]) -> list[dict[str, Any]]:
+    """A one-take's planned seams: the end of every scene that names its hold."""
+    return [{"at": float(scene["end"]), "hold": str(scene["seam"])} for scene in line.get("scenes", [])[:-1] if scene.get("seam")]
+
+
+def one_take_seams(stats: dict[str, Any], found: dict[str, Any], seams: list[dict[str, Any]], frames: int | None) -> dict[str, Any]:
+    """A one-take hides its seams in held black or white, runs an exact frame count, and has no cut a viewer can feel.
+
+    Each seam needs `SEAM_HOLD` flat frames of its colour on both sides. Every detected cut must fall inside a planned hold.
+    """
+    fps, count, means, spreads = stats["fps"], stats["count"], stats["mean"], stats["spread"]
+    problems = []
+    for seam in seams:
+        at = round(seam["at"] * fps)
+        level = means <= BLACK_MOST if seam["hold"] == "black" else means >= WHITE_LEAST
+        held = level & (spreads <= HELD_SPREAD)
+        before = next((step for step in range(SEAM_HOLD) if at - 1 - step < 0 or not held[at - 1 - step]), SEAM_HOLD)
+        after = next((step for step in range(SEAM_HOLD) if at + step >= count or not held[at + step]), SEAM_HOLD)
+        if min(before, after) < SEAM_HOLD:
+            problems.append(f"the seam at {seam['at']:.2f} s holds {seam['hold']} for {before} frames before and {after} after, and needs {SEAM_HOLD} each side")
+    reach = (SEAM_HOLD + SEAM_SLACK) / fps
+    felt = [cut for cut in found["cuts"] if not any(abs(cut - seam["at"]) <= reach for seam in seams)]
+    if felt:
+        problems.append(f"cuts a viewer can feel at {felt} s, outside every planned hold")
+    if frames is not None and count != frames:
+        problems.append(f"{count} frames, and the plan asks for exactly {frames}")
+    return {"seams": len(seams), "frames": count, "problems": problems, "passed": not problems}
+
+
 def levels(path: Path, *, rate: int = 16000) -> tuple[np.ndarray, int, int]:
     done = subprocess.run(
         [ffmpeg.require(), "-v", "error", "-i", str(path), "-map", "0:a:0", "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"], capture_output=True, check=True
@@ -369,6 +403,10 @@ def report_rows(path: Path, line: dict[str, Any], *, loop: bool = False) -> tupl
             "loop seam",
             f"seam {seam['seam']} of 255, {seam['seam_vs_median']} times the median step, speed ratio {seam['speed_ratio']}",
         )
+    if line.get("one_take"):
+        held = one_take_seams(stats, found, seams_of(line), line["one_take"].get("frames"))
+        detail = "; ".join(held["problems"]) or f"{held['seams']} seams held in black or white, {held['frames']} frames, no cut outside a hold"
+        add("PASS" if held["passed"] else "FAIL", "one-take seams", detail)
     measured = flash.measure(path)
     add(
         "PASS" if measured["passed"] else "FAIL",
@@ -426,11 +464,21 @@ def gate_rows(path: Path, line: dict[str, Any]) -> list[dict[str, Any]]:
         gate("cuts_to_plan", ok, compared["max_error_frames"], 1, f"worst {compared['max_error_frames']} frames off, missing {compared['missing']}")
     else:
         absent("cuts_to_plan", "Only a montage plans hard cuts.")
-    if line.get("loop"):
-        seam = loop_seam(stats, found["median_step"])
-        gate("loop_seam", seam["passed"], seam["seam"], 0.5, f"seam {seam['seam']} of 255, speed ratio {seam['speed_ratio']}")
+    take = line.get("one_take")
+    if line.get("loop") or take:
+        ok, value, threshold, details = True, None, None, []
+        if line.get("loop"):
+            seam = loop_seam(stats, found["median_step"])
+            ok, value, threshold = seam["passed"], seam["seam"], 0.5
+            details.append(f"seam {seam['seam']} of 255, speed ratio {seam['speed_ratio']}")
+        if take:
+            held = one_take_seams(stats, found, seams_of(line), take.get("frames"))
+            ok = ok and held["passed"]
+            value, threshold = (value, threshold) if line.get("loop") else (len(held["problems"]), 0)
+            details.append("; ".join(held["problems"]) or f"one take: {held['seams']} seams held, {held['frames']} frames, no cut outside a hold")
+        gate("loop_seam", ok, value, threshold, "; ".join(details))
     else:
-        absent("loop_seam", "This film does not loop.")
+        absent("loop_seam", "This film does not loop and is not one take.")
     return rows
 
 

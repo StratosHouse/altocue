@@ -944,6 +944,57 @@ def test_canary_a_loop_with_a_seam_fails(tmp_path):
     assert not gate(rows, "loop_seam")["passed"]
 
 
+def one_take_line(seam: float = 1.35, hold: str = "black", frames: int = 81) -> dict:
+    scenes = [{"id": "a", "start": 0.0, "end": seam, "seam": hold}, {"id": "b", "start": seam, "end": 2.7}]
+    return {"scenes": scenes, "silences": [], "one_take": {"frames": frames}}
+
+
+def segments(*parts: tuple[str, float]) -> str:
+    """Solid colours end to end, so a seam's hold and every cut sit on known frames."""
+    made = ";".join(f"color=c={colour}:s=320x180:r=30:d={seconds}[p{index}]" for index, (colour, seconds) in enumerate(parts))
+    joined = "".join(f"[p{index}]" for index in range(len(parts)))
+    return f"{made};{joined}concat=n={len(parts)}:v=1[out0]"
+
+
+def test_a_one_take_seam_held_in_black_passes(tmp_path):
+    """c251: seams only in full black or white, held about ten frames each side, at an exact frame count."""
+    clip = clip_with(tmp_path / "held.mp4", segments(("red", 1.0), ("black", 0.7), ("blue", 1.0)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line()), "loop_seam")
+    assert found["passed"], found["detail"]
+
+
+def test_canary_a_one_take_seam_held_for_three_frames_fails(tmp_path):
+    clip = clip_with(tmp_path / "short.mp4", segments(("red", 1.25), ("black", 0.2), ("blue", 1.25)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line()), "loop_seam")
+    assert not found["passed"] and "needs 10 each side" in found["detail"]
+
+
+def test_canary_a_one_take_with_a_cut_outside_its_holds_fails(tmp_path):
+    clip = clip_with(tmp_path / "felt.mp4", segments(("0x404040", 0.5), ("0xc0c0c0", 0.5), ("black", 0.7), ("blue", 1.0)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line()), "loop_seam")
+    assert not found["passed"] and "can feel" in found["detail"]
+
+
+def test_canary_a_one_take_off_its_frame_count_fails(tmp_path):
+    clip = clip_with(tmp_path / "long.mp4", segments(("red", 1.0), ("black", 0.7), ("blue", 1.0)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line(frames=80)), "loop_seam")  # the film runs 81
+    assert not found["passed"] and "exactly 80" in found["detail"]
+
+
+def test_a_one_take_plan_names_every_seam_and_its_exact_length():
+    take = board(one_take={"frames": 1800})
+    for scene in take["scenes"]:
+        scene["camera"] = {"move": "drift", "amount": 0}
+    for scene in take["scenes"][:-1]:
+        scene["seam"] = "black"
+    assert not [m for m in errors(storyboard.check(brief(), take, film.load_type("launch"), fps=60)) if "one-take" in m or "seam" in m]
+    take["scenes"][1]["seam"] = "fade"
+    take["scenes"][2]["link"] = {"type": "dissolve", "why": "x"}
+    found = errors(storyboard.check(brief(), take, film.load_type("launch"), fps=60))
+    assert any("held black or white" in m for m in found) and any("plain cut" in m for m in found)
+    assert any("exactly 1799" in m for m in errors(storyboard.check(brief(), {**take, "one_take": {"frames": 1799}}, film.load_type("launch"), fps=60)))
+
+
 def test_cuts_compare_against_the_plan_in_frames():
     found = film_qa.compare_cuts([1.0, 2.53], [1.0, 2.5], 30)
     assert found["max_error_frames"] == pytest.approx(0.9) and not found["missing"]

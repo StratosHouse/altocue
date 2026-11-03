@@ -53,6 +53,7 @@ LENGTH_SLACK = 0.05  # share of the brief's length
 VOICE_PAD = 0.3
 WORDS_A_SECOND = 2.6  # narration, for an estimate before the voice exists
 ROUTES = ("continuous", "montage", "hybrid")
+SEAMS = ("black", "white")
 CLOCKS = ("music", "voice", "reads")
 ROLES = ("hook", "cta", "term")
 BRIEF_FIELDS = ("company", "audience", "goal", "message", "must_show", "tone", "deliverables")
@@ -351,7 +352,7 @@ def _check_timing(done: dict[str, Any], add: Any, reading: float = rules.READING
         except AltocueError as error:
             add("error", where, str(error.args[0]), error.fix or "Shorten the copy.")
         except (KeyError, TypeError, ValueError, IndexError, AttributeError) as error:
-            add("error", where, f'{kind} cannot be drawn from what it was given: {error!r}.', f"See `altocue library show {kind}`.")
+            add("error", where, f"{kind} cannot be drawn from what it was given: {error!r}.", f"See `altocue library show {kind}`.")
         scene = scenes[item["scene"]]
         seconds = item["end"] - item["start"]
         if item["start"] < scene["start"] - leads[item["scene"]] - frame:
@@ -450,6 +451,41 @@ def _check_cover(brief: dict[str, Any], board: dict[str, Any], done: dict[str, A
             add("warning", "storyboard", f'The read "{read.get("what", "?")}" gets {read["seconds"]:.2f} s.', "Too short to find, understand and register.")
 
 
+def _check_one_take(board: dict[str, Any], done: dict[str, Any], fps: int, add: Any) -> None:
+    """One unbroken move, made of segments. Every seam hides in held black or white, on a plain cut, and the length is exact to the frame."""
+    take = board["one_take"] if isinstance(board["one_take"], dict) else {}
+    frames = take.get("frames")
+    if not (isinstance(frames, int) and not isinstance(frames, bool) and frames > 0):
+        add("error", "storyboard", "A one-take states its exact length.", 'Set "one_take": {"frames": 720}, the frame count the film must run.')
+    elif round(done["total"] * fps) != frames:
+        add(
+            "error",
+            "storyboard",
+            f"The one-take runs {round(done['total'] * fps)} frames and the plan asks for exactly {frames}.",
+            "Change a scene's seconds until they add up.",
+        )
+    for scene in (board.get("scenes") or [])[:-1]:
+        where, seam = str(scene.get("id")), scene.get("seam")
+        if seam not in SEAMS:
+            add(
+                "error",
+                where,
+                "A one-take hides every seam in held black or white.",
+                f'Set "seam" to {" or ".join(SEAMS)} on this scene: what fills the frame as it ends.',
+            )
+        link = scene.get("link") or {}
+        if (link.get("type", "cut") if isinstance(link, dict) else link) != "cut":
+            add("error", where, "A one-take seam is a plain cut inside the hold. A camera link or wipe shows it.", 'Remove the link, or set it to "cut".')
+    for scene in board.get("scenes") or []:
+        if (scene.get("camera") or {}).get("amount", None) != 0:
+            add(
+                "warning",
+                str(scene.get("id")),
+                "The camera move here sits on top of the take's own move.",
+                'Set "camera": {"move": "drift", "amount": 0}, so the segment moves only as it was made.',
+            )
+
+
 def check(
     brief: dict[str, Any],
     board: dict[str, Any],
@@ -489,6 +525,8 @@ def check(
     clock = board.get("clock")
     if clock is not None and clock not in CLOCKS:
         add("error", "storyboard", f'Unknown clock "{clock}".', f"Use one of {', '.join(CLOCKS)}.")
+    if board.get("one_take") is not None:
+        _check_one_take(board, done, fps, add)
     if board.get("loop") and number(board.get("bpm")):
         bar = 4 * 60.0 / float(board["bpm"])
         count = done["total"] / bar
