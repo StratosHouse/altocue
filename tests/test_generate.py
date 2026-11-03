@@ -464,6 +464,54 @@ def test_a_motion_video_waits_for_upload_consent(hf_project, higgsfield, capsys)
     assert create[create.index("--video-references") + 1] == str(hf_project.root / "blockout.mp4")
 
 
+# A music track as a timing input (b025)
+
+
+def tone(path: Path, seconds: float) -> Path:
+    import wave
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\0\0" * int(8000 * seconds))
+    return path
+
+
+def test_only_routes_whose_docs_list_audio_references_take_a_track():
+    """fal's Seedance 2.0 reference pages list audio_urls. The Higgsfield CLI lists --audio-references for seedance_2_0 and its Mini."""
+    catalog = load_catalog()
+    takers = {(e.provider, e.surface, e.tier, e.capability, e.fields["track"]) for e in catalog.entries if "track" in e.fields}
+    fal = {("fal", "", tier, "reference_to_video", "audio_urls") for tier in TIERS}
+    cli = {("higgsfield", "", tier, cap, "audio-references") for tier in TIERS for cap in ("image_to_video", "reference_to_video", "frame_and_refs_to_video")}
+    assert takers == fal | cli
+
+
+def test_a_track_needs_an_image_or_video_beside_it_and_a_length_the_route_takes():
+    base = {"kind": "video", "tier": "standard", "prompt": "p", "aspect": "9:16", "duration_s": 5, "track": Path("bed.wav")}
+    with pytest.raises(AltocueError, match="no image or video beside it"):
+        load_catalog().resolve("higgsfield", GenRequest(**base))
+    with pytest.raises(AltocueError, match="a music track of 20s"):
+        load_catalog().resolve("fal", GenRequest(refs=[Path("a.png")], track_seconds=20.0, **base))
+    entry = load_catalog().resolve("fal", GenRequest(refs=[Path("a.png")], track_seconds=8.0, **base))
+    assert entry.payload(GenRequest(refs=[Path("a.png")], **base), lambda path: path.name)["audio_urls"] == ["bed.wav"]
+    with pytest.raises(AltocueError, match="a music track"):
+        load_catalog().resolve("fal", GenRequest(first_frame=Path("a.png"), **base))  # fal's image route lists no audio
+
+
+def test_a_track_is_sent_with_sound_off_and_recorded(project, fal, capsys):
+    (project.root / "ref.png").write_bytes(PICTURE)
+    tone(project.root / "assets" / "music" / "bed.wav", 5.0)
+    write_shots(project, shot(refs=["ref.png"], audio={"track": "assets/music/bed.wav"}, prompt=f"{PROMPT} No music, only soft diegetic sound."))
+    assert go(project, "--yes") == 0
+    assert "assets/music/bed.wav (for s01)" in capsys.readouterr().out
+    body = json.loads(fal.submits[0]["body"])
+    assert body["audio_urls"] == [f"{fal.url}/cdn/bed.wav"] and body["generate_audio"] is False
+    asset = generated_asset(project, "s01")
+    assert json.loads(asset.with_name(asset.name + ".provenance.json").read_text())["track"] == "assets/music/bed.wav"
+
+
 def test_providers_satisfy_the_protocol():
     catalog = load_catalog()
     assert isinstance(FalProvider(catalog), GenProvider)

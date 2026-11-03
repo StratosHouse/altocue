@@ -56,11 +56,11 @@ def open_run(project: Project, shots_file: str = "shots.json", provider: str | N
 
 
 def seconds_of(path: Path | None) -> float | None:
-    """A motion video's length, which some routes bill on. None when it cannot be read, and the price assumes the longest."""
+    """A motion video's or a track's length, which some routes bill on or limit. None when it cannot be read."""
     if path is None or not path.is_file():
         return None
     try:
-        return round(ffmpeg.probe_clip(path).duration, 3)
+        return round(float(ffmpeg.probe_json(path).get("format", {}).get("duration") or 0), 3) or None
     except AltocueError:
         return None
 
@@ -70,13 +70,14 @@ def shot_request(shot: Shot, style: str = "", root: Path | None = None) -> GenRe
         return Path(value) if value.startswith("@") or root is None else root / value
 
     motion = where(shot.motion) if shot.motion else None
+    track = where(shot.track) if shot.track else None
     return GenRequest(
         kind=shot.kind,  # type: ignore[arg-type]
         tier=shot.tier,  # type: ignore[arg-type]
         prompt=full_prompt(shot, style),
         aspect=shot.aspect,
         duration_s=math.ceil(shot.duration),
-        audio=shot.audio,
+        audio=shot.sound,
         first_frame=where(shot.first_frame) if shot.first_frame else None,
         last_frame=where(shot.last_frame) if shot.last_frame else None,
         refs=[where(value) for value in shot.refs],
@@ -84,6 +85,8 @@ def shot_request(shot: Shot, style: str = "", root: Path | None = None) -> GenRe
         extra=shot.extra,
         motion=motion,
         motion_seconds=seconds_of(motion) if root is not None else None,
+        track=track,
+        track_seconds=seconds_of(track) if root is not None and track else None,
     )
 
 
@@ -161,6 +164,7 @@ def _fingerprint(provider: str, model: str, params: dict[str, Any], req: GenRequ
         "last_frame": media(req.last_frame),
         "refs": [media(path) for path in req.refs],
         **({"motion": media(req.motion)} if req.motion else {}),  # only when set, so every digest made before it stays the same
+        **({"track": media(req.track)} if req.track else {}),
     }
     return hashlib.sha256(json.dumps(material, sort_keys=True, default=str).encode()).hexdigest()[:12]
 
@@ -255,8 +259,8 @@ def project_file(project: Project, value: str | Path) -> str | None:
 
 
 def sent(req: GenRequest) -> list[Path]:
-    """Every file a request sends: stills, references and a motion video. Each is a project file under the upload rules."""
-    return list(filter(None, [req.first_frame, req.last_frame, *req.refs, req.motion]))
+    """Every file a request sends: stills, references, a motion video and a track. Each is a project file under the upload rules."""
+    return list(filter(None, [req.first_frame, req.last_frame, *req.refs, req.motion, req.track]))
 
 
 def _own_files(project: Project, plan: list[Planned]) -> list[str]:
@@ -691,6 +695,7 @@ class Run:
                         "last_frame": item.shot.last_frame,
                         "refs": item.shot.refs,
                         "motion": item.shot.motion,
+                        "track": item.shot.track,
                         "prompt_ran": ran,
                         "record_mismatches": wrong,
                         "check": check,
@@ -773,7 +778,7 @@ def _takes_seed(provider: GenProvider, item: Planned) -> bool:
 
 def asked(provider: GenProvider, req: GenRequest) -> dict[str, Any]:
     """The settings a request sent, by the model's own field names, with its media left out."""
-    plain = replace(req, first_frame=None, last_frame=None, refs=[], motion=None)
+    plain = replace(req, first_frame=None, last_frame=None, refs=[], motion=None, track=None)
     return provider.catalog.resolve(provider.id, req).payload(plain, str)
 
 

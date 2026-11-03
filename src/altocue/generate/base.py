@@ -52,6 +52,8 @@ class GenRequest:
     extra: dict[str, Any] = field(default_factory=dict)
     motion: Path | None = None  # a video that sets camera and timing, such as a blockout
     motion_seconds: float | None = None  # its length, when it could be read
+    track: Path | None = None  # a music track that times the motion. The model's own sound is `audio`
+    track_seconds: float | None = None
 
 
 @dataclass

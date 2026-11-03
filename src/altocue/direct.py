@@ -32,6 +32,7 @@ SYNTHETIC = ("person", "voice", "scene", "product")
 SHOT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")  # it names files, so it can never climb out of the project
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
 VIDEO_SUFFIXES = {".mp4", ".mov"}  # what the routes that take a motion video accept
+AUDIO_SUFFIXES = {".wav", ".mp3"}  # what the routes that take a music track accept
 PUNCTUATION = " .,!?;:\"'"
 
 MAX_REFS = 7
@@ -102,7 +103,7 @@ class Shot(Model):
     last_frame: str | None = None
     refs: list[str] = field(default_factory=list)
     characters: list[str] = field(default_factory=list)
-    audio: bool = False
+    audio: bool | dict[str, Any] = False  # generated sound on or off, or {"track": "assets/music/bed.wav"} as a timing input
     seed: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
     synthetic: list[str] = field(default_factory=list)
@@ -112,9 +113,19 @@ class Shot(Model):
     def media(self) -> list[str]:
         return [value for value in (self.first_frame, self.last_frame, *self.refs) if value]
 
+    @property
+    def sound(self) -> bool:
+        """Whether the model makes sound. With a track it stays off unless asked, so the master goes in during the edit (R52)."""
+        return bool(self.audio.get("sound", False)) if isinstance(self.audio, dict) else bool(self.audio)
+
+    @property
+    def track(self) -> str | None:
+        """A music track sent as a timing input, so movement lands on its beats (b025)."""
+        return str(self.audio["track"]) if isinstance(self.audio, dict) and self.audio.get("track") else None
+
     def uploads(self) -> list[str]:
-        """Every file this shot sends: its stills, and a motion video when it has one."""
-        return [*self.media(), *filter(None, [self.motion])]
+        """Every file this shot sends: its stills, a motion video and a music track when it has them."""
+        return [*self.media(), *filter(None, [self.motion, self.track])]
 
     def shot_refs(self) -> list[str]:
         """Earlier shots this one is built from, written `@id`."""
@@ -210,6 +221,17 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
     first = raw.get("first_frame")
     if isinstance(first, str) and not first.startswith("@") and Path(first).suffix.lower() not in IMAGE_SUFFIXES:
         found.append(error("first-frame", f"first_frame must be a still, and {first} is not an image."))
+    audio = raw.get("audio")
+    if isinstance(audio, dict):
+        track, stray = audio.get("track"), set(audio) - {"track", "sound"}
+        if stray or not isinstance(track, str) or track.startswith("@") or Path(track).suffix.lower() not in AUDIO_SUFFIXES:
+            found.append(error("audio", f'audio is true, false, or {{"track": "assets/music/bed.wav"}}, a track ending {" or ".join(sorted(AUDIO_SUFFIXES))}.'))
+        elif kind == "image":
+            found.append(error("audio", "An image has no sound. A track times a video shot."))
+        if not isinstance(audio.get("sound", False), bool):
+            found.append(error("audio", "audio.sound is true or false: whether the model also makes sound."))
+    elif audio is not None and not isinstance(audio, bool):
+        found.append(error("audio", 'audio is true, false, or {"track": "assets/music/bed.wav"}.'))
     motion = raw.get("motion")
     if motion is not None:
         if not isinstance(motion, str) or motion.startswith("@") or Path(motion).suffix.lower() not in VIDEO_SUFFIXES:
@@ -235,8 +257,8 @@ def _media_findings(shots: list[Shot], root: Path | None) -> list[Finding]:
                     found.append(Finding("error", shot.id, "missing-file", f"{value} is not in the project."))
                 elif path.suffix.lower() not in IMAGE_SUFFIXES:
                     found.append(Finding("error", shot.id, "not-an-image", f"{value} is not an image."))
-        if shot.motion and root is not None:
-            found += _project_file(shot, shot.motion, root)
+        for value in filter(None, [shot.motion, shot.track]) if root is not None else []:
+            found += _project_file(shot, value, root)
         if shot.kind == "image":
             stills.add(shot.id)
     return found
@@ -407,8 +429,10 @@ def lint_prompt(shot: Shot) -> list[Finding]:
         if gaps:
             warn("timeline", f"The written timeline has {'; '.join(gaps)}. Windows run from 0 to the duration with no gap, or the model fills them itself.")
 
-    if shot.audio and not has(r"\bmusic\b"):
+    if shot.sound and not has(r"\bmusic\b"):
         warn("no-music", 'An open prompt tends to come back scored. Add "no music, only soft diegetic sound".')
+    if shot.track and shot.sound:
+        warn("track-sound", "The track sets the timing. Keep the model's own sound off and lay the master in the edit, or the clip comes back scored.")
     if has(BLOCK, 0):
         shots = dict.fromkeys([*((float(a), float(b)) for a, b in re.findall(BLOCK_SHOT, prompt)), *written])  # the house form, and Higgsfield's own (b022)
         for start, end in shots:

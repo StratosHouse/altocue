@@ -55,6 +55,7 @@ class ModelEntry:
     credits_per_second: float | None = None
     usd_per_second_video_ref: float | None = None  # billed on the motion video's seconds and the output's together
     motion_seconds: tuple[float, ...] = ()  # the shortest and longest motion video the route takes
+    most_track_seconds: float = 0.0  # the longest music track the route takes. 0 when its docs state none
     price: str = ""
     note: str = ""
     surface: str = ""
@@ -91,6 +92,8 @@ class ModelEntry:
             body[names["refs"]] = [media(path) for path in req.refs]
         if req.motion:
             body[names["motion"]] = [media(req.motion)]
+        if req.track:
+            body[names["track"]] = [media(req.track)]
         if req.seed is not None and "seed" in names:
             body[names["seed"]] = req.seed
         return {**body, **req.extra}
@@ -109,6 +112,12 @@ class ModelEntry:
             problems.append("a last frame")
         if req.audio and "audio" not in self.fields:
             problems.append("generated audio")
+        if req.track and not (req.refs or req.motion or req.first_frame or req.last_frame):
+            problems.append("a music track with no image or video beside it (it times a reference, so it needs one)")
+        elif req.track and "track" not in self.fields:
+            problems.append("a music track")
+        elif req.track and self.most_track_seconds and req.track_seconds is not None and req.track_seconds > self.most_track_seconds:
+            problems.append(f"a music track of {req.track_seconds:g}s (it takes up to {self.most_track_seconds:g}s, so send the section the shot covers)")
         if req.motion and "motion" not in self.fields:
             problems.append("a motion video")
         elif req.motion and self.motion_seconds and req.motion_seconds is not None and not self.motion_seconds[0] <= req.motion_seconds <= self.motion_seconds[-1]:

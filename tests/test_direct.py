@@ -343,6 +343,23 @@ def test_the_block_length_warning_reads_higgsfields_own_prompt_formats():
     assert "block-length" not in lint(prompt="[SHOT 1] 0-2s WIDE: she enters.\nHARD CUT.\n[SHOT 2] 2-4.5s CLOSE: she turns.")
 
 
+def test_audio_can_carry_a_music_track_as_a_timing_input(tmp_path):
+    """b025: the track goes in so movement lands on its beats, and the master goes in during the edit."""
+    track = {"track": "assets/music/bed.wav"}
+    assert "audio" in rules(validate({"shots": [shot(audio={"track": "bed.png"})]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(audio={**track, "sound": "yes"})]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(audio={**track, "volume": 1})]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(kind="image", check="still", audio=track)]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(audio="loud")]}), "error")
+    assert "missing-file" in rules(validate({"shots": [shot(audio=track)]}, root=tmp_path), "error")
+    (tmp_path / "assets" / "music").mkdir(parents=True)
+    (tmp_path / "assets" / "music" / "bed.wav").write_bytes(b"0")
+    review = validate({"shots": [shot(audio=track)]}, root=tmp_path)
+    assert review.ok and review.shots[0].track == "assets/music/bed.wav" and not review.shots[0].sound
+    assert not lint(audio=track) & {"no-music", "track-sound"}
+    assert "track-sound" in lint(audio={**track, "sound": True})
+
+
 def test_image_prompts_skip_camera_rules():
     found = lint(kind="image", check="still", prompt="A brass lantern on a wet stone step, warm practical light from the left.")
     assert not found & {"no-move", "endpoint", "one-move"}
