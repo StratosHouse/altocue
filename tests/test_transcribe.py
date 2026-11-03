@@ -253,6 +253,13 @@ def test_a_drawn_out_word_with_no_silence_keeps_its_length(tmp_path):
     assert clean([Word("sooo", 1.0, 3.0)], duration=8.0, envelope=envelope)[0].end == 3.0
 
 
+def test_sound_that_ends_long_before_the_picture_still_splits():
+    """The marks are placed by the clip's length, and the envelope stops where the sound does."""
+    envelope = Envelope.of_levels(np.full(int(100 / transcribe.HOP), -40.0))
+    marks = transcribe.quiet_marks(envelope, 400.0)
+    assert marks and all(mark < 100 for mark in marks)
+
+
 def test_scribe_response_keeps_only_words():
     data = {
         "words": [

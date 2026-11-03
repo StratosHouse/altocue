@@ -579,7 +579,10 @@ def prompt_for(project: Project, *, engine: str) -> str:
 
 
 def quiet_marks(envelope: Envelope, duration: float) -> list[float]:
-    """Where to split a recording: the quietest pause near each mark, so no word is cut in two."""
+    """Where to split a recording: the quietest pause near each mark, so no word is cut in two.
+
+    The marks follow the clip's length and the envelope stops where the sound does, so past the sound there is nothing to split.
+    """
     if duration <= PIECE * 1.5 or not len(envelope.db):
         return []
     held = np.convolve(envelope.db, np.ones(QUIET_WINDOW) / QUIET_WINDOW, "same")
@@ -587,6 +590,8 @@ def quiet_marks(envelope: Envelope, duration: float) -> list[float]:
     place = PIECE
     while place < duration - PIECE / 2:
         first, last = int((place - REACH) / HOP), int((place + REACH) / HOP)
+        if first >= len(held):
+            break
         marks.append(round((first + int(np.argmin(held[first:last]))) * HOP, 3))
         place = marks[-1] + PIECE
     return marks
