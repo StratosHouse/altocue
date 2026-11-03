@@ -65,6 +65,11 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--loudness", type=master.loudness_arg, help=f"Integrated LUFS, or a named target: {', '.join(master.TARGETS)}")
     parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
     parser.add_argument("--stems", action="store_true", help="Also write voice, music and effects as WAV files, for a finisher")
+    parser.add_argument(
+        "--override",
+        metavar="REASON",
+        help="Deliver a film with no SHIP verdict. The reason is printed and written into deliver.json. The claims and disclosure gates still apply",
+    )
 
 
 def finished_film(project: Project) -> Path:
@@ -74,6 +79,56 @@ def finished_film(project: Project) -> Path:
     if project.edl_path.exists() and project.edl_path.stat().st_mtime > final.stat().st_mtime:
         raise AltocueError(f"{final.name} is older than the cut.", fix="Run `altocue run`, then deliver again.")
     return final
+
+
+# The sign-off
+
+HONESTY_GATES = ((("claims",), gates.gate_claims), (("disclosure",), gates.gate_disclosure))
+
+
+def verdict_for(project: Project, digest: str) -> tuple[str | None, str]:
+    """Code's saved verdict for this exact film, or None and the reason there is none."""
+    path = project.review_dir / "report.json"
+    try:
+        saved = json.loads(path.read_text()) if path.exists() else {}
+    except ValueError:
+        saved = {}
+    if not saved:
+        return None, "No reviewer has passed this film."
+    if saved.get("file_sha256") != digest:
+        return None, "The last verdict was for another render, not this film."
+    verdict = str(saved.get("verdict") or "")
+    return (verdict or None), f"The verdict for this film is {verdict}." if verdict else "The saved review has no verdict."
+
+
+def sign_off(project: Project, final: Path, digest: str, override: str | None) -> dict[str, Any]:
+    """Deliver only what the Editor in Chief passed. An override is said out loud. Claims and disclosure have none.
+
+    The two honesty gates are measured again here, because a saved report is a file anyone can change.
+    """
+    reason = (override or "").strip()
+    if override is not None and not reason:
+        raise AltocueError("--override needs a reason.", fix='Say why, such as --override "Client asked for a rough cut to look at".')
+    verdict, why = verdict_for(project, digest)
+    if verdict != "SHIP" and not reason:
+        raise AltocueError(
+            f"{final.name} has no SHIP verdict, so nothing was delivered. {why}",
+            fix="Run `altocue review` and fix what it finds. To deliver anyway, pass --override with your reason. The claims and disclosure gates still apply.",
+        )
+    context = gates.Context.open(project, final)
+    results = [result for ids, gate in HONESTY_GATES for result in gates.guarded(context, ids, gate)]
+    blocked = failed(results) + not_run(results)
+    if blocked:
+        lines = "; ".join(f"{gate.id}: {gate.detail}" for gate in blocked)
+        raise AltocueError(
+            f"Nothing was delivered. The {' and '.join(g.id for g in blocked)} gate did not pass, and it cannot be overridden. {lines}",
+            fix="Fix the film so the gate passes: rewrite the line, or put the disclosure on screen. Then run `altocue run` and review it again.",
+        )
+    used = None if verdict == "SHIP" else reason
+    if used:
+        print(f"Override: {final.name} has no SHIP verdict. {why} Delivered anyway, because: {used}")
+        print("  This is written into deliver.json. The claims and disclosure gates passed.")
+    return {"verdict": verdict or "none", "file_sha256": digest, "override": used, "gates": [g.to_dict() for g in results]}
 
 
 # Subtitles
@@ -504,6 +559,8 @@ def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     wanted = platforms.parse(args.platforms) if args.platforms else []
     final = finished_film(project)
+    digest = sha256(final)
+    signoff = sign_off(project, final, digest, getattr(args, "override", None))
     edl = project.edl()
     seconds = ffmpeg.probe_clip(final).duration
     folder = project.root / FOLDER
@@ -526,14 +583,15 @@ def run(args: argparse.Namespace) -> int:
     pictures = thumbnails.write(plate_or_final(project, final), shots_of(edl), folder / "thumbnails")
     print(f"Thumbnails: {len(pictures['candidates'])} candidates from {pictures['read']} frames. Compare them in {FOLDER}/thumbnails/{pictures['sheet']}")
 
-    digest = sha256(final)
     made = [make_version(project, platform, folder, seconds, args.loudness, args.renderer) for platform in wanted]
     versions = _earlier_versions(folder, digest, made) + made
-    report = {"final_sha256": digest, "subtitles": subs, "chapters": marks, "film": film, "thumbnails": pictures, "versions": versions}
+    report = {"final_sha256": digest, "signoff": signoff, "subtitles": subs, "chapters": marks, "film": film, "thumbnails": pictures, "versions": versions}
     if stems:
         report["stems"] = stems
     write_json(folder / "deliver.json", report)
     print(f"Saved {FOLDER}/deliver.json")
+    if signoff["override"]:
+        print(f"Override recorded: no SHIP verdict for this film. Reason: {signoff['override']}")
     missed = film["loudness"]["passed"] is False or any(v.get("failed") or v.get("problem") or v["loudness"]["passed"] is False for v in made)
     return 1 if missed else 0
 
