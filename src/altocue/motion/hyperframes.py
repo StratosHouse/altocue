@@ -28,6 +28,11 @@ def binary() -> Path:
     return install_dir() / "node_modules" / ".bin" / "hyperframes"
 
 
+def font_tool() -> Path:
+    """HyperFrames' own font localiser: HTML in, the same HTML with its web fonts embedded out."""
+    return install_dir() / "node_modules" / ".bin" / "hyperframes-localize-fonts"
+
+
 def quiet_env() -> dict[str, str]:
     """Every call to the renderer, setup included, runs with telemetry and update checks off."""
     return {**os.environ, "HYPERFRAMES_NO_TELEMETRY": "1", "HYPERFRAMES_NO_UPDATE_CHECK": "1", "DO_NOT_TRACK": "1"}

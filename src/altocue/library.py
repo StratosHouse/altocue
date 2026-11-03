@@ -551,7 +551,7 @@ def _place(paths: list[Path], name: str, root: Path, staged: Path) -> Path:
 
 
 def fetch_item(project: Project, row: dict[str, Any]) -> dict[str, Any]:
-    from .motion import compositions
+    from .motion import compositions, hyperframes
 
     name = row["id"]
     binary = _renderer()
@@ -568,6 +568,7 @@ def fetch_item(project: Project, row: dict[str, Any]) -> dict[str, Any]:
         if own is None:
             raise AltocueError(f"{name} is not a composition Altocue can mount.", fix="Pick another item with `altocue library search`.")
         text, kept = compositions.localise(compositions.rename(text, own, name), name, staged)
+        text, fonts, unembedded = compositions.embed_fonts(text, hyperframes.font_tool())
         folder = project.root / compositions.FOLDER
         folder.mkdir(parents=True, exist_ok=True)
         extras = folder / name
@@ -585,7 +586,10 @@ def fetch_item(project: Project, row: dict[str, Any]) -> dict[str, Any]:
         "fetched_on": date.today().isoformat(),
         "gsap": "gsap" in text.lower(),
         "kept_from_web": kept,
+        "fonts_embedded": fonts,
     }
+    if unembedded:
+        record["fonts_left_to_the_web"] = unembedded
     path = project.root / LOCK_FILE
     lock = json.loads(path.read_text()) if path.exists() else {"schema": SCHEMA, "items": {}}
     lock["items"][name] = record
@@ -636,6 +640,10 @@ def _add(args: argparse.Namespace) -> int:
     print(f"Recorded in {LOCK_FILE}. Keep any licence files in motion/fetched/{name}/.")
     if record["kept_from_web"]:
         print(f"Saved {len(record['kept_from_web'])} files it loads from the web, so a render needs no network.")
+    if record["fonts_embedded"]:
+        print(f"Embedded the faces it names ({', '.join(record['fonts_embedded'])}), so a render needs no font from the web.")
+    if record.get("fonts_left_to_the_web"):
+        print(f"Some faces it names could not be embedded, so a render fetches them or falls back: {record['fonts_left_to_the_web']}")
     if record["gsap"]:
         print(GSAP_NOTE)
     print(f'Add to "items" in motion.json:\n{json.dumps(_motion_line(row), ensure_ascii=False)}')

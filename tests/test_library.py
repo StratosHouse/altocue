@@ -589,6 +589,39 @@ def test_add_fetches_into_the_project_and_records_it(bundled, project, tmp_path,
     assert json.loads((folder / "config.json").read_text())["registry"].endswith("/v0.9.5/registry")
 
 
+def fake_font_tool(folder: Path, css: str, fail: str = "") -> None:
+    """Stands in for `hyperframes-localize-fonts`: HTML in, the same HTML with a deterministic font block out."""
+    tool = folder / "renderer" / "node_modules" / ".bin" / "hyperframes-localize-fonts"
+    reply = f'<style data-hyperframes-deterministic-fonts="true">{css}</style>'
+    body = f"print({fail!r}, file=sys.stderr)\nraise SystemExit(1)" if fail else f"pathlib.Path({str(folder / 'probe.html')!r}).write_text(page)\nprint(page.replace('</head>', {reply!r} + '</head>'))"
+    tool.write_text(f"#!{sys.executable}\nimport pathlib, sys\npage = sys.stdin.read()\n{body}\n")
+    tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
+
+
+STYLED = COMPOSITION.replace("<template>", "<template><style>.w{font-family:var(--font-display, Inter, sans-serif)}</style>")
+FACE = '@font-face { font-family: "Inter"; src: url("data:font/woff2;base64,AAAA") format("woff2"); }'
+
+
+def test_add_embeds_the_faces_an_item_names_so_a_render_needs_no_font_from_the_web(bundled, project, tmp_path, monkeypatch, capsys):
+    folder = fake_renderer(tmp_path, monkeypatch, html=STYLED)
+    fake_font_tool(folder, FACE)
+    assert main(["library", "add", "headline-slam", "-p", str(project.root)]) == 0
+    page = (project.root / "motion" / "fetched" / "headline-slam.html").read_text()
+    assert page.index("<template>") < page.index("data-altocue-fonts") < page.index(".w{font-family") and FACE in page
+    probe = (folder / "probe.html").read_text()
+    assert "font-family:var(--font-display, Inter" in probe and "Q" in probe and "\u00e9" in probe  # the item's styles, and Latin text to cut the faces to
+    lock = json.loads((project.root / library.LOCK_FILE).read_text())["items"]["headline-slam"]
+    assert lock["fonts_embedded"] == ["Inter"] and "no font from the web" in capsys.readouterr().out
+
+
+def test_add_says_when_a_face_cannot_be_embedded(bundled, project, tmp_path, monkeypatch, capsys):
+    folder = fake_renderer(tmp_path, monkeypatch, html=STYLED)
+    fake_font_tool(folder, FACE, fail='font localization failed (FontFetchError): unresolved font families: "Odd Face"')
+    assert main(["library", "add", "headline-slam", "-p", str(project.root)]) == 0
+    lock = json.loads((project.root / library.LOCK_FILE).read_text())["items"]["headline-slam"]
+    assert lock["fonts_embedded"] == [] and "Odd Face" in lock["fonts_left_to_the_web"] and "Odd Face" in capsys.readouterr().out
+
+
 def test_add_never_runs_the_renderer_for_a_refused_name(bundled, project, tmp_path, monkeypatch, capsys):
     folder = fake_renderer(tmp_path, monkeypatch, html=COMPOSITION)
     assert main(["library", "add", "tiktok-follow", "-p", str(project.root)]) == 1
