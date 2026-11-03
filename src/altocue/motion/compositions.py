@@ -14,6 +14,7 @@ from urllib.parse import urljoin, urlsplit
 
 from ..brand import data_path
 from ..errors import AltocueError
+from ..library import SAFE_ID
 from ..project import Project
 
 FOLDER = "motion/fetched"
@@ -41,6 +42,16 @@ def own_id(text: str) -> str | None:
     return found.group(1) if found else None
 
 
+def checked_id(own: str, where: str) -> str:
+    """The id names the composition's file on the stage, so it must be a plain file name."""
+    if not SAFE_ID.fullmatch(own):
+        raise AltocueError(
+            f'{where} has the composition id "{own}", which cannot be a file name.',
+            fix='Use lowercase letters, digits, hyphens and underscores, such as data-composition-id="my-card".',
+        )
+    return own
+
+
 def bundled(name: str) -> Path | None:
     """A composition Altocue ships. Each is seeded and drawn from time alone."""
     path = data_path("compositions", f"{name}.html")
@@ -63,7 +74,7 @@ def resolve(project: Project, item: dict[str, Any]) -> dict[str, Any]:
     found = own_id(path.read_text(errors="replace"))
     if not found:
         raise AltocueError(f"{relative} is not a HyperFrames composition.", fix='It needs a <template> holding a div with data-composition-id="...".')
-    return {**item, "file": relative, "path": str(path), "own_id": found}
+    return {**item, "file": relative, "path": str(path), "own_id": checked_id(found, relative)}
 
 
 def mount(item: dict[str, Any], attrs: str) -> str:
@@ -86,10 +97,11 @@ def install(items: list[dict[str, Any]], stage: Path, renderer_dir: Path) -> Non
         shutil.copy(local, folder / "gsap.min.js")
     for item in chosen:
         source = Path(item["path"])
+        own = checked_id(str(item["own_id"]), source.name)
         text = source.read_text(errors="replace")
         if local:
             text = GSAP_CDN.sub(f"{STAGE_FOLDER}/gsap.min.js", text)
-        (folder / f"{item['own_id']}.html").write_text(text)
+        (folder / f"{own}.html").write_text(text)
         if source.with_suffix("").is_dir():
             shutil.copytree(source.with_suffix(""), folder / source.stem, dirs_exist_ok=True)
 
