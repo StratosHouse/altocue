@@ -107,7 +107,7 @@ def build(project: Project) -> list[dict[str, Any]]:
         ends=cut.segment_ends(edl),
     )
     mark_speakers(pages, project, list(style.get("speaker_colours") or SPEAKER_COLOURS))
-    write_json(project.work / "captions.json", {"pages": pages})
+    write_json(project.work / "captions.json", {"cut": project.cut_mark(), "pages": pages})
     return pages
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -292,6 +293,16 @@ def test_no_face_clip_is_centred(tmp_path, clip):
     project = make_project(tmp_path, [clip], [Segment(id="s1", clip="take one", start=0, end=1)], aspect="1:1")
     x, y, w, h = frame_project(project).segments[0].crop
     assert (w, h) == (320, 320) and x == 0 and abs(y - (568 - 320) * 0.42) <= 2
+
+
+def test_a_rerun_that_changes_nothing_leaves_the_cut_file_alone(tmp_path):
+    """Every render frames first, and a rewritten edl.json made a finished film look older than its cut."""
+    clip = write_clip(tmp_path / "tall.mp4", [face_image(720, 1280, ((360, 500, 170),))] * 45)
+    project = make_project(tmp_path, [clip], [Segment(id="s1", clip="tall", start=0, end=1)])
+    frame_project(project)
+    os.utime(project.edl_path, (1_000_000, 1_000_000))
+    frame_project(project)
+    assert project.edl_path.stat().st_mtime == 1_000_000
 
 
 def test_rerun_keeps_a_manual_crop_until_forced(tmp_path, landscape):

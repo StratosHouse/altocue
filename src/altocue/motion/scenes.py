@@ -377,6 +377,7 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
         "hero": done.get("hero"),
         "route": (board or {}).get("route"),
         "loop": bool((board or {}).get("loop")),
+        "one_take": (board or {}).get("one_take"),
     }
 
 

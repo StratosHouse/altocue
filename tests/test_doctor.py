@@ -64,8 +64,10 @@ def stub_machine(monkeypatch, *, ok: bool) -> None:
 
 
 def keys_the_code_reads() -> set[str]:
+    # Altocue's own modules only: the renderer's node_modules ships third-party scripts once setup has run.
     source = Path(doctor.__file__).parent
-    return {name for path in source.rglob("*.py") for name in re.findall(r'"([A-Z][A-Z0-9_]*_(?:API_KEY|KEY|TOKEN))"', path.read_text())}
+    paths = (path for path in source.rglob("*.py") if "node_modules" not in path.parts)
+    return {name for path in paths for name in re.findall(r'"([A-Z][A-Z0-9_]*_(?:API_KEY|KEY|TOKEN))"', path.read_text())}
 
 
 def test_every_key_the_code_reads_has_a_row_in_the_table(monkeypatch):

@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from conftest import make_clip
 
-from altocue import doctor, ffmpeg, ingest, transcribe
+from altocue import cli, doctor, ffmpeg, ingest, transcribe
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import Edl, Removed, Segment
@@ -75,6 +75,19 @@ def test_filters_list_has_what_we_rely_on():
         assert ffmpeg.has_filter(name), name
 
 
+def options(stage: str) -> set[str]:
+    """Every option the stage's own command line defines."""
+    return set(vars(cli.stage_args(stage)))
+
+
+def test_stage_args_carry_every_default_and_refuse_an_unknown_option():
+    """The demo built deliver's options by hand and crashed once deliver grew --stems."""
+    args = cli.stage_args("deliver", project="video", override="why")
+    assert args.stems is False and args.renderer == "auto" and args.project == "video" and args.override == "why"
+    with pytest.raises(TypeError, match="no option colour"):
+        cli.stage_args("deliver", colour="red")
+
+
 def test_run_can_reach_the_review_stage(tmp_path, monkeypatch):
     from altocue import review, run
 
@@ -82,7 +95,18 @@ def test_run_can_reach_the_review_stage(tmp_path, monkeypatch):
     seen = {}
     monkeypatch.setattr(review, "run", lambda args: seen.update(vars(args)) or 0)
     run.stages(project, argparse.Namespace())["review"]()
-    assert {"project", "file", "reviewer", "ingest", "upload", "paid_key", "editor_vendor", "reset_rounds"} <= set(seen)
+    assert options("review") <= set(seen)
+    assert seen["reviewer"] is None and seen["upload"] is False and seen["page"] is False
+
+
+def test_run_hands_master_every_option_it_has(tmp_path, monkeypatch):
+    from altocue import master, run
+
+    project = Project.create(tmp_path / "video")
+    seen = {}
+    monkeypatch.setattr(master, "run", lambda args: seen.update(vars(args)) or 0)
+    run.stages(project, argparse.Namespace())["master"]()
+    assert options("master") <= set(seen)
 
 
 def test_run_stops_at_a_stage_that_fails(tmp_path, monkeypatch):

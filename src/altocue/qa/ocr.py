@@ -22,12 +22,9 @@ BATCH = 80
 TESSERACT_MODE = "6"
 TESSERACT_FLOOR = 30
 BRIGHT_TEXT = 200
-TILES = {  # ffmpeg crop per tile, each 60 percent of the frame, so small print reaches the reader
-    "tl": "iw*0.6:ih*0.6:0:0",
-    "tr": "iw*0.6:ih*0.6:iw*0.4:0",
-    "bl": "iw*0.6:ih*0.6:0:ih*0.4",
-    "br": "iw*0.6:ih*0.6:iw*0.4:ih*0.4",
-}
+TILE_SIDE = 0.6  # each tile is 60 percent of the frame, so small print reaches the reader
+TILE_ORIGIN = {"tl": (0.0, 0.0), "tr": (0.4, 0.0), "bl": (0.0, 0.4), "br": (0.4, 0.4)}
+TILES = {name: f"iw*{TILE_SIDE}:ih*{TILE_SIDE}:iw*{x}:ih*{y}" for name, (x, y) in TILE_ORIGIN.items()}  # ffmpeg crop per tile
 NO_READER = "No text reader on this machine. Install tesseract (brew install tesseract, or sudo apt install tesseract-ocr)."
 
 
@@ -138,6 +135,15 @@ def sample(file: Path, fps: float, cuts: list[float], folder: Path) -> dict[str,
         ffmpeg.frame(file, max(at, 0.0), folder / name)
         times[name] = at
     return times
+
+
+def frame_box(record: dict[str, Any]) -> list[float]:
+    """A record's box on the whole frame. A tile's box is scaled and moved back from its crop."""
+    x, y, w, h = record["box"]
+    origin = TILE_ORIGIN.get(Path(record["file"]).name.split("_")[0])
+    if origin is None:
+        return [x, y, w, h]
+    return [origin[0] + x * TILE_SIDE, origin[1] + y * TILE_SIDE, w * TILE_SIDE, h * TILE_SIDE]
 
 
 def read_video(file: Path, fps: float, cuts: list[float], folder: Path) -> list[dict[str, Any]]:

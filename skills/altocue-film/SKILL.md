@@ -1,13 +1,13 @@
 ---
 name: altocue-film
-description: Makes films with no source footage from a brief and a storyboard: explainers, demo episodes, ad cards, gauge stories, case files, line-by-line reels and music cuts. Use when the user wants a video made entirely in code, has no footage, or says explainer video, faceless video, demo video, ad cards, case file, or asks what kinds of film Altocue can make. For a launch video use altocue-launch instead. Part of Altocue.
+description: Makes films from a brief and a storyboard: explainers, demo episodes, ad cards, gauge stories, case files, line-by-line reels, music cuts, plate edits, song cuts, invitations and heritage films. Use when the user wants a video made entirely in code, has no footage, or says explainer video, faceless video, demo video, ad cards, case file, or asks what kinds of film Altocue can make. For a launch video use altocue-launch instead. Part of Altocue.
 license: MIT
 compatibility: Requires the altocue CLI, ffmpeg, and Node 22 or later for the renderer. Generation is always optional.
 ---
 
 # Altocue Film
 
-A film here is a project with no source clip, driven by `brief.json` and `storyboard.json`. Any type starts from a working example, so a person sees a real film first.
+A film here is a project driven by `brief.json` and `storyboard.json`, with no source clip, or with your own clips placed in it as Plate Edit and Song Cut do. Any type starts from a working example, so a person sees a real film first.
 
 ```bash
 altocue film types
@@ -34,6 +34,10 @@ The storyboard format, scene links, camera moves and motion rules are the same f
 | A real or invented event, told like a log | `case`, Case File | 30 s to 3 min | Optional |
 | A voiced story with a picture per line | `line`, Line-by-Line Reel | 30 s to 3 min | Optional |
 | A film cut to a song | `music`, Music Cut | 20 to 60 s | None |
+| One change to your own clip, comped back | `plate`, Plate Edit | The plate's length | Optional |
+| Your own footage cut to a song | `song`, Song Cut | 30 to 60 s | None |
+| An event film and its card | `invite`, Invitation | 25 to 30 s | None |
+| An anniversary told across its eras | `heritage`, Heritage Film | 30 s to 3 min | None |
 
 ## Real footage inside a film
 
@@ -65,13 +69,7 @@ Narration runs about 2.5 to 2.8 words a second, so 30 seconds holds about 80 wor
 
 ## Notes by type
 
-- **`explainer`:** a familiar situation, a surprising fact, a simple explanation, the question the viewer now has, a one-line twist. Every number on screen must match a fact in the brief, with its source.
-- **`demo`:** say how it was made near the start. Show each thing as it is named, and hold long enough to inspect. Keep estimates apart from what was measured.
-- **`ad`:** one change per card. Never write a review, a result, a discount or a quote. Use only ones the person gives you. Render every shape with `--cutdowns`, and use `altocue film variants` for the offers.
-- **`gauge`:** write the table of states first, then the lines. Use `state_gauge` with `"carry": true` so one panel stays on screen across scenes. If a number is exaggerated for reading speed, the brief's `gauge_note` must say so, and so must the screen.
-- **`case`:** flat, dated sentences, and `corner_stamp` for the log. Anything reconstructed needs a label on screen. Never fake a real death, a disaster or a real person's words.
-- **`line`:** one picture per spoken line. Real narration and a distinct idea in each video are what keep this format on the right side of YouTube's rules.
-- **`music`:** beats come from the track. Add `"snap": true` to move cuts to them. Use your own words on screen, and confirm the rights to any track. With no track, Altocue writes a score, and a person must listen to it.
+Read [the notes by type](references/types.md) before writing a storyboard. They cover each type's craft, the checks a type carries for itself, the footage and intake types, and one-take films.
 
 ## These need real footage
 
@@ -79,7 +77,7 @@ They are not code-only, so do not pretend they are. They run on the normal editi
 
 - **Reference Reel.** Your clips in the style of a reel you admire. Measure the reel with `altocue film study reference.mp4`, which writes a style card of pacing, palette, loudness and on-screen text. Then edit with `altocue new`, `cut`, `caption` and `motion`, following the card. See `altocue`.
 - **Clip Cut.** One statement from a long recording as a short. Use `altocue clips`, then `frame`, `caption` and `master`. Stick to the user's own recordings.
-- **Product Proof Spot.** An ad cut from real product footage, with generated shots only where filming is impossible. See `altocue-direct` and `altocue-generate`.
+- **Product Proof Spot.** An ad cut from real product footage, with generated shots only where filming is impossible. See `altocue-direct` and `altocue-generate`. Write the real label's lines in `product.json`, such as `{"name": "Hedgerow jam", "label": ["Blackberry 55%", "300 g"]}`, and run `altocue qa --check proof`: it fails a label line misread or changed, the product's words cut by the frame's edge, and a hand in the final hold. A generated angle or stunt is a claim, never proof.
 
 ## Style cards
 
@@ -95,4 +93,4 @@ Learn pacing and structure from references. Only recreate work you own or have r
 - **Faked reviews, proof or results.** A generated person may not claim experience. See `altocue-ugc`.
 - **Generated-only story films.** Story trailers, pitch cartoons and mechanism shorts need paid generation throughout. See `altocue-direct` and `altocue-generate`, and quote the cost first.
 
-Ambient loops and one-take multi-cam films are also not film types here yet. They need a seam gate and an angle schedule that have not been built.
+Ambient loops and one-take multi-cam films are also not film types here yet. One-take seams are checked, as the notes by type say, and the angle schedule has not been built.

@@ -61,6 +61,20 @@ def build_parser(argv: list[str]) -> argparse.ArgumentParser:
     return parser
 
 
+def stage_args(name: str, **given: object) -> argparse.Namespace:
+    """A stage's own defaults with `given` on top, for code that runs a stage without a command line.
+
+    Read from the stage's parser, so an option added to a stage later is never missing here.
+    """
+    parser = argparse.ArgumentParser(prog=f"altocue {name}")
+    importlib.import_module(STAGES[name][0]).add_arguments(name, parser)
+    defaults = vars(parser.parse_args([]))
+    unknown = sorted(set(given) - set(defaults))
+    if unknown:
+        raise TypeError(f"altocue {name} has no option {', '.join(unknown)}")
+    return argparse.Namespace(**{**defaults, **given})
+
+
 def forget_expired_data(args: argparse.Namespace) -> None:
     """Every command first deletes YouTube statistics past their date, wherever they were saved."""
     from datetime import date

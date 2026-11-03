@@ -231,6 +231,23 @@ def test_a_plain_page_is_not_a_composition(project):
         compositions.resolve(project, {"type": "composition", "file": "motion/page.html"})
 
 
+@pytest.mark.parametrize("own", ["../../escape", "Card One", "nested/card"])
+def test_a_composition_id_that_cannot_be_a_file_name_is_refused(project, own):
+    (project.root / "motion" / "odd.html").write_text(COMPOSITION.replace("demo-card", own))
+    with pytest.raises(AltocueError, match="composition id") as caught:
+        compositions.resolve(project, {"type": "composition", "file": "motion/odd.html", "start": 0, "end": 2})
+    assert caught.value.fix
+
+
+def test_installing_never_writes_outside_the_stage(project, tmp_path):
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    item = {"type": "composition", "own_id": "../../escaped", "path": str(project.root / "motion" / "mine.html")}
+    with pytest.raises(AltocueError, match="composition id"):
+        compositions.install([item], stage, tmp_path / "renderer")
+    assert not (tmp_path / "escaped.html").exists()
+
+
 def test_variables_are_escaped_into_the_mount(project):
     item = compositions.resolve(project, {"type": "composition", "file": "motion/mine.html", "vars": {"text": '"><b>'}, "start": 0, "end": 2})
     assert '"><b>' not in compositions.mount(item, 'data-start="0"')

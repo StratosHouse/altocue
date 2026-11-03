@@ -61,6 +61,7 @@ If anyone mentions a launch video, a product launch, a SaaS launch, a product vi
 |---|---|
 | A launch video, product launch, SaaS launch, product video or launch film | `altocue-launch` |
 | An explainer, demo, ad cards or any film with no footage | `altocue-film` |
+| One change to your own clip, your clips cut to a song, an invitation or an anniversary film | `altocue-film` |
 | Remove pauses, ums, retakes | `altocue-cut` |
 | Pick or reorder lines, edit by transcript | `altocue-cut` |
 | Shorts or reels from a long recording | `altocue-clips` |

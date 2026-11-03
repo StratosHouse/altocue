@@ -115,3 +115,16 @@ A refused prompt is not a failure mode. Never reword one to get past moderation.
 - **Prototype small, then keep the take.** Work out the shot at draft tier with no sound. **[source]** A fresh high-resolution run is a different video, so upscale the approved draft. Several authors agree, and it follows from a rerun being a new sample.
 - **One action per clip, about 5 seconds.** **[source]** Short shots are easier to replace.
 - **Identity drift compounds with length and motion.** `altocue direct` warns past 12 seconds on a character.
+
+## Driving a shot from a motion video
+
+- **The motion video wins on camera, cuts and timing, and lends no look.** [source] Write only material, light and texture in the prompt. Restated motion drifts, and `altocue direct` warns on camera words in a shot with `motion`.
+- **Revise the camera in the blockout, never in the prompt.** [source] If the action reads poorly, widen the previs camera and render it again.
+- **Feed a grey blockout.** [source] No colour, a little soft, lower contrast, so the model copies camera, timing and silhouettes, and nothing else. Remove shadows and reflections of the previs camera, or they come back as objects.
+
+## Editing real footage
+
+- **Write the source lock first.** [source] Name everything kept as shot: identity, performance, hands, camera, cuts, framing, timing, light and grain. Say plainly it is an edit, not a new generation.
+- **Confine the change to one named region,** start it on a visible cue in the plate, and return to the original before the end, so it cuts back into untouched footage. [source]
+- **A swap keeps one object.** [source] Say it is the same single object, and forbid a duplicate.
+- **The generated pass is never the shot.** A Plate Edit in `altocue-film` comps it back inside its region and window, and checks every other pixel against the plate.

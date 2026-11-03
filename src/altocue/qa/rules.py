@@ -245,11 +245,27 @@ def said(line: str, heard: list[str]) -> bool:
     return any(_covered(tokens(option), heard) for option in line.split("|") if tokens(option))
 
 
+def said_terms(spoken: list[dict[str, Any]], terms: list[str]) -> list[dict[str, Any]]:
+    """Terms heard in the speech, each where it is first said. Matched as on screen: one letter off for a long word, a phrase as a run of words."""
+    said = [(token, word) for word in spoken for token in tokens(word["text"])]
+    hits = []
+    for term in terms:
+        wanted = tokens(term)
+        for index in range(len(said) - len(wanted) + 1 if wanted else 0):
+            run = said[index : index + len(wanted)]
+            if (near(run[0][0], wanted[0]) if len(wanted) == 1 else [token for token, _ in run] == wanted):
+                hits.append({"layer": "speech", "source": "speech", "text": term, "start": run[0][1]["start"], "end": run[-1][1]["end"], "kind": "banned", "term": term})
+                break
+    return hits
+
+
 def check(strings: list[dict[str, Any]], ruleset: Rules, spoken: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """On-screen strings and speech against the rules. A banned word said aloud is as much a claim as one on screen (c123)."""
     findings = []
     for item in strings:
-        findings += [{**item, "kind": "banned", "term": term} for term in match_terms(item["text"], ruleset.banned)]
-        findings += [{**item, "kind": "spelling", "term": term} for term in misspelled(item["text"], ruleset.spellings)]
+        findings += [{**item, "source": "screen", "kind": "banned", "term": term} for term in match_terms(item["text"], ruleset.banned)]
+        findings += [{**item, "source": "screen", "kind": "spelling", "term": term} for term in misspelled(item["text"], ruleset.spellings)]
+    findings += said_terms(spoken, ruleset.banned)
     for rule in ruleset.required:
         missing = missing_required(rule, strings, spoken)
         if missing:

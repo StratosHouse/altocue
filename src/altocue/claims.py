@@ -51,6 +51,15 @@ def experience(text: str) -> list[str]:
     return list(dict.fromkeys(match.group(0) for pattern in CLAIMS for match in re.finditer(pattern, plain)))
 
 
+def usable_label(label: str) -> bool:
+    """A project's own label counts only if it could tell a viewer something: two words, or a known disclosure.
+
+    A space or one letter is inside almost any text, so it would pass every caption as a disclosure.
+    """
+    plain = _plain(label).strip()
+    return len(re.findall(r"\w+", plain)) >= 2 or bool(DISCLOSES.search(plain))
+
+
 def discloses(text: str, label: str = "") -> bool:
     """Whether a string tells the viewer this person is generated."""
-    return bool(DISCLOSES.search(text)) or bool(label and _plain(label) in _plain(text))
+    return bool(DISCLOSES.search(text)) or (usable_label(label) and _plain(label).strip() in _plain(text))

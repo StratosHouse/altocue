@@ -103,8 +103,10 @@ def _clean(text: str, key: str) -> str:
 
 
 def _send(request: urllib.request.Request, key: str, *, timeout: int = 60) -> tuple[bytes, Any]:
+    from ..generate import http
+
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as reply:
+        with http.open_keyed(request, timeout=timeout) as reply:
             return reply.read(), reply.headers
     except urllib.error.HTTPError as error:
         body = _clean(error.read().decode("utf-8", "replace"), key)

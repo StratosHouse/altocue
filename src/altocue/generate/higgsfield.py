@@ -153,7 +153,8 @@ class HiggsfieldProvider:
     def estimate(self, req: GenRequest) -> Cost | None:
         """The live price, in credits. Unknown means unpriced, and an unpriced shot is never paid for."""
         entry = self.catalog.resolve(self.id, req)
-        plain = replace(req, first_frame=None, last_frame=None, refs=[])
+        # the CLI uploads any local path it is given, so media stays out of a quote
+        plain = replace(req, first_frame=None, last_frame=None, refs=[], motion=None, track=None)
         try:
             data = self._cli("generate", "cost", entry.model, *to_flags(entry.payload(plain, str)), timeout=60)
         except NeedsLogin:
@@ -170,7 +171,8 @@ class HiggsfieldProvider:
     def submit(self, req: GenRequest, idem_key: str) -> JobRef:
         """The CLI documents no idempotency flag, so the job store guards the gap around this call."""
         entry = self.catalog.resolve(self.id, req)
-        flags = ["--prompt", req.prompt, *to_flags(entry.payload(req, self.upload))]
+        # Glued to its flag, so a prompt that starts with dashes stays the prompt. The CLI parses with spf13/pflag (its THIRD-PARTY-NOTICES), which reads --name=value.
+        flags = [f"--prompt={req.prompt}", *to_flags(entry.payload(req, self.upload))]
         try:
             data = self._cli("generate", "create", entry.model, *flags)
         except http.Unreachable as error:

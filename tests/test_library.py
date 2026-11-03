@@ -442,6 +442,21 @@ def test_a_shader_outside_mit_and_bsd_is_refused():
     assert [row["licence"] for row in entries] == ["MIT", "BSD-3-Clause"] and [row["id"] for row in refused] == ["gl-bad"]
 
 
+def test_gl_transitions_is_read_at_its_pin_never_at_latest(monkeypatch):
+    """Whatever upstream publishes next reaches users only through a reviewed change to the pin."""
+    asked = []
+    monkeypatch.setattr(build, "_get_json", lambda url: asked.append(url) or [])
+    rows, version = build.fetch_transitions()
+    assert version == build.SHADER_VERSION == json.loads(COMMITTED.read_text())["pins"]["gl-transitions"]
+    assert asked == [build.SHADER_INDEX.format(version=build.SHADER_VERSION)]
+
+
+def test_the_sync_bot_opens_a_pull_request_and_never_pushes_to_main():
+    workflow = (ROOT / ".github" / "workflows" / "library-sync.yml").read_text()
+    assert "HEAD:main" not in workflow and "gh pr create" in workflow
+    assert "pull-requests: write" in workflow
+
+
 # What the catalog may never hold
 
 

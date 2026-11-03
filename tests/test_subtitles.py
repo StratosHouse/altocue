@@ -28,6 +28,15 @@ def test_the_hold_stops_at_the_cut_even_with_a_gap_after_it():
     assert cues[0].end == 0.62
 
 
+def test_chinese_and_japanese_words_join_with_no_space():
+    assert build_cues(speech("今日 は いい 天気 です。"), {"s001": 5.0})[0].text == "今日はいい天気です。"
+    assert build_cues(speech("我 用 iPhone 拍"), {"s001": 5.0})[0].text == "我用 iPhone 拍"
+
+
+def test_korean_keeps_its_spaces():
+    assert build_cues(speech("안녕하세요 여러분"), {"s001": 5.0})[0].text == "안녕하세요 여러분"
+
+
 def test_lines_stay_short_and_cues_stay_two_lines():
     text = "a fairly long sentence that keeps going on and on without any kind of pause at all until it finally stops somewhere near the far end of the shot"
     cues = build_cues(speech(text), {"s001": 60.0})

@@ -27,7 +27,7 @@ compatibility: Requires the altocue CLI, plus FAL_KEY for fal.ai, or the Higgsfi
 2. Pick a provider: `[generate] provider = "fal"` or `"higgsfield"`.
 3. `altocue generate --yes` runs the approved shots. Jobs resume after a crash without paying twice. Start with the hardest shot, using `--only`.
    A run holds its whole estimate while it works. `--cancel` keeps the job on the cap until billing shows no charge: see [the money notes](references/money.md).
-4. Check every result: `altocue direct --check <file>` extracts frames and scores motion. View the frames with your file-reading tool, edges included. Generated phone footage can carry a strip of fake interface along one edge. Punch in past it with `zoom_from` and `zoom_to` in `edl.json`. Never crop away a real AI label or watermark. If you cannot tell which it is, leave it and ask.
+4. Check every result. A take whose job record differs from what was sent, such as 16:9 when 9:16 was asked, is kept and never placed. `altocue direct --check <file>` extracts frames and scores motion. View the frames with your file-reading tool, edges included. Generated phone footage can carry a strip of fake interface along one edge. Punch in past it with `zoom_from` and `zoom_to` in `edl.json`. Never crop away a real AI label or watermark. If you cannot tell which it is, leave it and ask.
 5. Place it. Over a B-roll spot, use `altocue broll --pick b1=shot:shot-1` (see `altocue-broll`). Anywhere else, use `motion.json`:
    ```json
    { "inserts": [{ "shot": "shot-1", "start": 12.4, "end": 15.0 }] }
@@ -55,7 +55,7 @@ First find the recipe: `altocue recipes search <words>`, then `altocue recipes s
      --upstream <character-job>,<board-job> --synthetic person,voice \
      --claims approved_claims.json --consent none-generated-adult
    ```
-   This settles the reservation. If the job is dropped, run `--release` so the money comes back.
+   This settles the reservation. If the job is dropped, run `--release` so the money comes back. Pass `--record` with the job record the server printed, saved as JSON, and the import is held against the shot first.
    An upscale names what it was made from with `--upstream`, and a fallback clip is imported without the recipe. See [the money notes](references/money.md).
 
 `--credits` is the record, and dollars follow from `usd_per_credit`. The default of 0.08 is a cautious ceiling, so set your plan's real rate under `[generate]`. An import with no reservation still works, but it is marked `unreserved`, and `altocue generate --report` and the review report both name it. A clip is a rush until `altocue direct --check` passes.
@@ -70,14 +70,10 @@ Do not vendor Higgsfield's own skills into a project. They tell agents not to pr
 
 ## When a take fails
 
-- **Say what you saw first.** Name the frame and the fault before changing a prompt. Sampled frames mislead. [source]
-- **Read the failure.** A problem that changes every run is the prompt. One that is wrong the same way each time is a setting. [source]
-- **Change one thing per pass,** and fix one visible problem at a time. More adjectives rarely help. [source]
-- **Patch or regenerate.** [source] Regenerate when the performance, length, shot structure, object scale or contact changes. Otherwise edit. One failed check is a patch, and two or more is a new take.
-- **Retry from the original clip,** never from the damaged one. [source]
-- **Keep it ordinary if it sits beside real footage.** Over-polished generated scenes stand out, and slightly ordinary references match better. [source]
+Read [the take notes](references/takes.md) before a second take: what to look at, what to change, and what a take's record holds.
 
-`altocue-direct` has the named fixes.
+- **Three failed takes of one prompt stop the run.** Another take of the same words is a blind retry, so `altocue generate` refuses it before any spend. Change the one thing at fault.
+- **Say why a take was kept.** `altocue generate --keep shot-3 --because "eyeline lands on the cup, room matches shot-2"`. A reason made only of taste words is refused.
 
 ## Inserts in an edit
 

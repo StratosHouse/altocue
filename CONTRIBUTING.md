@@ -15,7 +15,7 @@ The full suite renders real video and takes about 35 minutes on a CI runner. Whi
 
 ## Before you open a pull request
 
-- **Lint and test.** `uv run ruff check src tests`, then `uv run pytest`.
+- **Lint and test.** `uv run ruff check src tests scripts`, then `uv run pytest`.
 - **Run the repo check.** `uv run python scripts/check_repo.py`.
 - **Add a test for every bug you fix.** It should fail without your change.
 - **Update the docs.** If behaviour changes, change the skill, the README and the CHANGELOG with it.

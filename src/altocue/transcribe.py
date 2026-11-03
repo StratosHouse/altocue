@@ -362,8 +362,10 @@ class ElevenLabs:
         }
         body, content_type = multipart(fields, wav)
         request = urllib.request.Request(self.endpoint, data=body, headers={"xi-api-key": key, "Content-Type": content_type}, method="POST")
+        from .generate import http
+
         try:
-            with urllib.request.urlopen(request, timeout=1800) as response:
+            with http.open_keyed(request, timeout=1800) as response:
                 return scribe_words(json.load(response))
         except urllib.error.HTTPError as error:
             raise AltocueError(
@@ -578,7 +580,10 @@ def prompt_for(project: Project, *, engine: str) -> str:
 
 
 def quiet_marks(envelope: Envelope, duration: float, piece: float | None = None) -> list[float]:
-    """Where to split a recording: the quietest pause near each mark, so no word is cut in two."""
+    """Where to split a recording: the quietest pause near each mark, so no word is cut in two.
+
+    The marks follow the clip's length and the envelope stops where the sound does, so past the sound there is nothing to split.
+    """
     length = piece or PIECE
     reach = min(REACH, length / 3)
     if duration <= length * 1.5 or not len(envelope.db):
@@ -588,6 +593,8 @@ def quiet_marks(envelope: Envelope, duration: float, piece: float | None = None)
     place = length
     while place < duration - length / 2:
         first, last = int((place - reach) / HOP), int((place + reach) / HOP)
+        if first >= len(held):
+            break
         marks.append(round((first + int(np.argmin(held[first:last]))) * HOP, 3))
         place = marks[-1] + length
     return marks

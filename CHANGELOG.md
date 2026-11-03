@@ -7,7 +7,12 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 ### Films with no footage
 
 - `altocue launch`: a dedicated launch film from a brief, with the `altocue-launch` skill. A 16:9 master at 60 fps, with 9:16 and 1:1 cutdowns re-rendered from the storyboard, never cropped
-- `altocue film`: eight film types, with `types`, `new`, `check`, `approve`, `stills`, `score`, `render`, `variants`, `study` and `qa`, and the `altocue-film` skill
+- `altocue film`: twelve film types, with `types`, `new`, `check`, `approve`, `stills`, `score`, `render`, `variants`, `study` and `qa`, and the `altocue-film` skill
+- Plate Edit: one change to your own clip, comped back inside a region and a window, and diffed against the plate so untouched pixels stay as shot
+- Song Cut: your own footage cut to a song, the cut and one title word on each hit you pinned by ear
+- Invitation and Heritage: no generation, every name, date and place typed from an intake sheet in `brief.json`, and every reconstructed period labelled
+- A film type can carry its own checks, run by `film check` and `film qa`, never as gates
+- One-take films: a storyboard's `one_take` seams are held in black or white, the frame count is exact, and no cut falls outside a hold
 - A storyboard is the source of truth, checked for beats, holds, reading time, the hook and flashes before anything renders
 - Original music written in code and fitted to the scenes, with no samples and nothing to license
 - Numbers a film shows are read from the tool, and `altocue film check` fails a film whose numbers have moved
@@ -80,12 +85,18 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 - `altocue recipes`: 37 hosted commands with what each costs before anything runs
 - Fuller provenance on every import
 - Claims and disclosure gates for a generated person, and `altocue qa --check ugc`
+- A shot can take a motion video, such as a blockout, and a music track as a timing input, each wired only to the routes whose own docs list it
+- `altocue direct` warns on a written timeline with gaps, settings in a prompt that differ from the shot's, a reference in the wrong state for the continuity ledger, and long shots in Higgsfield's own block formats
+- A finished job's record is held against the request, and a take that differs is kept but never placed. `--import --record` does the same for a job made elsewhere
+- `altocue generate --keep` records why a take was kept, provenance records the prompt the service actually ran, and three failed takes of one prompt stop a blind retry
 - The `altocue-ugc` skill
 - Higgsfield's terms checked to October 23, 2026, and Seedance 2.5 MCP routes
 
 ### The Editor in Chief and checks
 
 - New gates: caption speed, brief coverage, flash rate, stray frames at insert edges, text readable, credits, claims and disclosure
+- Banned words are checked in speech as well as on screen, and each finding says where it came from
+- `altocue qa --check proof`: Product Proof Spot's label against a truth list, the product in frame, and hands clear at the end
 - `altocue review --page`: one file with the film beside every gate, note and caption. It prints its path and opens nothing
 - Timeline sheets and pacing numbers in the review pack, so a reviewer given stills can judge rhythm
 - Reviewer canaries on the demo take

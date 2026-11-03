@@ -178,7 +178,7 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **One catalog, four tiers.** Built in ships with Altocue. Fetch is open items from the HyperFrames registry and GL shaders, copied into a project with their licence files. Search is a live service. Link is a pointer only, with no items indexed from a closed site.
 - **Built-ins are read live.** The catalog lists formats from this install, so a new format is in the library without a rebuild.
 - **A licence gate and a deny list.** An item without an allowed licence, or one that rebuilds a brand, is refused, and the reason is kept. Excluded sources stay listed with their reason.
-- **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it.
+- **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it as a pull request that a person reviews before it reaches main.
 - **A render works offline.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`. Two exceptions: a face `library add` could not embed is fetched at render time when the cache lacks it, and headless Chrome is fetched on the first render if setup missed it.
 
 ## Films with no footage
@@ -189,6 +189,10 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Re-rendered, never cropped.** The master renders at its own shape. Each cutdown is rendered again from the same storyboard, and `--only-cutdowns` proves the master did not change.
 - **Original music.** `film score` writes music in code, fitted to the scene marks. No samples, no model, nothing to license. Nobody at Altocue's end can hear it, so every report says a person must.
 - **Live numbers.** A film that shows a count from the tool writes `{live:...}` tokens. `film check` reads each number again and fails a film whose numbers have moved.
+- **A type carries its own checks.** A film type's record names them under `checks`. `kinds.py` runs them inside `film check` and `film qa`, never as gates, so the gate count is the same for every film.
+- **Your footage inside a film.** Plate Edit lays a generated pass over your clip only inside a region and a window, and holds every other pixel to the plate. Song Cut holds each cut to a hit a person pinned by ear: Altocue has no stem or onset tool, and a beat grid can miss the real hit.
+- **Facts from an intake sheet.** Invitation and Heritage read names, dates and places from `intake` in `brief.json`, as layers, so no fact is ever retyped. Their checks confirm each one reaches the screen exactly.
+- **One take.** A storyboard's `one_take` names an exact frame count and a black or white seam on every scene but the last. The loop seam gate checks the holds and scans the whole film for a cut outside them.
 
 ## Clips
 
@@ -223,7 +227,10 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Reservations for the MCP route.** An agent spends through the MCP server, not Altocue, so it books money against the cap first. An import with no reservation is named in the report.
 - **Consent for uploads.** `consent.json` at the project root records a yes to send footage to a named provider. Without it, an uploading recipe is refused.
 - **Recipes in data.** `src/altocue/data/recipes.toml` describes each hosted command in our own words, with what it costs and when the price was read.
-- **Provenance.** A sidecar next to every asset records prompt, model, seed, cost and date.
+- **Provenance.** A sidecar next to every asset records prompt, model, seed, cost and date, the prompt the service says it ran, and why a take was kept.
+- **Inputs only where a route takes them.** A motion video and a music track reach a model only through a route in `models.toml` that names a field for them, read from that provider's own docs. Everywhere else the shot is refused with a fix.
+- **The record against the request.** A finished job's record is compared with what was sent. A take that differs is paid for and kept, and never placed.
+- **No blind retries.** Three failed takes of one prompt stop the next one before any spend.
 
 ## B-roll
 
@@ -237,7 +244,8 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 
 A reviewer that did not make the edit.
 
-- **Stage 1, fact gates in code.** Loudness, true peak, black or frozen frames, duration, word match, caption match, caption reading speed, the lines the brief requires, text held long enough to read, safe zones, faces and graphics, flashes a second, stray frames at insert edges, credits owed, claims and disclosure for a generated person, format, silence, and the film checks: frame 0, dead air, pops, planned silences, cuts to plan and the loop seam. Any failure means FIX with no model call.
+- **Stage 1, fact gates in code.** Loudness, true peak, black or frozen frames, duration, word match, caption match, caption reading speed, the lines the brief requires, text held long enough to read, safe zones, faces and graphics, flashes a second, stray frames at insert edges, credits owed, claims and disclosure for a generated person, format, silence, and the film checks: frame 0, dead air, pops, planned silences, cuts to plan and the loop seam, which also holds a one-take's seams. Banned words are read in speech as well as on screen. Any failure means FIX with no model call.
+- **Named check sets.** `altocue qa --check ugc` and `--check proof` run extra sets asked for by name, never in a normal run. Proof holds a product's label to `product.json`, keeps it in frame, and looks for hands in the final hold.
 - **Stage 2, judgement.** A reviewer scores nine dimensions from the file, the brief and the rubric. It never sees the plan or the edit reasons.
 - **Code decides.** SHIP needs all gates passing, nothing below 3, a weighted score of 3.8 or more, and no blocker.
 - **Every note needs a timecode.** Notes that point past the end are dropped.

@@ -92,7 +92,7 @@ def test_the_composite_runs_under_the_heavy_lock(tmp_path, monkeypatch):
     monkeypatch.setattr(frame, "frame_project", lambda project: None)
     monkeypatch.setattr(plate, "build", lambda project, draft: (tmp_path / "p.mp4", tmp_path / "v.wav"))
     monkeypatch.setattr(captions, "build", lambda project: [])
-    monkeypatch.setattr(timelines, "build", lambda project: {"tail": 0, "items": [], "inserts": [], "total": 1.0, "sfx": False})
+    monkeypatch.setattr(timelines, "build", lambda project, **_: {"tail": 0, "items": [], "inserts": [], "total": 1.0, "sfx": False})
     monkeypatch.setattr(motion, "render_layers", lambda project, renderer, draft: Layer(tmp_path / "l.mov", "basic"))
     monkeypatch.setattr(mix, "mix_bed", lambda *args, **kwargs: None)
     monkeypatch.setattr(render, "compose_args", lambda *args: [])

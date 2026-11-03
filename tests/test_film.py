@@ -7,13 +7,14 @@ import re
 import subprocess
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from altocue import brand as brands
-from altocue import cli, ffmpeg, film, flash, score, storyboard, study
+from altocue import cli, ffmpeg, film, flash, kinds, score, storyboard, study
 from altocue.errors import AltocueError
 from altocue.motion import compositions, formats, hyperframes, scenes
 from altocue.motion.formats import kit, product
@@ -21,7 +22,7 @@ from altocue.project import Project
 from altocue.qa import film as film_qa
 
 REPO = Path(__file__).resolve().parents[1]
-TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music")
+TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song", "invite", "heritage")
 LAUNCH_VARIANTS = ("15", "20", "24", "30")
 
 
@@ -948,6 +949,235 @@ def test_canary_a_cut_off_plan_fails(tmp_path):
 def test_canary_a_loop_with_a_seam_fails(tmp_path):
     rows = film_qa.gate_rows(clip_with(tmp_path / "seam.mp4", MOVING), line_for(loop=True))
     assert not gate(rows, "loop_seam")["passed"]
+
+
+def one_take_line(seam: float = 1.35, hold: str = "black", frames: int = 81) -> dict:
+    scenes = [{"id": "a", "start": 0.0, "end": seam, "seam": hold}, {"id": "b", "start": seam, "end": 2.7}]
+    return {"scenes": scenes, "silences": [], "one_take": {"frames": frames}}
+
+
+def segments(*parts: tuple[str, float]) -> str:
+    """Solid colours end to end, so a seam's hold and every cut sit on known frames."""
+    made = ";".join(f"color=c={colour}:s=320x180:r=30:d={seconds}[p{index}]" for index, (colour, seconds) in enumerate(parts))
+    joined = "".join(f"[p{index}]" for index in range(len(parts)))
+    return f"{made};{joined}concat=n={len(parts)}:v=1[out0]"
+
+
+def test_a_one_take_seam_held_in_black_passes(tmp_path):
+    """c251: seams only in full black or white, held about ten frames each side, at an exact frame count."""
+    clip = clip_with(tmp_path / "held.mp4", segments(("red", 1.0), ("black", 0.7), ("blue", 1.0)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line()), "loop_seam")
+    assert found["passed"], found["detail"]
+
+
+def test_canary_a_one_take_seam_held_for_three_frames_fails(tmp_path):
+    clip = clip_with(tmp_path / "short.mp4", segments(("red", 1.25), ("black", 0.2), ("blue", 1.25)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line()), "loop_seam")
+    assert not found["passed"] and "needs 10 each side" in found["detail"]
+
+
+def test_canary_a_one_take_with_a_cut_outside_its_holds_fails(tmp_path):
+    clip = clip_with(tmp_path / "felt.mp4", segments(("0x404040", 0.5), ("0xc0c0c0", 0.5), ("black", 0.7), ("blue", 1.0)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line()), "loop_seam")
+    assert not found["passed"] and "can feel" in found["detail"]
+
+
+def test_canary_a_one_take_off_its_frame_count_fails(tmp_path):
+    clip = clip_with(tmp_path / "long.mp4", segments(("red", 1.0), ("black", 0.7), ("blue", 1.0)), seconds=2.7)
+    found = gate(film_qa.gate_rows(clip, one_take_line(frames=80)), "loop_seam")  # the film runs 81
+    assert not found["passed"] and "exactly 80" in found["detail"]
+
+
+def test_a_one_take_plan_names_every_seam_and_its_exact_length():
+    take = board(one_take={"frames": 1800})
+    for scene in take["scenes"]:
+        scene["camera"] = {"move": "drift", "amount": 0}
+    for scene in take["scenes"][:-1]:
+        scene["seam"] = "black"
+    assert not [m for m in errors(storyboard.check(brief(), take, film.load_type("launch"), fps=60)) if "one-take" in m or "seam" in m]
+    take["scenes"][1]["seam"] = "fade"
+    take["scenes"][2]["link"] = {"type": "dissolve", "why": "x"}
+    found = errors(storyboard.check(brief(), take, film.load_type("launch"), fps=60))
+    assert any("held black or white" in m for m in found) and any("plain cut" in m for m in found)
+    assert any("exactly 1799" in m for m in errors(storyboard.check(brief(), {**take, "one_take": {"frames": 1799}}, film.load_type("launch"), fps=60)))
+
+
+# Plate Edit: one change to the user's own footage (b029, k002)
+
+
+def plate_and_pass(folder: Path, seconds: float = 2.0, size: str = "320x180") -> tuple[Path, Path]:
+    plate = silent(folder / "plate.mp4", f"testsrc2=size={size}:rate=30:duration={seconds}")
+    edit = silent(folder / "edit.mp4", f"color=c=blue:s={size}:r=30:d={seconds}")
+    return plate, edit
+
+
+def test_a_comp_runs_as_long_as_the_plate_whatever_the_pass(tmp_path):
+    plate = silent(tmp_path / "plate.mp4", "testsrc2=size=320x180:rate=30:duration=2")
+    longer = silent(tmp_path / "edit.mp4", "color=c=blue:s=320x180:r=30:d=3")
+    assert kinds.plate_diff(kinds.build_comp(plate, longer, COMP, tmp_path / "comp"), plate, COMP)["passed"]
+
+
+COMP = {"file": "edit.mp4", "region": [0.25, 0.25, 0.5, 0.5], "from": 0.5, "to": 1.5}
+
+
+def test_a_plate_edit_lands_only_inside_its_region_and_window(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    made = kinds.build_comp(plate, edit, COMP, tmp_path / "comp")
+    found = kinds.plate_diff(made, plate, COMP)
+    assert found["passed"], found["problems"]
+    assert kinds.build_comp(plate, edit, COMP, tmp_path / "comp") == made  # kept until a file or the comp changes
+
+
+def test_canary_a_change_outside_its_region_fails_the_plate_check(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    made = kinds.build_comp(plate, edit, COMP, tmp_path / "comp")
+    found = kinds.plate_diff(made, plate, {**COMP, "region": [0.0, 0.0, 0.2, 0.2]})
+    assert not found["passed"] and "outside the edit region" in found["problems"][0]
+    late = kinds.plate_diff(made, plate, {**COMP, "to": 1.0})
+    assert not late["passed"] and "outside the edit window" in late["problems"][0]
+
+
+def test_canary_the_generated_pass_used_as_the_shot_fails(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    assert not kinds.plate_diff(edit, plate, COMP)["passed"]
+
+
+def test_canary_a_pass_that_changed_the_timing_fails(tmp_path):
+    plate, edit = plate_and_pass(tmp_path)
+    made = kinds.build_comp(plate, edit, COMP, tmp_path / "comp")
+    found = kinds.plate_diff(made, plate, COMP, span=1.5)
+    assert not found["passed"] and "timing changed" in found["problems"][0]
+
+
+def silent(path: Path, source: str) -> Path:
+    """A picture of an exact length and no sound, so a duration read from the file is the picture's own."""
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-pix_fmt", "yuv420p", str(path)], check=True)
+    return path
+
+
+def plate_film(folder: Path, *, plate_seconds: float = 8.0, pass_seconds: float = 8.0) -> film.Film:
+    project = film.new_film("plate", str(folder))
+    silent(project.root / "assets" / "plate.mp4", f"testsrc2=size=180x320:rate=30:duration={plate_seconds}")
+    silent(project.root / "generated" / "edit.mp4", f"color=c=blue:s=180x320:r=30:d={pass_seconds}")
+    return film.load(project)
+
+
+def test_a_plate_edit_plan_locks_what_stays(tmp_path, capsys):
+    made = plate_film(tmp_path / "glass")
+    assert errors(kinds.plan(made)) == []
+    scene = made.board["scenes"][0]
+    scene["camera"] = {"move": "push", "amount": 0.05}
+    scene["items"][0]["comp"]["region"] = [0, 0, 1, 1]
+    scene["items"].append({"type": "chapter_card", "text": "Glass"})
+    found = " ".join(errors(kinds.plan(made)))
+    assert "camera move" in found and "whole frame" in found and "draw over the plate" in found
+
+
+def test_a_plate_edit_pass_must_keep_the_plates_timing(tmp_path, capsys):
+    found = kinds.plan(plate_film(tmp_path / "glass", pass_seconds=6.0))
+    assert any(p.message == "The edit pass runs 6.00 s and the plate 8.00 s." and "keeps the plate's timing" in p.fix for p in found)
+
+
+def test_a_plate_edit_with_no_plate_says_where_it_goes(tmp_path, capsys):
+    project = film.new_film("plate", str(tmp_path / "glass"))
+    assert "No plate at assets/plate.mp4" in " ".join(errors(film.problems_in(film.load(project))))
+
+
+# Song Cut: owned footage cut to a song (c203)
+
+
+def song_film(folder: Path) -> film.Film:
+    project = film.new_film("song", str(folder))
+    (project.root / "assets" / "music").mkdir(parents=True, exist_ok=True)
+    with wave.open(str(project.root / "assets" / "music" / "song.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\0\0" * 8000)
+    return film.load(project)
+
+
+def test_a_song_cut_lands_its_cut_and_its_one_word_on_the_hit(tmp_path, capsys):
+    made = song_film(tmp_path / "rowing")
+    assert errors(kinds.plan(made)) == []
+    made.board["hits"][0]["at"] = 8.3
+    assert any("falls 0.30 s from the nearest cut" in m for m in errors(kinds.plan(made)))
+
+
+def test_a_song_cut_keeps_to_the_posts_cheap_rules(tmp_path, capsys):
+    made = song_film(tmp_path / "rowing")
+    made.board["scenes"][0]["seconds"] = 0.5
+    made.board["scenes"][1]["sound"] = [{"name": "boom", "at": 0.2}]
+    made.board["scenes"][4]["items"].append({"type": "word_slam", "text": "Again and again", "start": 0, "duration": 2.0})
+    made.board["snap"] = True
+    del made.board["hits"][0]["how"]
+    found = kinds.plan(made)
+    said = " ".join(problem.message for problem in found)
+    assert "under 0.8 s" in said and "one word on screen" in said and "Sound effects" in said and "beat grid" in said and "how it was found" in said
+
+
+def test_a_song_cut_with_no_song_says_where_it_goes(tmp_path, capsys):
+    project = film.new_film("song", str(tmp_path / "rowing"))
+    assert any("none at assets/music/song.wav" in m for m in errors(film.problems_in(film.load(project))))
+
+
+def test_a_song_cut_master_is_held_to_its_hit_and_to_a_phone(tmp_path):
+    cut = clip_with(tmp_path / "cut.mp4", segments(("0x707070", 1.0), ("0xd0d0d0", 1.0)), seconds=2.0)
+    on_hit = SimpleNamespace(board={"hits": [{"name": "crash", "at": 1.0}]})
+    rows = kinds.finished_song(None, on_hit, {}, cut)
+    assert all(row["level"] == "PASS" for row in rows), rows
+    late = kinds.finished_song(None, SimpleNamespace(board={"hits": [{"name": "crash", "at": 1.5}]}), {}, cut)
+    assert next(row for row in late if row["check"] == "cut on the crash")["level"] == "FAIL"
+    dark = clip_with(tmp_path / "dark.mp4", segments(("0x101010", 1.0), ("0x202020", 1.0)), seconds=2.0)
+    assert next(row for row in kinds.finished_song(None, on_hit, {}, dark) if row["check"] == "phone brightness")["level"] == "FAIL"
+
+
+# Invitation and Heritage: every fact typed from an intake sheet (b024, k003, k007)
+
+
+def example_film(kind: str) -> SimpleNamespace:
+    record = film.load_type(kind)
+    made = film.example(record)
+    return SimpleNamespace(brief=made["brief"], board=made["storyboard"], record=record, project=SimpleNamespace(fps=30, root=None))
+
+
+def messages(problems: list[storyboard.Problem]) -> str:
+    return " ".join(problem.message for problem in problems)
+
+
+def test_an_invitation_types_every_fact_from_the_intake_sheet(tmp_path, capsys):
+    assert kinds.plan(example_film("invite")) == []
+    folder = tmp_path / "invite"
+    assert cli.main(["film", "new", "invite", str(folder)]) == 0
+    assert cli.main(["film", "check", "-p", str(folder)]) == 0
+    retyped = example_film("invite")
+    retyped.board["scenes"][4]["items"][0]["lines"][0] = "Ada and Thomas"
+    assert 'names, "Ada and Tomas", never reaches the screen exactly' in messages(kinds.plan(retyped))
+
+
+def test_an_invitation_date_is_ahead_and_its_weekday_agrees():
+    wrong_day = example_film("invite")
+    wrong_day.board["scenes"][2]["items"][0]["text"] = "See you on Friday."
+    assert "The screen says Friday, and 17 May 2031 is a Saturday" in messages(kinds.plan(wrong_day))
+    past = example_film("invite")
+    past.brief["intake"]["date"] = "2020-05-16"
+    assert "already happened" in messages(kinds.plan(past))
+    vague = example_film("invite")
+    vague.brief["intake"]["date"] = "next spring"
+    assert "not a date" in messages(kinds.plan(vague))
+
+
+def test_a_heritage_film_labels_every_reconstruction_and_keeps_its_eras_in_order():
+    assert kinds.plan(example_film("heritage")) == []
+    made = example_film("heritage")
+    founding = made.board["scenes"][0]
+    founding["items"] = [item for item in founding["items"] if item["type"] != "corner_stamp"]
+    made.board["scenes"][2]["era"] = "1991"
+    made.board["scenes"][1]["era"] = "2026"
+    said = messages(kinds.plan(made))
+    assert "A reconstructed period carries no label on screen" in said and "goes back to 1991" in said
+    made.board["scenes"][2]["era"] = "1975"
+    assert 'era "1975", which is not in the ledger' in messages(kinds.plan(made))
 
 
 def test_cuts_compare_against_the_plan_in_frames():

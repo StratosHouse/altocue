@@ -82,3 +82,14 @@ Name the fix, make one change, leave everything else alone. Change one thing per
 | Cheaper test | The shot is unproven | `tier`: `draft` |
 | Retry one shot | One take failed | Change it, then `altocue generate --only shot-3 --yes`, after a yes |
 | Keep the take | Approved but soft | `altocue recipes show upscale`. Never a fresh run |
+| Follow the blockout | The camera wanders off the plan | `motion`: the blockout video. Cut every camera word from `prompt` |
+| Right state | The reference shows the wrong moment | `refs`: the file named for this state, per the `ledger` |
+
+## What a shot can carry
+
+`altocue direct` checks each of these.
+
+- **A motion video.** `"motion": "assets/blockout.mp4"`, such as a blockout render, sets camera, cuts and timing, and the prompt carries only the look. Only routes whose own docs list a video reference take it. See [the grammar](references/grammar.md).
+- **A music track.** `"audio": {"track": "assets/music/bed.wav"}` times the movement to the beats, beside an image or video reference. The model's own sound stays off unless `"sound": true`, and the master goes in during the edit.
+- **A continuity ledger.** `"ledger"` beside `"shots"` says what state each character is in from which shot. A reference named for another state warns. See [continuity](references/continuity.md).
+- **A timeline that adds up.** Time windows in a prompt run from 0 to the duration with no gap, and an aspect or length written in it matches the shot's own.
