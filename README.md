@@ -17,7 +17,7 @@
   </p>
 </div>
 
-<div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/demo.gif" alt="A raw talking-head take beside the finished Altocue edit" width="100%"></div>
+<div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/demo.gif" alt="A raw talking-head take of an AI-generated presenter beside the finished Altocue edit, labelled AI-generated presenter in the lower corner" width="100%"></div>
 
 <p align="center"><sub>The presenter is AI-generated with Higgsfield. The mistakes are planted. The edit is real.</sub></p>
 
