@@ -333,6 +333,16 @@ def test_a_ledger_must_name_real_shots_and_states():
     assert "ledger" in rules(validate({"shots": [maya("s01")], "ledger": ["maya"]}), "error")
 
 
+def test_the_block_length_warning_reads_higgsfields_own_prompt_formats():
+    """b022 writes "[SHOT n] a-bs" and "a-b SECONDS", which the house pattern never parsed, so the 2.5 s warning never fired."""
+    bracketed = "[SHOT 1] 0-3.5s WIDE: she enters.\nHARD CUT.\n[SHOT 2] 3.5-5s CLOSE: she turns."
+    spelled = "SHOT 1: 0.0-1.5 SECONDS wide, she enters.\nHARD CUT.\nSHOT 2: 1.5-5.0 SECONDS close, she turns."
+    for prompt, length in ((bracketed, "3.5s"), (spelled, "3.5s")):
+        found = lint_prompt(direct.Shot.from_dict(shot(prompt=prompt)))
+        assert any(f.rule == "block-length" and length in f.message for f in found), prompt
+    assert "block-length" not in lint(prompt="[SHOT 1] 0-2s WIDE: she enters.\nHARD CUT.\n[SHOT 2] 2-4.5s CLOSE: she turns.")
+
+
 def test_image_prompts_skip_camera_rules():
     found = lint(kind="image", check="still", prompt="A brass lantern on a wet stone step, warm practical light from the left.")
     assert not found & {"no-move", "endpoint", "one-move"}

@@ -410,10 +410,10 @@ def lint_prompt(shot: Shot) -> list[Finding]:
     if shot.audio and not has(r"\bmusic\b"):
         warn("no-music", 'An open prompt tends to come back scored. Add "no music, only soft diegetic sound".')
     if has(BLOCK, 0):
-        for start, end in re.findall(BLOCK_SHOT, prompt):
-            if float(end) - float(start) > MAX_BLOCK_SHOT:
-                length = float(end) - float(start)
-                warn("block-length", f"A {length:g}s shot in a hard-cut block reads as a slideshow. Stay under {MAX_BLOCK_SHOT}s.")
+        shots = dict.fromkeys([*((float(a), float(b)) for a, b in re.findall(BLOCK_SHOT, prompt)), *written])  # the house form, and Higgsfield's own (b022)
+        for start, end in shots:
+            if end - start > MAX_BLOCK_SHOT:
+                warn("block-length", f"A {end - start:g}s shot in a hard-cut block reads as a slideshow. Stay under {MAX_BLOCK_SHOT}s.")
         return found
 
     words = len(prompt.split())
