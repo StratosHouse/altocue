@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,21 @@ def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
 def all_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
     """The house sounds, unless `sfx` turned them off, and every cue the project asked for."""
     return (sfx_cues(timeline) if timeline.get("sfx", True) else []) + timeline.get("cues", [])
+
+
+def mix_film(project: Project, timeline: dict[str, Any], voice: Path, dest: Path, stems: Path | None = None) -> Path:
+    """The film's sound, made one way, so the render, the stems and the timeline all hear the same mix."""
+    music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
+    room = voice.with_name(f"{voice.stem}-room.wav")
+    music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
+    return mix.mix_bed(voice, dest, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end, stems=stems)
+
+
+def write_stems(project: Project, timeline: dict[str, Any], voice: Path, folder: Path) -> list[Path]:
+    """Voice, music and effects as WAV files, at their levels in the mix and before mastering."""
+    with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
+        mix_film(project, timeline, voice, Path(scratch) / "mix.wav", stems=folder)
+    return [folder / f"{name}.wav" for name in mix.STEMS]
 
 
 def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Layer, timeline: dict[str, Any], c: plate.Canvas, dest: Path) -> list[str]:
@@ -162,11 +178,7 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         timeline = timelines.build(project)
         credits.write_txt(project)
         layer = motion.render_layers(project, renderer=renderer, draft=draft)
-        audio = project.work / "mix.wav"
-        music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
-        room = voice.with_name(f"{voice.stem}-room.wav")
-        music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
-        mix.mix_bed(voice, audio, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end)
+        audio = mix_film(project, timeline, voice, project.work / "mix.wav")
         dest = project.out / ("draft.mp4" if draft else "render.mp4")
         dest.parent.mkdir(parents=True, exist_ok=True)
         c = plate.canvas(project, draft=draft)

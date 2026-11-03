@@ -64,6 +64,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--for", dest="platforms", help=f"Comma-separated versions to render: {', '.join(platforms.PLATFORMS)}")
     parser.add_argument("--loudness", type=master.loudness_arg, help=f"Integrated LUFS, or a named target: {', '.join(master.TARGETS)}")
     parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
+    parser.add_argument("--stems", action="store_true", help="Also write voice, music and effects as WAV files, for a finisher")
 
 
 def finished_film(project: Project) -> Path:
@@ -490,6 +491,15 @@ def shots_of(edl: Edl) -> list[tuple[float, float]]:
     return list(zip([0.0, *ends], ends, strict=False))
 
 
+def write_stems(project: Project, folder: Path) -> dict[str, Any]:
+    """The stems of the finished film, remade from the render's own voice track and timeline, so they add up to its mix."""
+    voice = project.work / "voice.wav"
+    if not voice.exists() or not project.timeline_path.exists():
+        raise AltocueError("The stems come from the render's own voice track and timeline, and one is missing.", fix="Run `altocue render`, then deliver again.")
+    files = render.write_stems(project, json.loads(project.timeline_path.read_text()), voice, folder / "stems")
+    return {"files": [str(path.relative_to(folder)) for path in files], "level": "as mixed, before mastering"}
+
+
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     wanted = platforms.parse(args.platforms) if args.platforms else []
@@ -498,6 +508,9 @@ def run(args: argparse.Namespace) -> int:
     seconds = ffmpeg.probe_clip(final).duration
     folder = project.root / FOLDER
     folder.mkdir(exist_ok=True)
+    stems = write_stems(project, folder) if args.stems else None
+    if stems:
+        print(f"Stems: {FOLDER}/stems holds voice, music and effects, as mixed and before mastering.")
 
     words, silent_why = spoken(project, edl)
     srt, subs = write_subtitles(words, edl, folder)
@@ -517,6 +530,8 @@ def run(args: argparse.Namespace) -> int:
     made = [make_version(project, platform, folder, seconds, args.loudness, args.renderer) for platform in wanted]
     versions = _earlier_versions(folder, digest, made) + made
     report = {"final_sha256": digest, "subtitles": subs, "chapters": marks, "film": film, "thumbnails": pictures, "versions": versions}
+    if stems:
+        report["stems"] = stems
     write_json(folder / "deliver.json", report)
     print(f"Saved {FOLDER}/deliver.json")
     missed = film["loudness"]["passed"] is False or any(v.get("failed") or v.get("problem") or v["loudness"]["passed"] is False for v in made)

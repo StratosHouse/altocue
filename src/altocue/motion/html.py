@@ -217,7 +217,8 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
     raise ValueError(kind)
 
 
-def compose(timeline: dict[str, Any], brand: Brand) -> str:
+def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
+    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film."""
     width, height = timeline["width"], timeline["height"]
     geo = layout(width, height, brand, timeline.get("zone"))
     colors = brand.colors
@@ -245,7 +246,7 @@ def compose(timeline: dict[str, Any], brand: Brand) -> str:
 <style>{css}{formats.stylesheet(timeline["items"])}</style></head>
 <body>
 <div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
-{captions}
+{under + chr(10) if under else ""}{captions}
 {items_html}
 </div>
 </body></html>
