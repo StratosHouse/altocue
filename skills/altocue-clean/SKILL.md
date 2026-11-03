@@ -32,7 +32,7 @@ compatibility: Requires the altocue CLI. On macOS 13 or later with the Xcode com
 
 - **Phrase levelling is on.** Each phrase is brought toward the clip's level, by at most 9 dB up and 6 dB down. A noisy room gets less boost, because the room rises with the voice.
 - **Pauses are left exactly alone,** so room tone and breaths are not pumped.
-- **Only one part of a clip wrong:** set `gain` on those segments in `edl.json`.
+- **Only one part of a clip wrong, or a quiet speaker beside a loud one:** set `gain` on those segments in `edl.json`, after the cut is final.
 - **Breaths stay unless asked.** `altocue clean --breaths 9` turns them down 9 dB. They are never cut. The finder has not been checked against labelled breaths, so listen.
 - **De-essing has four settings:** `off`, `light`, `normal`, `strong`, through `--deess`. Light is the default. Too much makes a lisp, so go up one step at a time.
 
@@ -57,6 +57,7 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 - **`"file": "sounds/door.wav"`** in place of `name` uses a project file.
 - **Each sound has a row in `sounds.json`:** `align`, `offset_ms`, `min_gap_ms`, `bed_db`, `dip_db`. A cue can override any of them. `"align": "peak"` puts the loudest moment on the time. A sound repeated too soon is dropped, and the mix report lists it under `skipped`.
 - **Wipes sound at their midpoint,** because that is where the cut lands.
+- **Accent three to five moments that matter,** and let the music cover the other cuts. [source] One set of measured films had a hit on each cut, another found sound on cuts no better than chance, so a hit on every cut is not the rule.
 
 ## Music
 
@@ -65,10 +66,11 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 - **`"end": "fade"`** starts at the top of the track and fades out.
 - **`"end": "own"`** is for a score that ends itself: no loop, no backtiming, no fade.
 - **A track shorter than the film loops,** blended at each join. The joins are not on a bar, so listen to them.
+- **Check each cue against the speech.** [source] The whole track is levelled once, so a quiet passage can vanish under the voice. You cannot hear this, so name the moments for the user to check.
 
 ## No voice
 
-- **Launch films have no voice to level against.** A silent voice track, or `mix_bed(None, ..., seconds=30)`, makes the music lead.
+- **A film with no voice has nothing to level against,** so the music leads. A silent voice track is enough to trigger this.
 - **Effects sit over the music.** A cue's `over_db` sets how far, 0 to 14. `under_db` is refused here, because it means nothing without a voice.
 - **A big hit gets a dip.** `dip_db` draws the music down 6 to 12 dB in the 0.4 s before it. boom, punch, sub and clang have one in the table.
 - **Fades are tight:** 0.03 s in and 0.27 s out.
@@ -76,8 +78,8 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 
 ## Targets
 
-- Default master: -14 LUFS, -1.5 dBTP. Change them in `altocue.toml`.
-- -14 LUFS is a rule of thumb for one file on every platform, not a platform's published target.
+- **Default master: -14 LUFS, -1.5 dBTP.** Change them in `altocue.toml`, or name a target: `altocue master --loudness podcast`.
+- **-14 is a house default.** No short-video platform publishes a loudness number. Spotify, Apple Podcasts and EBU R 128 publish theirs, and naming one prints its source.
 
 ## Be honest
 

@@ -14,7 +14,7 @@ Most cuts stay hard. A hard cut is invisible, and a transition is a statement th
 - **Talking head, same take, same thought:** hard cut. Hide a jump with a punch-in (`altocue-frame`) or B-roll (`altocue-broll`). A dissolve across a jump cut shows two mouths at once.
 - **A real change of time, place or topic:** a transition earns its place. `dissolve` says time passed. `fadeblack` closes a chapter.
 - **One style per film.** Two kinds at most. The same one each time reads as grammar, and a new one each time reads as a demo.
-- **Short.** 0.2 to 0.6 seconds. Under speech, keep it near a pause.
+- **Short.** 0.2 to 0.6 seconds, as a rule of thumb. Under speech, keep it near a pause.
 - **If you are unsure, leave the cut hard.**
 
 ## Transitions
@@ -56,6 +56,14 @@ altocue library add gl-wind
 - **A shader that needs a texture input is refused** by `altocue library add`.
 - **With no renderer installed,** a shader cut becomes a `dissolve`, and the run says so.
 
+## Flashes are a safety limit
+
+- **[evidence] Three flashes or fewer in any one second.** WCAG 2.2, criterion 2.3.1, Level A. It is a web standard, and it is the floor here because a film can reach someone with photosensitive epilepsy.
+- **A flash is a quick swing from bright to dark and back** over a large part of the frame. Saturated red has a stricter limit, so avoid it.
+- **Watch these:** `fadewhite`, `white_flash`, `gl-film-burn`, `gl-overexposure`, `gl-glitch-memories`, a run of very short cuts, and any hosted effect that strobes.
+- **One dip to white is one flash.** The danger is a run of them.
+- **The `flash_rate` gate measures this.** It counts opposing swings in brightness and in saturated red across the frame, by the WCAG definition, and a film over the limit is FIX. It reads the file at a guessed viewing size, so a pass is a measurement and clears nobody. It is not a Harding test.
+
 ## Timing: what moves and what does not
 
 Nothing that QA measures moves. A transition or a freeze changes picture only.
@@ -88,7 +96,7 @@ Texture made in code, drawn on the picture and under the captions and graphics. 
 ```
 
 - **Types:** `grain`, `light_leak`, `dust`, `vignette`, `paper`. One overlay, or a list that stacks in order.
-- **`amount` runs from 0 to 1.** Most films want 0.1 to 0.3. If a viewer notices it, it is too much.
+- **`amount` runs from 0 to 1.** As a rule of thumb, most films want 0.1 to 0.3. If a viewer notices it, it is too much.
 - **Add `start` and `end`,** in seconds or on a word, to run one for part of the film. A timed light leak fades in and out.
 - **Grain costs file size.** Heavy grain under a low bitrate on a platform's re-encode turns to mush, so stay low for social.
 

@@ -192,3 +192,84 @@ def test_render_records_the_cut_it_was_made_from(tmp_path, monkeypatch):
     monkeypatch.setattr(render.ffmpeg, "run", lambda args: None)
     render.build(project)
     assert json.loads((project.work / "render.json").read_text())["cut"] == project.cut_mark()
+
+
+def test_a_changed_brief_or_rules_file_makes_qa_stale(complete):
+    for name in ("brief.md", "rules.json"):
+        (complete.root / name).write_text("{}")
+        os.utime(complete.root / name, (time.time() + 50, time.time() + 50))
+        assert states(complete)["qa"] == "stale"
+        assert f"{name} changed" in next(s.detail for s in status.collect(complete) if s.name == "qa")
+        (complete.root / name).unlink()
+
+
+def test_a_changed_brief_makes_the_review_stale(complete):
+    (complete.root / "brief.md").write_text("new")
+    os.utime(complete.root / "brief.md", (time.time() + 50, time.time() + 50))
+    write_json(complete.review_dir / "qa.json", json.loads((complete.review_dir / "qa.json").read_text()))
+    assert states(complete)["review"] == "stale"
+
+
+def shots(project: Project, *names: str) -> None:
+    write_json(project.root / "shots.json", {"shots": [{"id": name} for name in names]})
+
+
+def test_generated_shots_show_only_when_there_is_a_shot_list(complete):
+    assert "generate" not in states(complete)
+    write_json(complete.root / "shots.json", {"shots": []})
+    assert "generate" not in states(complete)
+
+
+def test_a_shot_still_to_generate_is_named_and_comes_next(complete):
+    shots(complete, "a", "b")
+    found = {s.name: s for s in status.collect(complete)}
+    assert found["generate"].state == "not run" and "a, b" in found["generate"].detail
+    assert status.next_command(status.collect(complete), ".") == "altocue generate -p ."
+
+
+def test_a_shot_that_failed_its_check_is_stale(complete):
+    from altocue.generate import store
+
+    shots(complete, "a")
+    asset = complete.root / "a.mp4"
+    asset.write_bytes(b"x")
+    store.atomic_json(store.manifest_path(complete), {"shots": {"a": {"asset": "a.mp4", "check_passed": False}}})
+    found = {s.name: s for s in status.collect(complete)}
+    assert found["generate"].state == "stale" and "failed its check" in found["generate"].detail
+
+
+def test_generated_shots_all_on_disk_are_done(complete):
+    from altocue.generate import store
+
+    shots(complete, "a")
+    (complete.root / "a.mp4").write_bytes(b"x")
+    store.atomic_json(store.manifest_path(complete), {"shots": {"a": {"asset": "a.mp4", "check_passed": True}}})
+    assert states(complete)["generate"] == "done"
+
+
+def page_for(project: Project, digest: str) -> Path:
+    target = project.review_dir / "page.html"
+    target.write_text(f'<!doctype html><head><meta name="altocue-film" content="{digest}"></head>' + "x" * 100)
+    return target
+
+
+def test_the_page_shows_only_once_one_was_written(complete):
+    assert "page" not in states(complete)
+
+
+def test_a_page_for_this_film_is_done(complete):
+    page_for(complete, qa.sha256(complete.out / "final.mp4"))
+    assert states(complete)["page"] == "done"
+
+
+def test_a_page_for_another_film_is_stale_and_says_how_to_redo_it(complete):
+    page_for(complete, "0" * 64)
+    found = {s.name: s for s in status.collect(complete)}
+    assert found["page"].state == "stale" and "film changed" in found["page"].detail
+    assert status.next_command(status.collect(complete), ".") == "altocue review -p . --page"
+
+
+def test_a_page_older_than_the_verdict_is_stale(complete):
+    target = page_for(complete, qa.sha256(complete.out / "final.mp4"))
+    os.utime(target, (BASE, BASE))
+    assert states(complete)["page"] == "stale"

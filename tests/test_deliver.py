@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from conftest import make_clip
 
-from altocue import cut, deliver, ffmpeg, frame, master, platforms, render
+from altocue import cut, deliver, ffmpeg, frame, master, mix, platforms, render
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.ingest import ingest
@@ -380,3 +380,41 @@ def test_a_second_run_replaces_the_first(finished):
     main(["deliver", "-p", str(finished.root)])
     main(["deliver", "-p", str(finished.root)])
     assert (finished.root / "deliver" / "film.mp4").exists()
+
+
+# Stems
+
+
+def test_deliver_writes_stems_when_asked(finished, capsys):
+    assert main(["deliver", "-p", str(finished.root), "--stems"]) == 0
+    folder = finished.root / "deliver" / "stems"
+    assert sorted(path.name for path in folder.iterdir()) == ["effects.wav", "music.wav", "voice.wav"]
+    assert "stems" in capsys.readouterr().out
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["stems"]["files"] == ["stems/voice.wav", "stems/music.wav", "stems/effects.wav"]
+
+
+def test_stems_add_up_to_the_films_own_mix(finished):
+    main(["deliver", "-p", str(finished.root), "--stems"])
+    folder = finished.root / "deliver" / "stems"
+    parts = [mix._read_stereo(folder / f"{name}.wav") for name in mix.STEMS]
+    whole = mix._read_stereo(finished.work / "mix.wav")
+    assert all(len(part) == len(whole) for part in parts)
+    assert abs(sum(parts) - whole).max() < 3 / 32768
+
+
+def test_stems_stay_off_unless_asked(finished):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    assert not (finished.root / "deliver" / "stems").exists()
+
+
+def test_stems_touch_nothing_outside_deliver(finished):
+    before = fingerprint(finished)
+    assert main(["deliver", "-p", str(finished.root), "--stems"]) == 0
+    assert fingerprint(finished) == before
+
+
+def test_stems_with_the_mix_gone_say_what_to_do(finished, capsys):
+    (finished.work / "voice.wav").unlink()
+    assert main(["deliver", "-p", str(finished.root), "--stems"]) == 1
+    assert "altocue render" in capsys.readouterr().err
