@@ -56,11 +56,29 @@ def stub_machine(monkeypatch, *, ok: bool) -> None:
     monkeypatch.setattr(doctor, "core_checks", lambda: results)
     monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/bin/{name}" if ok else None)
     monkeypatch.setattr(doctor, "face_model", lambda: ok)
-    for name in ("FAL_KEY", "PEXELS_API_KEY", "PIXABAY_API_KEY", "GEMINI_API_KEY", "ELEVENLABS_API_KEY"):
+    for name in keys_the_code_reads():
         if ok:
             monkeypatch.setenv(name, "x")
         else:
             monkeypatch.delenv(name, raising=False)
+
+
+def keys_the_code_reads() -> set[str]:
+    source = Path(doctor.__file__).parent
+    return {name for path in source.rglob("*.py") for name in re.findall(r'"([A-Z][A-Z0-9_]*_(?:API_KEY|KEY|TOKEN))"', path.read_text())}
+
+
+def test_every_key_the_code_reads_has_a_row_in_the_table(monkeypatch):
+    """Freesound, 1of10, Spyglass and YouTube keys were read by the code and missing from the table."""
+    stub_machine(monkeypatch, ok=False)
+    rows = {row.how.split()[0]: row for row in doctor.capabilities()}
+    wanted = keys_the_code_reads()
+    assert {"FREESOUND_API_KEY", "ONEOF10_API_KEY", "SPYGLASS_API_KEY", "YOUTUBE_API_KEY"} <= wanted
+    missing = sorted(name for name in wanted if name not in rows)
+    assert not missing, f"Keys with no row in the doctor table: {missing}"
+    assert all(rows[name].fix == f"export {name}=your-key" for name in wanted)
+    checked = {check.detail.split()[0] for check in doctor.check_keys()}
+    assert wanted <= checked
 
 
 def test_every_gap_comes_with_one_command(monkeypatch):
