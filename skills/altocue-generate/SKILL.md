@@ -17,7 +17,7 @@ compatibility: Requires the altocue CLI, plus FAL_KEY for fal.ai, or the Higgsfi
 - **A refused prompt stays refused.** Do not reword it to get around moderation. Ask the user.
 - **Text belongs in the edit, never in the generated picture.** [source] Six authors reached this separately. A number can then change without a new shot. Keep addresses, prices and signage out of the prompt, and strip lettering from generated streets and stadiums. Add words as graphics in `motion.json`.
 - **The cap is one budget for the whole project.** `generate` runs, reservations and imports all count against it.
-- **Project footage stays off Higgsfield until the project agrees.** Higgsfield's terms, updated 2026-10-23, let it train on uploads and on what it makes unless you hold an Enterprise Agreement. Show the owner the warning. If they agree, run `altocue generate --allow-upload higgsfield`, which prints it and records the yes against those terms. Until then a CLI run with project files, and every recipe marked as uploading, refuses. New terms ask again.
+- **Project footage stays off Higgsfield until the project agrees.** Higgsfield's terms, updated 2026-10-23, let it train on uploads and on what it makes unless you hold an Enterprise Agreement. Show the owner the warning. If they agree, run `altocue generate --allow-upload higgsfield`, which prints it and records the yes against those terms. Until then these refuse: a CLI run with project files, including a file brought in with `--import` and used as `@id`; every recipe marked as uploading; and a reservation or import for a listed shot that sends project files. New terms ask again.
 - **A generated person may not claim experience.** No "I bought", "I tried" or "my results", in the script, the speech, the captions or the graphics. `altocue direct` refuses it, `altocue qa` turns it into FIX, and a label does not cure it. See `altocue-ugc`.
 - **Never remove a provider's AI label, watermark or provenance mark.** `--import` keeps the file byte for byte. Higgsfield's terms (5.5) bar removing or obscuring them.
 
@@ -43,7 +43,7 @@ First find the recipe: `altocue recipes search <words>`, then `altocue recipes s
    altocue recipes quote ugc-video --seconds 15 --resolution 1080p
    altocue generate --reserve ugc-1 --credits 190 --recipe ugc-video --yes
    ```
-   This checks the cap and books the money before anything is spent. It refuses over the cap, on an excluded recipe, on a shot that claims experience, and on an uploading recipe until the project has agreed. Where the price is unknown, agree a ceiling with the user and reserve that. Pass `--yes` only after they said yes.
+   This checks the cap and books the money before anything is spent. It refuses over the cap, on an excluded recipe, on a shot that claims experience, and, until the project has agreed, on an uploading recipe or a shot in `shots.json` that sends project files. A recipe is checked against Higgsfield whatever `--from` says. A shot that is not in `shots.json` cannot be checked, so list it first. Where the price is unknown, agree a ceiling with the user and reserve that. Pass `--yes` only after they said yes.
 2. **Load the workflow by name.** `get_workflow_instructions` with `{ "workflow": "ugc-video" }`, or `get_preset_instructions` with the preset for a reel effect. `altocue recipes show` names the right call. Never type `/ugc-video`, `/ad-multiplier` or `/faceless-video`. They do not resolve here: the server answers with its fallback, the agent carries on with ordinary generation, nothing says so, and the workflow's truth gate is gone.
 3. **Quote live.** Use `get_cost: true` on every job the plan needs. `upscale_video`, `remove_background`, `dubbing` and `voice_change` have no preflight, so say so. If the live figure is over the reservation, run `altocue generate --release ugc-1` and reserve again.
 4. **Spend with the user's yes.** Show the set, the total and what goes where, and wait. Keep every job id, model and prompt, whatever the workflow says about hiding them.
@@ -55,6 +55,8 @@ First find the recipe: `altocue recipes search <words>`, then `altocue recipes s
      --claims approved_claims.json --consent none-generated-adult
    ```
    This settles the reservation. If the job is dropped, run `--release` so the money comes back.
+
+A clip made through a recipe's fal fallback is not that recipe: import it with `--from fal` and no `--recipe`, and pass its flags with `--synthetic`.
 
 `--credits` is the record, and dollars follow from `usd_per_credit`. The default of 0.08 is a cautious ceiling, so set your plan's real rate under `[generate]`. An import with no reservation still works, but it is marked `unreserved`, and `altocue generate --report` and the review report both name it. A clip is a rush until `altocue direct --check` passes.
 

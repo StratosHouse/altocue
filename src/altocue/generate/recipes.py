@@ -133,13 +133,16 @@ def get(name: str) -> Recipe:
     return found
 
 
-def require_usable(project: Project, name: str, catalog: Catalog, provider: str = HOST) -> Recipe:
-    """A recipe that is left out stays out, and one that sends project files waits for the project's yes."""
+def require_usable(project: Project, name: str, catalog: Catalog) -> Recipe:
+    """A recipe that is left out stays out, and one that sends project files waits for the project's yes.
+
+    The yes is checked against the recipe's own host, Higgsfield, whatever provider the caller names.
+    """
     recipe = get(name)
     if recipe.excluded:
         raise AltocueError(f"{recipe.id} is excluded by default. {recipe.excluded}", fix="Pick another recipe: altocue recipes list")
     if recipe.uploads_footage:
-        uploads.require(project, catalog, provider, f"The {recipe.id} recipe")
+        uploads.require(project, catalog, HOST, f"The {recipe.id} recipe")
     return recipe
 
 
