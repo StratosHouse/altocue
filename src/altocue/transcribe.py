@@ -204,6 +204,7 @@ class LocalEngine:
     download: str = ""
     model: str = ""
     needs_gb: float = 3.0
+    music: bool = False  # speech with music under it, as in a finished render. An engine that can first find the speech does
 
     def available(self) -> bool:
         return importlib.util.find_spec(self.module) is not None
@@ -275,6 +276,7 @@ class FasterWhisper(LocalEngine):
             initial_prompt=prompt or None,
             condition_on_previous_text=False,
             temperature=0.0,
+            **({"vad_filter": True} if self.music else {}),  # over music alone Whisper writes "Thank you.", so only stretches of speech go in
         )
         return [
             Word(text=w.word.strip(), start=float(w.start), end=float(w.end), confidence=float(w.probability))
@@ -664,8 +666,11 @@ def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: s
 
 def transcribe_file(path: str | Path, engine: str | None = None, language: str = "en") -> list[Word]:
     """Read any media file back to words, for checks on a finished render. A render has music under it, so it goes in shorter pieces."""
+    chosen = select(engine)
+    if isinstance(chosen, LocalEngine):
+        chosen = dataclasses.replace(chosen, music=True)
     with heavy("reading the render back"):
-        return transcribe_clip(ffmpeg.probe_clip(path), select(engine), language=language, prompt="", cues=[], piece=READBACK_PIECE)
+        return transcribe_clip(ffmpeg.probe_clip(path), chosen, language=language, prompt="", cues=[], piece=READBACK_PIECE)
 
 
 def transcribe_project(project: Project, engine: str | Transcriber | None = None, force: bool = False) -> dict[str, int]:

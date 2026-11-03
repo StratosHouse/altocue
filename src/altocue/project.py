@@ -231,18 +231,20 @@ class Project:
         return word if fixed == word.text else replace(word, text=fixed)
 
     def corrected_all(self, words: list[Word]) -> list[Word]:
-        """`[transcribe.fix]` over a run of words. A key of two words joins them, because a made-up name often comes back split."""
+        """`[transcribe.fix]` over a run of words. A key of two or three words joins them, because a made-up name often comes back split."""
         fixes = {str(k).lower(): str(v) for k, v in self.config.get("transcribe", {}).get("fix", {}).items()}
-        pairs = {key: value for key, value in fixes.items() if " " in key}
+        joined = {key: value for key, value in fixes.items() if " " in key}
         fixed: list[Word] = []
         index = 0
         while index < len(words):
-            pair = words[index : index + 2]
-            parts = [re.fullmatch(r"(\W*)(.*?)(\W*)", word.text, re.DOTALL) for word in pair]
-            said = " ".join(part.group(2).lower() for part in parts if part)
-            if len(pair) == 2 and said in pairs:
-                fixed.append(replace(pair[0], text=f"{parts[0].group(1)}{pairs[said]}{parts[1].group(3)}", end=pair[1].end))  # type: ignore[union-attr]
-                index += 2
+            for size in (3, 2):
+                run = words[index : index + size]
+                parts = [re.fullmatch(r"(\W*)(.*?)(\W*)", word.text, re.DOTALL) for word in run]
+                said = " ".join(part.group(2).lower() for part in parts if part)
+                if len(run) == size and said in joined:
+                    fixed.append(replace(run[0], text=f"{parts[0].group(1)}{joined[said]}{parts[-1].group(3)}", end=run[-1].end))  # type: ignore[union-attr]
+                    index += size
+                    break
             else:
                 fixed.append(self.corrected(words[index]))
                 index += 1

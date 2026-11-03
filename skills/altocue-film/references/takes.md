@@ -14,4 +14,4 @@ What a film from a storyboard can do with real takes and a chosen track.
 
 ## Music on the beat
 
-A chosen track from `altocue music get` plays backtimed to the film's end by default. To cut to it, start it on a downbeat with `"music": {"from": 100.69}` and set `"snap": true`. The beat grid moves with it, so every cut lands on a beat that is heard, and the track fades out at the end. Make each scene a whole number of beats. Render writes `out/credits.txt` for a track that owes a credit.
+A chosen track from `altocue music get` plays backtimed to the film's end by default. To cut to it, start it on a downbeat with `"music": {"from": 100.69}` and set `"snap": true`. The beat grid moves with it, so every cut lands on a beat that is heard, and the track fades out at the end. Make each scene a whole number of beats. `"enter": 1.94` holds the track silent for that many seconds of the film, on the same grid, so a cold open can play over nothing and the track come in on the next cut. Render writes `out/credits.txt` for a track that owes a credit.

@@ -402,10 +402,11 @@ def _looped(track: np.ndarray, total: int) -> tuple[np.ndarray, int]:
     return out, passes
 
 
-def _shaped(track: np.ndarray, total: int, end: str, tight: bool = False, start: int | None = None) -> tuple[np.ndarray, int, int]:
+def _shaped(track: np.ndarray, total: int, end: str, tight: bool = False, start: int | None = None, enter: int = 0) -> tuple[np.ndarray, int, int]:
     """The bed for a film of `total` samples, with its head and tail, and where it started in the track.
 
     `start` is a sample of the track to begin on, such as a downbeat. The film then opens on it with no fade in, and the bed fades out at the end.
+    `enter` holds the track silent until that sample of the film, still running from `start`, so it comes in on a beat of its own grid.
     """
     if start is not None:
         if not 0 <= start < len(track):
@@ -415,6 +416,10 @@ def _shaped(track: np.ndarray, total: int, end: str, tight: bool = False, start:
         head, tail = min(round(MUSIC_GUARD * RATE), total // 4), min(round((TIGHT_TAIL if tight else MUSIC_FADE_OUT) * RATE), total // 3)
         bed[:head] *= _curve(head, False)[:, None]
         bed[total - tail :] *= _curve(tail, False)[::-1, None]
+        if 0 < enter < total:
+            bed[:enter] = 0.0
+            guard = min(round(MUSIC_GUARD * RATE), total - enter)
+            bed[enter : enter + guard] *= _curve(guard, False)[:, None]
         return bed, start, passes
     if end == "own":
         bed = np.zeros((total, 2))
@@ -435,7 +440,7 @@ def _shaped(track: np.ndarray, total: int, end: str, tight: bool = False, start:
 
 
 def _music_bed(
-    music: Path, target: float, total: int, end: str, folder: Path, tight: bool = False, start: float | None = None
+    music: Path, target: float, total: int, end: str, folder: Path, tight: bool = False, start: float | None = None, enter: float = 0.0
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """The track at `target` LUFS, fitted to the film."""
     if not music.exists():
@@ -445,7 +450,7 @@ def _music_bed(
     path = folder / "music.wav"
     ffmpeg.run(["-i", str(music), "-vn", "-ar", str(RATE), "-ac", "2", "-c:a", "pcm_s16le", str(path)])
     gain = target - ffmpeg.loudness(music)["integrated"]
-    bed, begin, passes = _shaped(_trimmed_music(path), total, end, tight, None if start is None else round(start * RATE))
+    bed, begin, passes = _shaped(_trimmed_music(path), total, end, tight, None if start is None else round(start * RATE), round(enter * RATE))
     return bed * 10 ** (gain / 20), {"file": str(music), "gain_db": round(gain, 2), "end": end, "starts_at": round(begin / RATE, 3), "loops": passes}
 
 
@@ -588,9 +593,10 @@ def _no_voice(
     folder: Path,
     layers: dict[str, np.ndarray] | None = None,
     music_from: float | None = None,
+    music_enter: float = 0.0,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """The music leads. Effects are levelled against it, and a big hit gets a dip in front of it."""
-    bed, info = _music_bed(music, BED_LUFS, total, end, folder, tight=True, start=music_from) if music else (np.zeros((total, 2)), None)
+    bed, info = _music_bed(music, BED_LUFS, total, end, folder, tight=True, start=music_from, enter=music_enter) if music else (np.zeros((total, 2)), None)
     overall = _lufs_like(bed) if music else BED_LUFS
     hits = [_hit(cue, index, bed, overall, total, folder) for index, cue in enumerate(cues)]
     out = _dipped(bed, [(hit, dip) for _, _, hit, dip, _ in hits if dip])
@@ -634,6 +640,7 @@ def mix_bed(
     seconds: float | None = None,
     stems: str | Path | None = None,
     music_from: float | None = None,
+    music_enter: float = 0.0,
 ) -> Path:
     """Mix voice, music and effects to stereo 48 kHz, running `tail` seconds past the picture.
 
@@ -649,7 +656,8 @@ def mix_bed(
     top of the track and fades out, or "own", for a score that ends itself. The numbers land in a
     `.json` beside the mix. With `stems`, that folder gets each of `STEMS` as a WAV file at its level
     in this mix, and they add up to it. `music_from` starts the track that many seconds in, on a downbeat
-    chosen by ear or by its beat grid, and the bed fades out at the film's end.
+    chosen by ear or by its beat grid, and the bed fades out at the film's end. With `music_from`, `music_enter` holds
+    the track silent for that many seconds of the film, so it comes in on a later beat of the same grid.
     """
     dest = Path(dest)
     if voice is None:
@@ -668,10 +676,11 @@ def mix_bed(
     with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
         folder = Path(scratch)
         if voice is None or np.abs(samples).max(initial=0.0) < SILENT_VOICE:
-            out, report = _no_voice(Path(music) if music else None, cues, total, music_end, folder, layers, music_from)
+            out, report = _no_voice(Path(music) if music else None, cues, total, music_end, folder, layers, music_from, music_enter)
         else:
+            room_path = Path(room) if room else None
             out, report = _with_voice(
-                Path(voice), samples, Path(music) if music else None, cues, total, tail, Path(room) if room else None, music_end, folder, layers, music_from
+                Path(voice), samples, Path(music) if music else None, cues, total, tail, room_path, music_end, folder, layers, music_from, music_enter
             )
     peak = float(np.abs(out).max())
     if stems:
@@ -705,6 +714,7 @@ def _with_voice(
     folder: Path,
     layers: dict[str, np.ndarray] | None = None,
     music_from: float | None = None,
+    music_enter: float = 0.0,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """The voice leads. Music ducks under it, and effects are levelled against it."""
     level = _voice_level(voice)
@@ -719,7 +729,7 @@ def _with_voice(
         layers["voice"] = out.copy()
     report: dict[str, Any] = {"mode": "voice", "voice_lufs": level, "music": None, "sfx": []}
     if music:
-        bed, report["music"] = _music_bed(music, level - MUSIC_UNDER_VOICE_LU, total, end, folder, start=music_from)
+        bed, report["music"] = _music_bed(music, level - MUSIC_UNDER_VOICE_LU, total, end, folder, start=music_from, enter=music_enter)
         ridden, under = _ride(bed, samples, level - RIDER_GATE_BELOW_VOICE_DB)
         report["music"]["under_voice_db"] = round(under, 1)
         out += ridden

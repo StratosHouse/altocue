@@ -575,7 +575,10 @@ def make_sound(
             report = {**report, "warning": warning}
     dest = folder / "mix.wav"
     start = music_start(film) if track else None
-    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end="land" if track else "own", music_from=start, stems=stems)
+    enter = float(music_entry(film).get("enter") or 0.0) if start is not None else 0.0  # the track comes in on a later beat of its own grid
+    mix.mix_bed(
+        voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end="land" if track else "own", music_from=start, music_enter=enter, stems=stems
+    )
     return dest, report
 
 

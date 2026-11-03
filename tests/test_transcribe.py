@@ -726,3 +726,31 @@ def test_faster_whisper_stays_on_the_cpu_without_a_card_or_when_told(monkeypatch
     monkeypatch.setenv("ALTOCUE_WHISPER_DEVICE", "cpu")
     transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
     assert made == [("small.en", "cpu", "int8"), ("small.en", "cpu", "int8")]
+
+
+def test_reading_a_render_back_with_whisper_drops_what_is_only_music(monkeypatch, tmp_path):
+    """Whisper writes "Thank you." over a stretch of music with nobody speaking. A render has music under it, so its readback filters for speech first."""
+    asked = []
+
+    class Model:
+        def __init__(self, name, device, compute_type):
+            pass
+
+        def transcribe(self, samples, **options):
+            asked.append(options)
+            return iter([SimpleNamespace(words=[SimpleNamespace(word=" Hello", start=0.0, end=0.4, probability=0.9)])]), None
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=Model))
+    monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: 0))
+    monkeypatch.setattr(ffmpeg, "read_wav", lambda *_: (np.zeros(16000, dtype=np.float32), 16000))
+    engine = transcribe.ENGINES["faster-whisper"]
+    engine.transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert not asked[-1].get("vad_filter")
+    used = []
+    monkeypatch.setattr(transcribe, "select", lambda name=None: engine)
+    monkeypatch.setattr(transcribe, "transcribe_clip", lambda clip, chosen, **_: used.append(chosen) or [])
+    monkeypatch.setattr(ffmpeg, "probe_clip", lambda path: SimpleNamespace(duration=2.0, path=str(path)))
+    transcribe.transcribe_file(tmp_path / "film.mp4")
+    assert used[0].music and not engine.music  # the shared engine is left as it was
+    used[0].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert asked[-1]["vad_filter"] is True

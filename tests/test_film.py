@@ -1911,3 +1911,23 @@ def test_a_full_frame_format_in_a_zone_can_be_set_larger():
     larger = scenes._place({"type": "logo_sting", "text": "Altocue", "zone": "bottom", "scale": 1.25, "start": 0, "end": 3, "scene": "a"}, (1920, 1080))
     assert "--scale" not in plain["place"]
     assert f"--scale:{geometry(1920, 1080)['scale'] * 1.25:.3f}" in larger["place"]
+
+
+def test_a_track_can_come_in_on_a_later_beat(tmp_path, monkeypatch):
+    """A cold open plays a raw take with nothing under it, and the track comes in on the hook's downbeat."""
+    project = small_film(tmp_path / "film")
+    ramp_wav(project.root / "assets" / "music" / "track.wav", seconds=40.0)
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["music"] = {"path": "assets/music/track.wav", "from": 10.0, "enter": 1.5}
+    path.write_text(json.dumps(made))
+    loaded = film.load(project)
+    assert film.music_entry(loaded)["enter"] == 1.5
+    done = film.timing(loaded, "16:9")
+    folder = tmp_path / "mix"
+    folder.mkdir()
+    line, _ = film.film_line(loaded, "16:9")
+    film.make_sound(loaded, line, done, storyboard.fill(loaded.board), folder, stems=folder / "stems")
+    sound, rate = ffmpeg.read_wav(folder / "stems" / "music.wav")  # the example's own effects play from the start, so the music is read alone
+    assert np.abs(sound[: round(1.45 * rate)]).max() < 1e-3
+    assert np.abs(sound[round(1.6 * rate) : round(2.0 * rate)]).max() > 0.01
