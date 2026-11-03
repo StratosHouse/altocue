@@ -288,7 +288,7 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **Real phones have not opened the review page.** The demo take has not been transcribed on Linux.
 - **The flash and stray-frame gates have only seen test clips.** The flash gate has run on synthetic footage only, and the stray-frame gate has not met real inserts.
 - **The named fixes in the skills have not been run end to end on a real film.**
-- **Linux renders on HyperFrames 0.9.5 are untried,** and so is non-Latin text in fetched items offline.
+- **Linux renders on HyperFrames 0.9.8 are untried,** and so is non-Latin text in fetched items offline.
 - **The TikTok safe zone rests on a third party's reading** of the app.
 
 Report what you find.

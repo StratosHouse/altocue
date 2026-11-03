@@ -29,7 +29,7 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 
 ### Renderer
 
-- Graphics render through HyperFrames 0.9.5, up from 0.8.222, with undici held at 7.30.1, which clears 29 security advisories
+- Graphics render through HyperFrames 0.9.8, up from 0.8.222, with undici held at 7.30.1, which clears 29 security advisories
 - Renders work offline: formats use only the fonts Altocue ships, and `altocue library add` embeds the fonts a fetched item names. A face it could not embed is fetched at render time, and headless Chrome on the first render if setup missed it
 - Serif formats render in Instrument Serif, as designed. Renders had been drawing them in Inter
 - The graphics page is marked `data-no-timeline`
