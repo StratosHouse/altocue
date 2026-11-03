@@ -338,3 +338,25 @@ def test_a_reviewer_never_gets_facts_notes_or_results(tmp_path):
 def test_the_pack_forbids_facts_notes_and_results_by_name():
     for path in ("review/facts.json", "review/facts.md", "director-notes.md", "results/", "bench/"):
         assert path in pack.FORBIDDEN
+
+
+def test_a_film_from_a_storyboard_shows_its_brief_to_the_reviewer(tmp_path):
+    """A film keeps its brief in brief.json. Without it the reviewer judged a deliberate raw take as a mistake."""
+    from altocue.project import Project
+
+    project = Project.create(tmp_path / "film", aspect="16:9")
+    assert pack.read_brief(project) == "No brief was written for this video."
+    brief = {
+        "message": "Raw footage in, finished video out.",
+        "audience": "Anyone who makes video with a coding agent",
+        "goal": "Get it on GitHub",
+        "must_show": ["cutting", "captions"],
+        "notes": ["The first two seconds are the raw take on purpose."],
+        "brand": {"colors": {"accent": "#b5f4d9"}},
+    }
+    write_json(project.root / "brief.json", brief)
+    text = pack.read_brief(project)
+    assert "Raw footage in, finished video out." in text and "- The first two seconds are the raw take on purpose." in text
+    assert "cutting" in text and "#b5f4d9" not in text
+    (project.root / "brief.md").write_text("Written by hand.")
+    assert pack.read_brief(project) == "Written by hand."
