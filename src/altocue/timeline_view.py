@@ -187,7 +187,7 @@ def write_stage(project: Project) -> tuple[Path, Path | None, str | None]:
         picture, voice = plate.build(project, draft=draft)
         edl = project.edl()
         caption.build(project)
-        timeline = timelines.build(project)
+        timeline = timelines.build(project, draft=draft)
         brand = brands.load(project)
         install_assets(timeline, brand, stage)
         layers = _shots(edl, stage, picture) + _hold(timeline, picture, stage)
@@ -206,10 +206,15 @@ def _require_studio() -> None:
 
 
 def _studio(stage: Path, *flags: str) -> dict[str, Any]:
-    """Call the pinned CLI, and read its JSON answer. Telemetry stays off through `quiet_env`."""
+    """Call the pinned CLI, and read its JSON answer. Telemetry stays off through `quiet_env`.
+
+    HyperFrames' preview has no --host flag. Its studio server binds to HYPERFRAMES_PREVIEW_HOST when that is set,
+    so a shell that sets it to 0.0.0.0 would open the studio to the network. It is pinned to this machine here.
+    """
     command = [str(binary()), "preview", str(stage), *flags, "--json"]
+    env = {**quiet_env(), "HYPERFRAMES_PREVIEW_HOST": "127.0.0.1"}
     try:
-        done = subprocess.run(command, check=False, capture_output=True, text=True, env=quiet_env(), timeout=STARTUP_SECONDS)
+        done = subprocess.run(command, check=False, capture_output=True, text=True, env=env, timeout=STARTUP_SECONDS)
     except subprocess.TimeoutExpired as error:
         raise AltocueError(f"The studio did not answer in {STARTUP_SECONDS} seconds.", fix="Run `altocue doctor`.") from error
     try:

@@ -187,6 +187,8 @@ def layout(lengths: list[int], blends: list[dict[str, Any]], holds: list[dict[st
     pieces = sorted([*plain, *joins], key=lambda piece: piece.start)
     for item in sorted(holds, key=lambda hold: hold["frame"]):
         frame, frames = item["frame"], item["frames"]
+        if frame < 0:
+            raise AltocueError(f"A freeze at frame {frame} starts before the film starts.", fix="Anchor it at 0 seconds or later, or use a smaller offset.")
         if frame + frames > total:
             raise AltocueError(f"A freeze at frame {frame} runs past the end of the film.", fix="Shorten it, or move it earlier.")
         segment = max(index for index, start in enumerate(starts) if start <= frame)

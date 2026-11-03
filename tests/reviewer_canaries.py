@@ -147,7 +147,7 @@ def edit(fault: Fault, root: Path, take: Path) -> Project:
 
     def late_pages(target: Project) -> list[dict[str, Any]]:
         pages = delayed(made_pages(target), fault.late, target.edl().duration)
-        write_json(target.work / "captions.json", {"pages": pages})
+        write_json(target.work / "captions.json", {"cut": target.cut_mark(), "pages": pages})
         return pages
 
     with swapped(caption, "build", late_pages if fault.late else made_pages):

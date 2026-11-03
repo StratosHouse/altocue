@@ -1,3 +1,5 @@
+import json
+
 from altocue import caption
 from altocue.caption import balanced, build_pages, strip_punctuation
 from altocue.models import Clip, Edl, Segment, Word
@@ -60,6 +62,12 @@ def test_the_hold_stops_at_the_cut(tmp_path):
     words = [Word("one", 0.3, 0.6), Word("two", 1.5, 1.8)]
     pages = caption.build(jump_cut(tmp_path, words, [(0.0, 0.62), (1.2, 2.0)]))
     assert pages[0]["end"] == 0.62
+
+
+def test_captions_carry_the_cut_they_were_made_for(tmp_path):
+    project = jump_cut(tmp_path, [Word("one", 0.3, 0.6)], [(0.0, 0.62)])
+    caption.build(project)
+    assert json.loads((project.work / "captions.json").read_text())["cut"] == project.cut_mark()
 
 
 def test_the_last_page_stops_with_the_footage(tmp_path):

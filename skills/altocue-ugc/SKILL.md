@@ -55,8 +55,8 @@ A label does not cure a blocked line. Offer a rewrite in the host's voice, about
 
 ## 5. Disclose
 
-- **Put a label on screen.** Add a chip such as `AI-generated actor` in `motion.json`, in the caption-safe area, for at least 2 seconds. `altocue qa` reports the film if it is missing. Set your own words under `[disclosure] label`.
-- **Say it near the start.** Reveal a generated presenter and a cloned voice early. [source] The gate checks that a label exists, not when it lands, so place it yourself.
+- **Put a label on screen.** Add a chip such as `AI-generated actor` in `motion.json`, in the caption-safe area, for at least 2 seconds while the generated person is on screen. `altocue qa` reports the film if it is missing or shows at another time. Set your own words, two or more, under `[disclosure] label`.
+- **Say it near the start.** Reveal a generated presenter and a cloned voice early. [source] The gate checks that the label shows while the person does, not that it lands early, so place it yourself.
 - **Say truly how it was made.** Any line about how the film was made matches what was done. [source]
 - **An exemption is a recorded decision.** Set `[disclosure] exempt` with the reason in your own words. Nobody checks it, so ask the user.
 - **New York requires it in ads.** Since June 9, 2026, an advertiser who knows an ad has a synthetic performer must disclose it conspicuously (GBL 396-b). That covers honest generated hosts too. No wording is prescribed. Audio-only ads, translation-only uses and matching ads for expressive works are exempt.

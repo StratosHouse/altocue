@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v7
@@ -32,7 +33,11 @@ jobs:
       - run: uv run python scripts/check_repo.py
         env:
           ALTOCUE_BLOCKLIST: ${{ secrets.ALTOCUE_BLOCKLIST }}
-      - name: Commit if the catalog changed
+      # A person reviews every change before it reaches main, and `library update` reads main.
+      - name: Open a pull request if the catalog changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: library-sync
         run: |
           git add library src/altocue/data/library
           if git diff --cached --quiet; then
@@ -41,6 +46,12 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
           git commit -m "Sync the library catalog"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+          if [ "$(gh pr view "$BRANCH" --json state --jq .state 2>/dev/null)" = "OPEN" ]; then
+            echo "Updated the open pull request from $BRANCH." >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh pr create --base main --head "$BRANCH" --title "Sync the library catalog" \
+              --body "The weekly library sync rebuilt the catalog. Read the diff before merging: \`library update\` hands main to every user."
+          fi

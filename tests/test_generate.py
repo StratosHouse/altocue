@@ -124,6 +124,8 @@ class FakeFal:
             def do_POST(self):
                 body = self._read()
                 self._record(body)
+                if self.path == "/redirect":
+                    return self._send(302, headers={"Location": "/media/moved.mp4"})
                 base = f"http://{self.headers['Host']}"
                 if self.path.startswith("/storage/upload/initiate"):
                     name = json.loads(body)["file_name"]
@@ -1030,6 +1032,30 @@ def test_redirects_do_not_carry_the_key(fal):
     assert fal.seen("GET", "/media/") == []
 
 
+def test_gemini_does_not_follow_a_redirect_with_its_key(fal):
+    import urllib.request
+
+    from altocue.review import gemini
+
+    request = urllib.request.Request(f"{fal.url}/redirect", headers={"x-goog-api-key": "k"})
+    with pytest.raises(AltocueError, match="302"):
+        gemini._send(request, "k")
+    assert fal.seen("GET", "/media/") == []
+
+
+def test_elevenlabs_does_not_follow_a_redirect_with_its_key(fal, tmp_path, monkeypatch):
+    from altocue import transcribe
+
+    wav = tmp_path / "speech.wav"
+    wav.write_bytes(b"RIFF0000WAVE")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")
+    engine = transcribe.ENGINES["elevenlabs"]
+    monkeypatch.setattr(engine, "endpoint", f"{fal.url}/redirect")
+    with pytest.raises(AltocueError, match="302"):
+        engine.transcribe(wav, language="en", prompt="")
+    assert fal.seen("GET", "/media/") == []
+
+
 # Higgsfield
 
 
@@ -1125,7 +1151,7 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     assert create[2] == "seedance_2_0"
     assert "--wait" not in create
     assert "--json" in create
-    assert create[create.index("--prompt") + 1] == PROMPT
+    assert f"--prompt={PROMPT}" in create
     assert create[create.index("--start-image") + 1] == str(hf_project.root / "key.png")
     assert create[create.index("--image-references") + 1] == str(hf_project.root / "ref.png")
     assert create[create.index("--aspect_ratio") + 1] == "9:16"
@@ -1143,6 +1169,13 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     assert sidecar["cost_usd"] == pytest.approx(0.8)
     assert spend(hf_project)[0]["basis"] == "credits"
     assert "per credit" in capsys.readouterr().out
+
+
+def test_a_prompt_that_starts_with_dashes_reaches_higgsfield_as_the_prompt(hf_project, higgsfield):
+    """Glued to its flag, a prompt such as `--wait for it` cannot be read as a flag of its own."""
+    write_shots(hf_project, shot(prompt="--wait for the door to open, then a slow push in on her hands."))
+    assert go(hf_project, "--yes") == 0
+    assert "--prompt=--wait for the door to open, then a slow push in on her hands." in higgsfield.creates()[0]
 
 
 def test_higgsfield_job_is_saved_before_polling(hf_project, higgsfield, monkeypatch):
@@ -2003,6 +2036,21 @@ def test_new_terms_lapse_the_opt_in(project, capsys):
     capsys.readouterr()
     assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
     assert "2027-01-01" in capsys.readouterr().err
+
+
+def test_new_packaged_terms_lapse_the_opt_in_even_under_a_project_catalog(project, capsys, monkeypatch, tmp_path):
+    """A project's own models.toml keeps the terms date it was copied with, so the packaged date counts too."""
+    from altocue.generate import catalog
+
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    newer = tmp_path / "packaged-models.toml"
+    newer.write_text(catalog.PACKAGED.read_text().replace('terms_as_of = "2026-10-23"', 'terms_as_of = "2027-01-01"'))
+    monkeypatch.setattr(catalog, "PACKAGED", newer)
+    capsys.readouterr()
+    assert go(project, "--reserve", "s01", "--credits", "5", "--recipe", "reframe", "--yes") == 1
+    assert "2027-01-01" in capsys.readouterr().err
+    assert go(project, "--allow-upload", "higgsfield") == 0
+    assert "2027-01-01" in capsys.readouterr().out
 
 
 def test_a_stale_catalog_cannot_switch_the_gate_off(project, capsys):

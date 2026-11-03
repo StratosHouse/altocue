@@ -30,7 +30,7 @@ Altocue is a command line tool plus agent skills that edit raw footage into fini
 ## Before a commit
 
 ```bash
-uv run ruff check src tests
+uv run ruff check src tests scripts
 uv run pytest tests/test_<what you changed>.py
 uv run python scripts/check_repo.py
 ```

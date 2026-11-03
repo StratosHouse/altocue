@@ -140,6 +140,16 @@ def test_a_project_path_with_an_apostrophe_still_bakes_an_insert_with_edges(tmp_
     assert int(frames.stdout.strip()) == 30
 
 
+@pytest.mark.parametrize("times", [{"start": "soon", "end": 2.0}, {"end": 2.0}, {"start": 1.5, "end": 1.0}, {"start": -1.0, "end": 1.0}])
+def test_an_insert_with_unusable_times_is_refused_with_a_fix(tmp_path, times):
+    project = Project.create(tmp_path / "video")
+    layer = Layer(path=tmp_path / "layer.mov", renderer="hyperframes")
+    plan = {"tail": 0, "inserts": [{"file": "shot.mp4", **times}], "total": 2.0, "overlay": []}
+    with pytest.raises(AltocueError, match="shot.mp4") as caught:
+        render.compose_args(project, tmp_path / "p.mp4", tmp_path / "a.wav", layer, plan, C, tmp_path / "o.mp4")
+    assert caught.value.fix
+
+
 def test_an_insert_too_short_for_its_edges_is_refused(tmp_path):
     project = Project.create(tmp_path / "video")
     picture = plain_clip(tmp_path / "picture.mp4")

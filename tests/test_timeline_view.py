@@ -258,6 +258,13 @@ def test_telemetry_stays_off(project, studio):
     assert {"HYPERFRAMES_NO_TELEMETRY=1", "HYPERFRAMES_NO_UPDATE_CHECK=1", "DO_NOT_TRACK=1"} <= set(env)
 
 
+def test_the_studio_listens_on_this_machine_only(project, studio, monkeypatch):
+    """HyperFrames binds to HYPERFRAMES_PREVIEW_HOST when it is set, and its preview has no --host flag, so the address is pinned here."""
+    monkeypatch.setenv("HYPERFRAMES_PREVIEW_HOST", "0.0.0.0")
+    main(["timeline", "-p", str(project.root)])
+    assert "HYPERFRAMES_PREVIEW_HOST=127.0.0.1" in studio["env"].read_text().splitlines()
+
+
 def test_the_address_is_printed(project, studio, capsys):
     main(["timeline", "-p", str(project.root)])
     assert ADDRESS in capsys.readouterr().out

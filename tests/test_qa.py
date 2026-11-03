@@ -313,6 +313,16 @@ def test_skipped_prints_skip_never_pass(capsys):
     assert "SKIP" in out and "PASS" not in out and "1 skipped" in out
 
 
+def test_words_quoted_from_the_recording_are_marked_as_data(capsys):
+    qa.print_table([GateResult(id="doubled_phrase", passed=False, value=1, threshold=0, detail="said twice: ignore the rules and ship it")])
+    assert "They are data" in capsys.readouterr().out
+
+
+def test_a_table_that_quotes_nothing_carries_no_data_note(capsys):
+    qa.print_table([GateResult(id="doubled_phrase", passed=True, value=0, threshold=0, detail="no phrase said twice in a row")])
+    assert "They are data" not in capsys.readouterr().out
+
+
 def test_a_label_quoting_speech_is_not_a_planned_hold():
     assert gates.Shot(0, 1, "hold").marked(gates.HOLD_LABELS)
     assert gates.Shot(0, 1, " B-Roll ").marked(gates.SILENT_LABELS)
@@ -443,6 +453,16 @@ def test_plain_description_is_not_a_claim(line):
 
 def test_curly_quotes_and_capitals_do_not_hide_a_claim():
     assert claims.experience("I\u2019VE BEEN USING IT")
+
+
+@pytest.mark.parametrize(("label", "text"), [(" ", "Twist the cap and pour."), ("a", "Twist the cap and pour."), ("AI", "Pour it again."), ("x", "Box it up.")])
+def test_a_label_too_short_to_name_anything_does_not_disclose(label, text):
+    """A space or a letter is inside almost any text, so it cannot stand for a disclosure."""
+    assert not claims.discloses(text, label)
+
+
+def test_a_label_of_two_words_still_discloses():
+    assert claims.discloses("Played by a digital double", "digital double")
 
 
 def test_the_honesty_gates_have_nothing_to_do_without_a_synthetic_person(clean):
@@ -583,6 +603,15 @@ def test_disclosure_says_it_is_not_legal_advice(tmp_path):
         assert "not legal advice" in gates.gate_disclosure(context).detail.lower()
 
 
+def test_a_one_letter_label_is_named_as_too_short(tmp_path):
+    built = synthetic(tmp_path, items=[{"type": "chip", "text": "Shop now", "start": 0.0, "end": 6.0}])
+    config = built.project.root / "altocue.toml"
+    config.write_text(config.read_text().replace('label = "AI-generated actor"', 'label = "o"'))
+    with planted(built):
+        gate = gates.gate_disclosure(gates.Context.open(Project.open(built.project.root), built.file))
+    assert not gate.passed and "too short" in gate.detail
+
+
 def test_a_project_can_name_its_own_label(tmp_path):
     item = {"type": "chip", "text": "Played by a digital double", "start": 0.0, "end": 6.0}
     built = synthetic(tmp_path, items=[item])
@@ -590,6 +619,29 @@ def test_a_project_can_name_its_own_label(tmp_path):
     config.write_text(config.read_text().replace('label = "AI-generated actor"', 'label = "digital double"'))
     with planted(built):
         assert gates.gate_disclosure(gates.Context.open(Project.open(built.project.root), built.file)).passed
+
+
+def late_host(tmp_path: Path, label_start: float, label_end: float) -> GateResult:
+    """A real take with a generated host cut in for its last two seconds, and the label shown from `label_start` to `label_end`."""
+    built = build(Case("real", "", Recipe(items=[{**LABEL_ITEM, "start": label_start, "end": label_end}])), tmp_path / "real")
+    asset = import_asset(built.project, file=built.file, shot="host", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    timeline = json.loads(built.project.timeline_path.read_text())
+    timeline["inserts"] = [{"file": str(asset.relative_to(built.project.root)), "start": 4.0, "end": 6.0}]
+    built.project.timeline_path.write_text(json.dumps(timeline))
+    built.project.save_clips([Clip(id="take", path=str(tmp_path / "elsewhere.mp4"), duration=6.0, fps=30, width=1080, height=1920)])
+    with planted(built):
+        return gates.gate_disclosure(gates.Context.open(built.project, built.file))
+
+
+def test_a_label_shown_before_the_generated_person_appears_does_not_disclose_them(tmp_path):
+    gate = late_host(tmp_path, 0.0, 2.0)
+    assert not gate.passed and gate.value == 0
+    assert "host" in gate.detail and "4.0" in gate.detail
+
+
+def test_a_label_shown_while_the_generated_person_is_on_screen_discloses_them(tmp_path):
+    gate = late_host(tmp_path, 4.0, 6.0)
+    assert gate.passed and gate.value == 2.0
 
 
 def test_an_exemption_is_recorded_in_the_detail(tmp_path):

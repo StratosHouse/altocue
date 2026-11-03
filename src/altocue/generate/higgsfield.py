@@ -170,7 +170,8 @@ class HiggsfieldProvider:
     def submit(self, req: GenRequest, idem_key: str) -> JobRef:
         """The CLI documents no idempotency flag, so the job store guards the gap around this call."""
         entry = self.catalog.resolve(self.id, req)
-        flags = ["--prompt", req.prompt, *to_flags(entry.payload(req, self.upload))]
+        # Glued to its flag, so a prompt that starts with dashes stays the prompt. The CLI parses with spf13/pflag (its THIRD-PARTY-NOTICES), which reads --name=value.
+        flags = [f"--prompt={req.prompt}", *to_flags(entry.payload(req, self.upload))]
         try:
             data = self._cli("generate", "create", entry.model, *flags)
         except http.Unreachable as error:
