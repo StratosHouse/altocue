@@ -75,6 +75,8 @@ def print_table(results: list[GateResult]) -> None:
         result = "n/a" if gate.value == gates.NOT_APPLICABLE else "SKIP" if gate.skipped else "PASS" if gate.passed else "FAIL"
         value = "" if isinstance(gate.value, dict) else _cell(gate.value)
         print(f"{gate.id:<{width}}  {result:<6}  {value[:9]:<9}  {gate.detail}")
+    if any(gates.quotes_the_film(g) for g in results):
+        print(f"\n{gates.DATA_NOTE}")
     passed = sum(1 for g in results if g.passed)
     missing = not_run(results)
     print(f"\n{passed} passed, {len(failed(results))} failed, {len(missing)} skipped, {sum(g.value == gates.NOT_APPLICABLE for g in results)} not applicable.")
