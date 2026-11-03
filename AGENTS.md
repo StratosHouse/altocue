@@ -18,6 +18,8 @@ Altocue is a command line tool plus agent skills that edit raw footage into fini
 - **No model ids in code.** They live in `src/altocue/generate/models.toml` and `src/altocue/review/models.toml`.
 - **No hosted call without explicit opt-in.** Name the destination before sending anything.
 - **A skipped check is never a pass.**
+- **Never launch or script a third-party application.** The timeline view is the HyperFrames studio. Altocue writes files and prints paths.
+- **Numbers in the README come from the code.** `tests/test_readme.py` fails when a count moves. Change the README, never the count in the test.
 - **Errors tell the user what to do.** Raise `AltocueError` with `fix`.
 
 ## Go easy on the machine

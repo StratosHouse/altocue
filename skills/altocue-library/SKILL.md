@@ -21,7 +21,7 @@ altocue library show word_slam
 | Tier | What it is | What you do |
 |---|---|---|
 | `built-in` | Ships inside Altocue under MIT. Pure CSS, so it needs no Node extras and no network | Name it in `motion.json` |
-| `fetch` | Open items from the HyperFrames registry, plus GL shaders | `altocue library add <name> -p .`, then paste the line it prints. Shaders are listed for the picture edit, not fetched |
+| `fetch` | Open items from the HyperFrames registry, plus GL shaders | `altocue library add <name> -p .`, then paste the line it prints. A shader comes from the pinned gl-transitions package for the picture edit, and one that needs a texture input is refused |
 | `search` | A live service, with your own key or account where it needs one | Use Altocue's stage for it if `show` names an adapter, otherwise its docs |
 | `link` | Link only, or a snippet with no timeline | A person opens it and follows its terms. Altocue indexes none of a closed site's items |
 

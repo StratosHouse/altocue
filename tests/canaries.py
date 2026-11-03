@@ -21,6 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from altocue import ffmpeg
+from altocue import frame as _frame  # noqa: F401  QA reaches the face model through frame, which imports cut.hand. Load it before `fakes` stands in for cut.
 from altocue.generate import import_asset
 from altocue.models import Clip, Edl, GateResult, Segment, Word
 from altocue.project import Project, write_json

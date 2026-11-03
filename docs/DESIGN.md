@@ -1,11 +1,12 @@
 # Altocue design
 
-Altocue turns raw footage into a finished video from inside a coding agent. It is a command line tool plus a set of agent skills. Every step is a plain file you can read, change and re-run.
+Altocue turns raw footage, a long recording or a brief into a finished video from inside a coding agent. It is a command line tool plus a set of agent skills. Every step is a plain file you can read, change and re-run.
 
 ## Why it exists
 
 - **Editing with an agent should not mean guessing.** Agents cannot watch video. They can read word-timed transcripts, measurements and frames. Altocue gives them those.
-- **Most AI editors stop at cuts and captions.** A finished video also needs clean sound, correct colour, framing, direction, inserts and someone checking the work.
+- **Most AI editors stop at cuts and captions.** A finished video also needs clean sound, correct colour, framing, direction, inserts, graphics, music, deliverables and someone checking the work.
+- **Not every film starts with footage.** A launch film or an explainer can be drawn in code from a storyboard, and checked the same way.
 - **Nothing ships on the editor's own word.** A separate Editor in Chief reviews every final, and code decides the verdict.
 
 ## Goals
@@ -17,9 +18,9 @@ Altocue turns raw footage into a finished video from inside a coding agent. It i
 - **Provable.** `altocue demo` takes our published demo take through every free stage on this machine, in about 3 minutes.
 - **Honest.** Every report says what was measured, what was judged and what could not be checked.
 
-## Non-goals for v0.1
+## Non-goals
 
-- **Not a timeline app.** There is no GUI editor. `altocue review --page` writes one file to watch and check a film in. Nothing in it edits.
+- **Not a timeline editor.** `altocue timeline` shows the edit in the HyperFrames studio as a view. `edl.json` and `motion.json` stay the truth. `altocue review --page` writes one file to watch and check a film in. Nothing in it edits.
 - **Not a posting tool.** Altocue delivers files.
 - **Not a hosted service.** Everything runs where the user runs it.
 
@@ -29,28 +30,44 @@ Altocue turns raw footage into a finished video from inside a coding agent. It i
 - **Never spend money silently.** Every paid generation shows its cost first and needs a yes.
 - **Never upload silently.** Every hosted step names where the footage is going.
 - **Never claim a check that did not run.**
-- **Never start another application.** Altocue writes files and prints their paths. A browser opens only for `--open`.
+- **Never start a third-party application.** Altocue writes files and prints their paths. The timeline view is the HyperFrames studio at a local address it prints. A browser opens only for `--open`.
+- **Never predict.** The data stages measure, compare and learn. There is no virality score.
 
 ## The pipeline
 
 ```text
 sources
   -> ingest      probe clips, rotation, frame rate, HDR
-  -> transcribe  word times, fillers kept
-  -> cut         remove silence, fillers, stutters, retakes (EDL)
-  -> clean       denoise, hum, tone, de-ess, level
-  -> grade       HDR to SDR, white balance, exposure, shot match
-  -> frame       aspect ratio, face-aware crop, punch-ins
+  -> transcribe  word times, fillers kept, speakers on request
+  -> clips       optional: complete thoughts in a long recording, each cut into its own project
+  -> cut         remove silence, fillers, stutters, retakes, or build from an edited script (EDL)
+  -> clean       denoise, hum, tone, de-ess, level each phrase, room tone in the holes
+  -> grade       HDR to SDR, white balance, exposure, shot match, looks and LUTs
+  -> frame       any aspect up to 4:1, face-aware crop, punch-ins
   -> broll       spots that want a cutaway, filled from your clips, stock or generation
   -> direct      shot list for anything that needs inserts
   -> generate    images and video from model providers, behind a spend gate
-  -> plate       one picture and sound edit, no graphics
+  -> plate       one picture and sound edit, with transitions and freezes, no graphics
   -> caption     word-timed caption pages
-  -> motion      hook, chips, lower third, end card as transparent layers
-  -> render      draft or final composite
+  -> motion      formats from the library as transparent layers
+  -> render      draft or final composite, with texture overlays under the captions
   -> master      two-pass loudness, true-peak limit
   -> qa          fact gates in code
   -> review      Editor in Chief verdict, SHIP or FIX
+  -> deliver     subtitles, chapters, thumbnails, stems and a version for each platform
+  -> facts       measured facts, never a score
+```
+
+A film with no footage takes a shorter road to the same checks:
+
+```text
+brief and storyboard
+  -> film check  beats, holds, reading time, the hook, flashes, every number read from the tool
+  -> stills      one still per scene and a contact sheet, before any full render
+  -> score       original music fitted to the scene marks
+  -> render      a master, then each cutdown re-rendered from the storyboard
+  -> film qa     seeking, pops, dead air, frame 0, planned silences, hook and phone sheets
+  -> qa, review, deliver and facts, as above
 ```
 
 ## Three layers, one composite
@@ -80,6 +97,7 @@ Stock Homebrew `ffmpeg` has no `drawtext`, `subtitles` or `zscale`. Altocue uses
 my-video/
   altocue.toml        project settings: aspect, fps, brand, providers, limits
   brief.md            the goal and the audience, in the user's words
+  consent.json        this project's yes to uploading footage to a named provider, if given
   sources/            links to the original files, never modified
   work/
     media.json        probe results
@@ -88,11 +106,19 @@ my-video/
     luts/             one .cube per clip
     layers/           transparent layers
   edl.json            the cut: every kept range, with a reason for every removal
+  script.md           every sentence, to edit and cut from
+  motion.json         the graphics, transitions, freezes and overlays
+  broll.json          the B-roll picked for each spot
   shots.json          inserts to generate, if any
   timeline.json       resolved output timeline
+  library.lock.json   every item fetched from the library, with its licence
+  motion/fetched/     fetched items and their licence files
+  clips/              candidates, and one project per clip cut
   out/
     draft.mp4
     final.mp4
+    credits.txt       what the film must credit
+  deliver/            subtitles, chapters, thumbnails, stems and platform versions
   review/
     pack/             contact sheets, cut frames, timeline sheets, numbers
     report.json
@@ -104,7 +130,8 @@ my-video/
 
 - **`Clip`:** path, duration, fps, size, rotation, HDR transfer, has audio.
 - **`Word`:** text, start, end, confidence, kind (`word`, `filler`, `cue`).
-- **`Edl`:** ordered segments of `clip, start, end, zoom, label`, plus `removed` entries with `kind`, `evidence` and `decision`.
+- **`Edl`:** ordered segments of `clip, start, end, zoom_from, zoom_to, gain, crop, label`, plus `removed` entries with `kind`, `evidence` and `decision`. A segment's `held` list names what was set by hand, so `frame` leaves it and a re-cut carries it.
+- **`Shot`:** a shot to generate. `synthetic` flags a generated person or place, and `script` holds any words it says, so the honesty gates can read them.
 - **`Timeline`:** the EDL resolved to output frames, with mapped words and inserts.
 - **`OverlaySpec`:** engine-neutral list of `type, start, end, text, style`.
 - **`GateResult`:** `id, passed, value, threshold, detail`.
@@ -134,7 +161,8 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 
 - **Bounded and per clip.** One correction per clip never flickers. Changes are capped.
 - **Face-anchored.** Exposure reads the face, not a bright window.
-- **Skin wins.** If a correction moves skin hue too far, it backs off.
+- **Skin wins.** If a correction moves skin hue too far, it backs off. A look backs off at skin too, but never to nothing.
+- **Looks are code.** Eight film looks are written as maths, or the user brings a `.cube`. Strength is one number.
 - **Baked to a LUT.** The maths is testable Python. The render is one `lut3d` filter.
 
 ## Framing
@@ -142,27 +170,74 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **YuNet** finds faces. Its model is MIT and ships with Altocue.
 - **Per-shot crop with a dead zone.** Editors reframe per shot. Constant drifting looks like AI.
 - **Punch-ins** alternate on jump cuts to hide them.
+- **Any aspect.** Any W:H up to 4:1 each way. Past that there is no room for a face, a caption or a safe zone.
+
+## Motion and the library
+
+- **Formats are original CSS.** Each lives in `src/altocue/motion/formats/`, is pure in time so any frame can be sought, and declares its slots and copy limits. Copy longer than a slot fits is an error before the render.
+- **One catalog, four tiers.** Built in ships with Altocue. Fetch is open items from the HyperFrames registry and GL shaders, copied into a project with their licence files. Search is a live service. Link is a pointer only, with no items indexed from a closed site.
+- **Built-ins are read live.** The catalog lists formats from this install, so a new format is in the library without a rebuild.
+- **A licence gate and a deny list.** An item without an allowed licence, or one that rebuilds a brand, is refused, and the reason is kept. Excluded sources stay listed with their reason.
+- **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it.
+- **A render needs no network.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`.
+
+## Films with no footage
+
+- **The storyboard is the source of truth.** Scene order, timing, what is on screen, the camera and the sound live in `storyboard.json`. Nothing writes to it after `new`, and a new order needs `altocue film approve`.
+- **One timeline.** Inside a scene, a time is seconds from its start. Change one scene's length and every later scene, cue and music mark moves with it.
+- **Checked before it renders.** `film check` reads the brief, lengths, formats, copy limits, beats, holds, reading time, the hook by 3 s and the flash limit. `film stills` renders one still per scene before any full render.
+- **Re-rendered, never cropped.** The master renders at its own shape. Each cutdown is rendered again from the same storyboard, and `--only-cutdowns` proves the master did not change.
+- **Original music.** `film score` writes music in code, fitted to the scene marks. No samples, no model, nothing to license. Nobody at Altocue's end can hear it, so every report says a person must.
+- **Live numbers.** A film that shows a count from the tool writes `{live:...}` tokens. `film check` reads each number again and fails a film whose numbers have moved.
+
+## Clips
+
+- **Checked, not forecast.** `clips find` reads only the transcript. Each candidate carries five plain checks: it opens a thought, closes one, has a hook, stands alone and stays on topic. There is no score to rank by.
+- **Each clip is its own project.** `clips cut` writes one project per pick, on the shape asked for, reusing the transcript.
+- **Flat memory.** Local engines take a recording a minute at a time, and transcribing refuses to start when memory or disk is short.
+
+## Sound sources
+
+- **Licence before download.** `altocue music` and `altocue sfx` show the licence and credit before anything comes down. Every download is recorded.
+- **Credits are owed, not optional.** Render writes `out/credits.txt`, and the `credits` gate fails a film that owes a credit without it.
+- **Bundled sounds are CC0.** Each is named by what it is for, with placement values in `sounds.json`.
+
+## Deliver
+
+- **The master is only ever read.** Everything lands in `deliver/`, so `out/` and `edl.json` never change.
+- **A new shape is rendered, not cropped.** Each platform version gets its own framing and graphics, and is checked for level, length, safe zone, faces, graphics and format.
+- **Stems add up to the mix.** `--stems` writes voice, music and effects as WAV files at their levels in the mix, before mastering.
+
+## Data
+
+- **Facts, never a score.** `altocue facts` measures the finished film: time to first word and text, hook words, cuts, the longest static stretch, caption coverage, opening loudness, reading time, safe zones and loop match.
+- **Winners beside non-winners.** `altocue benchmark` compares against both, so a hook that is simply common does not look like a cause.
+- **Learning has floors.** `altocue learn` shows no pattern under 20 posts and suggests nothing under 30. Paired hook tests are the only route past association.
 
 ## Generation
 
 - **Provider interface,** with model ids in data, never in code. Two vendors retired video APIs in the last six weeks, so model ids must be able to change without a release.
 - **Tiers, not models.** A shot asks for `draft`, `standard` or `hero`.
 - **Adapters:** fal.ai by key, Higgsfield by CLI or through its MCP server.
-- **Spend gate.** Estimate, show, wait for a yes, enforce a per-run cap.
+- **Spend gate.** Estimate, show, wait for a yes. `spend_cap_usd` is one budget per project: runs, reservations and imports all count.
+- **Reservations for the MCP route.** An agent spends through the MCP server, not Altocue, so it books money against the cap first. An import with no reservation is named in the report.
+- **Consent for uploads.** `consent.json` at the project root records a yes to send footage to a named provider. Without it, an uploading recipe is refused.
+- **Recipes in data.** `src/altocue/data/recipes.toml` describes each hosted command in our own words, with what it costs and when the price was read.
 - **Provenance.** A sidecar next to every asset records prompt, model, seed, cost and date.
 
 ## B-roll
 
 - **Code proposes, a person or agent decides.** `find_spots` scores runs of words for concrete nouns, a jump cut to hide and a long static stretch. It keeps out of the hook, the end and any graphic that carries meaning.
-- **Three sources, nearest first.** The user's clips, stock from Pexels or Pixabay, then generated shots.
+- **Three sources, nearest first.** The user's clips, stock, then generated shots.
+- **Stock with no key.** NASA, Wikimedia Commons, The Met and Cleveland answer with no key. Pixabay comes first when the user has its free key. Each result's own licence decides, and a result with no clear licence never reaches a project.
 - **Spots belong to one cut.** `spots.json` and `broll.json` record a hash of the EDL. A changed cut stops the render rather than land a picture under the wrong words.
-- **Search sends words, never footage.** Stock needs a free key. Pixabay results are cached for 24 hours, as its API asks.
+- **Search sends words, never footage.** Pixabay results are cached for 24 hours, as its API asks.
 
 ## Editor in Chief
 
 A reviewer that did not make the edit.
 
-- **Stage 1, fact gates in code.** Loudness, true peak, black or frozen frames, duration, word match, caption match, caption reading speed, the lines the brief requires, flashes a second, stray frames at insert edges, format, silence. Any failure means FIX with no model call.
+- **Stage 1, fact gates in code.** Loudness, true peak, black or frozen frames, duration, word match, caption match, caption reading speed, the lines the brief requires, text held long enough to read, safe zones, faces and graphics, flashes a second, stray frames at insert edges, credits owed, claims and disclosure for a generated person, format, silence, and the film checks: frame 0, dead air, pops, planned silences, cuts to plan and the loop seam. Any failure means FIX with no model call.
 - **Stage 2, judgement.** A reviewer scores nine dimensions from the file, the brief and the rubric. It never sees the plan or the edit reasons.
 - **Code decides.** SHIP needs all gates passing, nothing below 3, a weighted score of 3.8 or more, and no blocker.
 - **Every note needs a timecode.** Notes that point past the end are dropped.
@@ -176,10 +251,10 @@ A reviewer that did not make the edit.
 
 - **One repo, plugin at the root.** `.claude-plugin/`, `plugin.json`, `gemini-extension.json`, `skills/`, `agents/`.
 - **Skills use the portable frontmatter fields.** The agent calls `altocue` on PATH.
-- **No hooks, no `bin/`, no MCP server in v0.1.** Each one narrows where the plugin can be used.
+- **No hooks, no `bin/`, no MCP server.** Each one narrows where the plugin can be used.
 
 ## Safety rails for a public repo
 
 - **Nothing from client work ships.** Fresh git history, sample media only, and a CI blocklist.
-- **No paid or unclear assets.** Fonts are OFL. Sound effects are CC0.
+- **No paid or unclear assets.** Fonts are OFL. Sound effects and music stings are CC0. Bundled shaders are MIT with their headers kept. Fetched items stay in the project that fetched them.
 - **Keep media out of git.** The repo stays small enough to clone in seconds.
