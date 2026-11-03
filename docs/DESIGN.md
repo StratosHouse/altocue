@@ -14,11 +14,12 @@ Altocue turns raw footage into a finished video from inside a coding agent. It i
 - **Local first.** Footage stays on the machine unless the user turns on a hosted provider.
 - **Works in any agent.** Claude Code first, then Codex, Cursor and Gemini CLI. The CLI works alone.
 - **Reproducible.** Same inputs, same output. Every decision is written to a file.
+- **Provable.** `altocue demo` takes our published demo take through every free stage on this machine, in about 3 minutes.
 - **Honest.** Every report says what was measured, what was judged and what could not be checked.
 
 ## Non-goals for v0.1
 
-- **Not a timeline app.** There is no GUI editor.
+- **Not a timeline app.** There is no GUI editor. `altocue review --page` writes one file to watch and check a film in. Nothing in it edits.
 - **Not a posting tool.** Altocue delivers files.
 - **Not a hosted service.** Everything runs where the user runs it.
 
@@ -28,6 +29,7 @@ Altocue turns raw footage into a finished video from inside a coding agent. It i
 - **Never spend money silently.** Every paid generation shows its cost first and needs a yes.
 - **Never upload silently.** Every hosted step names where the footage is going.
 - **Never claim a check that did not run.**
+- **Never start another application.** Altocue writes files and prints their paths. A browser opens only for `--open`.
 
 ## The pipeline
 
@@ -92,9 +94,10 @@ my-video/
     draft.mp4
     final.mp4
   review/
-    pack/             contact sheets, cut frames, numbers
+    pack/             contact sheets, cut frames, timeline sheets, numbers
     report.json
     REPORT.md
+    page.html         the film beside its gates, notes and captions, in one file
 ```
 
 ## Key contracts
@@ -159,12 +162,14 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 
 A reviewer that did not make the edit.
 
-- **Stage 1, fact gates in code.** Loudness, true peak, black or frozen frames, duration, word match, caption match, format, silence. Any failure means FIX with no model call.
+- **Stage 1, fact gates in code.** Loudness, true peak, black or frozen frames, duration, word match, caption match, caption reading speed, the lines the brief requires, flashes a second, stray frames at insert edges, format, silence. Any failure means FIX with no model call.
 - **Stage 2, judgement.** A reviewer scores nine dimensions from the file, the brief and the rubric. It never sees the plan or the edit reasons.
 - **Code decides.** SHIP needs all gates passing, nothing below 3, a weighted score of 3.8 or more, and no blocker.
 - **Every note needs a timecode.** Notes that point past the end are dropped.
 - **Independent when you opt in.** Gemini sees the actual video. Without a key, a fresh-context agent reads the review pack and the report is labelled accordingly.
-- **Canaries.** Clips with planted faults measure whether the reviewer catches them.
+- **It sees sound as a picture.** A pack reviewer cannot hear or watch. Timeline sheets draw frames, captions, speech, waveform, loudness and cuts on one time axis, so level, silence and rhythm can be judged from a still. Tone, noise, music and lip sync still cannot.
+- **Gate canaries.** Clips with planted faults prove each fact gate fires, and clean controls prove it stays quiet. They run in the test suite, on generated clips with a faked transcriber. They say nothing about any reviewer.
+- **Reviewer canaries.** Our demo take edited by the real stages, so every film passes every gate, each with one fault only judgement can find, plus one clean film. A fresh reviewer gets only the pack, and a note counts if it names the right dimension at the right moment. A run proves what that one reviewer did on those films. It does not prove anything about real footage, another model or Gemini, and five faults are a smoke test, not a rate. `tests/reviewer_canaries.py` says how to run it, and the same limits.
 - **At most two fix rounds,** then it hands the open list to the human.
 
 ## Agent packaging
