@@ -678,3 +678,51 @@ def test_nothing_loads_when_the_guard_refuses(tmp_path, monkeypatch):
 def test_free_memory_reads_something_here():
     found = locks.free_memory_gb()
     assert found is None or 0 < found < locks.memory_gb() * 1.05
+
+
+def fake_whisper(monkeypatch, gpus: int, cuda_fails: bool = False) -> list[tuple[str, str, str]]:
+    """faster-whisper and ctranslate2 stand-ins: record each model made, and fail on CUDA when its libraries are missing."""
+    made: list[tuple[str, str, str]] = []
+
+    class Model:
+        def __init__(self, name, device, compute_type):
+            made.append((name, device, compute_type))
+            self.device = device
+
+        def transcribe(self, samples, **_):
+            def segments():
+                if self.device == "cuda" and cuda_fails:
+                    raise RuntimeError("Library libcublas.so.12 is not found or cannot be loaded")
+                yield SimpleNamespace(words=[SimpleNamespace(word=" Hello", start=0.0, end=0.4, probability=0.9)])
+
+            return segments(), None
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=Model))
+    monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: gpus))
+    monkeypatch.setattr(ffmpeg, "read_wav", lambda *_: (np.zeros(16000, dtype=np.float32), 16000))
+    monkeypatch.delenv("ALTOCUE_WHISPER_DEVICE", raising=False)
+    return made
+
+
+def test_faster_whisper_uses_an_nvidia_card_and_a_larger_model(monkeypatch, tmp_path):
+    made = fake_whisper(monkeypatch, gpus=1)
+    words = transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("large-v3-turbo", "cuda", "float16")]
+    assert [w.text for w in words] == ["Hello"]
+
+
+def test_faster_whisper_falls_back_to_the_cpu_when_cuda_libraries_are_missing(monkeypatch, tmp_path, capsys):
+    made = fake_whisper(monkeypatch, gpus=1, cuda_fails=True)
+    words = transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("large-v3-turbo", "cuda", "float16"), ("small.en", "cpu", "int8")]
+    assert [w.text for w in words] == ["Hello"]
+    assert "libcublas" in capsys.readouterr().err
+
+
+def test_faster_whisper_stays_on_the_cpu_without_a_card_or_when_told(monkeypatch, tmp_path):
+    made = fake_whisper(monkeypatch, gpus=0)
+    transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: 1))
+    monkeypatch.setenv("ALTOCUE_WHISPER_DEVICE", "cpu")
+    transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("small.en", "cpu", "int8"), ("small.en", "cpu", "int8")]
