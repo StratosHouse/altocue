@@ -89,7 +89,7 @@ Learn pacing and structure from references. Only recreate work you own or have r
 
 ## What Altocue will not make, and why
 
-- **AI host channels and AI persona experts.** YouTube's monetization policy says channels using an AI persona as a human expert on health, legal issues, finances or politics cannot monetize. It is also a poor thing to do to viewers.
+- **AI host channels and AI persona experts.** YouTube's monetisation policy says channels using an AI persona as a human expert on health, legal issues, finances or politics cannot earn from it. It is also a poor thing to do to viewers.
 - **Mass-produced channels.** YouTube's rules on repetitive and mass-produced content are judged across the channel. A format is fine, but videos that feel interchangeable, or characters repeating the same situation and outcome, are not. Give each video a distinct idea. No gate can certify a channel, so warn the person.
 - **Compilations of other people's clips.** YouTube's reused content rule applies even with permission, and copyright applies separately.
 - **Faked reviews, proof or results.** A generated person may not claim experience. See `altocue-ugc`.

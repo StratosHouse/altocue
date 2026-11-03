@@ -245,10 +245,29 @@ def master_file(
 
 
 def no_sound_in(project: Project) -> bool:
+    """A film with nothing to hear. Decided from the render's own mix, because a clip can carry a track of pure silence."""
     try:
-        return not any(clip.has_audio for clip in project.clips())
+        if not any(clip.has_audio for clip in project.clips()):
+            return True
     except AltocueError:
+        pass
+    mix = project.work / "mix.wav"
+    if not mix.is_file():
         return False
+    stat = mix.stat()
+    key = (str(mix.resolve()), stat.st_mtime_ns, stat.st_size)
+    if key not in _SILENT_MIX:
+        try:
+            measure(mix, LOUDNESS, TRUE_PEAK)
+            _SILENT_MIX[key] = False
+        except Silent:
+            _SILENT_MIX[key] = True
+        except (AltocueError, KeyError, ValueError):
+            _SILENT_MIX[key] = False
+    return _SILENT_MIX[key]
+
+
+_SILENT_MIX: dict[tuple[str, int, int], bool] = {}  # one measurement per mix file, however many stages ask
 
 
 def run(args: argparse.Namespace) -> int:
@@ -270,12 +289,20 @@ def run(args: argparse.Namespace) -> int:
     elif args.loudness is not None:
         loudness = args.loudness
     true_peak = args.true_peak if args.true_peak is not None else true_peak
-    silent_film = bool(project) and no_sound_in(project)
-    result = master_file(src, dest, loudness=loudness, true_peak=true_peak, silent_film=silent_film)
+    try:
+        result = master_file(src, dest, loudness=loudness, true_peak=true_peak)
+    except Silent:
+        if not (project and no_sound_in(project)):  # asked only when the render is silent, because it reads the whole mix
+            raise
+        result = master_file(src, dest, loudness=loudness, true_peak=true_peak, silent_film=True)
     if project:
         write_json(project.audio_dir / "master.json", result)
+    else:
+        from .generate import store
+
+        store.carry_provenance(src, dest, "altocue master")  # a re-encode of a generated clip is still that clip
     if result["mode"] == "silent":
-        print(f"No clip in this project has sound, so {dest} is the render as it was.")
+        print(f"This film has nothing to hear, so {dest} is the render as it was.")
         return 0
     print(f"Mastered {dest}: {result['integrated']} LUFS, {result['true_peak']} dBTP, range {result['range']} LU, {result['mode']}")
     for note in result["warnings"]:

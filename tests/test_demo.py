@@ -303,7 +303,7 @@ def test_a_waiting_retake_is_ruled_on_so_the_film_can_pass(tmp_path, monkeypatch
 
 
 def test_nothing_in_the_demo_or_doctor_starts_another_application():
-    """Altocue never launches a browser or an app on its own. Only `review --page --open` may."""
+    """Altocue never opens an application window, editor or browser on its own."""
     for module in (demo, demo.doctor):
         source = Path(module.__file__).read_text()
         assert "webbrowser" not in source and '"open"' not in source

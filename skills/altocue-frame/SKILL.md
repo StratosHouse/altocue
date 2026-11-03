@@ -28,6 +28,6 @@ compatibility: Requires the altocue CLI.
 
 ## After every reframe
 
-- **Recheck captions, the product and the safe area.** [source] `altocue qa` covers `safe_zone`, `face_clear` and `graphics_clear`. No gate looks for the product, so open the frames.
+- **Recheck captions, the product and the safe area.** [source] `altocue qa` covers `safe_zone`, `face_clear` and `graphics_clear`. No gate looks for the product, so view the frames with your own file-reading tool, never by launching an app.
 - **A new shape is a new layout, not a crop.** `altocue deliver --for reels,youtube` re-renders the graphics for each shape. See `altocue-deliver`.
 - **A hosted reframe paints new edges.** See `altocue recipes show reframe`. A crop is free, so try it first.

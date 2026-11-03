@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import csv
 import io
-import json
 import math
 import os
 import re
@@ -26,6 +25,7 @@ from . import stats
 from .errors import AltocueError
 from .facts import duration_bucket
 from .project import write_json
+from .retention import YOUTUBE_KEEP_DAYS, YOUTUBE_LIST, purge_expired, remember
 
 MIN_BASELINE = 10
 BASELINE_MOST = 30
@@ -40,8 +40,6 @@ VENDOR_BASELINE = "1of10 does not publish its baseline window, or whether its me
 
 YOUTUBE_MARK = "youtube_data_api"
 YOUTUBE_API = "https://www.googleapis.com/youtube/v3"
-YOUTUBE_KEEP_DAYS = 30
-YOUTUBE_LIST = "youtube-list.json"
 ONEOF10_API = "https://1of10.com/api/v1"
 ONEOF10_READS = ("/outlier-discovery/search/outliers", "/trackers/")  # research only. No generator can be reached, so no credit can be spent
 SPYGLASS_API = "https://api.spyglass.so/v2"
@@ -551,21 +549,15 @@ def raw_youtube_list(args: argparse.Namespace, folder: Path, as_of: date) -> int
     expires = as_of + timedelta(days=YOUTUBE_KEEP_DAYS)
     saved = {"data_source": YOUTUBE_MARK, "note": UNTRUSTED, "fetched": as_of.isoformat(), "expires": expires.isoformat(), "rows": rows}
     path = write_json(folder / YOUTUBE_LIST, saved)
+    remember(path, expires)
     print(f"\n{POLICY}\n\n{UNTRUSTED}\n")
     for row in rows[:25]:
         print(f"{row['views']:>12,}  {row['published'][:10]}  {_cell(row['channel'])}: {_cell(row['title'])[:70]}")
-    print(f"\nSaved {path}. YouTube's rules limit how long this may be kept, so Altocue deletes it after {expires}.")
+    print(
+        f"\nSaved {path}. YouTube's rules limit how long this may be kept, so the first altocue command after {expires} deletes it, "
+        "wherever you run it. Nothing runs in the background: if you will not run Altocue by then, delete it yourself."
+    )
     return 0
-
-
-def purge_expired(folder: Path, today: date) -> None:
-    path = folder / YOUTUBE_LIST
-    if not path.exists():
-        return
-    expires = parse_date(json.loads(path.read_text()).get("expires", ""))
-    if expires is None or today > expires:
-        path.unlink()
-        print(f"Deleted {path.name}: YouTube statistics may not be kept past {YOUTUBE_KEEP_DAYS} days.")
 
 
 def add_hooks(videos: list[Video], path: str) -> None:

@@ -30,9 +30,9 @@ LABELS = {"evidence", "source", "thumb"}
 
 # A stage cli.py already registers, whose module lands from a branch still open. Named by stage only, so no flag goes unchecked:
 # when the module arrives its flags are read like any other stage's. Add nothing here for a stage that has no branch.
-ARRIVING_STAGES = {"timeline"}
+ARRIVING_STAGES: set[str] = set()
 # Skills other branches are writing. A note may point at one. Creating one here would collide with its owner.
-ARRIVING_SKILLS = {"altocue-launch", "altocue-film", "altocue-clips"}
+ARRIVING_SKILLS: set[str] = set()
 # Names a skill invents as an example, in place of something the user brings. Altocue reads none of them by name.
 EXAMPLE_FILES = {
     "a.mov", "b.mov", "approved_claims.json", "bed.mp3", "brand.json", "clip.mp4", "desk.mp4", "decisions.json", "door.wav", "export.csv", "Inter-Variable.ttf",
@@ -51,11 +51,14 @@ PATHISH = re.compile(r"^[\w./-]+\.(?:json|md|toml|txt|jpg|png|mp4|mov|csv|cube|s
 NAMEISH = re.compile(r"^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$")
 AMERICAN = re.compile(r"\b(?!(?:re)?sized?\b|prized?\b|seized?\b)\w+(?:ize|ized|izing|ization)\b")
 SEGMENT_ID = re.compile(r"^s\d{3}$")
+CUTDOWN = re.compile(r"^final-\d+x\d+\.mp4$")  # `altocue film render --cutdowns` writes final-<W>x<H>.mp4 for each aspect, built in film.py
 
 
 def source_text() -> str:
     found = list((ROOT / "src" / "altocue").rglob("*.py")) + list((ROOT / "src" / "altocue").rglob("*.toml"))
     found += [ROOT / "src" / "altocue" / "data" / "sfx" / "sounds.json", ROOT / "agents" / "editor-in-chief.md"]
+    found += list((ROOT / "src" / "altocue" / "data" / "films").glob("*.json"))  # film types name their brief fields, such as gauge_note
+    found += list((ROOT / "src" / "altocue" / "data" / "compositions").glob("*.html"))  # bundled compositions, by name
     return "\n".join(path.read_text(errors="replace") for path in found)
 
 
@@ -148,7 +151,8 @@ def check_command(words: list[str], stages: dict[str, argparse.ArgumentParser | 
 
 
 def known_types() -> set[str]:
-    return set(formats.load()) | formats.CORE_TYPES | set(transitions.NAMES) | set(overlays.KINDS) | set(shader_names())
+    # `footage` is the storyboard's own item for a real clip in a film. storyboard.py and motion/scenes.py read it by name.
+    return set(formats.load()) | formats.CORE_TYPES | set(transitions.NAMES) | set(overlays.KINDS) | set(shader_names()) | {"footage"}
 
 
 def shader_names() -> set[str]:
@@ -223,7 +227,7 @@ def test_a_skill_names_real_files(path):
         here = path.parent / name
         beside = SKILLS / name
         base = Path(name).name
-        if not (here.exists() or beside.exists() or base in EXAMPLE_FILES or base in SOURCE):
+        if not (here.exists() or beside.exists() or base in EXAMPLE_FILES or base in SOURCE or CUTDOWN.fullmatch(base)):
             missing.append(name)
     assert not missing, f"Nothing in this checkout makes or reads: {', '.join(sorted(set(missing)))}"
 
@@ -314,6 +318,16 @@ def test_a_skill_says_when_to_use_it(path):
 
 def planted(text: str) -> list[str]:
     return problems_in(text, flags=every_flag(), stages={})
+
+
+OPEN_A_FILE = re.compile(r"\b[Oo]pen (?:`[^`]+\.(?:jpe?g|png|gif|html|mp4|mov)`|the (?:frames|contact sheet|thumbnail sheet)|a frame)")
+
+
+@pytest.mark.parametrize("path", EVERY, ids=lambda p: str(p.relative_to(SKILLS)))
+def test_a_skill_never_tells_the_agent_to_open_an_image(path):
+    """On a Mac an agent told to open a file may run `open`, which starts Preview. Altocue never opens a window."""
+    found = OPEN_A_FILE.search(path.read_text())
+    assert not found, f"{path}: {found.group(0) if found else ''}. Say view it with your own file-reading tool."
 
 
 def test_a_missing_stage_is_caught():

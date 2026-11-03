@@ -11,13 +11,15 @@ The master is only ever read. Everything lands in `deliver/`, so `out/` and `edl
 
 ## Steps
 
-1. Finish the film first: QA and a verdict. See `altocue-review`.
+1. Finish the film first: QA and a SHIP verdict for this exact `out/final.mp4`. See `altocue-review`. Without one, deliver refuses and writes nothing.
+   - **`--override "reason"`** delivers anyway. Use it only when the user asks. The reason is printed and written into `deliver.json`.
+   - **The claims and disclosure gates have no override.** Deliver measures them again, and a film that fails either one is never delivered.
 2. Run it:
    ```bash
    altocue deliver --for reels,youtube
    ```
 3. Read what it printed. A version that failed a gate says so, and its workspace is kept.
-4. Open the thumbnail sheet and each version's frames before calling it done.
+4. View the thumbnail sheet and each version's frames with your own file-reading tool, never by launching an app, before calling it done.
 
 ## What it makes
 

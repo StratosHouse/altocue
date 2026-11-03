@@ -304,6 +304,12 @@ def youtube_replies(url):
     }
 
 
+@pytest.fixture(autouse=True)
+def own_home(tmp_path, monkeypatch):
+    """The list of saved YouTube files lives in ~/.altocue, so each test gets its own home."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+
 @pytest.fixture
 def calls(monkeypatch):
     fake = SimpleNamespace(made=[], status=200, media=[], points=[])
@@ -369,6 +375,30 @@ def test_the_raw_list_is_deleted_after_thirty_days(tmp_path, calls, monkeypatch,
     main(["benchmark", "-p", str(tmp_path), "--import", str(path), "--as-of", late.isoformat()])
     assert not (tmp_path / "bench" / "youtube-list.json").exists()
     assert "deleted" in capsys.readouterr().out.lower()
+
+
+def test_any_altocue_command_deletes_the_raw_list_after_thirty_days(tmp_path, calls, monkeypatch, capsys):
+    """The purge used to run only at the start of the next benchmark in that folder."""
+    monkeypatch.setenv("YOUTUBE_API_KEY", "yt-key")
+    project = tmp_path / "project"
+    run_youtube(project)
+    saved = project / "bench" / "youtube-list.json"
+    assert saved.exists()
+    capsys.readouterr()
+    monkeypatch.setattr("altocue.retention.today", lambda: AS_OF + timedelta(days=30))
+    assert main(["recipes", "list"]) == 0
+    assert saved.exists()  # the last allowed day
+    monkeypatch.setattr("altocue.retention.today", lambda: AS_OF + timedelta(days=31))
+    assert main(["recipes", "list"]) == 0  # run anywhere, about anything
+    assert not saved.exists()
+    assert "deleted" in capsys.readouterr().out.lower()
+
+
+def test_the_saved_message_says_when_and_how_the_list_goes(tmp_path, calls, monkeypatch, capsys):
+    monkeypatch.setenv("YOUTUBE_API_KEY", "yt-key")
+    run_youtube(tmp_path)
+    out = capsys.readouterr().out
+    assert "first altocue command" in out and "delete it yourself" in out
 
 
 def test_a_connector_with_no_key_stays_off(tmp_path, calls, monkeypatch, capsys):

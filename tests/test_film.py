@@ -1191,7 +1191,7 @@ def test_onboarding_names_the_launch_feature():
 
 def test_the_film_skills_name_no_other_video_tool():
     for name in ("altocue-launch", "altocue-film"):
-        assert not re.search(r"remotion|higgsfield|sanji|\u2014", skill(name), re.I)
+        assert not re.search(r"remotion|higgsfield|capcut|\u2014", skill(name), re.I)
 
 
 def test_parked_types_are_explained_with_the_platform_rule():

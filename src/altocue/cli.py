@@ -17,7 +17,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "transcribe": ("altocue.transcribe", "Word-timed transcripts, fillers kept"),
     "cut": ("altocue.cut", "Propose or apply the cut"),
     "clean": ("altocue.clean", "Clean each clip's audio"),
-    "grade": ("altocue.grade", "Correct each clip's colour"),
+    "grade": ("altocue.grade", "Correct each clip's colour and apply a look"),
     "frame": ("altocue.frame", "Reframe to the target aspect"),
     "broll": ("altocue.broll", "Find B-roll spots and fill them"),
     "direct": ("altocue.direct", "Check a shot list and cost it"),
@@ -29,7 +29,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "master": ("altocue.master", "Master the sound"),
     "qa": ("altocue.qa", "Run the fact gates"),
     "review": ("altocue.review", "Editor in Chief review"),
-    "run": ("altocue.run", "Run every stage in order"),
+    "run": ("altocue.run", "Run ingest to QA in order. B-roll, direct and generate stay separate"),
     "film": ("altocue.film", "Make a film with no footage: launch, explainer, ad and more"),
     "launch": ("altocue.film", "Make a launch video from a brief"),
     "library": ("altocue.library", "Search motion, stock, sound and looks"),
@@ -61,9 +61,23 @@ def build_parser(argv: list[str]) -> argparse.ArgumentParser:
     return parser
 
 
+def forget_expired_data(args: argparse.Namespace) -> None:
+    """Every command first deletes YouTube statistics past their date, wherever they were saved."""
+    from datetime import date
+
+    from . import retention
+
+    as_of = getattr(args, "as_of", None) if getattr(args, "module", "") == "altocue.benchmark" else None
+    try:
+        retention.purge_everywhere(getattr(args, "project", None), date.fromisoformat(as_of) if as_of else None)
+    except (OSError, ValueError) as error:
+        print(f"altocue: could not check for expired YouTube data: {error}", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     args = build_parser(argv).parse_args(argv)
+    forget_expired_data(args)
     try:
         return importlib.import_module(args.module).run(args) or 0
     except AltocueError as error:

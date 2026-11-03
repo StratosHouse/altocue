@@ -449,6 +449,9 @@ def copy_stretch(clip: Clip, start: float, end: float, folder: Path) -> tuple[Pa
     sound = ["-map", "0:a:0", "-c:a", "pcm_s24le"] if clip.has_audio else []
     span = ["-ss", f"{offset + SEEK_SLACK:.6f}", "-i", clip.path, "-t", f"{until - offset:.6f}"]
     ffmpeg.run([*span, "-map", "0:v:0", "-c:v", "copy", *sound, "-map_metadata", "0", str(dest)])
+    from .generate import store
+
+    store.carry_provenance(Path(clip.path), dest, "altocue clips cut")  # a trim of a generated take is still that take
     return dest, offset
 
 

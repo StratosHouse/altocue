@@ -127,7 +127,6 @@ def review_stage(project: Project) -> str:
             editor_vendor=None,
             reset_rounds=False,
             page=False,
-            open_page=False,
         )
     )
     pack = "pack written" if (project.review_dir / "PACK.md").exists() else "no pack, because a fact gate failed"
@@ -137,7 +136,8 @@ def review_stage(project: Project) -> str:
 def deliver_stage(project: Project, renderer: str) -> str:
     from . import deliver
 
-    deliver.run(argparse.Namespace(project=str(project.root), platforms=None, loudness=None, renderer=renderer))
+    reason = "The demo has no reviewer, so this film has no SHIP verdict. These files are for looking at, not for release."
+    deliver.run(argparse.Namespace(project=str(project.root), platforms=None, loudness=None, renderer=renderer, override=reason))
     saved = json.loads((project.root / "deliver" / "deliver.json").read_text())
     return f"subtitles, {len(saved['thumbnails']['candidates'])} thumbnails, film with soft subtitles"
 

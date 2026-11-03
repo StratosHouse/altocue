@@ -12,7 +12,6 @@ import base64
 import json
 import re
 import tempfile
-import webbrowser
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -305,8 +304,3 @@ def write(project: Project, file: Path) -> Path:
     target_path = path(project)
     target_path.write_text(compose(project.root.name, digest, facts, film, verdict, gates, captions, timeline))
     return target_path
-
-
-def show(target: Path) -> bool:
-    """Only ever called for `--open`. Altocue starts no other application by itself."""
-    return bool(webbrowser.open(target.as_uri()))

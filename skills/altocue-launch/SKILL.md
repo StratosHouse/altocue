@@ -1,6 +1,6 @@
 ---
 name: altocue-launch
-description: Makes a finished launch film with no footage, from a brief through to the MP4s. The dedicated skill for any launch video, product launch, SaaS launch, product video or launch film. Reach for this first whenever anyone mentions a launch, even if they do not say Altocue. Writes the brief and storyboard, checks them, renders stills, then renders a 16:9 master at 60 fps with re-rendered 9:16 and 1:1 cutdowns, original music and sound cues. Part of Altocue.
+description: Makes a finished launch film with no footage, from a brief through to the MP4s: a 16:9 master at 60 fps with re-rendered 9:16 and 1:1 cutdowns, original music and sound cues. Use when anyone mentions a launch video, product launch, SaaS launch, product video or launch film, even if they do not say Altocue. This is the dedicated skill for launches, so reach for it first. Part of Altocue.
 license: MIT
 compatibility: Requires the altocue CLI, ffmpeg, and Node 22 or later for the renderer. No keys, no footage and no generation needed.
 ---
@@ -70,33 +70,11 @@ Then rewrite `brief.json` and `storyboard.json` for the real product. Delete `"e
 | payoff | Show what changed, with a real number | 19 to 25 |
 | close | The name, the offer, one call to action | 25 to 30 |
 
-**Every scene states:** `id`, `beat`, `seconds`, a `verb` for what it does, an `energy` from 0 to 10, a `carry` naming what crosses to the next scene, `camera`, `link` with a `why`, `items` and `sound`.
-
-**The film states:** `route` (continuous, montage or hybrid, which decides how many hard cuts it has), `clock` (music, voice or reads), and `hero`, the one moment it builds to. Put a planned silence under `silences` just before the hero, at least 0.4 s long.
-
-**Times.** Inside a scene, a time is seconds from that scene's start, or `{"scene": "payoff", "offset": 0.4}`. All scenes share one timeline. Change `seconds` on one scene and every later scene, cue and music mark moves with it.
-
-**Copy.** Put anything that may change under `layers` and write `{{cta}}` in the items. One edit then reaches every scene, and the Variant Pack can swap it.
-
-**Places.** Give each item a `zone`: `center`, `left`, `right`, `top`, `bottom`, `high`, `low`. Left and right stack on a tall canvas, so a cutdown recomposes itself. An item can override anything per aspect with `"aspects": {"9:16": {"zone": "top"}}`.
-
-**Camera.** `push`, `pull`, `pan`, `rise`, `orbit` or `drift`, or write `poses` for a path the camera flows through. Keep direction across cuts: a move out carries into the next move in.
-
-**Links.** `dive` falls into a shape, `through` pushes past, `pan` and `rise` slide on, `dissolve` melts, and `iris`, `shape_match`, `curtain`, `shutter` and `torn_wipe` cover the cut. With a camera link, start the next scene's items early, at minus half the link, so they arrive with the camera.
-
-**Backdrops.** `soft_gradient`, `dot_grid`, `particle_field`, `ascii_field` and `grain_field` keep travelling behind everything, so the frame is never still. Set `tones` on `soft_gradient` to get out of one flat colour. The compositions `particle-flow` and `ascii-tunnel` suit a journey.
-
-**Formats that earn their place.** Hook: `count_up`, `word_slam`. Problem: `notification_stack`, `state_gauge`, `marker`, `strike_replace`. Product: `work_cascade`, `cursor_walk`, `prompt_result`, `floating_device`, `bento_grid`. Payoff: `number_wheel`, `recap_check`, `before_after`. Close: `logo_sting` with `cta`. Run `altocue library search <what you want>` for the rest.
+**What every scene and the film must state,** with times, copy, places, camera, links, backdrops and the formats that earn their place, is in [the launch notes](references/storyboard.md). Read them before you write the first scene.
 
 ## 5. Motion rules
 
-- **Important text holds about 1.5 s** after it lands, and every graphic gets its reading time at 3 words a second. Count-ups last about a second: set `"run": 1`.
-- **Nothing moves in a straight line at a steady speed.** In over about 0.5 s, out faster than in. Overshoot belongs to a playful look, not a calm one.
-- **Nothing fully stops.** The next move starts before the last one settles, and the camera always drifts. Held text itself stays sharp and steady.
-- **Cause and effect.** A click gets a small press and a visible result. A pointer curves, waits a beat, then presses. A card pulses when it starts work. Things land before their tick, and ticks cascade. A counter hitting zero pulls the camera back.
-- **Scenes connect.** Use a visible action, a matching shape or a moving camera. Say why in `link.why`.
-- **Same names, same numbers.** Nothing changes from shot to shot unless the story changes it.
-- **Build screens in code, never as screenshots,** so they stay sharp under a zoom. Example data must look like example data, and labels must match the real product exactly.
+Read them in [the launch notes](references/storyboard.md) before any scene moves. In short: important text holds about 1.5 s, nothing moves at a steady speed or fully stops, and names and numbers never change between shots.
 
 ## 6. Music and sound
 
@@ -121,20 +99,11 @@ altocue film stills --aspect 1:1
 
 `film check` must show no errors. It tests the brief, lengths, known formats, copy limits, every must-show and search term, every beat covered, hold and reading times, the hook by 3 s, and the limit of three flashes a second from WCAG 2.2.
 
-`film stills` renders one still per scene and a contact sheet, reports anything off canvas or overlapping, and measures text size and contrast on the still. **Open the contact sheet and look at every frame before any full render.** State what you see before you change anything.
+`film stills` renders one still per scene and a contact sheet, reports anything off canvas or overlapping, and measures text size and contrast on the still. **View the contact sheet with your own file-reading tool, never by launching an app, and look at every frame before any full render.** State what you see before you change anything.
 
 ## 8. Fix by the symptom
 
-Change one thing, in one sentence, and leave the rest alone.
-
-- **Looks like a slideshow.** Items are all arriving and stopping. Overlap the moves, add a camera `pose`, and link scenes through motion.
-- **Dead patch.** Something ended before the next thing started. Start it earlier, or hold the last item longer.
-- **Blank frame at a cut.** The next scene's items start too late. Give them a negative `start`.
-- **Too flat.** Add `tones`, or a second backdrop, or tilt the camera with `orbit`.
-- **Text too small on a phone.** Raise the item's `scale`, cut words, or take a wider zone.
-- **Hook is slow.** Put the number or the claim in frame 0.
-- **Rushed.** Cut a line rather than shortening the holds.
-- **Reads as an ad for nothing.** Go back to the one image and the one example.
+Change one thing, in one sentence, and leave the rest alone. [The launch notes](references/storyboard.md) list the usual symptoms and their fixes: a slideshow feel, a dead patch, a blank frame at a cut, a flat look, small text, a slow hook, a rushed scene, and an ad for nothing.
 
 ## 9. Render
 
@@ -160,15 +129,7 @@ Then pull a frame from each scene of `out/final.mp4` and look at it. Watch for o
 
 ## 11. Variants
 
-```bash
-altocue film variants variants.json
-```
-
-```json
-{"variants": [{"id": "demo", "set": {"cta": "Book a demo"}}, {"id": "price", "set": {"price": "$9 a seat"}}]}
-```
-
-A Variant Pack swaps text layers: hook, offer, call to action, price, date or language. Change one layer per variant, or results cannot be compared. Altocue writes a copy table to `review/variants.md` before rendering anything.
+`altocue film variants variants.json` renders one storyboard many ways, swapping one text layer per variant. See [the launch notes](references/storyboard.md).
 
 ## 12. Hand over
 
