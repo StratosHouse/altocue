@@ -218,7 +218,10 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
 
 
 def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
-    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film."""
+    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film.
+
+    CSS animates it, so the root says it has no timeline. HyperFrames lint counts a root without one as an error.
+    """
     width, height = timeline["width"], timeline["height"]
     geo = layout(width, height, brand, timeline.get("zone"))
     colors = brand.colors
@@ -245,7 +248,7 @@ def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
 <style>{css}{formats.stylesheet(timeline["items"])}</style></head>
 <body>
-<div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
+<div id="root" data-composition-id="root" data-no-timeline data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
 {under + chr(10) if under else ""}{captions}
 {items_html}
 </div>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -41,6 +42,12 @@ def test_a_cut_word_is_an_error():
 def test_unknown_graphic_is_an_error():
     with pytest.raises(AltocueError):
         resolve_items([{"type": "sparkle"}], WORDS, 8.0)
+
+
+def test_the_page_says_css_animates_it(brand):
+    """Without this HyperFrames lint reports a missing timeline, and a producer that trusts it waits for one."""
+    html = compose(timeline(items=resolve_items([{"type": "chip", "text": "One", "start": 1.0}], WORDS, 8.0)[0]), brand)
+    assert re.search(r'<div id="root" data-composition-id="root" data-no-timeline[ >]', html)
 
 
 def test_end_card_extends_the_film():
