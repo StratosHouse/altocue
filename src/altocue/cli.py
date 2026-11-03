@@ -48,8 +48,17 @@ STAGES: dict[str, tuple[str, str]] = {
 }
 
 
+class Parser(argparse.ArgumentParser):
+    """No abbreviated options at any depth. Older Pythons, such as Ubuntu 24.04's 3.12.3, read `learn pair --a`
+    as an abbreviation of learn's own --age or --as-of. Subcommand parsers are made from this class too."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("allow_abbrev", False)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+
+
 def build_parser(argv: list[str]) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="altocue", description="Edit raw footage into finished video.")
+    parser = Parser(prog="altocue", description="Edit raw footage into finished video.")
     parser.add_argument("--version", action="version", version=f"altocue {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     chosen = next((arg for arg in argv if arg in STAGES), None)
@@ -66,7 +75,7 @@ def stage_args(name: str, **given: object) -> argparse.Namespace:
 
     Read from the stage's parser, so an option added to a stage later is never missing here.
     """
-    parser = argparse.ArgumentParser(prog=f"altocue {name}")
+    parser = Parser(prog=f"altocue {name}")
     importlib.import_module(STAGES[name][0]).add_arguments(name, parser)
     defaults = vars(parser.parse_args([]))
     unknown = sorted(set(given) - set(defaults))
