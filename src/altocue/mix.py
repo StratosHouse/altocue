@@ -576,10 +576,17 @@ def _no_voice(
     out = _dipped(bed, [(hit, dip) for _, _, hit, dip, _ in hits if dip])
     if layers is not None:
         layers["music"] = out.copy()
-    for placed, start, _, _, _ in hits:
-        end_at = min(start + len(placed), total)
-        out[start:end_at] += placed[: end_at - start, None]
+    for placed, start, _, _, entry in hits:
+        entry["cut_at_end"] = _lay(out, placed, start, total)
     return out, {"mode": "no voice", "voice_lufs": None, "bed_lufs": BED_LUFS, "music": info, "sfx": [entry for *_, entry in hits]}
+
+
+def _lay(out: np.ndarray, placed: np.ndarray, start: int, total: int) -> bool:
+    """Add a sound into the mix. What runs past the end is cut off, and a sound an offset pushed past the end is dropped."""
+    stop = min(start + len(placed), total)
+    if stop > start:
+        out[start:stop] += placed[: stop - start, None]
+    return start + len(placed) > total
 
 
 def _room_tail(room: Path, start: int, total: int) -> np.ndarray | None:
@@ -695,7 +702,5 @@ def _with_voice(
             layers["music"] = ridden
     for index, cue in enumerate(cues):
         placed, start, entry = _effect(cue, index, level, total, folder)
-        stop = min(start + len(placed), total)
-        out[start:stop] += placed[: stop - start, None]
-        report["sfx"].append(entry)
+        report["sfx"].append({**entry, "cut_at_end": _lay(out, placed, start, total)})
     return out, report
