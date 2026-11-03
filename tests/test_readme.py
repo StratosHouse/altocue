@@ -177,6 +177,23 @@ def test_the_network_claims_name_both_exceptions():
         assert "render" in page and "headless Chrome" in page and "could not embed" in page
 
 
+def test_security_names_every_service_the_code_can_reach():
+    """SECURITY.md named Pexels and Pixabay for stock, and none of the sources added since, Wikidata among them."""
+    from altocue import stock
+
+    names = {
+        "nasa": "NASA", "wikimedia": "Wikimedia Commons", "met": "The Met", "cleveland": "Cleveland Museum of Art", "pixabay": "Pixabay",
+        "pexels": "Pexels", "archive": "Internet Archive",
+    }  # fmt: skip
+    assert set(stock.SOURCES) == set(names), "A new stock source needs its name here and in SECURITY.md."
+    services = [
+        *names.values(), "Wikidata", "ccMixter", "Incompetech", "Freesound", "fal.ai", "Higgsfield", "Google Gemini", "Codex", "ElevenLabs",
+        "1of10", "Spyglass", "YouTube Data API", "stratosagency.ai", "GitHub", "jsDelivr", "cdnjs", "Google Fonts", "npm", "Chrome for Testing", "Hugging Face",
+    ]  # fmt: skip
+    page = (ROOT / "SECURITY.md").read_text()
+    assert not [name for name in services if name not in page]
+
+
 def test_every_kind_in_the_library_has_a_row():
     assert set(STATS["kinds"]) <= set(KIND_LABELS), f"A new kind needs a label and a row: {set(STATS['kinds']) - set(KIND_LABELS)}"
 
