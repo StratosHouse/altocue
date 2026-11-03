@@ -203,7 +203,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "energy": 3,
             "carry": "the line falls into the footage",
             "camera": {"move": "push", "amount": 0.1},
-            "link": {"type": "dive", "seconds": 0.9, "zoom": 4.0, "why": "We fall through the promise into the raw take it is about."},
+            "link": {"type": "dive", "seconds": 0.9, "zoom": 1.6, "why": "We fall through the promise into the raw take it is about."},
             "items": [
                 {
                     "type": "word_slam",
@@ -278,7 +278,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "carry": "the sweep turns into the waveform",
             "shows": ["colour"],
             "camera": {"move": "push", "amount": 0.04},
-            "link": {"type": "pan", "seconds": 0.7, "why": "The divider's sweep carries on into the sound."},
+            "link": {"type": "dissolve", "seconds": 0.7, "why": "A bright face sliding off flashed, so the picture fades into the sound."},
             "items": [
                 {"type": "mask_rise", "lines": ["Colour", "*per clip*"], "start": -0.3, "zone": "left"},
                 {
@@ -488,7 +488,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "carry": "the row becomes search results",
             "shows": ["looks"],
             "camera": {"move": "drift"},
-            "link": {"type": "pan", "seconds": 0.7, "why": "The row slides on to the library."},
+            "link": {"type": "dissolve", "seconds": 0.7, "why": "Four bright frames sliding off flashed, so the row fades into the library."},
             "items": [
                 {
                     "type": "stage_strip",
