@@ -105,6 +105,13 @@ def record_asset(
     atomic_json(manifest_path(project), {"shots": shots})
 
 
+def note(project: Project, shot: str, **fields: Any) -> None:
+    """Add fields to one shot's manifest entry, leaving the rest as it was."""
+    shots = read_manifest(project)
+    shots[shot] = {**shots[shot], **fields}
+    atomic_json(manifest_path(project), {"shots": shots})
+
+
 def generated_asset(project: Project, shot: str, *, missing_ok: bool = False, require_passed: bool = True) -> Path | None:
     """The file to place for a shot. A clip that failed its check is a rush, not an insert."""
     entry = read_manifest(project).get(shot)

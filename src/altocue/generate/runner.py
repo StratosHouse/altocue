@@ -27,6 +27,7 @@ from .fal import FalProvider
 from .higgsfield import HiggsfieldProvider
 
 STALE_DAYS = 30
+MOST_FAILED_TAKES = 3  # failed takes of one prompt before another take of the same words is refused as a blind retry
 C2PA_MARK = b"c2pa.claim"  # every C2PA manifest labels its claim box this way. Four bytes alone turn up by chance in video
 KEEP_MARKS = "Keep every AI label, watermark and provenance mark this file carries."
 Out = Callable[[str], None]
@@ -179,6 +180,22 @@ def _status(project: Project, shot: Shot, digest: str, record: dict[str, Any] | 
     return "new" if record["state"] in TERMINAL - {"succeeded"} else "resume"
 
 
+def prompt_sha(prompt: str) -> str:
+    return hashlib.sha256(prompt.encode()).hexdigest()[:12]
+
+
+def failed_takes(jobs: store.JobStore, shot: str, prompt: str) -> int:
+    """Takes of this shot with these exact words that failed, were cancelled or failed their check. A record before this was counted carries no digest."""
+    digest, count = prompt_sha(prompt), 0
+    for record in jobs.for_shot(shot):
+        if record.get("prompt_sha") != digest:
+            continue
+        tried = int(record.get("attempt") or 1)
+        lost = record["state"] in ("failed", "canceled", "moderated") or (record["state"] == "done" and record.get("check_passed") is False)
+        count += tried if lost else tried - 1
+    return count
+
+
 def build_plan(
     project: Project,
     review: Review,
@@ -195,6 +212,7 @@ def build_plan(
         raise AltocueError(f"No shot named {', '.join(strangers)}.", fix=f"The shots are {', '.join(sorted(known))}.")
     digests: dict[str, str] = {}
     plan: list[Planned] = []
+    blind: list[str] = []
     for shot in review.shots:
         req = shot_request(shot, review.style, project.root)
         entry = catalog.resolve(provider.id, req)
@@ -207,12 +225,20 @@ def build_plan(
         item = Planned(shot, req, digest, status, entry.model, entry.params, shot.shot_refs(), record)
         if status == "restore":
             item.status, item.restore = "done", True
+        if status == "new" and failed_takes(jobs, shot.id, req.prompt) >= MOST_FAILED_TAKES:
+            blind.append(shot.id)
         if status == "new":
             item.cost = estimate([shot], provider, style=review.style, root=project.root)
         if status == "resume" and record:
             item.job = JobRef.from_dict(record["job"])
             item.state = record["state"]
         plan.append(item)
+    if blind:
+        raise AltocueError(
+            f"{', '.join(blind)} failed {MOST_FAILED_TAKES} takes or more with these exact words. "
+            "Another take of the same prompt is a blind retry, so nothing was spent.",
+            fix="Read why each take failed in its job file under work/jobs, change the one thing at fault in the prompt, then run again.",
+        )
     return plan
 
 
@@ -552,6 +578,7 @@ class Run:
             "detail": detail,
             "asset": asset,
             "check_passed": (item.record or {}).get("check_passed"),
+            "prompt_sha": prompt_sha(item.req.prompt),
             "updated": store.now(),
         }
         self.jobs.save(record)
@@ -635,6 +662,9 @@ class Run:
         wrong = records.mismatches(result, asked(self.provider, item.req), model=item.model) if isinstance(result, dict) else []
         if wrong:  # paid for and kept, but not placed: the take is not the shot that was asked for
             check = {"check": "record", "passed": False, "detail": f"The job record does not match the request: {'; '.join(wrong)}."}
+        ran = records.ran_prompt(result) if isinstance(result, dict) else None
+        if ran and ran.strip() != item.req.prompt.strip():
+            self.out(f"{item.shot.id}: {self.provider.id} rewrote the prompt before running it. Both are in its provenance.")
         ancestors, inherited, _ = ancestry(self.project, item.upstream)
         flags = sorted({*item.shot.synthetic, *inherited})
         for asset in assets:
@@ -661,6 +691,7 @@ class Run:
                         "last_frame": item.shot.last_frame,
                         "refs": item.shot.refs,
                         "motion": item.shot.motion,
+                        "prompt_ran": ran,
                         "record_mismatches": wrong,
                         "check": check,
                         "synthetic": flags,
@@ -894,6 +925,7 @@ def import_asset(
     claims: str = "",
     consent: str = "",
     record: str = "",
+    because: str = "",
     out: Out = print,
 ) -> Path:
     """Register a file that was generated elsewhere, such as through a provider's MCP server.
@@ -902,6 +934,7 @@ def import_asset(
     provider's job record is held against the shot first, so a page that kept an old duration is caught (c004).
     """
     shot = shot_id(shot)
+    reason = records.kept_because(because) if because else ""
     source = Path(file).expanduser().resolve()
     if not source.is_file():
         raise AltocueError(f"Not found: {source}")
@@ -953,7 +986,9 @@ def import_asset(
         "synthetic": flags,
         "claims": _claims_record(project, claims),
         "consent": consent,
+        "prompt_ran": records.ran_prompt(job) if job else None,
         "record_mismatches": wrong,
+        **({"kept_because": reason, "kept_at": store.now()} if reason else {}),
         "terms_as_of": str(config.get("terms_as_of", "")),
         "marks": {
             "c2pa": store.holds(source, C2PA_MARK),
@@ -974,6 +1009,23 @@ def import_asset(
     if {"person", "voice"} & set(flags) and not consent:
         out(f"Warning: {shot} is flagged {', '.join(flags)} with no --consent note. Record whose likeness or voice this is, or that it is an invented adult.")
     return asset
+
+
+def keep(project: Project, shot: str, because: str, *, out: Out = print) -> dict[str, Any]:
+    """Record why a take was kept, in plain words, beside its prompt and settings (c335)."""
+    shot = shot_id(shot, "--keep")
+    reason = records.kept_because(because)
+    entry = store.read_manifest(project).get(shot)
+    if entry is None or not (project.root / entry["asset"]).exists():
+        raise AltocueError(f"Nothing has been generated for {shot}.", fix="Generate it, or register it with --import, then keep it.")
+    if entry.get("check_passed") is False:
+        raise AltocueError(f"{shot} failed its check, so it is not placed and cannot be kept.", fix=f"Read {entry['provenance']}, then generate it again.")
+    asset = project.root / entry["asset"]
+    data = {**(store.read_provenance(asset) or {}), "kept_because": reason, "kept_at": store.now()}
+    store.atomic_json(store.provenance_path(asset), data)
+    store.note(project, shot, kept_because=reason)
+    out(f"{shot}: kept, because {reason}")
+    return data
 
 
 def _job_record(project: Project, name: str) -> dict[str, Any]:

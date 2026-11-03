@@ -784,6 +784,36 @@ def test_failed_job_is_reported_and_a_rerun_goes_through_the_gate_again(project,
     assert jobs(project)[0]["attempt"] == 2
 
 
+def test_a_blind_retry_is_refused_after_three_failed_takes(project, fal, capsys):
+    """c333, b022: before another take, change the one thing at fault. A stale failure label is not evidence."""
+    fal.result_code = 500
+    fal.result_body = {"detail": "Runner failed", "error_type": "runner_server_error"}
+    fal.status_extra = {"error": "Runner failed", "error_type": "runner_server_error"}
+    write_shots(project, shot())
+    for _ in range(3):
+        assert go(project, "--yes") == 1
+    assert len(fal.submits) == 3
+    capsys.readouterr()
+    assert go(project, "--yes") == 1
+    assert "blind retry" in capsys.readouterr().err and len(fal.submits) == 3
+    fal.result_code, fal.result_body, fal.status_extra = 200, None, {}
+    write_shots(project, shot(prompt=f"{PROMPT} The hinge creaks as it opens."))
+    assert go(project, "--yes") == 0 and len(fal.submits) == 4
+
+
+def test_a_kept_take_says_why_in_words_that_can_be_checked(project, fal, capsys):
+    write_shots(project, shot())
+    assert go(project, "--yes") == 0
+    assert go(project, "--keep", "s01") == 1
+    assert go(project, "--keep", "s01", "--because", "looks really cinematic") == 1
+    assert "does not say what in the take was right" in capsys.readouterr().err
+    assert go(project, "--keep", "s01", "--because", "eyeline lands on the lantern, the door matches s02") == 0
+    asset = generated_asset(project, "s01")
+    sidecar = json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+    assert sidecar["kept_because"] == "eyeline lands on the lantern, the door matches s02" and sidecar["prompt"] == PROMPT
+    assert json.loads((project.work / "generated" / "manifest.json").read_text())["shots"]["s01"]["kept_because"]
+
+
 def test_submit_is_never_repeated_when_the_answer_is_unclear(project, fal, capsys):
     fal.submit_code = 503
     write_shots(project, shot())
@@ -1278,6 +1308,17 @@ def test_an_import_is_held_against_its_job_record(project, fal, capsys, tmp_path
     assert "duration 5, asked for 8" in capsys.readouterr().out
     sidecar = json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
     assert sidecar["check"]["passed"] is False and sidecar["record_mismatches"] == ["duration 5, asked for 8"]
+
+
+def test_the_prompt_the_service_ran_is_recorded_beside_the_one_sent(hf_project, higgsfield, capsys):
+    """c335: keep the brief, the submitted prompt, the settings used and the review apart."""
+    higgsfield.write(result_extra={"params": {"prompt": "A woman walks to a door, cinematic, 4k."}})
+    write_shots(hf_project, shot(tier="standard"))
+    assert go(hf_project, "--yes") == 0
+    assert "rewrote the prompt" in capsys.readouterr().out
+    asset = generated_asset(hf_project, "s01")
+    sidecar = json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+    assert sidecar["prompt_ran"] == "A woman walks to a door, cinematic, 4k." and sidecar["prompt"] == PROMPT
 
 
 def test_a_prompt_that_starts_with_dashes_reaches_higgsfield_as_the_prompt(hf_project, higgsfield):

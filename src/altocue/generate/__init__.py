@@ -10,7 +10,7 @@ from ..project import Project
 from . import uploads
 from .base import CAPABILITIES, TERMINAL, Asset, Cost, CostLine, GenProvider, GenRequest, JobRef, JobStatus, Moderated, SubmitUnknown
 from .catalog import Catalog, ModelEntry, capability_of, catalog_for, load_catalog
-from .runner import cancel_shot, estimate, generate_shots, get_provider, import_asset, not_billed, release, reserve, spend_report
+from .runner import cancel_shot, estimate, generate_shots, get_provider, import_asset, keep, not_billed, release, reserve, spend_report
 from .store import generated_asset
 
 __all__ = [
@@ -36,6 +36,7 @@ __all__ = [
     "generated_asset",
     "get_provider",
     "import_asset",
+    "keep",
     "load_catalog",
     "not_billed",
     "release",
@@ -77,6 +78,8 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--claims", default="", help="With --import: a file of approved claims, or a statement such as observable-only")
     parser.add_argument("--consent", default="", help="With --import: whose likeness or voice this is, such as none-generated-adult")
     parser.add_argument("--record", default="", help="With --import: the provider's job record as JSON, checked against the shot before import")
+    parser.add_argument("--keep", metavar="SHOT", help="Record why a generated take was kept. Needs --because")
+    parser.add_argument("--because", default="", help="With --keep or --import: what in the take was right, in words a reader can check")
 
 
 def _allow(project: Project, provider: str) -> int:
@@ -123,6 +126,7 @@ def _import(args: argparse.Namespace, project: Project) -> int:
         claims=args.claims,
         consent=args.consent,
         record=args.record,
+        because=args.because,
     )
     print(f"{args.shot}: registered {asset.relative_to(project.root)}")
     return 0
@@ -143,6 +147,11 @@ def run(args: argparse.Namespace) -> int:
         return 0
     if args.import_file:
         return _import(args, project)
+    if args.keep:
+        if not args.because:
+            raise AltocueError("--keep needs --because.", fix='Say what in the take was right, such as --because "eyeline lands on the cup, room matches s02".')
+        keep(project, args.keep, args.because)
+        return 0
     if args.cancel:
         cancel_shot(project, args.cancel)
         return 0
