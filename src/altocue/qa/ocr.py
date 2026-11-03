@@ -86,6 +86,9 @@ def _tesseract_lines(image: Path, source: Path, size: tuple[int, int]) -> list[d
                 "text": " ".join(c[11] for c in cells),
                 "confidence": sum(float(c[10]) for c in cells) / len(cells) / 100,
                 "box": [left / width, top / height, (right - left) / width, (bottom - top) / height],
+                "words": [
+                    {"text": c[11], "box": [int(c[6]) / width, int(c[7]) / height, int(c[8]) / width, int(c[9]) / height]} for c in cells
+                ],  # a line can run on into junk read beside it, so a string is placed by its own words
                 "reader": "tesseract",
             }
         )

@@ -696,14 +696,26 @@ def sightings(c: Context) -> dict[str, Any]:
                     hits.append(record)
             read += bool(hits)
             for record in hits:
-                boxes.append({"text": record["text"], "box": record["box"], "at": item["at"], "layer": item["layer"], "frame": path})
+                boxes.append({"text": record["text"], "box": placed_box(record, wanted), "at": item["at"], "layer": item["layer"], "frame": path})
             if hits and can_see_faces and len(found_faces) < FACE_SAMPLES:
                 clear = path
                 if c.plate and item["at"] < c.footage_end:
                     clear = grab(c.plate, item["at"], Path(folder) / f"plate_{path.name}") or path
-                found_faces.append({"at": item["at"], "boxes": faces.find(clear), "hits": [r["box"] for r in hits], "layer": item["layer"]})
+                found_faces.append(
+                    {"at": item["at"], "boxes": faces.find(clear), "hits": [placed_box(r, wanted) for r in hits], "layer": item["layer"]}
+                )
     c._seen = {"boxes": boxes, "read": read, "total": len(picks), "faces": found_faces, "can_see_faces": can_see_faces}
     return c._seen
+
+
+def placed_box(record: dict[str, Any], wanted: set[str]) -> list[float]:
+    """Where a string really sits: the box of its own words. Tesseract can run a line on into junk, such as a bright window edge."""
+    own = [word["box"] for word in record.get("words", []) if wanted.intersection(rules.tokens(word["text"]))]
+    if not own:
+        return record["box"]
+    left, top = min(b[0] for b in own), min(b[1] for b in own)
+    right, bottom = max(b[0] + b[2] for b in own), max(b[1] + b[3] for b in own)
+    return [left, top, right - left, bottom - top]
 
 
 def outside(box: list[float], zone: dict[str, float]) -> bool:
