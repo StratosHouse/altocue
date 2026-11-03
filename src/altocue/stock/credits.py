@@ -143,6 +143,7 @@ def run(args: argparse.Namespace) -> int:
     print(base.UNTRUSTED_NOTE, file=sys.stderr)
     text = block(rows)
     print(text or "Nothing in this film owes a credit.")
+    write_txt(project)  # the file beside the film follows what it owes now, with no new render
     free = [row for row in rows if not owes(row)]
     if free:
         print(f"{len(free)} more need no credit: {', '.join(base.plain(row.get('title') or row['file']) for row in free)}.", file=sys.stderr)
