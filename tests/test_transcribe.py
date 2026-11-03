@@ -15,6 +15,7 @@ import pytest
 from altocue import ffmpeg, locks, transcribe
 from altocue.cli import main
 from altocue.errors import AltocueError
+from altocue.generate import http
 from altocue.models import Clip, Word
 from altocue.project import Project
 from altocue.transcribe import (
@@ -389,7 +390,7 @@ def test_hosted_run_says_where_audio_goes_and_what_it_costs(tmp_path, monkeypatc
         body = {"words": [{"text": "hello", "start": 0.3, "end": 0.7, "type": "word", "logprob": 0.0}]}
         return io.BytesIO(json.dumps(body).encode())
 
-    monkeypatch.setattr(transcribe.urllib.request, "urlopen", fake_open)
+    monkeypatch.setattr(http, "open_keyed", fake_open)
     assert transcribe_project(project, engine="elevenlabs") == {"a": 1}
     output = capsys.readouterr().out
     assert "api.elevenlabs.io" in output and "$" in output
@@ -404,7 +405,7 @@ def test_hosted_failure_has_a_fix(tmp_path, monkeypatch):
     def refuse(request, timeout):
         raise transcribe.urllib.error.HTTPError(request.full_url, 401, "no", {}, io.BytesIO())
 
-    monkeypatch.setattr(transcribe.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(http, "open_keyed", refuse)
     with pytest.raises(AltocueError) as caught:
         transcribe_project(project, engine="elevenlabs")
     assert caught.value.fix

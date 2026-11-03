@@ -361,8 +361,10 @@ class ElevenLabs:
         }
         body, content_type = multipart(fields, wav)
         request = urllib.request.Request(self.endpoint, data=body, headers={"xi-api-key": key, "Content-Type": content_type}, method="POST")
+        from .generate import http
+
         try:
-            with urllib.request.urlopen(request, timeout=1800) as response:
+            with http.open_keyed(request, timeout=1800) as response:
                 return scribe_words(json.load(response))
         except urllib.error.HTTPError as error:
             raise AltocueError(

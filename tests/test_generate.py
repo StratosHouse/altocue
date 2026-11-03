@@ -124,6 +124,8 @@ class FakeFal:
             def do_POST(self):
                 body = self._read()
                 self._record(body)
+                if self.path == "/redirect":
+                    return self._send(302, headers={"Location": "/media/moved.mp4"})
                 base = f"http://{self.headers['Host']}"
                 if self.path.startswith("/storage/upload/initiate"):
                     name = json.loads(body)["file_name"]
@@ -1027,6 +1029,30 @@ def test_redirects_do_not_carry_the_key(fal):
 
     reply = http.call("GET", f"{fal.url}/redirect", headers={"Authorization": "Key k"})
     assert reply.status == 302
+    assert fal.seen("GET", "/media/") == []
+
+
+def test_gemini_does_not_follow_a_redirect_with_its_key(fal):
+    import urllib.request
+
+    from altocue.review import gemini
+
+    request = urllib.request.Request(f"{fal.url}/redirect", headers={"x-goog-api-key": "k"})
+    with pytest.raises(AltocueError, match="302"):
+        gemini._send(request, "k")
+    assert fal.seen("GET", "/media/") == []
+
+
+def test_elevenlabs_does_not_follow_a_redirect_with_its_key(fal, tmp_path, monkeypatch):
+    from altocue import transcribe
+
+    wav = tmp_path / "speech.wav"
+    wav.write_bytes(b"RIFF0000WAVE")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")
+    engine = transcribe.ENGINES["elevenlabs"]
+    monkeypatch.setattr(engine, "endpoint", f"{fal.url}/redirect")
+    with pytest.raises(AltocueError, match="302"):
+        engine.transcribe(wav, language="en", prompt="")
     assert fal.seen("GET", "/media/") == []
 
 

@@ -82,6 +82,11 @@ def check_download_url(url: str) -> None:
         raise AltocueError(f"Refusing to fetch {url}: it points at a private address.")
 
 
+def open_keyed(request: urllib.request.Request, *, timeout: float) -> Any:
+    """Send a request that carries a key. A redirect comes back as an HTTPError, never as a second request with the key on it."""
+    return _opener.open(request, timeout=timeout)
+
+
 def _once(method: str, url: str, headers: dict[str, str], data: bytes | None, timeout: float) -> Response:
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
