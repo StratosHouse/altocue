@@ -9,5 +9,8 @@
   },
   "dependencies": {
     "hyperframes": "0.9.5"
+  },
+  "overrides": {
+    "undici": "7.30.1"
   }
 }
