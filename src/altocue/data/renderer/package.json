@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "hyperframes": "0.9.5"
+    "hyperframes": "0.9.8"
   },
   "overrides": {
     "undici": "7.30.1"
