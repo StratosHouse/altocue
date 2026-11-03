@@ -46,8 +46,8 @@ LABEL = "AI-generated presenter"
 PLAN = {
     "items": [
         {"type": "hook", "text": "Raw footage in.\n*Finished* video out.", "start": 0.1, "duration": 2.8},
-        {"type": "chip", "text": LABEL, "start": 0.1, "duration": 3.0, "y": 420},  # under the hook, and clear of the presenter's hair
-        {"type": "endcard", "headline": "*Altocue*", "cta": "The AI edit suite for coding agents", "duration": 3.0},
+        {"type": "chip", "text": LABEL, "start": 0.1, "duration": 7.8, "y": 420},  # up for as long as she talks, under the hook and above her face
+        {"type": "endcard", "headline": "*Altocue*", "cta": "github.com/StratosHouse/altocue", "duration": 2.4},
     ]
 }
 
