@@ -307,6 +307,32 @@ def test_settings_written_in_a_prompt_must_match_the_shot():
     assert "settings" not in lint(prompt=f"{GOOD_PROMPT} A 5-second shot, framed 9:16.")
 
 
+LEDGER = {"maya": [{"from": "s01", "state": "unhurt"}, {"from": "s02", "state": "wounded"}]}
+
+
+def maya(shot_id: str, **changes) -> dict:
+    return shot(id=shot_id, characters=["maya"], synthetic=["person"], **changes)
+
+
+def test_a_reference_in_the_wrong_state_for_the_ledger_warns():
+    """c380: one character can be unhurt, then wounded. Those references are not interchangeable because the face matches."""
+    first, later = maya("s01", first_frame="refs/maya-unhurt.png"), maya("s02", first_frame="refs/maya-unhurt.png", refs=["refs/coat.png"])
+    found = [f for f in validate({"shots": [first, later], "ledger": LEDGER}).findings if f.rule == "ledger-state"]
+    assert [f.shot for f in found] == ["s02"] and "the ledger has maya wounded from s02" in found[0].message
+    later["first_frame"] = "refs/maya-wounded.png"
+    assert "ledger-state" not in rules(validate({"shots": [first, later], "ledger": LEDGER}))
+
+
+def test_a_still_made_before_the_change_carries_its_own_state():
+    still = maya("s01", kind="image", check="still", prompt="Maya at the door in a red wool coat, morning light.")
+    assert "ledger-state" in rules(validate({"shots": [still, maya("s02", first_frame="@s01")], "ledger": LEDGER}))
+
+
+def test_a_ledger_must_name_real_shots_and_states():
+    assert "ledger" in rules(validate({"shots": [maya("s01")], "ledger": {"maya": [{"from": "s09", "state": "wounded"}]}}), "error")
+    assert "ledger" in rules(validate({"shots": [maya("s01")], "ledger": ["maya"]}), "error")
+
+
 def test_image_prompts_skip_camera_rules():
     found = lint(kind="image", check="still", prompt="A brass lantern on a wet stone step, warm practical light from the left.")
     assert not found & {"no-move", "endpoint", "one-move"}

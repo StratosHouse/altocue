@@ -285,6 +285,52 @@ def _honesty_findings(shots: list[Shot]) -> list[Finding]:
     return found
 
 
+def _words(value: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", value.lower()))
+
+
+def _ledger_findings(shots: list[Shot], ledger: Any) -> list[Finding]:
+    """A reference must show its character in the state the ledger has them in at that shot (c380, c373).
+
+    The ledger is `{"maya": [{"from": "s01", "state": "unhurt"}, {"from": "s04", "state": "wounded"}]}`. A reference
+    names its state in its file name, such as refs/maya-wounded.png, and an `@id` still carries the state of its own shot.
+    """
+    order = {shot.id: index for index, shot in enumerate(shots)}
+    if not isinstance(ledger, dict):
+        return [Finding("error", "shots.json", "ledger", 'The ledger is {"name": [{"from": "shot id", "state": "wounded"}]}.')]
+    states: dict[str, list[tuple[int, str]]] = {}
+    found: list[Finding] = []
+    for name, entries in ledger.items():
+        rows = entries if isinstance(entries, list) else [None]
+        for entry in rows:
+            if not (isinstance(entry, dict) and isinstance(entry.get("state"), str) and entry.get("from") in order):
+                found.append(Finding("error", "shots.json", "ledger", f"A ledger entry for {name} must name a shot in this list and a state: {entry}."))
+                continue
+            states.setdefault(str(name), []).append((order[entry["from"]], entry["state"]))
+
+    def state_at(name: str, index: int) -> str | None:
+        return next((state for at, state in sorted(states.get(name, []), reverse=True) if at <= index), None)
+
+    for index, shot in enumerate(shots):
+        for name in (who for who in shot.characters if who in states):
+            now, known = state_at(name, index), {state for _, state in states[name]}
+            if now is None:
+                continue
+            for value in shot.media():
+                if value.startswith("@"):
+                    still = next((other for other in shots if other.id == value[1:]), None)
+                    shown = state_at(name, order[still.id]) if still and name in still.characters else None
+                else:
+                    named = _words(Path(value).stem)
+                    mine = _words(name) <= named or len(shot.characters) == 1
+                    shown = next((state for state in known if mine and _words(state) <= named), None)
+                if shown and shown != now:
+                    since = max(at for at, state in states[name] if state == now and at <= index)
+                    why = f"{value} shows {name} {shown}, and the ledger has {name} {now} from {shots[since].id}. Use the reference for this moment."
+                    found.append(Finding("warning", shot.id, "ledger-state", why))
+    return found
+
+
 def windows(prompt: str) -> list[tuple[float, float]]:
     """The time windows a prompt writes, such as "0-1.5 s", "3.0 to 5.5 seconds" or "SHOT 2 - 2s to 4s", in order."""
     return [(float(start), float(end)) for start, end in WINDOW.findall(SHOT_LABEL.sub(" ", prompt))]
@@ -407,6 +453,8 @@ def validate(data: dict[str, Any], root: Path | None = None) -> Review:
     review.findings += _media_findings(review.shots, root)
     review.findings += _character_findings(review.shots)
     review.findings += _honesty_findings(review.shots)
+    if data.get("ledger") is not None:
+        review.findings += _ledger_findings(review.shots, data["ledger"])
     for shot in review.shots:
         review.findings += lint_prompt(shot)
     return review
