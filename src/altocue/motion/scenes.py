@@ -34,6 +34,7 @@ CAPTION_SHARE = 0.1  # font size as a share of the picture's width
 CAPTION_LAST = 0.1  # seconds. A word that starts this close to the clip's end is left off
 CAPTION_INSET = 28
 FOOTNOTE_LIFT = 104
+STEADY = ("corner_stamp", "say_line")  # held still over the camera: a push would carry a line at the foot out of the safe zone
 
 # Named places on the canvas as left, top, right, bottom shares. Left and right stack on a tall canvas, so a two-column scene recomposes instead of cropping.
 ZONES = {
@@ -353,7 +354,7 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
     """The same shape `altocue render` writes, so every later stage can read a film like any other project."""
     scenes = done["scenes"]
     total = done["total"]
-    items = [_place({**item, "fixed": item.get("fixed", item["type"] == "corner_stamp" or bool(item.get("carry")))}, size) for item in done["items"]]
+    items = [_place({**item, "fixed": item.get("fixed", item["type"] in STEADY or bool(item.get("carry")))}, size) for item in done["items"]]
     return {
         "width": size[0],
         "height": size[1],

@@ -1387,6 +1387,16 @@ def test_a_line_for_the_sound_off_sits_at_the_foot_below_the_centre():
     )
 
 
+def test_a_line_for_the_sound_off_holds_still_while_the_camera_moves():
+    """A push scales everything in its scene from the centre, which would carry a foot line out of the safe zone."""
+    made = board()
+    made["scenes"][1]["camera"] = {"move": "push", "amount": 0.1}
+    made["scenes"][1]["items"].append({"type": "say_line", "text": "Read from the tool", "zone": "foot"})
+    page = scenes.compose(timeline_for(made), default_brand())
+    camera = page.split('id="cam-problem"')[1].split('<div class="over">')[0]
+    assert "f-say_line" not in camera and "f-say_line" in page.split('<div class="over">')[1]
+
+
 def test_a_hook_can_be_on_screen_from_the_first_frame():
     drawn = formats.find("word_slam").draw({"text": "You film it", "gap": 0.2, "lead": 0.3, "start": 0, "end": 3})
     assert "--gap:0.200s" in drawn and "--lead:0.300s" in drawn
