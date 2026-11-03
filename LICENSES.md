@@ -43,7 +43,7 @@ Altocue's own code is MIT. Nothing it needs charges a licence fee, so a team of 
 
 | Dependency | Licence | Use |
 |---|---|---|
-| HyperFrames | Apache-2.0 | Motion graphics layers, films and the timeline view. Telemetry and update checks are switched off by Altocue |
+| HyperFrames | Apache-2.0 | Motion graphics layers, films and the timeline view. Telemetry and update checks are switched off by Altocue. Its undici is held at a patched release (MIT) |
 | GSAP | [GreenSock standard licence](https://gsap.com/standard-license): free to use, not open source | Bundled inside HyperFrames. Altocue's own formats use CSS and never call it. Items fetched with `altocue library add` usually do, and the command says so |
 | Headless Chrome | Chrome for Testing, Google's terms | Downloaded by HyperFrames to draw the graphics |
 | DeepFilterNet (`deep-filter`) | MIT or Apache-2.0 | Noise removal where the Mac has no voice isolation, or on request |
@@ -70,6 +70,7 @@ The English CAM++ model is left out on purpose: its training set, VoxCeleb, is f
 |---|---|---|
 | HyperFrames registry items | Apache-2.0, some also MIT or OFL-1.1 | Fetched per project into `motion/fetched/` with their licence files. Never shipped |
 | Libraries those items load | Their own: three.js MIT, D3 ISC and others | Saved per project so a render needs no network. Listed in `library.lock.json` |
+| Web fonts an item names | Each under its own open font licence, mostly SIL OFL 1.1 | Embedded in the fetched item, cut to Latin text, so its renders need no network |
 | GL Transitions shaders | MIT, BSD-2-Clause or BSD-3-Clause, per file | Twelve ship with Altocue, as above. Any other comes from the pinned gl-transitions package with its header. A shader that needs a texture input is refused |
 
 The library catalog lists names, authors, licences and links. Excluded sources stay listed with their reason, and nothing from them is indexed or fetched.

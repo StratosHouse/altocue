@@ -110,7 +110,7 @@ def test_the_stage_is_the_page_the_renderer_uses(layered):
     timeline_view.write_stage(layered)
     timeline = json.loads(layered.timeline_path.read_text())
     plain = compose(timeline, brands.load(layered))
-    page = page_of(layered).replace(" data-no-timeline", "")
+    page = page_of(layered)
     assert all(line in page for line in plain.splitlines())
     kinds = {clip.get("class", "") for clip in clips_of(page)}
     assert any("cap" in kind for kind in kinds) and any("chip" in kind for kind in kinds) and any("lt" in kind for kind in kinds) and any("end" in kind for kind in kinds)
