@@ -11,6 +11,7 @@ The repo ships a binary and no source, so the `--json` shapes below are read len
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import subprocess
 from dataclasses import replace
@@ -160,7 +161,7 @@ class HiggsfieldProvider:
         except AltocueError:
             return None
         credits = credits_of(data)
-        if credits is None:
+        if credits is None or not math.isfinite(credits) or credits < 0:
             return None
         usd = credits * self.usd_per_credit
         note = f"{credits:g} credits at ${self.usd_per_credit:g} per credit. Set usd_per_credit under [generate] to match your plan."

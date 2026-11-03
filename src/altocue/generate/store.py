@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import math
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -142,9 +143,18 @@ def log_spend(project: Project, row: dict[str, Any]) -> None:
         ledger.write(json.dumps({"t": now(), **row}, ensure_ascii=False) + "\n")
 
 
+def usd(value: Any) -> float:
+    """One booked figure. A negative or unreadable one becomes NaN, so the total it joins fails closed at the gate."""
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        return math.nan
+    return number if number >= 0 else math.nan
+
+
 def spent_usd(project: Project) -> float:
     path = ledger_path(project)
-    return sum(float(json.loads(line).get("usd") or 0) for line in path.read_text().splitlines()) if path.exists() else 0.0
+    return sum(usd(json.loads(line).get("usd")) for line in path.read_text().splitlines()) if path.exists() else 0.0
 
 
 def in_flight_usd(project: Project) -> float:
@@ -153,7 +163,7 @@ def in_flight_usd(project: Project) -> float:
     if not folder.exists():
         return 0.0
     records = [json.loads(path.read_text()) for path in folder.glob("*.json")]
-    return sum(float(record.get("cost_usd") or 0) for record in records if record.get("state") in BILLED_STATES)
+    return sum(usd(record.get("cost_usd")) for record in records if record.get("state") in BILLED_STATES)
 
 
 def reservations_path(project: Project) -> Path:
@@ -174,7 +184,7 @@ def open_reservation(project: Project, shot: str) -> dict[str, Any] | None:
 
 
 def reserved_usd(project: Project) -> float:
-    return sum(float(row["usd"]) for row in read_reservations(project) if row["state"] == "open")
+    return sum(usd(row["usd"]) for row in read_reservations(project) if row["state"] == "open")
 
 
 def committed_usd(project: Project) -> float:

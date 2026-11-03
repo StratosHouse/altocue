@@ -252,18 +252,63 @@ def show_plan(plan: list[Planned], provider: GenProvider, root: Path, out: Out) 
     return total
 
 
+def amount(value: float | None, flag: str, *, zero_ok: bool = False) -> float | None:
+    """A price is a finite number above zero. NaN and infinity pass every comparison, so one of them would switch the cap off.
+
+    `zero_ok` is for an import only: a free job is recorded at 0, and nothing is booked for it.
+    """
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = math.nan
+    if not math.isfinite(number) or number < 0 or (number == 0 and not zero_ok):
+        least = "0 or more" if zero_ok else "above zero"
+        raise AltocueError(f"{flag} is {value}, and it must be a plain number {least}.", fix=f"Pass {flag} as the real figure, such as 12 or 0.96.")
+    return number
+
+
+def cap_usd(project: Project) -> float:
+    """The cap as a number. One that is not a finite figure of 0 or more blocks every spend rather than none."""
+    raw = project.setting("generate", "spend_cap_usd", 0) or 0
+    try:
+        cap = float(raw)
+    except (TypeError, ValueError):
+        cap = math.nan
+    if not math.isfinite(cap) or cap < 0:
+        raise AltocueError(
+            f"spend_cap_usd is {raw}, and the cap must be a plain number of dollars, 0 or more. Nothing was spent.",
+            fix="Set spend_cap_usd under [generate] in altocue.toml, such as 20.",
+        )
+    return cap
+
+
 def spend_gate(project: Project, cost: Cost, provider: str, *, yes: bool) -> None:
-    """Nothing paid happens unless it is priced, under the cap and agreed to. The cap is one budget for the whole project."""
+    """Nothing paid happens unless it is priced, under the cap and agreed to. The cap is one budget for the whole project.
+
+    Every check fails closed: a cost, a cap or a running total that is not a finite number refuses.
+    """
     if cost.unpriced:
         fix = "Make the provider quote this shot, then run again."
         raise AltocueError(f"{', '.join(cost.unpriced)} could not be priced, so nothing was spent.", fix=fix)
-    cap = float(project.setting("generate", "spend_cap_usd", 0) or 0)
+    if not math.isfinite(cost.usd) or cost.usd < 0:
+        raise AltocueError(
+            f"This is priced at ${cost.usd}, which is not a real cost, so nothing was spent.",
+            fix="Check the prices in models.toml and usd_per_credit under [generate] in altocue.toml.",
+        )
+    cap = cap_usd(project)
     if cap <= 0 < cost.usd:
         raise AltocueError(
             f"The spend cap is $0, so every paid call is blocked. This run needs ${cost.usd:.2f}.",
             fix=f"Set spend_cap_usd to at least {math.ceil(cost.usd * 100) / 100:.2f} under [generate] in altocue.toml.",
         )
     committed = store.committed_usd(project)
+    if not math.isfinite(committed + cost.usd):
+        raise AltocueError(
+            "The project's running total is not a number, so the cap cannot be checked and nothing was spent.",
+            fix=f"Find the negative or unreadable figure in {store.ledger_path(project)}, the job files or reservations.json, correct it, then run again.",
+        )
     if committed + cost.usd > cap:
         booked = f" ${committed:.2f} is already spent or reserved." if committed else ""
         raise AltocueError(
@@ -287,7 +332,10 @@ def priced_call(project: Project, provider: str, *, cost: float | None, credits:
     if rate is None:
         raise AltocueError(f"{provider} bills dollars, not credits.", fix="Pass --cost in US dollars.")
     as_of = str(catalog.provider(provider).get("usd_per_credit_as_of", ""))
-    return (float(cost) if cost is not None else round(credits * rate, 6)), rate, as_of
+    usd = float(cost) if cost is not None else round(credits * rate, 6)
+    if not math.isfinite(usd) or usd < 0:
+        raise AltocueError(f"{credits:g} credits at ${rate:g} a credit is ${usd}, which is not a real cost.", fix="Check --credits and usd_per_credit.")
+    return usd, rate, as_of
 
 
 def _refuse_claims(project: Project, shot: str, shots_file: str) -> None:
@@ -316,8 +364,7 @@ def reserve(
     _refuse_claims(project, shot, shots_file)
     if credits is None and cost is None:
         raise AltocueError("--reserve needs --credits, or --cost for a provider that bills dollars.", fix="Quote it first: altocue recipes quote <id>")
-    if (credits or 0) < 0 or (cost or 0) < 0:
-        raise AltocueError("A reservation cannot be negative.")
+    credits, cost = amount(credits, "--credits"), amount(cost, "--cost")
     usd, rate, as_of = priced_call(project, provider, cost=cost, credits=credits)
     if usd <= 0:
         raise AltocueError("Nothing to reserve: this costs nothing.", fix="Skip --reserve for a free job, and import the result as usual.")
@@ -361,7 +408,7 @@ def settle(project: Project, shot: str, *, usd: float, credits: float | None, jo
 
 def spend_report(project: Project) -> list[str]:
     """Where the money went. An import with no reservation is named, because the cap never saw it coming."""
-    cap = float(project.setting("generate", "spend_cap_usd", 0) or 0)
+    cap = cap_usd(project)
     spent, flying, booked = store.spent_usd(project), store.in_flight_usd(project), store.reserved_usd(project)
     lines = [f"Cap ${cap:.2f}. Spent ${spent:.2f}. Running ${flying:.2f}. Reserved ${booked:.2f}. Left ${cap - spent - flying - booked:.2f}."]
     rows = store.read_reservations(project)
@@ -700,8 +747,7 @@ def import_asset(
     source = Path(file).expanduser().resolve()
     if not source.is_file():
         raise AltocueError(f"Not found: {source}")
-    if (cost or 0) < 0 or (credits or 0) < 0:
-        raise AltocueError("--cost and --credits cannot be negative.")
+    cost, credits = amount(cost, "--cost", zero_ok=True), amount(credits, "--credits", zero_ok=True)
     strangers = sorted(set(synthetic) - set(SYNTHETIC))
     if strangers:
         raise AltocueError(f"--synthetic takes {', '.join(SYNTHETIC)}, and {', '.join(strangers)} is not one.")
@@ -777,6 +823,6 @@ def _report_import(project: Project, shot: str, usd: float, held: dict[str, Any]
         out(f"{shot}: ${usd:.2f} is ${held['over_usd']:.2f} over its reservation. The ledger holds the real figure.")
     else:
         out(f"{shot}: settled ${usd:.2f} against the ${held['usd']:.2f} reserved.")
-    cap, committed = float(project.setting("generate", "spend_cap_usd", 0) or 0), store.committed_usd(project)
-    if committed > cap:
+    cap, committed = cap_usd(project), store.committed_usd(project)
+    if not math.isfinite(committed) or committed > cap:
         out(f"Warning: this project has now committed ${committed:.2f} against a cap of ${cap:.2f}. Further reservations will be refused.")

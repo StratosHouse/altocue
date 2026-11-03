@@ -1489,6 +1489,92 @@ def test_import_needs_a_cost_or_credits(project, tmp_path, capsys):
     assert "--cost" in err and "--credits" in err
 
 
+def set_generate(project: Project, key: str, value: str) -> None:
+    text = (project.root / "altocue.toml").read_text()
+    text = re.sub(rf"(?m)^{key} = .*$", f"{key} = {value}", text) if re.search(rf"(?m)^{key} = ", text) else text.replace("[generate]\n", f"[generate]\n{key} = {value}\n")
+    (project.root / "altocue.toml").write_text(text)
+
+
+@pytest.mark.parametrize("flag", ["--credits", "--cost"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-1", "0"])
+def test_reserve_refuses_any_figure_that_is_not_a_finite_number_above_zero(tmp_path, fal, capsys, flag, value):
+    """NaN and infinity pass every comparison, so one of them used to switch the cap off for the life of the project."""
+    project = capped(tmp_path, fal, 5.0)
+    args = ["--reserve", "s01", flag, value, "--yes"] + (["--from", "fal"] if flag == "--cost" else [])
+    assert go(project, *args) == 1
+    assert reservations(project) == []
+    assert go(project, "--reserve", "s02", "--credits", "1000", "--yes") == 1  # $80 against $5: the cap still holds
+
+
+@pytest.mark.parametrize("flag", ["--credits", "--cost"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-1"])
+def test_import_refuses_any_figure_that_is_not_a_finite_number(project, tmp_path, capsys, flag, value):
+    source = make_clip(tmp_path / "from-mcp.mp4", seconds=1.0, audio=False)
+    assert go(project, "--import", str(source), "--shot", "s01", "--prompt", "p", "--model", "m", flag, value) == 1
+    assert spend(project) == []
+    assert generated_asset(project, "s01", missing_ok=True) is None
+
+
+@pytest.mark.parametrize("rate", ["0", "0.0", "-0.08", "nan", "inf"])
+def test_a_credit_price_of_zero_or_below_in_altocue_toml_is_an_error(tmp_path, fal, capsys, rate):
+    project = capped(tmp_path, fal, 5.0)
+    set_generate(project, "usd_per_credit", rate)
+    assert go(project, "--reserve", "s01", "--credits", "100", "--yes") == 1
+    err = capsys.readouterr().err
+    assert "usd_per_credit" in err and "altocue.toml" in err
+    assert reservations(project) == []
+
+
+@pytest.mark.parametrize("cap", ["nan", "inf", "-5"])
+def test_a_cap_that_is_not_a_plain_number_blocks_every_spend(tmp_path, fal, capsys, cap):
+    project = capped(tmp_path, fal, 5.0)
+    set_generate(project, "spend_cap_usd", cap)
+    write_shots(project, shot())
+    assert go(project, "--reserve", "s01", "--credits", "1000", "--yes") == 1
+    assert "spend_cap_usd" in capsys.readouterr().err
+    assert go(project, "--yes") == 1
+    assert fal.submits == []
+
+
+def test_a_running_total_that_is_not_finite_refuses_every_spend(tmp_path, fal, capsys):
+    """A ledger poisoned before this fix must not keep the cap switched off."""
+    project = capped(tmp_path, fal, 5.0)
+    write_shots(project, shot())
+    project.work.mkdir(parents=True, exist_ok=True)
+    (project.work / "spend.jsonl").write_text('{"shot": "old", "usd": NaN, "state": "succeeded"}\n')
+    assert go(project, "--reserve", "s01", "--credits", "1", "--yes") == 1
+    assert "not a number" in capsys.readouterr().err
+    assert go(project, "--yes") == 1
+    assert fal.submits == []
+    assert reservations(project) == []
+
+
+def test_a_negative_ledger_row_cannot_lower_what_was_spent(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 5.0)
+    project.work.mkdir(parents=True, exist_ok=True)
+    (project.work / "spend.jsonl").write_text('{"shot": "old", "usd": -1000, "state": "succeeded"}\n')
+    assert go(project, "--reserve", "s01", "--credits", "1000", "--yes") == 1
+    assert reservations(project) == []
+
+
+def test_a_catalog_price_that_is_not_finite_is_never_paid(tmp_path, fal, capsys):
+    project = capped(tmp_path, fal, 5.0)
+    local = project.root / "models.local.toml"
+    local.write_text(re.sub(r"usd_per_second = [0-9.]+", "usd_per_second = nan", local.read_text()))
+    write_shots(project, shot())
+    assert go(project, "--yes") == 1
+    assert fal.submits == []
+
+
+@pytest.mark.parametrize("credits", [float("nan"), float("inf"), -5])
+def test_a_live_quote_that_is_not_a_real_number_is_never_paid(hf_project, higgsfield, capsys, credits):
+    higgsfield.write(credits=credits)
+    write_shots(hf_project, shot())
+    assert go(hf_project, "--yes") == 1
+    assert "could not be priced" in capsys.readouterr().err
+    assert higgsfield.creates() == []
+
+
 def test_reserve_refuses_a_line_a_generated_person_cannot_say(project, capsys):
     write_shots(project, shot(synthetic=["person"], script="I bought this last week."))
     assert go(project, "--reserve", "s01", "--credits", "5", "--yes") == 1
