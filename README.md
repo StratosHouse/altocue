@@ -120,7 +120,7 @@ altocue run
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/direct-tile.svg" width="56" alt=""><br><strong>Direct</strong><br>Story shape, beats, keyframes and shot lists, with the craft rules built in.</td>
-    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/generate-tile.svg" width="56" alt=""><br><strong>Generate</strong><br>Inserts through Higgsfield and fal.ai, behind a spend gate that also covers the MCP route. Every asset keeps its provenance, and <code>altocue recipes</code> shows what each hosted command costs before anything runs.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/generate-tile.svg" width="56" alt=""><br><strong>Generate</strong><br>Inserts through Higgsfield and fal.ai, behind a spend gate that also covers the MCP route when the agent reserves first. Every asset keeps its provenance, and <code>altocue recipes</code> shows what each hosted command costs before anything runs.</td>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/broll-tile.svg" width="56" alt=""><br><strong>B-roll</strong><br>Finds the spots that want a cutaway, then fills them from your clips, free stock with no key, or generation.</td>
   </tr>
   <tr>

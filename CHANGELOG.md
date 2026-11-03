@@ -63,9 +63,9 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 
 ### Deliverables
 
-- `altocue deliver`: subtitles, chapters, thumbnails, loudness targets and a version for each platform, with the `altocue-deliver` skill
+- `altocue deliver`: subtitles, chapters, thumbnails, loudness targets and a version for each platform, with the `altocue-deliver` skill. It delivers only a film with a SHIP verdict for that exact file. `--override REASON` is printed and recorded, and the claims and disclosure gates have no override
 - `altocue deliver --stems`: voice, music and effects as WAV files
-- `altocue timeline`: the edit in the HyperFrames studio, as a view. It launches nothing else
+- `altocue timeline`: the edit in the HyperFrames studio, as a view. The studio is the one thing Altocue starts, and it opens no window
 
 ### Data
 
@@ -76,7 +76,7 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 
 ### Generation
 
-- `altocue generate --reserve`, `--release`, `--report` and `--allow-upload`: one spend cap per project, covering the MCP route
+- `altocue generate --reserve`, `--release`, `--not-billed`, `--report` and `--allow-upload`: one spend cap per project. A run holds its whole estimate while it works, a cancelled job stays on the cap until billing shows no charge, and on the MCP route the cap holds when the agent reserves first
 - `altocue recipes`: 37 hosted commands with what each costs before anything runs
 - Fuller provenance on every import
 - Claims and disclosure gates for a generated person, and `altocue qa --check ugc`
@@ -86,7 +86,7 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 ### The Editor in Chief and checks
 
 - New gates: caption speed, brief coverage, flash rate, stray frames at insert edges, text readable, credits, claims and disclosure
-- `altocue review --page`: one file with the film beside every gate, note and caption
+- `altocue review --page`: one file with the film beside every gate, note and caption. It prints its path and opens nothing
 - Timeline sheets and pacing numbers in the review pack, so a reviewer given stills can judge rhythm
 - Reviewer canaries on the demo take
 - `altocue demo`: proves a machine works on our published demo take
