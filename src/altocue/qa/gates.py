@@ -25,6 +25,7 @@ from . import edges, faces, flashes, ocr, rules
 NOT_APPLICABLE = "n/a"
 
 LOUDNESS_TOLERANCE = 1.0
+SILENT_LUFS = -70.0  # ebur128 reports digital silence at its floor of -70
 PEAK_TOLERANCE = 0.5  # the limiter aims under the ceiling; AAC may overshoot a little
 BLACK_FILTER = "blackdetect=d=0.01:pix_th=0.03"  # d under one frame at 60 fps, so a single black frame shows
 FREEZE_FILTER = "freezedetect=n=-60dB:d=0.5"
@@ -291,25 +292,27 @@ def gate_loudness(c: Context) -> list[GateResult]:
     target, peak_target = master.project_target(c.project)
     ceiling = peak_target + PEAK_TOLERANCE
     band = f"{target:g} LUFS +/- {LOUDNESS_TOLERANCE:g}"
-    try:
-        had_sound = any(clip.has_audio for clip in c.project.clips())
-    except AltocueError:
-        had_sound = True
+
+    def nothing_to_hear() -> bool:
+        return master.no_sound_in(c.project)  # decided from the mix, as master decides it
+
     if c.audio is None:
-        if not had_sound:
-            return [not_applicable(g, "No clip in this project has sound.") for g in ("loudness", "true_peak")]
+        if nothing_to_hear():
+            return [not_applicable(g, "This film has nothing to hear.") for g in ("loudness", "true_peak")]
         return [GateResult(id=g, passed=False, detail="The file has no audio stream.") for g in ("loudness", "true_peak")]
     try:
         measured = ffmpeg.loudness(c.file)
     except AltocueError:
-        if not had_sound:
-            return [not_applicable(g, "No clip in this project has sound.") for g in ("loudness", "true_peak")]
+        if nothing_to_hear():
+            return [not_applicable(g, "This film has nothing to hear.") for g in ("loudness", "true_peak")]
         why = "The sound track measures as silent."
         return [
             GateResult(id="loudness", passed=False, threshold=band, detail=why),
             GateResult(id="true_peak", passed=False, threshold=ceiling, detail=why),
         ]
     level, peak = measured["integrated"], measured["true_peak"]
+    if level <= SILENT_LUFS and nothing_to_hear():
+        return [not_applicable(g, "This film has nothing to hear.") for g in ("loudness", "true_peak")]
     return [
         GateResult(
             id="loudness",

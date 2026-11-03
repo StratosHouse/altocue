@@ -261,7 +261,7 @@ def target_for(project: Project, override: float | master.Target | None, platfor
 def measured(project: Project, path: Path, target: dict[str, Any]) -> dict[str, Any]:
     """What the file really reads, against what it was meant to."""
     if master.no_sound_in(project):
-        return {**target, "measured": None, "passed": None, "note": "No clip in this project has sound."}
+        return {**target, "measured": None, "passed": None, "note": "This film has nothing to hear."}
     found = ffmpeg.loudness(path)
     passed = abs(found["integrated"] - target["target"]) <= master.PASS_TOLERANCE and found["true_peak"] <= target["true_peak"]
     return {**target, "measured": found, "passed": passed}
