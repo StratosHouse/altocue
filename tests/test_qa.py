@@ -738,21 +738,35 @@ def read_as(monkeypatch, records: list[dict]) -> None:
 WHOLE_LINE = {"file": "full_00002.jpg", "text": "Follow this plan", "box": [0.3, 0.5, 0.4, 0.03]}
 
 
+PLAN_CHIP = {"type": "chip", "text": "Follow this plan", "start": 0.0, "end": 6.0}
+
+
 def test_a_tile_cut_through_a_planned_line_is_not_baked_text(tmp_path, monkeypatch):
     """Tesseract garbles the words a tile's edge slices through. The whole frame reads the same line as planned."""
-    cut = {"file": "br_00002.jpg", "text": "wis plan", "box": [0.0, 0.17, 0.4, 0.05]}  # on the whole frame: x 0.4 to 0.64, y 0.502
+    cut = {"file": "br_00002.jpg", "text": "fqlw tns", "box": [0.0, 0.17, 0.4, 0.05]}  # past any spelling match; on the whole frame: x 0.4 to 0.64, y 0.502
     read_as(monkeypatch, [WHOLE_LINE, cut])
-    item = {"type": "chip", "text": "Follow this plan", "start": 0.0, "end": 6.0}
-    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[item])["baked_text"]
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[PLAN_CHIP])["baked_text"]
+    assert gate.passed, gate.detail
+
+
+def test_a_misread_of_planned_text_is_planned_with_no_clean_read_beside_it(tmp_path, monkeypatch):
+    """Ubuntu's tesseract read "Follow this plan" only as "wis plan": one letter from "his plan", and no clean line to sit on."""
+    read_as(monkeypatch, [{"file": "tr_00002.jpg", "text": "wis plan", "box": [0.0, 0.33, 0.5, 0.06]}])
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[PLAN_CHIP])["baked_text"]
     assert gate.passed, gate.detail
 
 
 def test_garbled_text_away_from_any_planned_line_is_still_baked_text(tmp_path, monkeypatch):
-    elsewhere = {"file": "tl_00002.jpg", "text": "wis plan", "box": [0.1, 0.1, 0.4, 0.05]}
+    elsewhere = {"file": "tl_00002.jpg", "text": "fqlw tns", "box": [0.1, 0.1, 0.4, 0.05]}
     read_as(monkeypatch, [WHOLE_LINE, elsewhere])
-    item = {"type": "chip", "text": "Follow this plan", "start": 0.0, "end": 6.0}
-    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[item])["baked_text"]
-    assert not gate.passed and "wis plan" in gate.detail
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[PLAN_CHIP])["baked_text"]
+    assert not gate.passed and "fqlw tns" in gate.detail
+
+
+def test_a_model_subtitle_is_never_taken_for_planned_text(tmp_path, monkeypatch):
+    read_as(monkeypatch, [WHOLE_LINE, {"file": "full_00002.jpg", "text": "Shop the sale today", "box": [0.2, 0.8, 0.6, 0.04]}])
+    gate = ugc(tmp_path, heard=CALM, expected=CALM, items=[PLAN_CHIP])["baked_text"]
+    assert not gate.passed and "shop the sale today" in gate.detail
 
 
 def test_a_tile_box_is_placed_back_on_the_whole_frame():
