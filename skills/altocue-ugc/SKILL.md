@@ -29,10 +29,16 @@ Do this before any money moves. The line is what is claimed, not how real it loo
 | A generated person says they bought, used or got results | **Blocked** |
 | Generated before and after results | **Blocked** |
 | A generated person captioned as a customer or verified buyer | **Blocked** |
+| A generated persona gives health, legal, financial or political advice as an expert | **Blocked** |
+| Invented proof: case numbers, reviews, customer counts, prices | **Blocked** |
 | A real person's likeness or voice without consent | **Blocked** |
 | Removing an AI label or provenance mark | **Blocked** |
 
 A label does not cure a blocked line. Offer a rewrite in the host's voice, about what can be seen, or offer to film a real customer. Never reword a claim so the gate misses it.
+
+- **The gates read words, not meaning.** `altocue direct` catches a line that claims experience. Nothing reads the topic, so the expert and proof rows are your check.
+- **Why the expert row is blocked.** [evidence] YouTube's rules, read 2026-11-02, say channels using AI personas as human experts on health, legal issues, finances or politics cannot monetise. It is also how a viewer gets hurt. See [the platform rules](../altocue/references/platform-rules.md).
+- **A face or a voice needs consent,** unless it is the user's own. That holds for every selfie, reference and clone.
 
 ## 3. Pick and price
 
@@ -50,6 +56,8 @@ A label does not cure a blocked line. Offer a rewrite in the host's voice, about
 ## 5. Disclose
 
 - **Put a label on screen.** Add a chip such as `AI-generated actor` in `motion.json`, in the caption-safe area, for at least 2 seconds. `altocue qa` reports the film if it is missing. Set your own words under `[disclosure] label`.
+- **Say it near the start.** Reveal a generated presenter and a cloned voice early. [source] The gate checks that a label exists, not when it lands, so place it yourself.
+- **Say truly how it was made.** Any line about how the film was made matches what was done. [source]
 - **An exemption is a recorded decision.** Set `[disclosure] exempt` with the reason in your own words. Nobody checks it, so ask the user.
 - **New York requires it in ads.** Since June 9, 2026, an advertiser who knows an ad has a synthetic performer must disclose it conspicuously (GBL 396-b). That covers honest generated hosts too. No wording is prescribed. Audio-only ads, translation-only uses and matching ads for expressive works are exempt.
 - **The FTC bars fake testimonials.** That means a review or testimonial from someone who does not exist or did not use the product (16 CFR 465.2). An ad that shows actual consumers must use real ones, or say clearly that they are not (255.2).

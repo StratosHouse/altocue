@@ -20,7 +20,7 @@ from ..errors import AltocueError
 from ..models import Clip, Edl, GateResult, Word
 from ..project import Project
 from ..stock import credits
-from . import faces, ocr, rules
+from . import edges, faces, flashes, ocr, rules
 
 NOT_APPLICABLE = "n/a"
 
@@ -35,6 +35,8 @@ CUT_FLOOR_DB = -40.0
 CUT_PERCENTILE = 85  # at least 90 ms of the 600 ms window must carry sound
 WORDS_NEEDED = 0.95
 CAPTIONS_NEEDED = 0.98
+READING_MOST = 24.0  # characters a second. Netflix allows 20 for subtitles read in silence, and these follow the voice, so a fifth more. Not yet calibrated on real clips
+READING_STRETCH = 2.0  # seconds on screen. One quick page is fine, because the next gives the time back
 REPEAT_LONGEST = 8
 OCR_FPS = 4.0
 TEXT_SAMPLES = 16
@@ -218,7 +220,7 @@ class Context:
         if self._heard is None:
             language = str(self.project.setting("transcribe", "language", "en"))
             words, reason = transcribe(self.file, language)
-            self._heard = ([self.project.corrected(w) for w in words] if words is not None else None, reason)
+            self._heard = (self.project.corrected_all(words) if words is not None else None, reason)
         return self._heard
 
     def spoken(self) -> list[dict[str, Any]] | None:
@@ -343,8 +345,13 @@ def silent_runs(file: Path, end: float) -> list[tuple[float, float]]:
     return [(max(start, 0.0), ends[i] if i < len(ends) else end) for i, start in enumerate(starts)]
 
 
+def asked_for(c: Context, *kinds: str) -> list[tuple[float, float]]:
+    """Transitions and freezes the edit asked for. A dip through black or a held frame there is the plan."""
+    return [(float(item["start"]), float(item["end"])) for kind in kinds for item in (c.timeline or {}).get(kind, [])]
+
+
 def gate_black(c: Context) -> GateResult:
-    bad = c.unplanned(black_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS + ("black",)), *c.inserts()])
+    bad = c.unplanned(black_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS + ("black",)), *c.inserts(), *asked_for(c, "transitions")])
     return GateResult(
         id="black_frames",
         passed=not bad,
@@ -355,7 +362,7 @@ def gate_black(c: Context) -> GateResult:
 
 
 def gate_frozen(c: Context) -> GateResult:
-    bad = c.unplanned(frozen_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS, HOLD_ITEMS), *c.inserts()])
+    bad = c.unplanned(frozen_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS, HOLD_ITEMS), *c.inserts(), *asked_for(c, "freezes", "transitions")])
     return GateResult(
         id="frozen_frames",
         passed=not bad,
@@ -548,6 +555,55 @@ def word_gates(c: Context) -> list[GateResult]:
                 )
             )
     return results
+
+
+def fastest_stretch(pages: list[dict[str, Any]]) -> tuple[float, float]:
+    """The fastest run of pages that fills `READING_STRETCH` seconds of screen, as characters a second and where it starts."""
+    fastest, at = 0.0, 0.0
+    for first in range(len(pages)):
+        characters, seconds = 0, 0.0
+        for page in pages[first:]:
+            characters += len(" ".join(w["text"] for w in page["words"]))
+            seconds += max(float(page["end"]) - float(page["start"]), 0.0)
+            if seconds >= READING_STRETCH:
+                break
+        if first and seconds < READING_STRETCH:
+            break  # the last pages are too short to stand alone, and the stretch before them already counted them
+        speed = characters / max(seconds, 0.001)
+        if speed > fastest:
+            fastest, at = speed, float(pages[first]["start"])
+    return fastest, at
+
+
+def gate_caption_speed(c: Context) -> GateResult:
+    if c.timeline is None:
+        return skipped("caption_speed", NO_TIMELINE, READING_MOST)
+    pages = c.timeline.get("captions") or []
+    if not pages:
+        return not_applicable("caption_speed", "This project has no captions.")
+    speed, at = fastest_stretch(pages)
+    return GateResult(
+        id="caption_speed",
+        passed=speed <= READING_MOST,
+        value=round(speed, 1),
+        threshold=READING_MOST,
+        detail=f"fastest stretch {speed:.1f} characters a second, from {stamp(at)}",
+    )
+
+
+def gate_brief_coverage(c: Context) -> GateResult:
+    """Words, not meaning. Whether the point really lands is the reviewer's, under clarity."""
+    brief = c.project.root / "brief.md"
+    lines = rules.must_say(brief.read_text()) if brief.exists() else []
+    if not lines:
+        return not_applicable("brief_coverage", "The brief lists nothing under Must say.")
+    words, why = c.heard()
+    if words is None:
+        return skipped("brief_coverage", why, len(lines))
+    heard = norm([w.text for w in words])
+    missing = [line for line in lines if not rules.said(line, heard)]
+    detail = f"not heard: {'; '.join(missing[:5])}" if missing else f"all {len(lines)} lines the brief requires were heard"
+    return GateResult(id="brief_coverage", passed=not missing, value=len(lines) - len(missing), threshold=len(lines), detail=detail)
 
 
 def zone_for(c: Context) -> dict[str, float]:
@@ -769,6 +825,38 @@ def gate_graphics_clear(c: Context) -> GateResult:
     names = sorted(set(covered))
     detail = f"over a face: {', '.join(names[:6])}" if names else f"{looked} frames checked, no graphic on a face"
     return GateResult(id="graphics_clear", passed=not names, value=len(names), threshold=GRAPHIC_FACE_SHARE, detail=detail)
+
+
+def gate_flash_rate(c: Context) -> GateResult:
+    """Flashes, by WCAG 2.2. It measures the file, and a pass clears nobody. See `flashes.py`."""
+    found = flashes.scan(flashes.read_frames(c.file), c.clip.fps or c.fps)
+    kind = "red flashes" if found.red > found.general else "flashes"
+    where = f" in the second from {stamp(found.at)}" if found.worst else ""
+    detail = f"{found.worst:g} {kind} a second at most{where}, over a large enough area to count"
+    return GateResult(id="flash_rate", passed=not found.over, value=found.worst, threshold=flashes.MOST, detail=detail)
+
+
+def gate_stray_frames(c: Context) -> GateResult:
+    """Only hard edges. A transition blends on purpose, so its frames belong to neither shot."""
+    if c.timeline is None:
+        return skipped("stray_frames", NO_TIMELINE)
+    inserts = c.timeline.get("inserts", [])
+    if not inserts:
+        return not_applicable("stray_frames", "No B-roll in this edit.")
+    fps, last = c.clip.fps or c.fps, count_frames(c.file)
+    bad: list[str] = []
+    looked = soft = 0
+    for insert in inserts:
+        first, after = edges.frame_edges(insert, fps)
+        for frame, blended in ((first, insert.get("in")), (after, insert.get("out"))):
+            if blended:
+                soft += 1
+            elif edges.REACH <= frame <= last - edges.REACH:
+                looked += 1
+                bad += [f"{why} at {stamp((frame + place) / fps)}" for place, why in edges.stray(edges.read_edge(c.file, frame, fps))]
+    blended_note = f", {soft} transition edges left alone" if soft else ""
+    detail = f"{len(bad)} stray: {'; '.join(bad[:5])}" if bad else f"{looked} hard edges clean{blended_note}"
+    return GateResult(id="stray_frames", passed=not bad, value=len(bad), threshold=0, detail=detail)
 
 
 def gate_format(c: Context) -> GateResult:
@@ -1116,10 +1204,14 @@ def run_all(c: Context) -> list[GateResult]:
         (("cut_sound",), gate_cut_sound),
         (("silence",), gate_silence),
         (("words", "doubled_phrase", "captions_match"), word_gates),
+        (("caption_speed",), gate_caption_speed),
+        (("brief_coverage",), gate_brief_coverage),
         (("safe_zone",), gate_safe_zone),
         (("face_clear",), gate_face_clear),
         (("graphics_clear",), gate_graphics_clear),
         (("inserts",), gate_inserts),
+        (("stray_frames",), gate_stray_frames),
+        (("flash_rate",), gate_flash_rate),
         (("credits",), gate_credits),
         (("text_readable",), gate_text_readable),
         (("format",), gate_format),

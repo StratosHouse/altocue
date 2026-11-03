@@ -9,8 +9,10 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
-from canaries import CLAIMING, CONTROLS, HOST_PROMPT, LABEL_ITEM, SCRIPT, Case, Recipe, build, fakes, fired, freeze, planted
+from canaries import CLAIMING, CONTROLS, HOST_PROMPT, LABEL_ITEM, MUST_SAY, RUSHED, SCRIPT, Case, Recipe, build, fakes, fill, fired, freeze, planted, strobe
+from canaries import INSERT as CANARY_INSERT
 from conftest import make_clip
 from PIL import Image
 
@@ -20,9 +22,9 @@ from altocue.errors import AltocueError
 from altocue.generate import import_asset
 from altocue.models import Clip, GateResult, Word
 from altocue.motion import formats
-from altocue.project import Project
-from altocue.qa import gates, ocr, rules
-from altocue.review import rubric
+from altocue.project import Project, write_json
+from altocue.qa import edges, flashes, gates, ocr, rules
+from altocue.review import report, rubric
 
 CLEAN = CONTROLS[0]
 
@@ -570,7 +572,7 @@ CALM = SCRIPT[:14]
 
 
 def test_speech_over_the_ceiling_fails(tmp_path):
-    found = ugc(tmp_path)  # the whole script in 6 s
+    found = ugc(tmp_path, heard=RUSHED, expected=RUSHED)  # 32 words in 6 s
     assert not found["speech_rate"].passed and found["speech_rate"].value > 5
     assert found["speech_rate"].threshold == gates.SPEECH_CEILING
 
@@ -650,6 +652,114 @@ def test_qa_check_ugc_runs_only_those_checks_and_saves_them(tmp_path, capsys):
     assert "speech_rate" in out and "lip_closure" in out and "black_frames" not in out
     saved = json.loads((built.project.review_dir / "qa-ugc.json").read_text())
     assert {g["id"] for g in saved["gates"]} == {"speech_rate", "cold_open", "baked_text", "lip_closure"}
+
+
+# Reading speed and the brief
+
+
+def page(text: str, start: float, end: float) -> dict:
+    return {"start": start, "end": end, "words": [{"text": word} for word in text.split()]}
+
+
+def test_a_steady_run_of_pages_reads_at_its_real_speed():
+    pages = [page("x" * 20, 0.0, 1.0), page("y" * 20, 1.0, 2.0), page("z" * 20, 2.0, 3.0)]
+    assert gates.fastest_stretch(pages) == (20.0, 0.0)
+
+
+def test_one_quick_page_is_not_a_fast_stretch():
+    pages = [page("x" * 10, 0.0, 1.0), page("y" * 12, 1.0, 1.3), page("z" * 10, 1.3, 2.3), page("w" * 10, 2.3, 3.3)]
+    speed, _ = gates.fastest_stretch(pages)
+    assert speed < gates.READING_MOST
+
+
+def test_a_film_shorter_than_the_stretch_is_still_measured():
+    assert gates.fastest_stretch([page("x" * 30, 0.0, 1.0)]) == (30.0, 0.0)
+
+
+def test_the_stretch_says_where_it_starts():
+    pages = [page("x" * 10, 0.0, 2.0), page("y" * 60, 2.0, 4.0), page("z" * 5, 4.0, 6.0)]
+    assert gates.fastest_stretch(pages) == (30.0, 2.0)
+
+
+def test_rushed_captions_fail_and_name_the_moment(tmp_path):
+    built = build(Case("fast", "", Recipe(expected=RUSHED, heard=RUSHED)), tmp_path / "fast")
+    gate = gates.gate_caption_speed(gates.Context.open(built.project, built.file))
+    assert not gate.passed and gate.value > gates.READING_MOST and gate.threshold == gates.READING_MOST
+    assert "00:0" in gate.detail
+
+
+def test_no_captions_is_not_applicable_and_no_timeline_is_a_skip(tmp_path):
+    built = build(Case("t", "", Recipe(seconds=3.0)), tmp_path / "t")
+    timeline = json.loads(built.project.timeline_path.read_text())
+    write_json(built.project.timeline_path, {**timeline, "captions": []})
+    empty = gates.gate_caption_speed(gates.Context.open(built.project, built.file))
+    assert empty.skipped and empty.value == gates.NOT_APPLICABLE
+    built.project.timeline_path.unlink()
+    missing = gates.gate_caption_speed(gates.Context.open(built.project, built.file))
+    assert missing.skipped and missing.value != gates.NOT_APPLICABLE
+
+
+@pytest.mark.parametrize(
+    "brief, lines",
+    [
+        ("# Brief\n\nFor founders.\n\n## Must say\n\n- one\n- two\n\n## Tone\n\nWarm.\n", ["one", "two"]),
+        ("# Brief\n\n## MUST COVER\n* one\n2. two\n", ["one", "two"]),
+        ("Must mention:\n- one\n\nAudience: founders\n", ["one"]),
+        ("# Brief\n\nA reel for founders.\n", []),
+        ("", []),
+    ],
+)
+def test_must_say_lines_come_from_their_own_section(brief, lines):
+    assert rules.must_say(brief) == lines
+
+
+def test_a_line_counts_when_its_words_are_heard_together():
+    heard = "so the free plan never ever expires and that is that".split()
+    assert rules.said("The free plan never expires", heard)
+
+
+def test_scattered_words_do_not_count_as_said():
+    heard = "free is a word we use and later on we say that plans change and one day it all expires".split()
+    assert not rules.said("The free plan never expires", heard)
+
+
+def test_a_transcribers_slip_on_a_long_word_still_counts():
+    assert rules.said("install Altocue today", "you can install altocues today".split())
+
+
+def test_a_line_can_offer_other_wordings():
+    assert rules.said("thirty day refund | 30 day refund", "a 30 day refund".split())
+
+
+def test_a_line_of_only_small_words_is_still_checked():
+    assert rules.said("this is it", "and this is it folks".split())
+    assert not rules.said("this is it", "and that was that".split())
+
+
+def test_brief_coverage_names_the_line_that_was_not_said(tmp_path):
+    built = build(Case("t", "", Recipe(brief=f"{MUST_SAY}- a reason to keep going\n- the free plan never expires\n")), tmp_path / "t")
+    with planted(built):
+        gate = gates.gate_brief_coverage(gates.Context.open(built.project, built.file))
+    assert not gate.passed and gate.value == 1 and gate.threshold == 2
+    assert "free plan never expires" in gate.detail and "keep going" not in gate.detail
+
+
+def test_brief_coverage_without_a_list_is_not_applicable(tmp_path):
+    built = build(Case("t", "", Recipe(brief="# Brief\n\nFor founders.\n")), tmp_path / "t")
+    with planted(built):
+        gate = gates.gate_brief_coverage(gates.Context.open(built.project, built.file))
+    assert gate.skipped and gate.value == gates.NOT_APPLICABLE
+
+
+def test_brief_coverage_with_nothing_heard_is_a_skip_and_never_a_pass(tmp_path, monkeypatch):
+    built = build(Case("t", "", Recipe(brief=f"{MUST_SAY}- a plan\n")), tmp_path / "t")
+    monkeypatch.setattr(gates, "transcribe", lambda *_, **__: (None, "no engine"))
+    gate = gates.gate_brief_coverage(gates.Context.open(built.project, built.file))
+    assert gate.skipped and gate.value != gates.NOT_APPLICABLE and "no engine" in gate.detail
+
+
+def test_every_new_gate_has_a_fix_in_the_report():
+    assert {"caption_speed", "brief_coverage"} <= set(report.GATE_ACTIONS)
 
 
 # Reading time
@@ -743,3 +853,203 @@ def test_reading_gate_with_no_timeline_is_skipped_not_passed():
 def test_reading_gate_with_only_captions_does_not_apply():
     gate = gates.gate_text_readable(context_with({"captions": [], "items": []}))
     assert gate.skipped and gate.value == gates.NOT_APPLICABLE
+
+
+# Flashes, by WCAG 2.2 success criterion 2.3.1
+
+
+GRID = flashes.GRID
+
+
+def picture(*cells: tuple[float, float, float], shape: tuple[int, ...] = (GRID**2, 3)) -> np.ndarray:
+    """One frame of cells, red, green and blue from 0 to 255, all the same unless given one colour per cell."""
+    return np.broadcast_to(np.array(cells[0], np.uint8), shape).copy()
+
+
+def strobing(hertz: float, *, seconds: float = 2.0, fps: int = 30, bright=(255, 255, 255), dark=(0, 0, 0)) -> list[np.ndarray]:
+    return [picture(bright if (n / fps * hertz * 2) % 2 < 1 else dark) for n in range(int(seconds * fps))]
+
+
+def test_luminance_follows_the_wcag_formula():
+    assert flashes.luminance(picture((255, 255, 255)))[0] == pytest.approx(1.0)
+    assert flashes.luminance(picture((255, 0, 0)))[0] == pytest.approx(0.2126, abs=0.001)
+    assert flashes.luminance(picture((10, 10, 10)))[0] == pytest.approx(10 / 255 / 12.92, abs=0.001)
+
+
+def test_three_flashes_a_second_is_within_the_limit():
+    found = flashes.scan(strobing(3), 30)
+    assert found.general == 3 and not found.over
+
+
+def test_four_flashes_a_second_is_over_the_limit():
+    found = flashes.scan(strobing(4), 30)
+    assert found.general == 4 and found.over
+
+
+def test_a_swing_under_a_tenth_of_full_luminance_is_not_a_flash():
+    assert flashes.scan(strobing(6, bright=(70, 70, 70), dark=(40, 40, 40)), 30).general == 0
+
+
+def test_a_swing_with_nothing_below_the_bright_limit_is_not_a_flash():
+    """WCAG: the darker image must be under 0.80, so bright against brighter does not count."""
+    assert flashes.scan(strobing(6, bright=(255, 255, 255), dark=(240, 240, 240)), 30).general == 0
+
+
+def test_a_slow_run_of_cuts_is_not_a_flash():
+    assert flashes.scan(strobing(1), 30).general == 1
+
+
+def test_a_small_patch_is_under_the_area_limit():
+    """A quarter of a window a third of the picture each way. WCAG's example is 341 by 256 on 1024 by 768."""
+    frames = []
+    for n in range(60):
+        frame = picture((0, 0, 0))
+        if (n // 3) % 2 == 0:
+            frame.reshape(GRID, GRID, 3)[:4, :4] = 255
+        frames.append(frame)
+    assert not flashes.scan(frames, 30).over
+
+
+def test_a_patch_over_the_area_limit_fails():
+    frames = []
+    for n in range(60):
+        frame = picture((0, 0, 0))
+        if (n // 3) % 2 == 0:
+            frame.reshape(GRID, GRID, 3)[:7, :7] = 255
+        frames.append(frame)
+    assert flashes.scan(frames, 30).over
+
+
+def test_scattered_flashes_are_not_one_area():
+    frames = []
+    scatter = np.zeros((GRID, GRID), bool)
+    scatter[::3, ::3] = True  # 144 cells, far apart
+    for n in range(60):
+        frame = picture((0, 0, 0))
+        if (n // 3) % 2 == 0:
+            frame.reshape(GRID, GRID, 3)[scatter] = 255
+        frames.append(frame)
+    assert not flashes.scan(frames, 30).over
+
+
+def test_a_red_flash_counts_even_when_the_brightness_barely_moves():
+    found = flashes.scan(strobing(5, bright=(255, 0, 0), dark=(137, 137, 137)), 30)
+    assert found.general == 0 and found.red == 5 and found.over
+
+
+def test_a_grey_picture_never_counts_as_red():
+    assert flashes.scan(strobing(5, bright=(200, 200, 200), dark=(180, 180, 180)), 30).red == 0
+
+
+def test_the_gate_says_where_the_worst_second_starts(tmp_path):
+    built = build(Case("t", "", Recipe(vf=strobe(6))), tmp_path / "t")
+    gate = gates.gate_flash_rate(gates.Context.open(built.project, built.file))
+    assert not gate.passed and gate.value > gates.flashes.MOST and gate.threshold == gates.flashes.MOST
+    assert "00:0" in gate.detail and "second" in gate.detail
+
+
+def test_the_gate_passes_a_calm_film_and_says_what_it_measured(tmp_path):
+    built = build(Case("t", "", Recipe(seconds=3.0)), tmp_path / "t")
+    gate = gates.gate_flash_rate(gates.Context.open(built.project, built.file))
+    assert gate.passed and gate.value == 0 and "flash" in gate.detail
+
+
+def test_a_film_ffmpeg_cannot_read_is_skipped_not_passed(tmp_path, monkeypatch):
+    built = build(Case("t", "", Recipe(seconds=3.0)), tmp_path / "t")
+    monkeypatch.setattr(gates.flashes, "read_frames", lambda *_: (_ for _ in ()).throw(AltocueError("no")))
+    c = gates.Context.open(built.project, built.file)
+    assert gates.guarded(c, ("flash_rate",), gates.gate_flash_rate)[0].skipped
+
+
+# Stray frames at insert edges
+
+
+def edge(*frames: float) -> list[np.ndarray]:
+    return [np.full((8, 8, 3), value, np.float32) for value in frames]
+
+
+OLD, NEW = 40.0, 200.0
+CLEAN_EDGE = edge(*[OLD] * 5, *[NEW] * 5)
+
+
+def test_a_clean_edge_is_clean():
+    assert edges.stray(CLEAN_EDGE) == []
+
+
+def test_the_new_shot_showing_a_frame_early_is_named():
+    assert edges.stray(edge(*[OLD] * 4, NEW, *[NEW] * 5)) == [(-1, edges.EARLY)]
+
+
+def test_the_old_shot_running_a_frame_late_is_named():
+    assert edges.stray(edge(*[OLD] * 5, OLD, *[NEW] * 4)) == [(0, edges.LATE)]
+
+
+def test_a_frame_from_neither_shot_is_named():
+    frames = edge(*[OLD] * 5, *[NEW] * 5)
+    frames[4] = np.full((8, 8, 3), 120.0, np.float32)
+    frames[4][:4] = 255.0
+    assert edges.stray(frames) == [(-1, edges.FOREIGN)]
+
+
+def test_two_shots_that_match_cannot_show_a_wrong_side():
+    assert edges.stray(edge(*[OLD] * 10)) == []
+
+
+def test_steady_motion_is_not_a_stray_frame():
+    assert edges.stray(edge(*[OLD + step * 3 for step in range(10)])) == []
+
+
+def test_a_fast_pan_across_a_cut_is_not_a_stray_frame():
+    assert edges.stray(edge(*[OLD + step * 6 for step in range(5)], *[NEW + step * 6 for step in range(5)])) == []
+
+
+def test_an_edge_is_read_at_the_exact_frame_whatever_the_sound_does(tmp_path):
+    """AAC priming gives a file a start time before zero, and that moved a plain seek by one whole frame."""
+    built = build(Case("t", "", Recipe(vf=fill(90, 180))), tmp_path / "t")
+    frames = edges.read_edge(built.file, 90, 30.0)
+    assert len(frames) == 2 * edges.REACH
+    old, new = frames[0], frames[-1]
+    assert edges.apart(frames[4], old) < edges.apart(frames[4], new)
+    assert edges.apart(frames[5], new) < edges.apart(frames[5], old)
+
+
+def test_edges_of_an_insert_land_where_the_render_puts_them():
+    assert edges.frame_edges({"start": 2.0, "end": 4.0}, 30.0) == (60, 120)
+    assert edges.frame_edges({"start": 2.01, "end": 4.0}, 30.0) == (60, 120)
+
+
+def test_a_transition_edge_is_left_alone(tmp_path):
+    blended = {**CANARY_INSERT, "in": {"type": "dissolve", "duration": 0.2}, "out": {"type": "dissolve", "duration": 0.2}}
+    built = build(Case("t", "", Recipe(inserts=[blended], vf=fill(61, 118))), tmp_path / "t")
+    gate = gates.gate_stray_frames(gates.Context.open(built.project, built.file))
+    assert gate.passed and "transition" in gate.detail
+
+
+def test_the_gate_names_the_frame_and_what_is_wrong(tmp_path):
+    built = build(Case("t", "", Recipe(inserts=[CANARY_INSERT], vf=fill(60, 118))), tmp_path / "t")
+    gate = gates.gate_stray_frames(gates.Context.open(built.project, built.file))
+    assert not gate.passed and gate.value == 1 and "00:03.97" in gate.detail and "next shot" in gate.detail
+
+
+def test_no_inserts_is_not_applicable_and_no_timeline_is_a_skip(tmp_path):
+    built = build(Case("t", "", Recipe(seconds=3.0)), tmp_path / "t")
+    empty = gates.gate_stray_frames(gates.Context.open(built.project, built.file))
+    assert empty.skipped and empty.value == gates.NOT_APPLICABLE
+    built.project.timeline_path.unlink()
+    missing = gates.gate_stray_frames(gates.Context.open(built.project, built.file))
+    assert missing.skipped and missing.value != gates.NOT_APPLICABLE
+
+
+def test_an_insert_that_ends_the_film_checks_only_its_first_edge(tmp_path):
+    built = build(Case("t", "", Recipe(inserts=[{"file": "b.mp4", "start": 3.0, "end": 6.0}], vf=fill(90, 180))), tmp_path / "t")
+    assert gates.gate_stray_frames(gates.Context.open(built.project, built.file)).passed
+
+
+def test_every_picture_gate_has_a_fix_in_the_report():
+    assert {"flash_rate", "stray_frames"} <= set(report.GATE_ACTIONS)
+
+
+def test_no_skill_still_says_these_go_unmeasured():
+    for name in ("altocue-review", "altocue-transitions"):
+        text = Path(f"skills/{name}/SKILL.md").read_text()
+        assert "No gate does this yet" not in text and "No gate measures this yet" not in text

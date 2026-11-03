@@ -1,6 +1,6 @@
 # Footage that reads as filmed on a phone
 
-Craft notes for generated clips that should look shot on a phone. They are in our own words, drawn from public guidance on AI-made creator footage and from platform ad advice. Treat the numbers as starting points. Only the speech rate, the cold open and baked text are measured, by `altocue qa --check ugc`.
+Craft notes for generated clips that should look shot on a phone. They are in our own words, drawn from public guidance on AI-made creator footage and from platform ad advice. Treat all of it as [source], and the numbers as starting points. Only the speech rate, the cold open and baked text are measured, by `altocue qa --check ugc`.
 
 ## Honesty comes first
 
@@ -13,13 +13,13 @@ Craft notes for generated clips that should look shot on a phone. They are in ou
 
 Real footage is full of small failures, and those failures are how a viewer decides something was filmed. Ask for the flaws. Do not ask for perfection, and do not stack every flaw at once, because too much texture is its own tell.
 
-Avoid retoucher words such as flawless, airbrushed or pristine. Photographer words such as documentary are fine.
+Avoid retoucher words such as flawless, airbrushed or pristine. Photographer words such as documentary are fine. Name the cheap device first, and delete cinematic words.
 
 ## Camera
 
 - **Front camera at arm's length.** About a 24mm look.
 - **Deep focus.** The room stays nearly as sharp as the face. A creamy background is the loudest tell, and it survives every other fix.
-- **A small constant shake, never a glide.** Say which hand holds the phone.
+- **A small constant shake, never a glide.** Say which hand holds the phone. This is smaller than the film handheld in `altocue-direct`, and "shake" in the prompt also clears its warning.
 - **One focus snap and one exposure shift per clip,** on selfie cuts only.
 - **A locked shot stays locked.** No breathing wobble.
 - **No fisheye, wide-angle warp, dolly or gimbal.**

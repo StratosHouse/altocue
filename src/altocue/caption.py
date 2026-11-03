@@ -8,12 +8,15 @@ from typing import Any
 
 from . import brand as brands
 from . import cut
+from .errors import AltocueError
 from .project import Project, write_json
 
 LEADING = "\"'“‘("
 TRAILING = ".,!?;:\"'”’)"
 SENTENCE_END = ".!?"
 HOLD_AFTER = 0.28
+SPEAKER_COLOURS = ("#f3f7fa", "#ffd08a", "#a8d8ff", "#ffb3c7", "#d2c2ff")
+SPEAKER_DISPLAYS = {"": (), "colour": ("colour",), "name": ("name",), "both": ("colour", "name")}
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -44,6 +47,7 @@ def build_pages(
         joins = (
             current is not None
             and current[-1]["segment"] == word["segment"]
+            and current[-1].get("speaker", "") == word.get("speaker", "")
             and word["start"] - current[0]["start"] <= combine_ms / 1000
             and current[-1]["text"].rstrip()[-1:] not in SENTENCE_END
             and not current[-1]["text"].rstrip().endswith(",")
@@ -62,7 +66,8 @@ def build_pages(
                 if strip_punctuation(w["text"])
             ]
             if shown:
-                pages.append({"start": shown[0]["start"], "end": shown[-1]["end"], "segment": chunk[0]["segment"], "words": shown})
+                speaker = {"speaker": chunk[0]["speaker"]} if chunk[0].get("speaker") else {}
+                pages.append({"start": shown[0]["start"], "end": shown[-1]["end"], "segment": chunk[0]["segment"], "words": shown, **speaker})
 
     for page, following in zip(pages, pages[1:], strict=False):
         page["end"] = round(min(page["end"] + HOLD_AFTER, following["start"]), 3)
@@ -71,6 +76,25 @@ def build_pages(
     for page in pages:
         page["end"] = min(page["end"], (ends or {}).get(page["segment"], page["end"]))
     return pages
+
+
+def mark_speakers(pages: list[dict[str, Any]], project: Project, colours: list[str]) -> None:
+    """Colour a page by who says it, or name them when the voice changes. Off unless `[speakers] show` asks."""
+    show = str(project.setting("speakers", "show", ""))
+    if show not in SPEAKER_DISPLAYS:
+        raise AltocueError(f"Unknown [speakers] show value {show}.", fix="Use colour, name, both, or leave it empty.")
+    seen: dict[str, int] = {}
+    latest = ""
+    for page in pages:
+        who = page.get("speaker", "")
+        if not who:
+            continue
+        place = seen.setdefault(who, len(seen))
+        if "colour" in SPEAKER_DISPLAYS[show]:
+            page["colour"] = colours[place % len(colours)]
+        if "name" in SPEAKER_DISPLAYS[show] and who != latest:
+            page["name"] = str(project.setting("speakers", who, who))
+        latest = who
 
 
 def build(project: Project) -> list[dict[str, Any]]:
@@ -82,6 +106,7 @@ def build(project: Project) -> list[dict[str, Any]]:
         combine_ms=int(style["combine_ms"]),
         ends=cut.segment_ends(edl),
     )
+    mark_speakers(pages, project, list(style.get("speaker_colours") or SPEAKER_COLOURS))
     write_json(project.work / "captions.json", {"pages": pages})
     return pages
 
