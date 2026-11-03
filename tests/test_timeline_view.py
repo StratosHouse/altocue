@@ -168,6 +168,17 @@ def test_an_insert_stops_when_its_file_does(layered):
     assert insert["data-duration"] == "1.000"  # the slot is 2 s and the file holds 1 s
 
 
+def test_an_insert_with_a_transition_shows_the_renders_own_blend(layered):
+    motion = json.loads((layered.root / "motion.json").read_text())
+    motion["inserts"][0]["in"] = {"type": "dissolve", "duration": 0.3}
+    write_json(layered.root / "motion.json", motion)
+    timeline_view.write_stage(layered)
+    insert = next(clip for clip in clips_of(page_of(layered)) if clip.get("id") == "insert-1")
+    baked = (stage_of(layered) / insert["src"]).resolve()
+    assert baked.parent == (layered.work / "inserts-draft").resolve() and baked.name.startswith("insert-")
+    assert insert["data-duration"] == "2.000"  # the render's clip fills the whole span, so nothing is cut short
+
+
 def test_the_sound_arrives_as_voice_music_and_effects(layered):
     timeline_view.write_stage(layered)
     sounds = {clip["id"]: clip for clip in clips_of(page_of(layered)) if clip["tag"] == "audio"}
@@ -262,6 +273,18 @@ def test_the_command_says_plainly_that_the_studio_is_a_view(project, studio, cap
     main(["timeline", "-p", str(project.root)])
     out = capsys.readouterr().out
     assert "view" in out and "edl.json" in out and "motion.json" in out
+
+
+def test_overlays_are_named_as_not_drawn(project, studio, capsys):
+    write_json(project.root / "motion.json", {"overlay": [{"type": "grain", "amount": 0.2}, {"type": "vignette", "amount": 0.3}]})
+    main(["timeline", "-p", str(project.root)])
+    out = capsys.readouterr().out
+    assert "grain and vignette" in out and "not drawn" in out
+
+
+def test_no_overlays_means_no_overlay_line(project, studio, capsys):
+    main(["timeline", "-p", str(project.root)])
+    assert "not drawn" not in capsys.readouterr().out
 
 
 def test_a_studio_that_will_not_start_is_reported(project, studio, capsys):

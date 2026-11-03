@@ -115,15 +115,19 @@ def _hold(timeline: dict[str, Any], picture: Path, stage: Path) -> list[str]:
     return [f'<img id="hold" class="clip" src="{HOLD}" alt="" {_span(timeline["duration"], timeline["total"])} data-track-index="0" style="{FILL}">']
 
 
-def _inserts(project: Project, timeline: dict[str, Any], stage: Path, first_track: int) -> tuple[list[str], int]:
-    """Each insert on its real file. Inserts may overlap in time, and a track may not, so each takes the first free lane."""
+def _inserts(project: Project, inserts: list[dict[str, Any]], stage: Path, first_track: int) -> tuple[list[str], int]:
+    """Each insert on its real file, or on the render's own clip when it arrives or leaves by a transition.
+
+    Inserts may overlap in time, and a track may not, so each takes the first free lane.
+    """
     clips: list[str] = []
     lanes: list[float] = []
-    for number, insert in enumerate(timeline["inserts"], 1):
-        path = (project.root / insert["file"]).resolve()
+    for number, insert in enumerate(inserts, 1):
+        path = (project.root / insert.get("baked", insert["file"])).resolve()
         still = path.suffix.lower() in timelines.STILL_TYPES
         start = float(insert["start"])
-        end = float(insert["end"]) if still else min(float(insert["end"]), start + ffmpeg.probe_clip(path).duration)  # past its end, the render shows what is under it
+        whole = still or "baked" in insert  # a baked clip holds its last frame, so it fills the span
+        end = float(insert["end"]) if whole else min(float(insert["end"]), start + ffmpeg.probe_clip(path).duration)  # past its end, the render shows what is under it
         lane = next((index for index, free in enumerate(lanes) if free <= start), None)
         if lane is None:
             lanes.append(end)
@@ -148,8 +152,30 @@ def _sounds(project: Project, timeline: dict[str, Any], voice: Path, stage: Path
     return clips
 
 
-def write_stage(project: Project) -> tuple[Path, Path | None]:
-    """Write the stage, and return it with the path of any studio edit that was saved from being overwritten."""
+def _baked(project: Project, timeline: dict[str, Any], picture: Path, draft: bool) -> list[dict[str, Any]]:
+    """The render's own clip for an insert with a transition at either edge, from the same cache the render fills."""
+    c = plate.canvas(project, draft=draft)
+    folder = project.work / ("inserts-draft" if draft else "inserts")
+    baked = []
+    for insert in timeline["inserts"]:
+        if insert.get("in") or insert.get("out"):
+            folder.mkdir(parents=True, exist_ok=True)
+            insert = {**insert, "baked": render.bake_insert(project, insert, picture, c, folder)}
+        baked.append(insert)
+    return baked
+
+
+def _not_drawn(timeline: dict[str, Any]) -> str | None:
+    """Overlays are live ffmpeg blends with no page form, so the studio leaves them off, and says which."""
+    kinds = list(dict.fromkeys(item["type"].replace("_", " ") for item in timeline.get("overlay", [])))
+    if not kinds:
+        return None
+    named = kinds[0] if len(kinds) == 1 else f"{', '.join(kinds[:-1])} and {kinds[-1]}"
+    return f"The {named} overlay{'s are' if len(kinds) > 1 else ' is'} added at render and not drawn in the studio."
+
+
+def write_stage(project: Project) -> tuple[Path, Path | None, str | None]:
+    """Write the stage. Return it, any studio edit that was saved from being overwritten, and anything the studio cannot show."""
     edl = project.edl()
     if not edl.segments:
         raise AltocueError("The cut is empty.", fix="Run `altocue cut` and check edl.json.")
@@ -158,19 +184,20 @@ def write_stage(project: Project) -> tuple[Path, Path | None]:
     kept = studio_edit(project)
     with locks.heavy("getting the timeline ready"):
         frame.frame_project(project)  # what a render would do first, or the punch-ins would not show
-        picture, voice = plate.build(project, draft=not (project.work / "plate.mp4").exists())
+        draft = not (project.work / "plate.mp4").exists()
+        picture, voice = plate.build(project, draft=draft)
         edl = project.edl()
         caption.build(project)
         timeline = timelines.build(project)
         brand = brands.load(project)
         install_assets(timeline, brand, stage)
         layers = _shots(edl, stage, picture) + _hold(timeline, picture, stage)
-        inserts, next_track = _inserts(project, timeline, stage, 2 + len(timeline["items"]))  # captions take track 1, and each graphic its own
+        inserts, next_track = _inserts(project, _baked(project, timeline, picture, draft), stage, 2 + len(timeline["items"]))  # captions take track 1, then each graphic
         layers += inserts + _sounds(project, timeline, voice, stage, next_track)
-    page = compose(timeline, brand, under="\n".join(layers)).replace(ROOT, f"{ROOT} data-no-timeline", 1)  # it animates in CSS, which the studio otherwise reads as a fault
+    page = compose(timeline, brand, under="\n".join(layers)).replace(ROOT, f"{ROOT} data-no-timeline", 1)  # CSS animates it. Without this the studio reports a fault
     (stage / "index.html").write_text(page)
     write_json(home_of(project) / RECORD, {"page": _digest(page)})
-    return stage, kept
+    return stage, kept, _not_drawn(timeline)
 
 
 def _require_studio() -> None:
@@ -212,13 +239,15 @@ def run(args: argparse.Namespace) -> int:
         print("The studio has stopped.")
         _say_edit(studio_edit(project))
         return 0
-    stage, kept = write_stage(project)
+    stage, kept, unseen = write_stage(project)
     flags = ["--no-open", "--background", *(["--port", str(args.port)] if args.port else [])]
     address = _studio(stage, *flags).get("studioUrl")
     if not address:
         raise AltocueError("The studio started but gave no address.", fix="Run `altocue doctor`.")
     print(f"Timeline: {address}")
     print(VIEW_NOTE)
+    if unseen:
+        print(unseen)
     print("Stop it with `altocue timeline --stop`.")
     _say_edit(kept)
     return 0
