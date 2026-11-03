@@ -23,10 +23,17 @@ Altocue's own code is MIT. Nothing it needs charges a licence fee, so a team of 
 
 | Dependency | Licence | Use |
 |---|---|---|
-| HyperFrames | Apache-2.0 | Motion graphics layers. Telemetry and update checks are switched off by Altocue |
+| HyperFrames | Apache-2.0 | Motion graphics layers. Telemetry and update checks are switched off by Altocue. Its undici is held at a patched release (MIT) |
 | GSAP | [GreenSock standard licence](https://gsap.com/standard-license): free to use, not open source | Bundled inside HyperFrames. Altocue's graphics use CSS and never call it |
 | Headless Chrome | Chrome for Testing, Google's terms | Downloaded by HyperFrames to draw the graphics |
 | DeepFilterNet (`deep-filter`) | MIT or Apache-2.0 | Noise removal |
+
+## Fetched by `altocue library add`
+
+| Asset | Licence | Use |
+|---|---|---|
+| A registry item | Apache-2.0 at most, notices kept in `motion/fetched/<name>/` | The item itself |
+| Web fonts the item names | Each under its own open font licence, mostly SIL OFL 1.1 | Embedded in the fetched item, cut to Latin text, so its renders need no network |
 
 ## Transcribers
 

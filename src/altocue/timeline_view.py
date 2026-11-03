@@ -37,7 +37,6 @@ FOLDER = "timeline"
 FOOTAGE = "footage.mp4"
 HOLD = "hold.jpg"
 RECORD = "stage.json"
-ROOT = 'data-composition-id="root"'
 STUDIO_STAMP = re.compile(r'\sdata-hf-id="[^"]*"')
 STARTUP_SECONDS = 120
 FILL = "inset:0;width:100%;height:100%;object-fit:cover"  # how the render fills the frame with an insert
@@ -194,7 +193,7 @@ def write_stage(project: Project) -> tuple[Path, Path | None, str | None]:
         layers = _shots(edl, stage, picture) + _hold(timeline, picture, stage)
         inserts, next_track = _inserts(project, _baked(project, timeline, picture, draft), stage, 2 + len(timeline["items"]))  # captions take track 1, then each graphic
         layers += inserts + _sounds(project, timeline, voice, stage, next_track)
-    page = compose(timeline, brand, under="\n".join(layers)).replace(ROOT, f"{ROOT} data-no-timeline", 1)  # CSS animates it. Without this the studio reports a fault
+    page = compose(timeline, brand, under="\n".join(layers))
     (stage / "index.html").write_text(page)
     write_json(home_of(project) / RECORD, {"page": _digest(page)})
     return stage, kept, _not_drawn(timeline)

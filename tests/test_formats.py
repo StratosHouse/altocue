@@ -61,9 +61,24 @@ def test_a_format_is_time_pure_and_self_contained(fmt, brand):
     assert "%%" not in fmt.css
 
 
+GENERIC_FONTS = {"sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace", "inherit", "initial", "unset"}
+
+
+def test_every_font_a_page_names_ships_with_it(brand):
+    """A family with no @font-face of its own is one HyperFrames fetches from Google Fonts, so a render would need the network."""
+    items = [{**fmt.example, "type": fmt.id, "start": 0, "end": fmt.seconds} for fmt in ALL]
+    longest = max(fmt.seconds for fmt in ALL)
+    html = compose({"width": 1080, "height": 1920, "fps": 30, "duration": longest, "tail": 0, "total": longest, "captions": [], "items": items}, brand)
+    shipped = {name.lower() for name in re.findall(r'@font-face\{font-family:"([^"]+)"', html)}
+    stacks = re.findall(r"font-family:([^;}]+)", html) + re.findall(r"--(?:mono|serif|hand):([^;}]+)", html)
+    named = {part.strip().strip("'\"").lower() for stack in stacks for part in stack.split(",") if not part.strip().startswith("var(")}
+    assert named - shipped - GENERIC_FONTS == set()
+    assert not shipped & GENERIC_FONTS, "A face named like a generic family gets Inter put in front of it"
+
+
 @pytest.mark.parametrize("fmt", ALL, ids=lambda f: f.id)
 def test_animations_sit_on_html_elements(fmt):
-    """HyperFrames 0.8.222 seeks SVG and pseudo-element animations to film time, so they look finished in any clip after 0."""
+    """HyperFrames, measured up to 0.9.5, seeks SVG and pseudo-element animations to film time, so they look finished in any clip after 0."""
     assert not UNSEEKED.search(fmt.css), "Animate an HTML wrapper or a real span instead"
 
 

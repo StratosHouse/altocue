@@ -64,7 +64,7 @@ def source(id: str, **fields) -> dict:
 
 
 def catalog(*entries, sources=(), refused=(), generated="2026-11-02T10:00:00Z") -> dict:
-    return {"schema": 1, "generated": generated, "pins": {"hyperframes": "0.8.222"}, "entries": list(entries), "sources": list(sources), "refused": list(refused)}
+    return {"schema": 1, "generated": generated, "pins": {"hyperframes": "0.9.5"}, "entries": list(entries), "sources": list(sources), "refused": list(refused)}
 
 
 @pytest.fixture
@@ -138,7 +138,7 @@ def fake_renderer(
 import json, pathlib, shutil, sys
 args = sys.argv[1:]
 if args[:1] == ["--version"]:
-    print("0.8.222")
+    print("0.9.5")
     raise SystemExit(0)
 pathlib.Path({str(folder / "calls.json")!r}).write_text(json.dumps(args))
 if {fail!r}:
@@ -302,6 +302,15 @@ def test_a_format_added_after_the_last_build_is_in_the_library(bundled, monkeypa
     assert "brand_new" in {row["id"] for row in made}
 
 
+def test_a_built_in_keeps_its_name_when_a_catalog_lists_the_same_one(bundled, home):
+    name = build.format_entries()[-1]["id"]
+    path = library.updated_path()
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(catalog(entry(name), generated="2099-01-01T00:00:00Z")))
+    rows = [row for row in library.current()["entries"] if row["id"] == name]
+    assert [row["tier"] for row in rows] == ["built-in"]
+
+
 def test_a_newer_catalog_never_claims_a_format_this_install_lacks(bundled, home):
     path = library.updated_path()
     path.parent.mkdir(parents=True)
@@ -374,7 +383,8 @@ def test_the_committed_deny_counts_are_what_was_computed():
     rules = Counter(row["rule"] for row in data["refused"] if row["source"] == "hyperframes")
     assert rules == {"transitions-dev-port": 16, "brand": 30, "brand-description": 7, "real-people-media": 25}
     kept = [row for row in data["entries"] if row["source"] == "hyperframes" and row["id"] != "hyperframes"]
-    assert len(kept) + sum(rules.values()) == REGISTRY_ITEMS
+    shadowed = json.loads((ROOT / "library" / "report.json").read_text())["named_by_a_built_in"]
+    assert len(kept) + sum(rules.values()) + len(shadowed) == REGISTRY_ITEMS
 
 
 def test_nothing_in_the_catalog_trips_the_deny_list():
@@ -400,19 +410,26 @@ def test_anything_else_fails(expression):
 
 def test_a_registry_item_outside_the_allow_list_is_refused_with_a_reason():
     rows = [{"name": "bad-licence", "type": "block", "title": "Bad", "description": "A thing.", "tags": [], "license": "GPL-3.0-only"}]
-    entries, refused = build.registry_entries(rows, "0.8.222")
+    entries, refused = build.registry_entries(rows, "0.9.5")
     assert entries == [] and refused[0]["rule"] == "licence" and "GPL-3.0-only" in refused[0]["reason"]
 
 
 def test_a_registry_item_with_no_licence_of_its_own_inherits_apache():
-    entries, refused = build.registry_entries([{"name": "fine", "type": "block", "title": "Fine", "description": "A thing.", "tags": []}], "0.8.222")
+    entries, refused = build.registry_entries([{"name": "fine", "type": "block", "title": "Fine", "description": "A thing.", "tags": []}], "0.9.5")
     assert refused == [] and entries[0]["licence"] == "Apache-2.0"
 
 
 def test_a_snippet_with_no_timeline_is_a_link_not_something_to_fetch():
     rows = [{"name": "vignette", "type": "component", "title": "Vignette", "description": "A thing.", "tags": [], "mountable": False}]
-    entries, refused = build.registry_entries(rows, "0.8.222")
+    entries, refused = build.registry_entries(rows, "0.9.5")
     assert refused == [] and entries[0]["tier"] == "link" and "cannot mount" in entries[0]["ship"]
+
+
+def test_a_registry_item_named_like_a_built_in_stays_out_of_the_build():
+    built_in = entry("flowchart", tier="built-in", source="altocue")
+    kept, shadowed = build.unclaimed([entry("flowchart"), entry("headline-slam")], [built_in])
+    assert [row["id"] for row in kept] == ["headline-slam"] and shadowed == ["flowchart"]
+    library.validate(build.assemble([built_in, *kept], [], [], {"hyperframes": "0.9.5"}, previous=None))
 
 
 def test_a_shader_outside_mit_and_bsd_is_refused():
@@ -486,11 +503,23 @@ def test_an_excluded_source_never_becomes_an_entry():
     assert [(row["id"], row["tier"], row["kind"], row["also"]) for row in rows] == [("pixabay", "search", "stock", ["photo"])]
 
 
+def test_the_sync_says_how_far_the_pin_is_behind(monkeypatch):
+    monkeypatch.setattr(build, "_get_json", lambda url: {"version": "0.9.6"})
+    assert build.release_drift("0.9.5") == "HyperFrames 0.9.6 is out. The pin is 0.9.5."
+    assert build.release_drift("0.9.6") == "The pinned HyperFrames 0.9.6 is the latest release."
+
+    def down(url):
+        raise AltocueError("offline")
+
+    monkeypatch.setattr(build, "_get_json", down)
+    assert "Could not read" in build.release_drift("0.9.5")
+
+
 def test_the_build_keeps_its_date_when_nothing_changed(tmp_path):
-    first = build.assemble([entry("a")], [], [], {"hyperframes": "0.8.222"}, previous=None)
-    again = build.assemble([entry("a")], [], [], {"hyperframes": "0.8.222"}, previous={**first, "generated": "2020-01-01T00:00:00Z"})
+    first = build.assemble([entry("a")], [], [], {"hyperframes": "0.9.5"}, previous=None)
+    again = build.assemble([entry("a")], [], [], {"hyperframes": "0.9.5"}, previous={**first, "generated": "2020-01-01T00:00:00Z"})
     assert again["generated"] == "2020-01-01T00:00:00Z"
-    changed = build.assemble([entry("b")], [], [], {"hyperframes": "0.8.222"}, previous={**first, "generated": "2020-01-01T00:00:00Z"})
+    changed = build.assemble([entry("b")], [], [], {"hyperframes": "0.9.5"}, previous={**first, "generated": "2020-01-01T00:00:00Z"})
     assert changed["generated"] != "2020-01-01T00:00:00Z"
 
 
@@ -564,12 +593,46 @@ def test_add_fetches_into_the_project_and_records_it(bundled, project, tmp_path,
     fetched = project.root / "motion/fetched/headline-slam.html"
     assert fetched.exists() and not (project.root / "hyperframes.lock.json").exists() and not (project.root / "compositions").exists()
     lock = json.loads((project.root / "library.lock.json").read_text())["items"]["headline-slam"]
-    assert lock["licence"] == "Apache-2.0" and lock["version"] == "0.8.222" and lock["source"] == "https://example.com/item" and lock["gsap"] is True
+    assert lock["licence"] == "Apache-2.0" and lock["version"] == "0.9.5" and lock["source"] == "https://example.com/item" and lock["gsap"] is True
     out = capsys.readouterr().out
     line = json.loads(out[out.index('{"type"') :].splitlines()[0])
     assert compositions.resolve(project, line)["own_id"] == "headline-slam"
     assert "GreenSock" in out and "standard licence" in out
-    assert json.loads((folder / "config.json").read_text())["registry"].endswith("/v0.8.222/registry")
+    assert json.loads((folder / "config.json").read_text())["registry"].endswith("/v0.9.5/registry")
+
+
+def fake_font_tool(folder: Path, css: str, fail: str = "") -> None:
+    """Stands in for `hyperframes-localize-fonts`: HTML in, the same HTML with a deterministic font block out."""
+    tool = folder / "renderer" / "node_modules" / ".bin" / "hyperframes-localize-fonts"
+    reply = f'<style data-hyperframes-deterministic-fonts="true">{css}</style>'
+    keep = f"pathlib.Path({str(folder / 'probe.html')!r}).write_text(page)"
+    body = f"print({fail!r}, file=sys.stderr)\nraise SystemExit(1)" if fail else f"{keep}\nprint(page.replace('</head>', {reply!r} + '</head>'))"
+    tool.write_text(f"#!{sys.executable}\nimport pathlib, sys\npage = sys.stdin.read()\n{body}\n")
+    tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
+
+
+STYLED = COMPOSITION.replace("<template>", "<template><style>.w{font-family:var(--font-display, Inter, sans-serif)}</style>")
+FACE = '@font-face { font-family: "Inter"; src: url("data:font/woff2;base64,AAAA") format("woff2"); }'
+
+
+def test_add_embeds_the_faces_an_item_names_so_a_render_needs_no_font_from_the_web(bundled, project, tmp_path, monkeypatch, capsys):
+    folder = fake_renderer(tmp_path, monkeypatch, html=STYLED)
+    fake_font_tool(folder, FACE)
+    assert main(["library", "add", "headline-slam", "-p", str(project.root)]) == 0
+    page = (project.root / "motion" / "fetched" / "headline-slam.html").read_text()
+    assert page.index("<template>") < page.index("data-altocue-fonts") < page.index(".w{font-family") and FACE in page
+    probe = (folder / "probe.html").read_text()
+    assert "font-family:var(--font-display, Inter" in probe and "Q" in probe and "\u00e9" in probe  # the item's styles, and Latin text to cut the faces to
+    lock = json.loads((project.root / library.LOCK_FILE).read_text())["items"]["headline-slam"]
+    assert lock["fonts_embedded"] == ["Inter"] and "no font from the web" in capsys.readouterr().out
+
+
+def test_add_says_when_a_face_cannot_be_embedded(bundled, project, tmp_path, monkeypatch, capsys):
+    folder = fake_renderer(tmp_path, monkeypatch, html=STYLED)
+    fake_font_tool(folder, FACE, fail='font localization failed (FontFetchError): unresolved font families: "Odd Face"')
+    assert main(["library", "add", "headline-slam", "-p", str(project.root)]) == 0
+    lock = json.loads((project.root / library.LOCK_FILE).read_text())["items"]["headline-slam"]
+    assert lock["fonts_embedded"] == [] and "Odd Face" in lock["fonts_left_to_the_web"] and "Odd Face" in capsys.readouterr().out
 
 
 def test_add_never_runs_the_renderer_for_a_refused_name(bundled, project, tmp_path, monkeypatch, capsys):

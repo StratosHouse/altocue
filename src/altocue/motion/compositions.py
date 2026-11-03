@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 from html import escape, unescape
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,9 @@ LOADED_URL = re.compile(
     r"""(?:<(?:script|img|video|audio|source|iframe|link)\b[^>]*?\b(?:src|href)=["']|url\(\s*["']?|\bfrom\s+["']|\bimport\s*\(\s*["']|\bfetch\s*\(\s*["'])(https?://[^"'`)\s]+)"""
 )
 FONT_CSS = re.compile(r"""<link\b[^>]*?href=["'](https://fonts\.googleapis\.com/css[^"']*)["'][^>]*>|@import\s+url\(\s*["']?(https://fonts\.googleapis\.com/css[^"')]*)["']?\s*\)\s*;?""")
+STYLE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.DOTALL | re.IGNORECASE)
+EMBEDDED = re.compile(r'<style data-hyperframes-deterministic-fonts="true">(.*?)</style>', re.DOTALL)
+FONT_TEXT = "".join(map(chr, range(0x20, 0x7F))) + "".join(map(chr, range(0xA0, 0x100))) + "\u2018\u2019\u201c\u201d\u2013\u2014\u2026\u2022\u20ac\u2122"
 JS_IMPORT = re.compile(r"""(\b(?:from|import)\s*\(?\s*["'])((?:/npm/|/gh/|https://cdn\.jsdelivr\.net/|\.{1,2}/)[^"']+)(["'])""")
 
 
@@ -101,6 +105,33 @@ def rebase(text: str, name: str, tops: set[str]) -> str:
     for top in sorted(tops):
         text = re.sub(rf"""(?<=["'`(])(?:\.{{0,2}}/)*{re.escape(top)}(?=[/"'`)])""", f"/{STAGE_FOLDER}/{name}/{top}", text)
     return text
+
+
+def embed_fonts(text: str, tool: Path) -> tuple[str, list[str], str]:
+    """Faces an item names without carrying. HyperFrames would fetch them from Google Fonts on every render, so they come down once, here.
+
+    HyperFrames reads the item's own styles and embeds each face it would fetch, cut to Latin text, so any
+    wordmark in a Latin alphabet draws in the face the item was designed in. Returns the page, the families
+    and, when a family cannot be embedded, why.
+    """
+    sheets = "\n".join(STYLE.findall(text))
+    if not sheets or not tool.exists():
+        return text, [], ""
+    from .hyperframes import quiet_env
+
+    probe = f"<!doctype html><html><head><style>{sheets}</style></head><body>{escape(FONT_TEXT)}</body></html>"
+    done = subprocess.run([str(tool)], input=probe, capture_output=True, text=True, env=quiet_env(), timeout=300, check=False)
+    if done.returncode != 0:
+        return text, [], done.stderr.strip().splitlines()[-1] if done.stderr.strip() else "the font localiser failed"
+    found = EMBEDDED.search(done.stdout)
+    if not found:
+        return text, [], ""
+    css = found.group(1).strip()
+    families = sorted(set(re.findall(r'font-family:\s*"([^"]+)"', css)))
+    at = text.find("<style", max(text.find("<template"), 0))
+    at = at if at >= 0 else text.find("<style")
+    block = f"<style data-altocue-fonts>\n{css}\n</style>\n"
+    return (text[:at] + block + text[at:] if at >= 0 else text.replace("</head>", block + "</head>", 1)), families, ""
 
 
 def localise(text: str, name: str, folder: Path) -> tuple[str, list[str]]:

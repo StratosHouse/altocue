@@ -21,7 +21,7 @@ CSS = """
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:transparent}
 #root{position:relative;width:%(width)spx;height:%(height)spx;overflow:hidden;background:transparent;
-font-family:"Brand",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+font-family:"Brand",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
 .clip{position:absolute}
 em{font-style:normal;color:var(--accent)}
 
@@ -221,7 +221,10 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
 
 
 def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
-    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film."""
+    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film.
+
+    CSS animates it, so the root says it has no timeline. HyperFrames lint counts a root without one as an error.
+    """
     width, height = timeline["width"], timeline["height"]
     css, geo = base_css(timeline, brand)
     items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
@@ -234,7 +237,7 @@ def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
 <style>{css}{formats.stylesheet(timeline["items"])}</style></head>
 <body>
-<div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
+<div id="root" data-composition-id="root" data-no-timeline data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
 {under + chr(10) if under else ""}{captions}
 {items_html}
 </div>
