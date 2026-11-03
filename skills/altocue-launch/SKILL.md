@@ -84,7 +84,7 @@ Altocue writes an original score fitted to your scene marks, with no samples and
 altocue film score
 ```
 
-Say this plainly to the person: nobody has heard this music. Numbers show it fits and does not clip. **A person must listen before it ships.** If `altocue` warns that two films sound the same, change the style or the seed. To use a real track instead, run `altocue music` and add `"snap": true`, so cuts move to its beats.
+Say this plainly to the person: nobody has heard this music. Numbers show it fits and does not clip. **A person must listen before it ships.** If `altocue` warns that two films sound the same, change the style or the seed. To use a real track instead, run `altocue music` and add `"snap": true`, so cuts move to its beats. See [the launch notes](references/storyboard.md#a-real-track) for where it starts.
 
 No voice by default. Put accents on three to five moments that matter, such as the reveal, the key action and the mark, and let the music carry the other cuts. Cues go under `sound` on a scene, using the bundled effects. A cue can carry `over_db`, `dip_db`, `align` and `offset_ms`.
 

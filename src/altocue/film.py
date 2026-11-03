@@ -25,6 +25,7 @@ from . import ffmpeg, flash, kinds, live, locks, master, mix, score, storyboard,
 from .errors import AltocueError
 from .motion import compositions, formats, hyperframes, scenes
 from .project import CONFIG, SIZES, Project, write_json
+from .stock import credits
 
 ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song", "invite", "heritage")
 LOCK = "storyboard.lock.json"
@@ -280,18 +281,36 @@ def music_settings(film: Film) -> dict[str, Any]:
     return {"style": style, "seed": seed, "tempo": chosen.get("tempo")}
 
 
+def wants_grid(board: dict[str, Any]) -> bool:
+    return bool(board.get("snap") or any(cue.get("snap") for scene in board.get("scenes", []) for cue in scene.get("sound", [])))
+
+
+def music_from(film: Film) -> float | None:
+    """Where in a chosen track the film's first frame sits. Set by `"from"`, and the top of the track for a film cut to its beats.
+
+    None leaves the track backtimed, so its own ending lands on the film's last frame. That only suits a film whose cuts
+    are not on the track's beats, because the beats are counted from the top of the file.
+    """
+    chosen = (film.board.get("music") or {}).get("from")
+    if chosen is not None:
+        if not storyboard.number(chosen) or chosen < 0:
+            raise AltocueError(f'The music "from" of {chosen!r} is not a time in the track.', fix='Set "from" to the seconds into the track the film starts at.')
+        return float(chosen)
+    return 0.0 if wants_grid(film.board) else None
+
+
 def timing(film: Film, aspect: str, *, board: dict[str, Any] | None = None, fps: int | None = None) -> dict[str, Any]:
     """Everything in film seconds, with cues on the music's grid where a cue asks for it."""
     filled = storyboard.fill(board or film.board)
     rate = fps or film.project.fps
     voice = {**estimated_voice(filled), **film.voice}
     track = music_of(film)
-    wants_grid = filled.get("snap") or any(cue.get("snap") for scene in filled.get("scenes", []) for cue in scene.get("sound", []))
     if track:
-        beats = track_beats(film.project, track) if wants_grid else None
+        start = music_from(film) or 0.0
+        beats = [beat - start for beat in track_beats(film.project, track) if beat >= start] if wants_grid(filled) else None
         return storyboard.resolve(filled, fps=rate, aspect=aspect, beats=beats, voice=voice)
     done = storyboard.resolve(filled, fps=rate, aspect=aspect, voice=voice)
-    if wants_grid:
+    if wants_grid(filled):
         settings = music_settings(film)
         beats = score.grid(done["scenes"], style=settings["style"], seed=settings["seed"], tempo=settings["tempo"])["beats"]
         unsnapped = {key: value for key, value in filled.items() if key != "snap"}
@@ -318,6 +337,7 @@ def film_line(film: Film, aspect: str, *, board: dict[str, Any] | None = None, f
             spelled(words_of(film.project, film.project.root / item["file"]), item["captions"]),
             SIZES[aspect],
             place=str(item["captions"].get("place", "picture")) if isinstance(item["captions"], dict) else "picture",
+            who=str(item["captions"].get("who", "")) if isinstance(item["captions"], dict) else "",
         )
     ]
     for page, item in ((page, item) for item in line["items"] if isinstance(item.get("captions"), dict) for page in line["captions"]):
@@ -391,7 +411,10 @@ def render_picture(stage: Path, output: Path, *, fps: int, draft: bool, total: f
 
 
 def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -> Path | None:
-    """Every recorded line at its scene's start. A film with no lines has no voice track, and the music leads."""
+    """Every recorded line at its scene's start. A film with no lines has no voice track, and the music leads.
+
+    `voice_from` starts a take that many seconds in, so a footage item trimmed with `from` keeps its sound in sync.
+    """
     if not any(scene.get("voice") and (project.root / str(scene["voice"])).is_file() for scene in board.get("scenes", [])):
         return None
     count = round(done["total"] * mix.RATE)
@@ -405,6 +428,7 @@ def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -
         wav.parent.mkdir(parents=True, exist_ok=True)
         ffmpeg.extract_wav(path, wav)
         line, _ = ffmpeg.read_wav(wav)
+        line = line[round(float(scene.get("voice_from", 0)) * mix.RATE) :]  # a take whose opening belongs to another film
         begin = max(round((starts[scene["id"]] + float(scene.get("voice_offset", 0))) * mix.RATE), 0)
         end = min(begin + len(line), count)
         track[begin:end] += line[: end - begin]
@@ -457,7 +481,11 @@ def make_sound(film: Film, line: dict[str, Any], done: dict[str, Any], board: di
             print(f"Warning: {warning}")
             report = {**report, "warning": warning}
     dest = folder / "mix.wav"
-    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end="land" if track else "own")
+    start = music_from(film) if track else None
+    end = "own" if not track else "land" if start is None else "fade"
+    mix.mix_bed(voice, dest, music=music, sfx=cues_of(line, done), seconds=done["total"], music_end=end, music_from=start or 0.0)
+    if start is not None:
+        report = {**report, "from": start}
     return dest, report
 
 
@@ -573,6 +601,9 @@ def run_render(args: argparse.Namespace) -> int:
     summary = json.loads((project.review_dir / "film-final.json").read_text())
     report.update(score=summary.get("score"), master=summary.get("master"), flash=summary.get("flash"))
     write_json(project.review_dir / "film.json", report)
+    owed = credits.write_txt(project)  # a film cut to a downloaded track ships the credit it owes, as a render does
+    if owed:
+        print(f"Credits owed: out/{owed.name}")
     for name in report["films"]:
         print(f"Rendered out/{name}")
     music = report.get("score") or {}

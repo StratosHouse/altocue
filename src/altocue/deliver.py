@@ -65,6 +65,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--loudness", type=master.loudness_arg, help=f"Integrated LUFS, or a named target: {', '.join(master.TARGETS)}")
     parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
     parser.add_argument("--stems", action="store_true", help="Also write voice, music and effects as WAV files, for a finisher")
+    parser.add_argument("--textless", action="store_true", help="Also write the cut picture with no captions or graphics, and its voice mastered")
     parser.add_argument(
         "--override",
         metavar="REASON",
@@ -547,6 +548,25 @@ def shots_of(edl: Edl) -> list[tuple[float, float]]:
     return list(zip([0.0, *ends], ends, strict=False))
 
 
+def write_textless(project: Project, folder: Path) -> dict[str, Any]:
+    """The cut picture with no captions or graphics, and the voice as cut, mastered to the project's target.
+
+    It is what another film lays in a frame of its own, with its own captions, or what an app adds its own text to.
+    """
+    picture, voice = project.work / "plate.mp4", project.work / "voice.wav"  # voice-room.wav beside it is only the room loop
+    if not picture.exists() or not voice.exists():
+        raise AltocueError("A textless copy is made from the render's own plate and voice, and one is missing.", fix="Run `altocue render`, then deliver again.")
+    dest, joined = folder / "textless.mp4", folder / ".textless-joined.mov"
+    loudness, peak = master.project_target(project)
+    try:
+        ffmpeg.run(["-i", str(picture), "-i", str(voice), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "pcm_s16le", "-shortest", str(joined)])
+        with locks.heavy("mastering the textless copy"):
+            result = master.master_file(joined, dest, loudness, peak)
+    finally:
+        joined.unlink(missing_ok=True)
+    return {"file": dest.name, "loudness": {"integrated": result.get("integrated"), "true_peak": result.get("true_peak")}}
+
+
 def write_stems(project: Project, folder: Path) -> dict[str, Any]:
     """The stems of the finished film, remade from the render's own voice track and timeline, so they add up to its mix."""
     voice = project.work / "voice.wav"
@@ -571,6 +591,9 @@ def run(args: argparse.Namespace) -> int:
     stems = write_stems(project, folder) if args.stems else None
     if stems:
         print(f"Stems: {FOLDER}/stems holds voice, music and effects, as mixed and before mastering.")
+    textless = write_textless(project, folder) if getattr(args, "textless", False) else None
+    if textless:
+        print(f"Textless: {FOLDER}/{textless['file']}, the cut picture with no captions or graphics, and its voice mastered.")
 
     words, silent_why = spoken(project, edl)
     srt, subs = write_subtitles(words, edl, folder)
@@ -591,6 +614,8 @@ def run(args: argparse.Namespace) -> int:
     report = {"final_sha256": digest, "signoff": signoff, "subtitles": subs, "chapters": marks, "film": film, "thumbnails": pictures, "versions": versions}
     if stems:
         report["stems"] = stems
+    if textless:
+        report["textless"] = textless
     write_json(folder / "deliver.json", report)
     print(f"Saved {FOLDER}/deliver.json")
     if signoff["override"]:

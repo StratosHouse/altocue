@@ -59,7 +59,7 @@ altocue sfx get whoosh3 -p .
 Every download writes one record to `credits.json`: file, source, licence, credit text and date.
 
 - **`altocue render`** writes `out/credits.txt` with every credit the film owes.
-- **`altocue credits -p .`** prints the block a creator pastes into a description. What was downloaded and then dropped is left out, and it says so.
+- **`altocue credits -p .`** prints the block a creator pastes into a description, and brings `out/credits.txt` up to date. What was downloaded and then dropped is left out, and it says so.
 - **`altocue qa`** fails a film that uses a CC BY or BY-SA asset with no matching line in `out/credits.txt`. Run `altocue render` again to fix it.
 
 Give the user the credit block with the finished film, and tell them it belongs in the description.

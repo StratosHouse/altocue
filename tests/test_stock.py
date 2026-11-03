@@ -1189,6 +1189,16 @@ def test_credits_prints_only_what_the_film_uses(project, capsys):
     assert base.UNTRUSTED_NOTE in captured.err and base.UNTRUSTED_NOTE not in captured.out
 
 
+def test_credits_keeps_the_credits_file_beside_the_film(project, capsys):
+    """A credit added after the render reaches out/credits.txt the moment `altocue credits` runs, with no new render."""
+    record_for(project, file="music/used.mp3", credit="Used by Ana, CC BY 4.0, https://x.test/1")
+    motion_uses(project, "music/used.mp3")
+    from altocue import cli
+
+    assert cli.main(["credits", "-p", str(project.root)]) == 0
+    assert "Used by Ana" in (project.out / credits.TEXT).read_text()
+
+
 def test_credits_with_nothing_owed_says_so(project, capsys):
     from altocue import cli
 

@@ -9,6 +9,7 @@ import re
 import subprocess
 from pathlib import Path
 
+import numpy as np
 import pytest
 from conftest import make_clip
 
@@ -523,3 +524,31 @@ def test_stems_with_the_mix_gone_say_what_to_do(finished, capsys):
     (finished.work / "voice.wav").unlink()
     assert main(["deliver", "-p", str(finished.root), "--stems"]) == 1
     assert "altocue render" in capsys.readouterr().err
+
+
+# A textless copy
+
+
+def test_deliver_writes_a_textless_copy_when_asked(finished, capsys):
+    """The cut picture with no captions or graphics, and the voice as cut, mastered. Another film can lay it in a frame."""
+    room = np.random.default_rng(3).normal(0, 0.001, 48000 * 2)  # a render also leaves its room loop beside the voice
+    ffmpeg.write_wav(finished.work / "voice-room.wav", room, 48000)
+    assert main(["deliver", "-p", str(finished.root), "--textless"]) == 0
+    textless = finished.root / "deliver" / "textless.mp4"
+    kinds = sorted(stream["codec_type"] for stream in streams(textless))
+    assert kinds == ["audio", "video"]
+    plate_seconds = ffmpeg.probe_clip(finished.work / "plate.mp4").duration
+    assert abs(ffmpeg.probe_clip(textless).duration - plate_seconds) < 0.1
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["textless"]["file"] == "textless.mp4" and report["textless"]["loudness"]["integrated"] < -5
+    assert "textless" in capsys.readouterr().out
+    heard = ffmpeg.read_wav(ffmpeg.extract_wav(textless, finished.work / "check-textless.wav", rate=16000))[0]
+    voice = ffmpeg.read_wav(ffmpeg.extract_wav(finished.work / "voice.wav", finished.work / "check-voice.wav", rate=16000))[0]
+    count = min(len(heard), len(voice)) // 800
+    rise = [np.sqrt(np.mean(track[: count * 800].reshape(count, 800) ** 2, axis=1)) for track in (heard, voice)]
+    assert np.corrcoef(*rise)[0, 1] > 0.9  # the voice as cut, never the room loop that fills the tail
+
+
+def test_a_textless_copy_stays_off_unless_asked(finished):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    assert not (finished.root / "deliver" / "textless.mp4").exists()

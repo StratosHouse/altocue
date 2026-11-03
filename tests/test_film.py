@@ -1704,3 +1704,161 @@ def test_a_footage_label_moves_to_the_head_where_captions_run_at_the_foot():
     drawn = scenes._clip(low, default_brand(), 3)
     top = float(re.search(r'footnote[^>]*top:([\d.]+)px', drawn).group(1))
     assert top < scenes.zone_box("phone_b", (1080, 1080))[1] * 1080 + 40
+
+
+# A split screen: the presenter in one half of a tall frame, the graphics in the other
+
+
+TALL = (1080, 1920)
+
+
+def test_a_tall_frame_splits_into_two_halves_edge_to_edge():
+    assert scenes.zone_box("half_top", TALL) == (0.0, 0.0, 1.0, 0.5)
+    assert scenes.zone_box("half_bottom", TALL) == (0.0, 0.5, 1.0, 1.0)
+    placed = scenes._place({"type": "footage", "file": "assets/take.mp4", "zone": "half_bottom", "start": 0, "end": 8, "scene": "a"}, TALL)
+    found = dict(part.split(":", 1) for part in placed["place"].split(";"))
+    assert [float(found[key].removesuffix("px")) for key in ("left", "top", "width", "height")] == [0, 960, 1080, 960]
+    assert placed["seam"] == 960
+
+
+def test_a_half_is_bled_to_its_edges_and_marked_by_a_thin_line_on_its_seam():
+    placed = scenes._place({"type": "footage", "file": "assets/take.mp4", "zone": "half_bottom", "start": 1, "end": 8, "scene": "a"}, TALL)
+    drawn = scenes._clip(placed, default_brand(), 3)
+    video = re.search(r"<video[^>]*>", drawn).group(0)
+    assert "framed" not in video  # a split has no rounded phone around the picture
+    seam = re.search(r'<div class="clip seam"[^>]*>', drawn).group(0)
+    assert 'data-start="1.000"' in seam and 'data-duration="7.000"' in seam
+    top = float(re.search(r"top:([\d.]+)px", seam).group(1))
+    tall = float(re.search(r"height:([\d.]+)px", seam).group(1))
+    assert top < 960 < top + tall and tall <= 6
+    assert ".seam{" in scenes.FILM_CSS and "var(--accent)" in scenes.FILM_CSS.split(".seam{")[1].split("}")[0]
+
+
+def test_footage_in_a_half_keeps_the_face_where_it_is_told():
+    placed = scenes._place({"type": "footage", "file": "assets/take.mp4", "zone": "half_bottom", "focus": 0.3, "start": 0, "end": 8, "scene": "a"}, TALL)
+    drawn = scenes._clip(placed, default_brand(), 3)
+    assert "object-position:50.0% 30.0%" in re.search(r"<video[^>]*>", drawn).group(0)
+
+
+def test_the_presenter_in_a_half_holds_still_across_scenes():
+    """A camera push would carry the seam off its line, so the half sits over every scene's camera."""
+    made = board()
+    made["scenes"][1]["camera"] = {"move": "push", "amount": 0.1}
+    made["scenes"][1]["items"].append(
+        {"type": "footage", "file": "assets/take.mp4", "zone": "half_bottom", "start": 0, "end": {"scene": "product", "from": "end"}, "carry": True}
+    )
+    line = timeline_for(made, size=TALL)
+    page = scenes.compose(line, default_brand())
+    name = formats.stage_name("assets/take.mp4")
+    assert name not in page.split('id="cam-problem"')[1].split('<div class="over">')[0]
+    assert name in page.split('<div class="over">')[1] and 'class="clip seam"' in page.split('<div class="over">')[1]
+
+
+def test_captions_can_sit_over_the_seam_between_the_halves():
+    """Never on a face: the line between the halves holds the captions, large enough for a phone."""
+    for zone, seam in (("half_bottom", 960), ("half_top", 960)):
+        item = scenes._place({"type": "footage", "file": "assets/cut.mp4", "zone": zone, "start": 4.0, "end": 9.0, "scene": "cut"}, TALL)
+        pages = scenes.caption_pages(item, SAID, TALL, place="seam")
+        found = dict(part.split(":", 1) for part in pages[0]["place"].split(";"))
+        top, tall = (float(found[key].removesuffix("px")) for key in ("top", "height"))
+        assert top + tall / 2 == pytest.approx(seam, abs=1)
+        assert found["align-items"] == "center"
+        assert pages[0]["steady"] and film_qa.read_size(*TALL, pages[0]["size"])["phone_px"] >= film_qa.PHONE_FLOOR * 1.6
+
+
+def test_a_snapped_track_plays_from_the_point_its_beats_are_counted_from(tmp_path, monkeypatch):
+    """The cuts are snapped in film time, so the track has to play from where the film's zero sits in it.
+
+    A track was laid backtimed, ending on the film's last frame, while its beats were counted from the top of the file.
+    Unless that offset happened to be a whole number of beats, every snapped cut missed the beat.
+    """
+    folder = tmp_path / "film"
+    altocue("film", "new", "music", str(folder))
+    project = Project.open(folder)
+    track = folder / "assets" / "music" / "track.wav"
+    ffmpeg.write_wav(track, np.zeros(48000 * 60), 48000)
+    path = folder / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["music"] = {"path": "assets/music/track.wav", "from": 1.3}
+    made["snap"] = True
+    path.write_text(json.dumps(made))
+    beats = [round(index * 0.52, 3) for index in range(110)]
+    monkeypatch.setattr(film, "track_beats", lambda project, track: beats)
+    done = film.timing(film.load(project), "16:9")
+    heard = [beat - 1.3 for beat in beats]
+    for scene in done["scenes"][1:]:
+        assert min(abs(scene["start"] - beat) for beat in heard) < 1 / 30 + 1e-6
+    laid = {}
+    monkeypatch.setattr(film.mix, "mix_bed", lambda voice, dest, **kw: laid.update(kw) or Path(dest))
+    line, _ = film.film_line(film.load(project), "16:9")
+    film.make_sound(film.load(project), line, done, made, tmp_path)
+    assert laid["music_from"] == 1.3 and laid["music_end"] == "fade"
+
+
+def test_a_scene_can_start_its_voice_part_way_into_the_take(tmp_path):
+    """The take's opening line belongs to another film. `voice_from` drops it, and the line still starts on the scene."""
+    project = Project.create(tmp_path / "film")
+    take = project.root / "assets" / "take.wav"
+    take.parent.mkdir(parents=True)
+    rate = 48000
+    ffmpeg.write_wav(take, np.concatenate([np.full(rate, 0.5), np.full(rate, 0.25)]), rate)  # one second at 0.5, then one at 0.25
+    made = {"scenes": [{"id": "a", "seconds": 1.0}, {"id": "b", "seconds": 2.0, "voice": "assets/take.wav", "voice_from": 1.0}]}
+    done = {"total": 3.0, "scenes": [{"id": "a", "start": 0.0, "end": 1.0}, {"id": "b", "start": 1.0, "end": 3.0}]}
+    track, _ = ffmpeg.read_wav(film.voice_track(project, made, done))
+    assert abs(track[: rate - 100]).max() < 1e-3  # nothing of the take before its scene
+    assert np.median(abs(track[rate + 100 : 2 * rate - 100])) == pytest.approx(0.25, abs=0.01)  # the take from one second in
+    assert abs(track[2 * rate + 100 :]).max() < 1e-3
+
+
+def test_captions_can_name_the_presenter_on_every_page():
+    """A split screen has no clear corner for a label, so the caption plate carries it, the way a speaker is named."""
+    item = scenes._place({"type": "footage", "file": "assets/cut.mp4", "zone": "half_bottom", "start": 4.0, "end": 9.0, "scene": "cut"}, TALL)
+    pages = scenes.caption_pages(item, SAID, TALL, place="seam", who="AI-generated presenter")
+    assert pages and all(page["name"] == "AI-generated presenter" for page in pages)
+    drawn = scenes.compose({**timeline_for(board(), size=TALL), "captions": pages}, default_brand())
+    assert '<i class="who">AI-generated presenter</i>' in drawn
+    from altocue.qa import rules
+
+    shown = [row for row in rules.on_screen({"captions": pages, "items": []}) if row["text"] == "AI-generated presenter"]
+    assert len(shown) == len(pages) and shown[0]["start"] == pages[0]["start"]
+
+
+def test_a_footage_item_names_its_presenter_from_its_captions(tmp_path, monkeypatch):
+    project = small_film(tmp_path / "film")
+    (project.root / "assets" / "cut.mp4").write_bytes(b"clip")
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["scenes"][1]["items"].append({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0, "captions": {"who": "AI-generated presenter"}})
+    path.write_text(json.dumps(made))
+    monkeypatch.setattr(film, "words_of", lambda project, file: SAID)
+    line, _ = film.film_line(film.load(project), "16:9")
+    assert line["captions"] and all(page["name"] == "AI-generated presenter" for page in line["captions"])
+
+
+def test_the_phone_sheet_never_asks_for_a_frame_past_the_end():
+    """A film of 18.5 s asked for a frame at 18.5 s, which a file of that length does not hold, and film qa stopped."""
+    for total in (18.5, 24.0, 7.25, 30.0):
+        moments = film_qa.phone_times(total, fps=30)
+        assert moments and all(0 <= at <= total - 2 / 30 for at in moments)
+
+
+def test_a_film_cut_to_a_downloaded_track_ships_its_credit(tmp_path, renderer):
+    """The track is named in storyboard.json, so the credits read the storyboard, and a film render writes credits.txt."""
+    from altocue.qa import gates
+    from altocue.stock import credits
+
+    project = small_film(tmp_path / "film")
+    track = project.root / "music" / "song.wav"
+    track.parent.mkdir()
+    ffmpeg.write_wav(track, 0.1 * np.sin(np.arange(48000 * 20) * 2 * np.pi * 220 / 48000), 48000)
+    owed = {"licence": "CC-BY-4.0", "credit": "Song by Someone, CC BY 4.0", "kind": "audio", "title": "Song"}
+    credits.record(project, file="music/song.wav", source="incompetech", source_url="https://incompetech.com", **owed)
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["music"] = {"path": "music/song.wav"}
+    path.write_text(json.dumps(made))
+    assert [row["file"] for row in credits.used(project)] == ["music/song.wav"]
+    assert altocue("film", "render", "-p", str(project.root), "--draft") == 0
+    assert "Song by Someone" in (project.out / credits.TEXT).read_text()
+    gate = gates.gate_credits(gates.Context.open(project, project.out / "final.mp4"))
+    assert gate.passed and not gate.skipped and gate.value == 0

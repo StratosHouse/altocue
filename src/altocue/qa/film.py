@@ -362,6 +362,15 @@ def sheet_times(total: float, *, start: float = 0.0, stop: float | None = None, 
     return [round(start + index * step, 3) for index in range(count) if start + index * step < end]
 
 
+def phone_times(total: float, *, fps: float) -> list[float]:
+    """Half a second into each step, and never past the last frame: a film of 18.5 s holds no frame at 18.5 s.
+
+    A seek to the last frame's own time can miss it by a rounding, so the latest still is two frames from the end.
+    """
+    last = total - 2 / max(fps, 1)
+    return [min(at + 0.5, last) for at in sheet_times(total, step=max(total / 24, 1.0))]
+
+
 def report_rows(path: Path, line: dict[str, Any], *, loop: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Every picture and sound check for one finished file."""
     stats = frame_stats(path)
@@ -510,8 +519,7 @@ def run_film(project: Project, film: Any) -> int:
         grabs = sheets / path.stem
         grabs.mkdir(parents=True, exist_ok=True)
         hook_times = sheet_times(min(line["total"], 3.0) + 0.01, step=HOOK_SHEET_STEP)
-        phone_times = [at + 0.5 for at in sheet_times(line["total"], step=max(line["total"] / 24, 1.0))]
-        for label, moments, columns in (("hook", hook_times, 7), ("phone", phone_times, 6)):
+        for label, moments, columns in (("hook", hook_times, 7), ("phone", phone_times(line["total"], fps=line["fps"]), 6)):
             frames = []
             for index, at in enumerate(moments):
                 still = grabs / f"{label}-{index:03d}.png"

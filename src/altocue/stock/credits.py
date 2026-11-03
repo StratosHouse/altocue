@@ -93,7 +93,9 @@ def carried(project: Project) -> list[dict[str, Any]]:
 
 def film_text(project: Project) -> str:
     """Everything that says what this film uses. Paths are searched as text, because each file names them its own way."""
-    return "\n".join(path.read_text() for path in (project.timeline_path, project.root / "motion.json", project.root / "broll.json") if path.exists())
+    # a film from a storyboard names its track there
+    named = (project.timeline_path, project.root / "motion.json", project.root / "broll.json", project.root / "storyboard.json")
+    return "\n".join(path.read_text() for path in named if path.exists())
 
 
 def used(project: Project) -> list[dict[str, Any]]:
@@ -141,6 +143,7 @@ def run(args: argparse.Namespace) -> int:
     print(base.UNTRUSTED_NOTE, file=sys.stderr)
     text = block(rows)
     print(text or "Nothing in this film owes a credit.")
+    write_txt(project)  # the file beside the film follows what it owes now, with no new render
     free = [row for row in rows if not owes(row)]
     if free:
         print(f"{len(free)} more need no credit: {', '.join(base.plain(row.get('title') or row['file']) for row in free)}.", file=sys.stderr)

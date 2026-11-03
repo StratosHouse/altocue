@@ -699,6 +699,32 @@ def test_a_label_shown_while_the_generated_person_is_on_screen_discloses_them(tm
     assert gate.passed and gate.value == 2.0
 
 
+def footage_host(tmp_path: Path, label_start: float, label_end: float) -> GateResult:
+    """A film that lays a generated host in as footage from 4 s to 6 s, with the label shown from `label_start` to `label_end`."""
+    built = build(Case("real", "", Recipe(items=[{**LABEL_ITEM, "start": label_start, "end": label_end}])), tmp_path / "real")
+    asset = import_asset(built.project, file=built.file, shot="host", prompt=HOST_PROMPT, model="m", cost=0, synthetic=["person"], out=lambda _: None)
+    copy = built.project.root / "assets" / "host.mp4"
+    copy.parent.mkdir(exist_ok=True)
+    copy.write_bytes(asset.read_bytes())  # a film keeps its own clips in assets/
+    timeline = json.loads(built.project.timeline_path.read_text())
+    timeline["items"].append({"type": "footage", "file": "assets/host.mp4", "start": 4.0, "end": 6.0, "scene": "a"})
+    built.project.timeline_path.write_text(json.dumps(timeline))
+    built.project.save_clips([Clip(id="take", path=str(tmp_path / "elsewhere.mp4"), duration=6.0, fps=30, width=1080, height=1920)])
+    with planted(built):
+        return gates.gate_disclosure(gates.Context.open(built.project, built.file))
+
+
+def test_a_generated_host_laid_in_a_film_as_footage_must_be_disclosed(tmp_path):
+    """A film plays its takes as footage items, not as a cut, and the gate still has to find the person in them."""
+    gate = footage_host(tmp_path, 0.0, 2.0)
+    assert not gate.passed and "host" in gate.detail and "4.0" in gate.detail
+
+
+def test_a_label_while_film_footage_shows_a_generated_host_discloses_them(tmp_path):
+    gate = footage_host(tmp_path, 4.0, 6.0)
+    assert gate.passed and gate.value == 2.0
+
+
 def test_an_exemption_is_recorded_in_the_detail(tmp_path):
     built = build(Case("exempt", "", Recipe(performer=HOST_PROMPT, exempt="Audio-only ad.")), tmp_path / "exempt")
     with planted(built):
