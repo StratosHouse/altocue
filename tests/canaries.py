@@ -31,20 +31,16 @@ SECONDS = 6.0
 RATE = 48000
 SAFE_Y = 0.68
 FACE_Y = 0.34
-SCRIPT = (
-    "the first thing you need is a plan and the second thing you need is a reason "
-    "to keep going when the plan stops working and nobody is watching you do it"
-).split()
+SCRIPT = "the first thing you need is a plan and the second thing you need is a reason to keep going".split()
+RUSHED = (SCRIPT + "when the plan stops working and nobody is watching you do it".split())  # 320 words a minute, past reading
 PHRASE_AT = 12
 PHRASE = ["you", "need", "is"]
-CLAIMING = (
-    "i tried this serum for a month and it changed my life so i bought two more and my results keep getting better "
-    "every single day and honestly anyone can see the difference by now"
-).split()
+CLAIMING = "i tried this serum for a month and it changed my life so i bought two more and my results keep getting better every day".split()
 HOST_PROMPT = "A woman holds the bottle up to the window, handheld, ending on the label."
 LABEL = "AI-generated actor"
 LABEL_ITEM = {"type": "chip", "text": LABEL, "start": 0.0, "end": SECONDS}
 LABEL_BURN = (LABEL, 0.12, 0.0, SECONDS)
+MUST_SAY = "## Must say\n\n"
 
 
 OWED = {
@@ -54,6 +50,16 @@ OWED = {
     "licence": "CC-BY-4.0",
     "credit": "Night Tide by Ana, CC BY 4.0, https://example.test/night-tide",
 }
+
+
+def fill(first: int, last: int, color: str = "0x2a6f97") -> str:
+    """A plain coloured shot over those frames. An insert with its own picture, as far as any gate can tell."""
+    return f"drawbox=color={color}:t=fill:enable='between(n,{first},{last})'"
+
+
+def strobe(every: int, color: str = "white", box: str = "") -> str:
+    """Half of each `every` frames painted over, so two opposing changes every `every` frames."""
+    return f"drawbox={box}color={color}:t=fill:enable='lt(mod(n,{every}),{every // 2})'"
 
 
 def freeze(first: int, last: int) -> str:
@@ -94,6 +100,8 @@ class Recipe:
     credits_txt: bool = False
     performer: str = ""
     exempt: str = ""
+    brief: str = ""
+    inserts: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -107,6 +115,8 @@ class Case:
     def clean(self) -> bool:
         return not self.gate
 
+
+INSERT = {"file": "broll.mp4", "start": 2.0, "end": 4.0}  # frames 60 to 119 at 30 fps
 
 CANARIES = [
     Case("black flash, two frames", "black_frames", Recipe(vf="drawbox=color=black:t=fill:enable='between(n,90,91)'")),
@@ -123,8 +133,15 @@ CANARIES = [
     Case("short render", "duration", Recipe(keep_seconds=5.0), also=("silence",)),
     Case("wrong frame rate", "format", Recipe(rate=25), also=("duration",)),
     Case("no colour tags", "format", Recipe(tags=False)),
-    Case("words lost in the render", "words", Recipe(heard=SCRIPT[:20]), also=("doubled_phrase",)),
+    Case("words lost in the render", "words", Recipe(heard=SCRIPT[:12]), also=("doubled_phrase",)),
     Case("caption text invented", "captions_match", Recipe(caption_words=["free", "money", "for", "everyone"] + SCRIPT[4:])),
+    Case("captions too quick to read", "caption_speed", Recipe(expected=RUSHED, heard=RUSHED)),
+    Case("a line the brief requires is never said", "brief_coverage", Recipe(brief=f"# Brief\n\n{MUST_SAY}- the free plan never expires\n")),
+    Case("five flashes a second across the picture", "flash_rate", Recipe(vf=strobe(6))),
+    Case("five saturated red flashes a second", "flash_rate", Recipe(vf=strobe(6, "0xff0000"))),
+    Case("the next shot a frame early at the end of an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(60, 118))),
+    Case("the last shot a frame late into an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(61, 119))),
+    Case("a frame of something else at an insert edge", "stray_frames", Recipe(inserts=[INSERT], vf=f"{fill(60, 119)},{fill(59, 59, '0xff3322')}")),
     Case("CC BY music with no credits file", "credits", Recipe(assets=[OWED])),
     Case(
         "banned word in a graphic",
@@ -207,6 +224,12 @@ CONTROLS = [
     Case("clean, labelled synthetic host", "", Recipe(performer=HOST_PROMPT, items=[LABEL_ITEM], burn_text=[LABEL_BURN])),
     Case("clean, recorded exemption", "", Recipe(performer=HOST_PROMPT, exempt="Audio-only ad, the picture is a placeholder.")),
     Case("clean, a real speaker may say what they tried", "", Recipe(expected=CLAIMING, heard=CLAIMING)),
+    Case("clean, three flashes a second", "", Recipe(vf=strobe(10))),
+    Case("clean, a small corner blinking fast", "", Recipe(vf=strobe(6, box="x=0:y=0:w=150:h=150:"))),
+    Case("clean, an insert with hard edges", "", Recipe(inserts=[INSERT], vf=fill(60, 119))),
+    Case("clean, an insert that matches its neighbours", "", Recipe(inserts=[INSERT])),
+    Case("clean, an insert that arrives by a dissolve", "", Recipe(inserts=[{**INSERT, "in": {"type": "dissolve", "duration": 0.2}}], vf=fill(61, 119))),
+    Case("clean, the brief's lines are all said", "", Recipe(brief=f"# Brief\n\n{MUST_SAY}- you need a plan\n- a reason to keep going\n")),
     Case(
         "clean, graphic held long enough to read",
         "",
@@ -398,7 +421,7 @@ def build(case: Case, root: Path) -> Built:
         project.timeline_path,
         {"width": WIDTH, "height": HEIGHT, "fps": FPS, "duration": recipe.seconds, "tail": recipe.tail,
          "total": recipe.seconds + recipe.tail,
-         "captions": pages, "items": recipe.items, "inserts": [],
+         "captions": pages, "items": recipe.items, "inserts": recipe.inserts,
          "music": {"path": recipe.assets[0]["file"]} if recipe.assets else None},
     )  # fmt: skip
     if recipe.assets:
@@ -407,6 +430,8 @@ def build(case: Case, root: Path) -> Built:
         (project.out / "credits.txt").write_text("\n".join(row["credit"] for row in recipe.assets) + "\n")
     if recipe.rules is not None:
         (project.root / "rules.json").write_text(json.dumps(recipe.rules))
+    if recipe.brief:
+        (project.root / "brief.md").write_text(recipe.brief)
     mapped = [
         {"text": w, "start": a, "end": b, "segment": f"s{min(2, int(a // third)) + 1}", "kind": "word"}
         for w, a, b in timed(expected, recipe.seconds)

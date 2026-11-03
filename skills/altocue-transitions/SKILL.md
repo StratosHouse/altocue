@@ -62,7 +62,7 @@ altocue library add gl-wind
 - **A flash is a quick swing from bright to dark and back** over a large part of the frame. Saturated red has a stricter limit, so avoid it.
 - **Watch these:** `fadewhite`, `white_flash`, `gl-film-burn`, `gl-overexposure`, `gl-glitch-memories`, a run of very short cuts, and any hosted effect that strobes.
 - **One dip to white is one flash.** The danger is a run of them.
-- **No gate measures this yet.** Look at frames across every fast run, and say in the delivery that the check was by eye.
+- **The `flash_rate` gate measures this.** It counts opposing swings in brightness and in saturated red across the frame, by the WCAG definition, and a film over the limit is FIX. It reads the file at a guessed viewing size, so a pass is a measurement and clears nobody. It is not a Harding test.
 
 ## Timing: what moves and what does not
 
