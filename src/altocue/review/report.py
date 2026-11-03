@@ -28,17 +28,20 @@ GATE_ACTIONS = {
     "words": "Compare the render with the expected words, then fix the cut.",
     "doubled_phrase": "Remove the repeat, or allow it under `allow_repeats` in rules.json.",
     "captions_match": "Rebuild captions from the transcript. Never caption what was not said.",
+    "caption_speed": "Give those pages longer on screen: fewer cuts, a slower read, or a tighter line in the cut. Never drop spoken words from a caption.",
+    "brief_coverage": "Say the line, or reword it in brief.md to the words the film uses. A `|` offers other wordings.",
     "safe_zone": "Move the text inside the safe zone.",
     "face_clear": "Move the text off the face.",
     "text_readable": "Hold the text longer, or cut words.",
     "format": "Re-render with the project's output settings.",
+    "flash_rate": "Slow the run of cuts or effects to three flashes a second or fewer, or take the swing out of them. See altocue-transitions.",
+    "stray_frames": "Trim the insert to whole frames of one shot. Check the source for a cut near its end.",
     "rules_strings": "Change the on-screen text. A human decides how.",
     "rules_ocr": "Look at the frames named. A human decides how to fix them.",
     "claims": "Rewrite the line so the host shows what can be seen, or film a real customer who consents. A label does not cure this.",
     "frame_zero": "Put the subject in the first frame. A thumbnail and muted autoplay show this frame.",
     "dead_air": "Keep something moving across that range, or mark the hold in the storyboard.",
     "pops": "Look at the frames named. Keep the hits you meant, and smooth the rest.",
-    "flash_rate": "Space the flashes out to three a second or fewer.",
     "planned_silence": "Clear the sound from that range, or move the silence in the storyboard.",
     "cuts_to_plan": "Check the scene lengths against the storyboard, then render again.",
     "loop_seam": "Match the last frame to the first, in position and in speed.",
@@ -62,10 +65,10 @@ def limits(result: dict[str, Any], gates: list[GateResult]) -> list[str]:
         )
     elif sees == "stills":
         found.append(
-            "The reviewer saw still frames: contact sheets every 2 seconds, frames around cuts and the first 3 seconds. "
+            "The reviewer saw still frames: contact sheets every 2 seconds, frames around cuts, the first 3 seconds and timeline sheets. "
             "Motion, lip sync and anything between samples were not seen."
         )
-        found.append("The reviewer heard nothing. It read a transcript and measurements.")
+        found.append("The reviewer heard nothing. It read a transcript and measurements, and saw level and silence drawn on the timeline sheets.")
         if reviewer.get("images", 0) < reviewer.get("images_in_pack", 0):
             found.append(
                 f"Only {reviewer['images']} of the pack's {reviewer['images_in_pack']} images were sent, so not every cut was shown."

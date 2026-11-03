@@ -12,9 +12,9 @@ from .. import facts, ffmpeg, qa
 from ..errors import AltocueError
 from ..models import GateResult
 from ..project import Project
-from . import codex, gemini, pack, report, rounds, rubric
+from . import codex, gemini, pack, page, report, rounds, rubric
 
-__all__ = ["add_arguments", "codex", "editor_vendor", "facts", "gemini", "independence", "pack", "qa", "report", "rounds", "rubric", "run"]
+__all__ = ["add_arguments", "codex", "editor_vendor", "facts", "gemini", "independence", "pack", "page", "qa", "report", "rounds", "rubric", "run"]
 
 HOSTS = (("CLAUDECODE", "anthropic"), ("CODEX_SANDBOX", "openai"), ("GEMINI_CLI", "google"))
 REVIEWERS = ("auto", "gemini", "pack", "codex")
@@ -68,6 +68,7 @@ def finish(project: Project, file: Path, digest: str, result: dict[str, Any], re
     if log["handed_off"]:
         print("Both fix rounds are used. This goes to a human now. The open list is in the report.")
     print(f"Report: {path}")
+    print("To check it beside the film: altocue review --page")
     return 0 if result["verdict"] == "SHIP" else 1
 
 
@@ -136,11 +137,24 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--paid-key", action="store_true", help="Confirm GEMINI_API_KEY is on a billed project")
     parser.add_argument("--editor-vendor", help="Who made the edit, to label independence: anthropic, openai, google")
     parser.add_argument("--reset-rounds", action="store_true", help="Forget the fix rounds and start again")
+    parser.add_argument("--page", action="store_true", help="Write review/page.html and print its path: the film beside its gates, notes and captions")
+    parser.add_argument("--open", dest="open_page", action="store_true", help="With --page, also open it in your browser. Nothing opens without this")
+
+
+def write_page(project: Project, file: Path, *, opening: bool) -> int:
+    """A view of what was saved. It runs no gate, calls no reviewer and writes no verdict."""
+    target = page.write(project, file)
+    print(f"Review page: {target}")
+    if opening and not page.show(target):
+        print("Could not open a browser here. Open it yourself: it is one file and needs no server.")
+    return 0
 
 
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     file = qa.resolve(project, args.file, "final")
+    if getattr(args, "page", False):
+        return write_page(project, file, opening=args.open_page)
     if not args.file and project.edl_path.exists() and project.edl_path.stat().st_mtime > file.stat().st_mtime:
         raise AltocueError(f"{file.name} is older than the cut.", fix="Run `altocue run`, then `altocue review`.")
     if args.reset_rounds:

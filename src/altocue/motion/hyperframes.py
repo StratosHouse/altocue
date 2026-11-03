@@ -33,20 +33,25 @@ def quiet_env() -> dict[str, str]:
     return {**os.environ, "HYPERFRAMES_NO_TELEMETRY": "1", "HYPERFRAMES_NO_UPDATE_CHECK": "1", "DO_NOT_TRACK": "1"}
 
 
+def install_assets(timeline: dict[str, Any], brand: Brand, stage: Path) -> None:
+    """Everything the page reads from beside itself. The render and the timeline share this."""
+    shutil.copy(brand.font_file, stage / brand.font_file.name)
+    if brand.logo:
+        shutil.copy(brand.logo, stage / brand.logo.name)
+    for font in formats.fonts_for(timeline["items"]):
+        shutil.copy(data_path("fonts", formats.FONT_FILES[font]), stage / formats.FONT_FILES[font])
+    compositions.install(timeline["items"], stage, install_dir())
+    for item in timeline["items"]:
+        for name, path in item.get("stage_images", {}).items():
+            shutil.copy(path, stage / name)
+
+
 def build_stage(stage: Path, items: list[dict[str, Any]], brand: Brand, page: str) -> Path:
     """A folder the renderer can load with no network: the page, its fonts, its pictures and any compositions."""
     if stage.exists():
         shutil.rmtree(stage)
     stage.mkdir(parents=True)
-    shutil.copy(brand.font_file, stage / brand.font_file.name)
-    if brand.logo:
-        shutil.copy(brand.logo, stage / brand.logo.name)
-    for font in formats.fonts_for(items):
-        shutil.copy(data_path("fonts", formats.FONT_FILES[font]), stage / formats.FONT_FILES[font])
-    compositions.install(items, stage, install_dir())
-    for item in items:
-        for name, path in item.get("stage_images", {}).items():
-            shutil.copy(path, stage / name)
+    install_assets({"items": items}, brand, stage)
     (stage / "index.html").write_text(page)
     return stage
 
@@ -64,7 +69,11 @@ class HyperFramesRenderer:
 
     def render(self, timeline: dict[str, Any], brand: Brand, dest: Path, *, draft: bool = False) -> Layer:
         stage = dest / "hyperframes"
-        build_stage(stage, timeline["items"], brand, compose(timeline, brand))
+        if stage.exists():
+            shutil.rmtree(stage)
+        stage.mkdir(parents=True)
+        install_assets(timeline, brand, stage)
+        (stage / "index.html").write_text(compose(timeline, brand))
         output = dest / ("overlay-draft.mov" if draft else "overlay.mov")
         fps = 15 if draft else timeline["fps"]
         cmd = [str(binary()), "render", str(stage), "--format", "mov", "--output", str(output), "--fps", str(fps), "--quiet"]

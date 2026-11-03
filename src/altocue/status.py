@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,7 @@ from .project import Project
 from .qa import sha256
 
 DONE, STALE, NOT_RUN = "done", "stale", "not run"
+PAGE_FILM = re.compile(r'name="altocue-film" content="([0-9a-f]{64})"')
 
 
 @dataclass
@@ -37,6 +39,7 @@ class Look:
     state: str
     detail: str = ""
     flags: str = ""
+    command: str = ""
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -131,6 +134,21 @@ def check_broll(project: Project) -> Look | None:
     return Look(DONE)
 
 
+def check_generate(project: Project) -> Look | None:
+    """Only a project with a shot list has this step."""
+    from .generate import store
+
+    listed = [str(row["id"]) for row in _read(project.root / "shots.json").get("shots", []) if isinstance(row, dict) and row.get("id")]
+    if not listed:
+        return None
+    made = store.read_manifest(project)
+    missing = [shot for shot in listed if shot not in made or not (project.root / made[shot]["asset"]).exists()]
+    if missing:
+        return Look(NOT_RUN, f"still to generate: {', '.join(missing)}")
+    failed = [shot for shot in listed if made[shot].get("check_passed") is False]
+    return Look(STALE, f"{', '.join(failed)} failed its check") if failed else Look(DONE)
+
+
 def render_inputs(project: Project) -> list[Path]:
     """What a render reads. A change to any of these changes the picture or the sound."""
     inputs = [project.edl_path, project.root / "motion.json", project.root / "broll.json", *project.audio_dir.glob("*.wav"), *project.lut_dir.glob("*.cube")]
@@ -167,6 +185,9 @@ def check_qa(project: Project) -> Look:
         return Look(NOT_RUN)
     if saved.get("sha256") != _final_hash(project):
         return Look(STALE, "the film changed after QA")
+    changed = _older_than(project.review_dir / "qa.json", [project.root / "rules.json", project.root / "brief.md"])
+    if changed:
+        return Look(STALE, f"{changed.name} changed after QA")
     gates = saved.get("gates", [])
     failed = [g["id"] for g in gates if not g.get("passed") and not g.get("skipped")]
     skipped = [g["id"] for g in gates if g.get("skipped") and g.get("value") != "n/a"]
@@ -182,6 +203,8 @@ def check_review(project: Project) -> Look:
         return Look(NOT_RUN)
     if saved.get("file_sha256") != _final_hash(project):
         return Look(STALE, "the film changed after this review")
+    if _older_than(project.review_dir / "report.json", [project.root / "brief.md"]):
+        return Look(STALE, "brief.md changed after this review")
     return Look(DONE, str(saved.get("verdict", "")))
 
 
@@ -192,6 +215,21 @@ def check_deliver(project: Project) -> Look:
     return Look(DONE) if saved.get("final_sha256") == _final_hash(project) else Look(STALE, "the film changed after delivery")
 
 
+def check_page(project: Project) -> Look | None:
+    """Only a project that wrote a page has this step. A stale page plays an old film beside an old verdict."""
+    page = project.review_dir / "page.html"
+    if not page.exists():
+        return None
+    with page.open(errors="replace") as handle:
+        film = PAGE_FILM.search(handle.read(1024))
+    again = "altocue review -p {folder} --page"
+    if not film or film.group(1) != _final_hash(project):
+        return Look(STALE, "the film changed after this page", command=again)
+    if _older_than(page, [project.review_dir / "report.json", project.review_dir / "qa.json"]):
+        return Look(STALE, "the review changed after this page", command=again)
+    return Look(DONE)
+
+
 CHECKS: tuple[tuple[str, Callable[[Project], Look | None]], ...] = (
     ("ingest", check_ingest),
     ("transcribe", check_transcribe),
@@ -200,11 +238,13 @@ CHECKS: tuple[tuple[str, Callable[[Project], Look | None]], ...] = (
     ("grade", check_grade),
     ("frame", check_frame),
     ("broll", check_broll),
+    ("generate", check_generate),
     ("render", check_render),
     ("master", check_master),
     ("qa", check_qa),
     ("review", check_review),
     ("deliver", check_deliver),
+    ("page", check_page),
 )
 
 
@@ -250,7 +290,7 @@ def collect(project: Project) -> list[Stage]:
             continue
         if behind and found.state == DONE:
             found = Look(STALE, f"waits on {behind}")
-        stages.append(Stage(name, found.state, found.detail, f"altocue {name} -p {{folder}}" + (f" {found.flags}" if found.flags else "")))
+        stages.append(Stage(name, found.state, found.detail, found.command or f"altocue {name} -p {{folder}}" + (f" {found.flags}" if found.flags else "")))
         behind = behind or (name if found.state != DONE else "")
     return stages
 

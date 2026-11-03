@@ -14,6 +14,7 @@ Every finding goes to a human. QA never blurs, cuts or rewrites anything.
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,6 +25,11 @@ from ..motion import formats
 
 TEXT_FIELDS = ("eyebrow", "text", "title", "subtitle", "value", "label", "by", "headline", "cta")
 FUZZY_FROM = 6  # shorter words differ by one letter too often to fuzzy match
+MUST_SAY = re.compile(r"^\s*(?:#{1,6}\s*)?must\s+(?:say|cover|mention|include)\s*:?\s*$", re.IGNORECASE)
+LIST_MARK = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+SMALL_WORDS = {"a", "an", "and", "are", "for", "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "we", "with", "you", "your"}
+SAID_SHARE = 0.8
+SAID_SLACK = 2  # a line may be said with this many extra words for each of its own
 READING_WPS = 3.0  # 180 words a minute, the top of the 160 to 180 Ofcom recommends for subtitles. A subtitle figure, not a phone study
 
 
@@ -204,6 +210,39 @@ def missing_required(
                 "why": f"not on screen: {', '.join(absent)}",
             }
     return None
+
+
+def must_say(brief: str) -> list[str]:
+    """The lines listed under a `## Must say` heading in brief.md. Prose elsewhere asks for nothing a test can hold."""
+    lines: list[str] = []
+    reading = False
+    for raw in brief.splitlines():
+        if MUST_SAY.match(raw):
+            reading = True
+        elif reading and raw.lstrip().startswith("#"):
+            reading = False
+        elif reading and LIST_MARK.match(raw):
+            lines.append(LIST_MARK.sub("", raw).strip())
+        elif reading and lines and raw.strip() and not raw[0].isspace():
+            reading = False
+    return lines
+
+
+def _covered(wanted: list[str], heard: list[str]) -> bool:
+    """Most of the line's words within one short run of speech, so the words of a sentence cannot be collected from all over a film."""
+    content = [token for token in wanted if token not in SMALL_WORDS] or wanted
+    needed = math.ceil(len(content) * SAID_SHARE)
+    span = max(len(wanted) * SAID_SLACK, len(wanted) + 2)
+    for start in range(max(len(heard) - span + 1, 1)):
+        window = heard[start : start + span]
+        if sum(any(near(token, term) for token in window) for term in content) >= needed:
+            return True
+    return False
+
+
+def said(line: str, heard: list[str]) -> bool:
+    """Whether the words of a line were heard. A `|` offers other wordings. This reads words, not meaning."""
+    return any(_covered(tokens(option), heard) for option in line.split("|") if tokens(option))
 
 
 def check(strings: list[dict[str, Any]], ruleset: Rules, spoken: list[dict[str, Any]]) -> list[dict[str, Any]]:

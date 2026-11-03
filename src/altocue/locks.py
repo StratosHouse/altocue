@@ -51,7 +51,10 @@ def memory_gb() -> float:
 def free_memory_gb() -> float | None:
     """What the system could hand over now, or None where that cannot be read."""
     if platform.system() == "Darwin":  # the same figure `memory_pressure` prints as a percentage
-        done = subprocess.run(["sysctl", "-n", "kern.memorystatus_level"], capture_output=True, text=True, check=False)
+        try:
+            done = subprocess.run(["sysctl", "-n", "kern.memorystatus_level"], capture_output=True, text=True, check=False)
+        except OSError:  # /usr/sbin is not on every PATH
+            return None
         return memory_gb() * int(done.stdout) / 100 if done.stdout.strip().isdigit() else None
     info = Path("/proc/meminfo")
     found = re.search(r"MemAvailable:\s+(\d+) kB", info.read_text()) if info.exists() else None

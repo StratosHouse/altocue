@@ -208,7 +208,7 @@ class LocalEngine:
         return importlib.util.find_spec(self.module) is not None
 
     def install_fix(self) -> str:
-        return f'Run `pip install "altocue[{self.extra}]"`.'
+        return f'Run `uv tool install --force "altocue[{self.extra}]"`.'
 
     def notice(self, seconds: float) -> str:
         return f"{self.name}: runs on this machine. The model is {self.download}, downloaded on first use."

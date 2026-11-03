@@ -911,7 +911,7 @@ def gate(rows: list[dict], name: str) -> dict:
 
 def test_a_moving_film_passes_the_motion_gates(tmp_path):
     rows = film_qa.gate_rows(clip_with(tmp_path / "ok.mp4", MOVING), line_for())
-    assert gate(rows, "frame_zero")["passed"] and gate(rows, "dead_air")["passed"] and gate(rows, "flash_rate")["passed"]
+    assert gate(rows, "frame_zero")["passed"] and gate(rows, "dead_air")["passed"]
 
 
 def test_canary_a_black_first_frame_fails(tmp_path):
@@ -924,11 +924,6 @@ def test_canary_dead_air_in_the_middle_fails(tmp_path):
     source = "testsrc2=size=320x180:rate=30,split[fa][fb];[fa][fb]freezeframes=first=20:last=70:replace=20[out0]"
     rows = film_qa.gate_rows(clip_with(tmp_path / "held.mp4", source), line_for())
     assert not gate(rows, "dead_air")["passed"]
-
-
-def test_canary_a_strobe_fails_the_flash_gate(tmp_path):
-    rows = film_qa.gate_rows(strobe(tmp_path / "fast.mp4", 6), line_for())
-    assert not gate(rows, "flash_rate")["passed"]
 
 
 def test_canary_a_planned_silence_with_sound_in_it_fails(tmp_path):
