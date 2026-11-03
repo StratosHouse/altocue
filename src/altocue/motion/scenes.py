@@ -81,7 +81,7 @@ FILM_CSS = """
 .zone.mid>*{margin-left:auto;margin-right:auto}
 .footage{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--panel)}
 .footage.framed{border-radius:calc(30px * var(--scale));box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 16%,transparent),0 34px 90px #00000080}
-.footnote{display:flex;justify-content:center;font-size:calc(34px * var(--scale));font-weight:600;letter-spacing:-.01em;color:var(--ink);text-shadow:0 2px 14px rgba(0,0,0,.7)}
+.footnote{display:flex;justify-content:center;font-size:calc(34px * var(--scale));font-weight:600;letter-spacing:-.01em;color:var(--ink)}
 .footnote span{padding:.28em .7em;border-radius:99px;background:color-mix(in srgb,var(--panel) 72%,transparent)}
 """
 

@@ -402,6 +402,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "title": "Layers *in real depth*",
                     "layers": [{"text": "Your footage", "on": True}, {"text": "Captions"}, {"text": "Graphics"}],
                     "move": "explode",
+                    "aspects": {"1:1": {"zone": "full"}},
                     "start": 0.0,
                 },
             ],

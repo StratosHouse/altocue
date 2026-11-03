@@ -404,7 +404,7 @@ def test_launch_ships_the_four_lengths():
 def test_examples_name_no_real_brand_and_stay_in_house_style():
     for path in sorted((REPO / "src/altocue/data/films").glob("*.json")):
         text = path.read_text()
-        assert "—" not in text, path.name
+        assert chr(0x2014) not in text, path.name
         assert not re.search(r"remotion|higgsfield|vox|netflix|apple|google|openai|anthropic", text, re.I), path.name
 
 
@@ -1185,7 +1185,7 @@ def test_onboarding_names_the_launch_feature():
 
 def test_the_film_skills_name_no_other_video_tool():
     for name in ("altocue-launch", "altocue-film"):
-        assert not re.search(r"remotion|higgsfield|sanji|—", skill(name), re.I)
+        assert not re.search(r"remotion|higgsfield|sanji|\u2014", skill(name), re.I)
 
 
 def test_parked_types_are_explained_with_the_platform_rule():

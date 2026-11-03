@@ -525,7 +525,9 @@ def word_gates(c: Context) -> list[GateResult]:
         results.append(skipped("doubled_phrase", why_deaf))
     else:
         tokens = norm([w.text for w in heard])
-        if expected is None:
+        if expected is None and is_film(c):
+            results.append(not_applicable("words", "A film from a storyboard has no cut to compare its words with."))
+        elif expected is None:
             results.append(skipped("words", why_not, WORDS_NEEDED))
         else:
             rate = match_rate(expected, tokens)
