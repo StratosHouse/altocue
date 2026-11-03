@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import functools
+import json
 import math
 import random
 from typing import Any
 
+from ...brand import data_path
 from . import Format, Slot, kit
 from .product import _scoped as scoped
 
@@ -170,6 +173,125 @@ def _split_wipe(item: dict[str, Any]) -> str:
         f'<div class="pair"><img class="under" src="{kit.esc(before.get("image", ""))}" alt=""><div class="over"><img src="{kit.esc(after.get("image", ""))}" alt=""></div>'
         f'<i class="bar"></i><b class="tag lf">{kit.esc(before.get("text", ""))}</b><b class="tag rt">{kit.esc(after.get("text", ""))}</b></div>'
     )
+
+
+CUT_TAGS = {"silence": "pause", "quiet": "pause", "manual": "cut"}  # what each removal is called on screen, where the cut's own name is not plain
+CUT_TEXT_AREA = 812 * 360  # square units the words may fill at full scale, inside the card's padding
+CUT_TYPE = (20.0, 40.0)  # smallest and largest word size
+CUT_FIT = 0.55 * 1.52 * 1.15  # a glyph's width and a line's height in ems, and room for wrapping
+
+
+def _span(row: Any) -> tuple[float, float]:
+    if isinstance(row, dict):
+        return float(row["start"]), float(row["end"])
+    return float(row[0]), float(row[1])
+
+
+def _cut_plan(item: dict[str, Any]) -> dict[str, float]:
+    """When the playhead sweeps, when the struck words fold, and when the length flips, as shares of the graphic's time."""
+    seconds = kit.seconds(item)
+    sweep_from = min(0.35, seconds * 0.12)
+    sweep = max(seconds * 0.42, 0.6)
+    fold = sweep_from + sweep + 0.12
+    return {"from": sweep_from, "sweep": sweep, "fold": fold, "flip": fold + 0.3}
+
+
+def _timeline_cut(item: dict[str, Any]) -> str:
+    """A take's real words on a track. The playhead strikes each removal as it passes, then the struck words and their time fold away."""
+    words = [dict(row) for row in item.get("words") or []]
+    kept = [_span(row) for row in item.get("kept") or []]
+    removed = [{**row, "start": float(row["start"]), "end": float(row["end"])} for row in item.get("removed") or []]
+    raw = float(item.get("raw") or max([end for _, end in kept] + [r["end"] for r in removed] + [float(w["end"]) for w in words] + [0.1]))
+    plan = _cut_plan(item)
+
+    def at(source: float) -> float:
+        return plan["from"] + plan["sweep"] * min(max(source / raw, 0.0), 1.0)
+
+    def kept_word(word: dict[str, Any]) -> bool:
+        middle = (float(word["start"]) + float(word["end"])) / 2
+        return any(start <= middle <= end for start, end in kept)
+
+    def owner(word: dict[str, Any]) -> dict[str, Any] | None:
+        middle = (float(word["start"]) + float(word["end"])) / 2
+        holding = [r for r in removed if r["start"] <= middle <= r["end"]]
+        return min(holding, key=lambda r: r["end"] - r["start"]) if holding else None
+
+    def tag(kind: str, when: float) -> str:
+        name = CUT_TAGS.get(kind, kind)
+        return f'<em class="tg {kit.esc(kind)}" style="--s:{when:.3f}s;--c:{plan["fold"]:.3f}s">{kit.esc(name)}</em>'
+
+    pauses = [r for r in removed if not any(r["start"] <= (float(w["start"]) + float(w["end"])) / 2 <= r["end"] for w in words)]
+    cells: list[str] = []
+    last: dict[str, Any] | None = None
+    shown_pauses: set[int] = set()
+    for word in words:
+        for index, pause in enumerate(pauses):
+            if index not in shown_pauses and pause["start"] < float(word["start"]):
+                cells.append(tag(str(pause.get("kind", "silence")), at(pause["start"])))
+                shown_pauses.add(index)
+        text = kit.esc(str(word["text"]))
+        if kept_word(word):
+            cells.append(f'<span class="w">{text} </span>')
+            last = None
+            continue
+        held = owner(word)
+        if held is not None and held is not last:
+            cells.append(tag(str(held.get("kind", "manual")), at(float(word["start"]))))
+        last = held
+        cells.append(f'<span class="w x" style="--s:{at(float(word["start"])):.3f}s;--c:{plan["fold"]:.3f}s"><u></u>{text} </span>')
+    cells += [tag(str(pause.get("kind", "silence")), at(pause["start"])) for index, pause in enumerate(pauses) if index not in shown_pauses]
+
+    pieces, cursor = [], 0.0
+    for start, end in sorted(kept):
+        if start > cursor:
+            pieces.append(("x", cursor, start))
+        pieces.append(("k", start, end))
+        cursor = max(cursor, end)
+    if cursor < raw:
+        pieces.append(("x", cursor, raw))
+    bar = "".join(
+        f'<i class="sg {kind}" style="--w:{100 * (end - start) / raw:.3f}%;--s:{at(start):.3f}s;--c:{plan["fold"]:.3f}s"></i>' for kind, start, end in pieces if end > start
+    )
+    letters = sum(len(str(w["text"])) + 1 for w in words) + 8 * (len(removed))
+    size = min(max((CUT_TEXT_AREA / (CUT_FIT * max(letters, 1))) ** 0.5, CUT_TYPE[0]), CUT_TYPE[1])
+    title = f'<b class="nm">{kit.emphasis(str(item["title"]))}</b>' if item.get("title") else "<b></b>"
+    length = f'<span class="ln"><s style="--t:{plan["flip"]:.3f}s">{kit.esc(item["before"])}</s><b style="--t:{plan["flip"]:.3f}s">{kit.esc(item["after"])}</b></span>'
+    sweep = f"--a:{plan['from']:.3f}s;--d:{plan['sweep']:.3f}s;--c:{plan['fold']:.3f}s"
+    return (
+        f'<div class="tc" style="--fs:{size:.1f}"><header>{title}{length}</header><p class="tx">{"".join(cells)}</p>'
+        f'<div class="bar"><div class="trk">{bar}</div><i class="ph" style="{sweep}"></i></div></div>'
+    )
+
+
+DRAWN_ICONS = {  # original, on Tabler's 24 unit grid and 2 unit stroke so they sit with its set
+    "waveform": ["M3 10.5v3", "M6.6 7.5v9", "M10.2 4v16", "M13.8 8v8", "M17.4 5.5v13", "M21 10v4"],
+    "clip-cut": [
+        "M3 11a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z",
+        "M7.5 4m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0",
+        "M16.5 4m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0",
+        "M8.6 5.2l5.4 9.3",
+        "M15.4 5.2l-5.4 9.3",
+    ],
+}
+BADGE_CORNERS = ("tl", "tr", "bl", "br")
+
+
+@functools.cache
+def badge_icons() -> dict[str, list[str]]:
+    """Every icon a badge can draw: Tabler's MIT set as shipped in data/icons, and the few drawn here."""
+    shipped = json.loads(data_path("icons", "tabler.json").read_text(encoding="utf-8"))["icons"]
+    return {**shipped, **DRAWN_ICONS}
+
+
+def icon_svg(name: str) -> str:
+    paths = "".join(f'<path d="{kit.esc(d)}"/>' for d in badge_icons()[name])
+    return f'<svg viewBox="0 0 24 24" aria-hidden="true">{paths}</svg>'
+
+
+def _feature_badge(item: dict[str, Any]) -> str:
+    """A feature's icon and name pop in on the cut, in a corner clear of the action, and hold."""
+    corner = item.get("corner") if item.get("corner") in BADGE_CORNERS else "tl"
+    return f'<div class="badge {corner}"><span class="ic">{icon_svg(str(item["icon"]))}</span><span class="nm">{kit.emphasis(str(item["text"]))}</span></div>'
 
 
 def _waveform(item: dict[str, Any]) -> str:
@@ -352,7 +474,129 @@ $ .hot .bars i{background:var(--accent)}
 @keyframes wvup{to{transform:none}}
 """
 
+CUT_CSS = """
+$ .tc{--hot:#ff5d6c;position:relative;text-align:left;width:880u;max-width:100%;padding:30u 34u 34u;border-radius:38u;background:color-mix(in srgb,var(--surface) 90%,var(--panel));
+box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 12%,transparent) inset,0 60u 140u rgba(0,0,0,.5);animation:tcin .55s cubic-bezier(.16,1,.3,1) both}
+$ header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6u 24u;margin:0 0 16u}
+$ .nm{font-size:34u;font-weight:600;letter-spacing:-.02em;white-space:nowrap;color:var(--soft)}
+$ .ln{display:inline-flex;white-space:nowrap;margin-left:auto;align-items:baseline;gap:18u;font-size:52u;font-weight:650;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+$ .ln s{text-decoration:line-through;text-decoration-thickness:.09em;text-decoration-color:transparent;color:var(--ink);animation:tcwas .35s ease-out var(--t) forwards}
+$ .ln b{font-weight:inherit;color:var(--accent);opacity:0;transform:translateY(.35em);animation:tcnow .5s cubic-bezier(.2,1.4,.4,1) calc(var(--t) + .15s) forwards}
+$ .tx{margin:0;font-size:calc(var(--fs) * 1u);line-height:1.52;font-weight:500;letter-spacing:-.01em;color:var(--ink)}
+$ .w{position:relative;display:inline-block;white-space:pre;vertical-align:baseline}
+$ .x{animation:tcred .18s linear var(--s) forwards,tcfold .5s cubic-bezier(.6,0,.3,1) var(--c) forwards}
+$ .x u{position:absolute;left:-.04em;right:.22em;top:54%;height:.1em;border-radius:.05em;background:var(--hot);transform:scaleX(0);transform-origin:0 50%;animation:tcline .22s ease-out var(--s) forwards}
+$ .tg{display:inline-block;margin:0 .34em 0 0;padding:.1em .42em .14em;border-radius:.42em;font-size:.6em;font-style:normal;font-weight:700;letter-spacing:.04em;line-height:1.2;
+text-transform:uppercase;vertical-align:.18em;white-space:nowrap;color:#fff;background:var(--hot);opacity:0;transform:scale(.5);animation:tcpop .32s cubic-bezier(.2,1.6,.4,1) var(--s) forwards,tcgone .5s cubic-bezier(.6,0,.3,1) var(--c) forwards}
+$ .bar{position:relative;margin-top:26u;height:30u}
+$ .trk{display:flex;height:100%;border-radius:10u;overflow:hidden}
+$ .sg{flex:none;width:var(--w);height:100%;box-shadow:-2u 0 0 color-mix(in srgb,var(--surface) 90%,var(--panel)) inset}
+$ .sg.k{background:var(--accent)}
+$ .sg.x{background:color-mix(in srgb,var(--ink) 26%,transparent);animation:tcbar .2s linear var(--s) forwards,tcshut .5s cubic-bezier(.6,0,.3,1) var(--c) forwards}
+$ .ph{position:absolute;top:-12u;bottom:-12u;left:0;width:5u;margin-left:-2u;border-radius:3u;background:var(--ink);box-shadow:0 0 16u var(--ink);animation:tcsweep var(--d) linear var(--a) both,tchide .2s linear var(--c) forwards}
+@keyframes tcin{from{opacity:0;transform:translateY(50u) scale(.97)}to{opacity:1;transform:none}}
+@keyframes tcwas{to{color:var(--soft);text-decoration-color:var(--hot)}}
+@keyframes tcnow{to{opacity:1;transform:none}}
+@keyframes tcred{to{color:var(--hot)}}
+@keyframes tcline{to{transform:none}}
+@keyframes tcpop{to{opacity:1;transform:none}}
+@keyframes tcfold{from{font-size:1em;opacity:1}to{font-size:0;opacity:0}}
+@keyframes tcgone{from{font-size:.6em;opacity:1;margin-right:.34em;padding:.1em .42em .14em}to{font-size:0;opacity:0;margin-right:0;padding:0}}
+@keyframes tcbar{to{background:var(--hot)}}
+@keyframes tcshut{from{width:var(--w)}to{width:0}}
+@keyframes tcsweep{from{left:0}to{left:100%}}
+@keyframes tchide{to{opacity:0}}
+"""
+
+BADGE_CSS = """
+$ .badge{position:absolute;display:flex;align-items:center;gap:22u;padding:12u 36u 12u 12u;border-radius:99u;background:color-mix(in srgb,var(--panel) 84%,transparent);
+box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 14%,transparent) inset,0 24u 60u rgba(0,0,0,.42);transform-origin:0 50%;animation:fbin .5s cubic-bezier(.2,1.5,.4,1) both}
+$ .tl{left:var(--gutter);top:calc(var(--top) * .55)}
+$ .tr{right:var(--gutter);top:calc(var(--top) * .55);transform-origin:100% 50%}
+$ .bl{left:var(--gutter);bottom:calc(var(--top) * .55)}
+$ .br{right:var(--gutter);bottom:calc(var(--top) * .55);transform-origin:100% 50%}
+$ .ic{flex:none;display:grid;place-items:center;width:96u;height:96u;border-radius:50%;color:var(--panel);background:var(--accent);
+box-shadow:0 0 32u color-mix(in srgb,var(--accent) 45%,transparent);animation:fbic .55s cubic-bezier(.2,1.6,.4,1) .06s both}
+$ .ic svg{display:block;width:58%;height:58%;fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+$ .nm{font-size:52u;font-weight:650;letter-spacing:-.025em;line-height:1;white-space:nowrap;animation:fbnm .45s cubic-bezier(.16,1,.3,1) .12s both}
+@keyframes fbin{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes fbic{from{transform:rotate(-40deg) scale(.4)}to{transform:none}}
+@keyframes fbnm{from{opacity:0;transform:translateX(-18u)}to{opacity:1;transform:none}}
+"""
+
 FORMATS = (
+    Format(
+        id="feature_badge",
+        title="Feature badge",
+        summary="A feature's icon and name pop in on the cut, held in a corner clear of the action and of faces.",
+        group="film",
+        jobs=("explain", "prove"),
+        slots=(
+            Slot("icon", kind="choice", choices=tuple(sorted(badge_icons()))),
+            Slot("text", limit=22),
+            Slot("corner", kind="choice", required=False, choices=BADGE_CORNERS),
+        ),
+        example={"icon": "scissors", "text": "Cutting", "corner": "tl"},
+        draw=_feature_badge,
+        seconds=3.0,
+        shortest=1.0,
+        longest=12.0,
+        area="full",
+        tall=140,
+        sound=None,
+        css=scoped("feature_badge", BADGE_CSS),
+    ),
+    Format(
+        id="timeline_cut",
+        title="Timeline cut",
+        summary="A take's real words on a track. Each removal strikes as the playhead passes, then folds away.",
+        group="film",
+        jobs=("prove", "explain"),
+        slots=(
+            Slot("words", kind="list", limit=44, each=12),
+            Slot("kept", kind="list", limit=16),
+            Slot("removed", kind="list", limit=16, required=False),
+            Slot("before", limit=8),
+            Slot("after", limit=8),
+            Slot("title", limit=20, required=False),
+            Slot("raw", kind="number", required=False),
+        ),
+        example={
+            "title": "Sample take",
+            "before": "5.4 s",
+            "after": "1.4 s",
+            "raw": 5.4,
+            "words": [
+                {"text": "So,", "start": 0.1, "end": 0.3},
+                {"text": "um,", "start": 0.45, "end": 0.65},
+                {"text": "the", "start": 0.8, "end": 0.95},
+                {"text": "the", "start": 1.0, "end": 1.15},
+                {"text": "plan", "start": 1.2, "end": 1.5},
+                {"text": "is", "start": 1.55, "end": 1.75},
+                {"text": "wait.", "start": 2.6, "end": 3.0},
+                {"text": "The", "start": 3.8, "end": 4.0},
+                {"text": "plan", "start": 4.0, "end": 4.3},
+                {"text": "is", "start": 4.3, "end": 4.5},
+                {"text": "simple.", "start": 4.5, "end": 5.1},
+            ],
+            "kept": [{"start": 3.75, "end": 5.15}],
+            "removed": [
+                {"start": 0.0, "end": 2.6, "kind": "retake"},
+                {"start": 0.45, "end": 0.65, "kind": "filler"},
+                {"start": 0.8, "end": 1.0, "kind": "stutter"},
+                {"start": 2.6, "end": 3.0, "kind": "cue"},
+                {"start": 3.0, "end": 3.75, "kind": "silence"},
+                {"start": 5.15, "end": 5.4, "kind": "silence"},
+            ],
+        },
+        draw=_timeline_cut,
+        seconds=4.0,
+        shortest=2.5,
+        longest=10.0,
+        tall=640,
+        sound=None,
+        css=scoped("timeline_cut", CUT_CSS),
+    ),
     Format(
         id="stage_strip",
         title="Stage strip",

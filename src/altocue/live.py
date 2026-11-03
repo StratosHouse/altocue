@@ -96,6 +96,19 @@ def _review(folder: Path, number: int, read: str) -> Any:
     return chosen[read]
 
 
+CUT_READS = {"raw": "raw", "kept": "kept_seconds", "removals": "removals"}
+
+
+def _cut(folder: Path, read: str) -> Any:
+    """A take's length before its cut, after it, or how many removals it made, read from the project's own edl.json."""
+    from . import cut
+    from .project import Project
+
+    if read not in CUT_READS:
+        raise AltocueError(f"A cut has no reading called {read}.", fix=f"Use one of {', '.join(CUT_READS)}.")
+    return cut.track(Project.open(folder))[CUT_READS[read]]
+
+
 def _file(path: Path, read: str) -> Any:
     if not path.is_file():
         raise AltocueError(f"No file at {path}.")
@@ -114,7 +127,9 @@ def value(source: dict[str, Any], root: Path) -> Any:
         return _review(Path(source["review"]).expanduser(), int(source.get("round", -1)), str(source["read"]))
     if "file" in source:
         return _file(root / str(source["file"]), str(source["read"]))
-    raise AltocueError(f"Cannot read a live number from {source}.", fix="Name a count, qa, review or file.")
+    if "cut" in source:
+        return _cut(root / Path(str(source["cut"])).expanduser(), str(source["read"]))
+    raise AltocueError(f"Cannot read a live number from {source}.", fix="Name a count, qa, review, file or cut.")
 
 
 def shown(found: Any, spec: str = "") -> str:

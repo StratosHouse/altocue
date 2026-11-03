@@ -38,6 +38,7 @@ __all__ = [
     "removal_id",
     "run",
     "segment_ends",
+    "track",
     "validate",
     "write_script",
 ]
@@ -356,6 +357,31 @@ def segment_ends(edl: Edl) -> dict[str, float]:
         frame += frame_count(segment.start, segment.end, edl.fps)
         ends[segment.id] = round(frame / edl.fps, 3)
     return ends
+
+
+def track(project: Project, clip: str | None = None) -> dict[str, Any]:
+    """One take's real cut: every word it says, what was kept and what went, with each removal's kind. For showing a cut, not making one.
+
+    `clip` names the take. By default it is the one the cut keeps most of. Times are in the take's own seconds.
+    """
+    edl = project.edl()
+    used = [segment.clip for segment in edl.segments] + [removal.clip for removal in edl.removed]
+    if not used:
+        raise AltocueError("This cut keeps and removes nothing.", fix="Run `altocue cut`.")
+    chosen = clip or max(dict.fromkeys(used), key=lambda name: sum(s.end - s.start for s in edl.segments if s.clip == name))
+    if chosen not in used:
+        raise AltocueError(f"The cut never uses the clip {chosen}.", fix=f"Use one of {', '.join(dict.fromkeys(used))}.")
+    kept = [segment for segment in edl.segments if segment.clip == chosen]
+    frames = sum(frame_count(segment.start, segment.end, edl.fps) for segment in kept)
+    return {
+        "clip": chosen,
+        "raw": project.clip(chosen).duration,
+        "kept_seconds": round(frames / edl.fps, 3),
+        "removals": sum(1 for removal in edl.removed if removal.clip == chosen),
+        "words": [{"text": w.text, "start": w.start, "end": w.end, "kind": w.kind} for w in project.words(chosen)],
+        "kept": [{"start": segment.start, "end": segment.end} for segment in kept],
+        "removed": [{"start": r.start, "end": r.end, "kind": r.kind} for r in edl.removed if r.clip == chosen],
+    }
 
 
 def map_words(project: Project, edl: Edl) -> list[dict[str, Any]]:

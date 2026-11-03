@@ -36,7 +36,7 @@ CAPTION_INSET = 28
 FOOTNOTE_LIFT = 104
 LABEL_INSET = 24
 FRAME_CAPTION_SHARE = 0.06  # font size as a share of the frame's width, for one track across the whole frame
-STEADY = ("corner_stamp", "say_line")  # held still over the camera: a push would carry a line at the foot out of the safe zone
+STEADY = ("corner_stamp", "say_line", "feature_badge")  # held still over the camera: a push would carry a line at the foot out of the safe zone
 
 # Named places on the canvas as left, top, right, bottom shares. Left and right stack on a tall canvas, so a two-column scene recomposes instead of cropping.
 ZONES = {

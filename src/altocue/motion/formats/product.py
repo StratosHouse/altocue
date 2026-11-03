@@ -1065,9 +1065,88 @@ $ .shine{position:absolute;top:-20%;bottom:-20%;left:-30%;width:26%;background:l
 """
 
 
+SEARCH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/></svg>'  # Tabler Icons, MIT
+KEY_GAP = 0.055  # seconds between letters, a quick typist
+
+
+def _library_scroll(item: dict[str, Any]) -> str:
+    """A search types itself, then a wall of real results scrolls past, each picture with its licence on it."""
+    seconds = kit.seconds(item)
+    query = str(item.get("query", ""))
+    begin = min(0.18, seconds * 0.06)
+    gap = min(KEY_GAP, seconds * 0.3 / max(len(query), 1))
+    keys = "".join(f'<b class="k" style="--t:{begin + index * gap:.3f}s">{kit.esc(char)}</b>' for index, char in enumerate(query))
+    typed = begin + len(query) * gap
+    reveal = typed + 0.22
+    rows = kit.rows(item, "items")
+    lanes = 2 if len(rows) <= 6 else 3
+    made = []
+    for lane in range(lanes):
+        mine = rows[lane::lanes] or rows
+        tiles = []
+        for index, row in enumerate(mine * 2):  # twice over, so the lane never runs out before the graphic ends
+            picture = f'<img src="{kit.esc(row["image"])}" alt="">' if row.get("image") else '<span class="none"></span>'
+            arrive = reveal + 0.05 * (index % len(mine)) + 0.07 * lane
+            tiles.append(f'<figure class="tile" style="--t:{arrive:.3f}s">{picture}<figcaption>{kit.esc(row.get("text", ""))}</figcaption></figure>')
+        made.append(f'<div class="lane {"lf" if lane % 2 == 0 else "rt"}">{"".join(tiles)}</div>')
+    run = max(seconds - reveal, 0.4)
+    return (
+        f'<div class="ls"><div class="sb" style="--t:{typed:.3f}s"><span class="mg">{SEARCH_ICON}</span><span class="q">{keys}<i class="cr"></i></span></div>'
+        f'<div class="wall" style="--t:{reveal:.3f}s;--run:{run:.3f}s">{"".join(made)}</div></div>'
+    )
+
+
+SCROLL_CSS = """
+$ .ls{position:relative;width:880u;max-width:100%;text-align:left}
+$ .sb{position:relative;display:flex;align-items:center;gap:20u;height:104u;padding:0 34u;border-radius:99u;background:color-mix(in srgb,var(--surface) 92%,var(--panel));
+box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 14%,transparent) inset,0 30u 80u rgba(0,0,0,.45);animation:lsin .5s cubic-bezier(.16,1,.3,1) both,lsgo .5s ease-out var(--t) both}
+$ .mg{flex:none;display:grid;place-items:center;width:52u;height:52u;color:var(--accent)}
+$ .mg svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+$ .q{display:flex;align-items:center;min-width:0;font-size:50u;font-weight:600;letter-spacing:-.02em;white-space:pre}
+$ .k{font-weight:inherit;opacity:0;animation:lskey .01s linear var(--t) forwards}
+$ .cr{display:inline-block;width:4u;height:56u;margin-left:4u;border-radius:2u;background:var(--accent);animation:lsblink 1s steps(2,jump-none) infinite}
+$ .wall{position:relative;display:flex;flex-direction:column;gap:18u;margin-top:30u;padding:4u 0;overflow:hidden;
+-webkit-mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent)}
+$ .lane{display:flex;gap:18u;width:max-content;animation:lsleft var(--run) linear var(--t) both}
+$ .lane.rt{animation-name:lsright}
+$ .tile{position:relative;flex:none;margin:0;width:300u;height:169u;border-radius:16u;overflow:hidden;background:color-mix(in srgb,var(--ink) 10%,var(--panel));
+box-shadow:0 16u 40u rgba(0,0,0,.4);opacity:0;transform:scale(.86);animation:lspop .4s cubic-bezier(.2,1.3,.4,1) var(--t) forwards}
+$ .tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+$ .none{position:absolute;inset:0;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 34%,var(--panel)),color-mix(in srgb,var(--surface) 80%,var(--panel)))}
+$ figcaption{position:absolute;left:10u;bottom:10u;padding:5u 13u 6u;border-radius:99u;font-size:22u;font-weight:600;letter-spacing:.005em;line-height:1.2;white-space:nowrap;
+color:var(--panel);background:var(--accent)}
+@keyframes lsin{from{opacity:0;transform:translateY(30u)}to{opacity:1;transform:none}}
+@keyframes lsgo{0%{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ink) 14%,transparent) inset,0 30u 80u rgba(0,0,0,.45)}40%{box-shadow:0 0 0 3u var(--accent) inset,0 30u 80u rgba(0,0,0,.45)}100%{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent) 50%,transparent) inset,0 30u 80u rgba(0,0,0,.45)}}
+@keyframes lskey{to{opacity:1}}
+@keyframes lsblink{from{opacity:1}to{opacity:0}}
+@keyframes lspop{to{opacity:1;transform:none}}
+@keyframes lsleft{from{transform:translateX(0)}to{transform:translateX(-30%)}}
+@keyframes lsright{from{transform:translateX(-30%)}to{transform:translateX(0)}}
+"""
+
+
 IMAGE = Slot("image", kind="path", required=False)
 
 FORMATS = (
+    Format(
+        id="library_scroll",
+        title="Library scroll",
+        summary="A search types itself, then a wall of real results scrolls past, each with its licence on it.",
+        group="product",
+        jobs=("prove", "explain"),
+        slots=(Slot("query", limit=28), Slot("items", kind="list", limit=18, each=20)),
+        example={
+            "query": "sample search",
+            "items": [{"text": "CC0"}, {"text": "Public domain"}, {"text": "CC BY 4.0"}, {"text": "CC0"}, {"text": "Public domain"}, {"text": "CC BY 4.0"}],
+        },
+        draw=_library_scroll,
+        seconds=3.6,
+        shortest=2.4,
+        longest=10.0,
+        tall=690,
+        sound=None,
+        css=_scoped("library_scroll", SCROLL_CSS),
+    ),
     Format(
         id="cursor_walk",
         title="Cursor walkthrough",
