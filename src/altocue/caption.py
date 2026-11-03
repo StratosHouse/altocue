@@ -61,7 +61,7 @@ def build_pages(
     for run in runs:
         for chunk in balanced(run, max_words):
             shown = [
-                {"text": strip_punctuation(w["text"]), "start": round(w["start"], 3), "end": round(w["end"], 3)}
+                {"text": strip_punctuation(w["text"]), "start": round(w["start"], 3), "end": round(w["end"], 3), **({"tag": w["tag"]} if w.get("tag") else {})}
                 for w in chunk
                 if strip_punctuation(w["text"])
             ]

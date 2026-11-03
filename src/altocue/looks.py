@@ -317,13 +317,18 @@ def sheet(project: Project, dest: str | Path | None = None) -> Path:
     rows = -(-len(names) // SHEET_ROW)
     board = Image.new("RGB", (cell[0] * SHEET_ROW, (cell[1] + 28) * rows), (18, 18, 18))
     draw = ImageDraw.Draw(board)
+    target = Path(dest) if dest else project.lut_dir / "looks.jpg"
+    singles = target.parent / "looks"  # each look on its own, and the frame before any correction, to show side by side
+    singles.mkdir(parents=True, exist_ok=True)
+    Image.fromarray((np.clip(raw, 0, 1) * 255 + 0.5).astype(np.uint8)).save(singles / "raw.jpg", quality=90)
     for index, name in enumerate(names):
         picture = fit(choose(name), skin).apply(frame)
-        image = Image.fromarray((np.clip(picture, 0, 1) * 255 + 0.5).astype(np.uint8)).resize(cell, Image.Resampling.LANCZOS)
+        whole = Image.fromarray((np.clip(picture, 0, 1) * 255 + 0.5).astype(np.uint8))
+        whole.save(singles / f"{name}.jpg", quality=90)
+        image = whole.resize(cell, Image.Resampling.LANCZOS)
         x, y = (index % SHEET_ROW) * cell[0], (index // SHEET_ROW) * (cell[1] + 28)
         board.paste(image, (x, y))
         draw.text((x + 8, y + cell[1] + 8), name, fill=(235, 235, 235))
-    target = Path(dest) if dest else project.lut_dir / "looks.jpg"
     target.parent.mkdir(parents=True, exist_ok=True)
     board.save(target, quality=90)
     return target

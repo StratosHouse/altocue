@@ -92,6 +92,20 @@ def licence_name(licence: str) -> str:
     return " ".join(part for part in ("CC", match.group(1), match.group(2), match.group(3) or "") if part) if match else licence
 
 
+SHORT_NAMES = {
+    "Pixabay Content License": "Pixabay licence",
+    "https://pixabay.com/service/license-summary/": "Pixabay licence",
+    "Pexels License": "Pexels licence",
+    "https://www.pexels.com/license/": "Pexels licence",
+    "NASA media guidelines": "NASA guidelines",
+}
+
+
+def short_licence(licence: str) -> str:
+    """A licence in a few words, for a chip on screen: CC-BY-4.0 reads CC BY 4.0, and Pixabay's licence reads Pixabay licence."""
+    return SHORT_NAMES.get(licence, licence_name(licence))
+
+
 def needs_credit(licence: str) -> bool:
     return licence.startswith("CC-BY") or licence == UNVERIFIED
 

@@ -133,6 +133,12 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     if item["type"] == "footage":
         at = "head" if bottom > zone_box("foot", size)[1] else "foot"  # captions and lines for the sound off run at the foot
         place = f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"
+        if item.get("shapes"):
+            boxes = [shape_box(str(shape), (left * width, top * height, (right - left) * width, (bottom - top) * height)) for shape in item["shapes"]]
+            first = boxes[0]
+            place = f"left:{first[0]:.0f}px;top:{first[1]:.0f}px;width:{first[2]:.0f}px;height:{first[3]:.0f}px"
+            whole = f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"
+            return {**item, "place": place, "label_at": at, "boxes": boxes, "zone_place": whole}
         return {**item, "place": place, "label_at": at}
     if area == "full":
         return {**item, "place": box}
@@ -393,7 +399,8 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
     if item["type"] == "footage":
         attrs = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track}"'
         name = escape(formats.stage_name(item["file"]))
-        place = f' style="{item["place"]}"' if item.get("place") else ""
+        rule, moving_style, notes = _reframe(item, track) if item.get("boxes") else ("", "", "")
+        place = f' style="{item["place"]};{moving_style}"' if moving_style else f' style="{item["place"]}"' if item.get("place") else ""
         look = "clip footage framed" if item.get("zone") else "clip footage"
         trim = f' data-media-start="{float(item["from"]):.3f}"' if item.get("from") else ""
         moving = Path(item["file"]).suffix.lower() in (".mp4", ".mov", ".webm")
@@ -402,6 +409,8 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
             if moving
             else f'<img id="footage-{track}" class="{look}" {attrs}{place} src="{name}" alt="">'
         )
+        if notes:
+            return f"{rule}{tag}\n{notes}"
         if not item.get("label"):
             return tag
         timing = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 1000}"'
@@ -412,9 +421,68 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
     return made.replace('class="clip ', f'class="clip {extra} ', 1) if extra else made
 
 
+SHAPE_TURN = 0.36  # seconds a reframe takes to move from one shape to the next
+
+
+def shape_box(shape: str, zone: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """The largest frame of one aspect, such as 9:16, that fits a zone, centred in it, in pixels."""
+    found = re.fullmatch(r"(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)", shape)
+    if not found or not float(found.group(1)) or not float(found.group(2)):
+        raise AltocueError(f"The shape {shape} is not an aspect.", fix="Use shapes such as 16:9, 9:16 and 1:1.")
+    ratio = float(found.group(1)) / float(found.group(2))
+    left, top, wide, tall = zone
+    width, height = (tall * ratio, tall) if wide / tall > ratio else (wide, wide / ratio)
+    return left + (wide - width) / 2, top + (tall - height) / 2, width, height
+
+
+def _reframe(item: dict[str, Any], track: int) -> tuple[str, str, str]:
+    """One picture that changes shape in place, holding each aspect in turn, with the aspect named beneath it.
+
+    The frame stays filled and a face stays in it: `focus` is where to hold, as shares across and down.
+    """
+    boxes, shapes = item["boxes"], [str(shape) for shape in item["shapes"]]
+    span = max(float(item["end"]) - float(item["start"]), 0.1)
+    share = span / len(boxes)
+    keys = []
+    for index, box in enumerate(boxes):
+        pose = f"left:{box[0]:.0f}px;top:{box[1]:.0f}px;width:{box[2]:.0f}px;height:{box[3]:.0f}px"
+        begin = 0.0 if index == 0 else index * share + SHAPE_TURN / 2
+        end = span if index == len(boxes) - 1 else (index + 1) * share - SHAPE_TURN / 2
+        keys += [f"{100 * min(max(begin, 0), span) / span:.3f}%{{{pose}}}", f"{100 * min(max(end, 0), span) / span:.3f}%{{{pose}}}"]
+    name = f"shape-{track}"
+    rule = f"<style>@keyframes {name}{{{''.join(keys)}}}</style>"
+    focus = item.get("focus") or [0.5, 0.3]
+    style = f"animation:{name} {span:.3f}s cubic-bezier(.65,0,.3,1) both;object-position:{100 * float(focus[0]):.1f}% {100 * float(focus[1]):.1f}%"
+    notes = []
+    under = _below({**item, "place": item.get("zone_place") or item.get("place")})
+    for index, shape in enumerate(shapes):
+        begin = float(item["start"]) + index * share
+        timing = f'data-start="{begin:.3f}" data-duration="{share:.3f}" data-track-index="{track + 1000 + index}"'
+        said = f"{shape}, {item['label']}" if item.get("label") else shape
+        notes.append(f'<div class="clip footnote" {timing}{under}><span>{escape(said)}</span></div>')
+    return rule + "\n", style, "\n".join(notes)
+
+
 def _box(item: dict[str, Any]) -> dict[str, float]:
     found = dict(part.split(":", 1) for part in str(item.get("place") or "").split(";") if ":" in part)
     return {key: float(found[key].removesuffix("px")) for key in ("left", "top", "width", "height") if key in found}
+
+
+def tagged(words: list[dict[str, Any]], tags: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each word inside a span a cut removed carries that span's kind, so the captions can show what goes. The shortest span wins.
+
+    Spans are in the clip's own seconds, as `edl.json` writes them: `{"start": 0.8, "end": 0.96, "kind": "filler"}`.
+    """
+    from .formats.film import CUT_TAGS
+
+    spans = [(float(tag["start"]), float(tag["end"]), str(tag.get("kind") or "manual")) for tag in tags]
+    made = []
+    for word in words:
+        middle = (float(word["start"]) + float(word["end"])) / 2
+        holding = [span for span in spans if span[0] <= middle <= span[1]]
+        kind = min(holding, key=lambda span: span[1] - span[0])[2] if holding else None
+        made.append({**word, "tag": CUT_TAGS.get(kind, kind)} if kind else word)
+    return made
 
 
 def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture") -> list[dict[str, Any]]:
@@ -427,7 +495,10 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
     if len(box) < 4:
         raise AltocueError(f"Captions on {item.get('file')} need the footage in a zone.", fix="Give the footage a zone, such as phone.")
     begin = float(item["start"]) - float(item.get("from") or 0)
-    said = [{"text": w["text"], "start": begin + float(w["start"]), "end": begin + float(w["end"]), "segment": 0} for w in words]
+    said = [
+        {"text": w["text"], "start": begin + float(w["start"]), "end": begin + float(w["end"]), "segment": 0, **({"tag": w["tag"]} if w.get("tag") else {})}
+        for w in words
+    ]
     inside = [w for w in said if item["start"] - 0.01 <= w["start"] < item["end"] - CAPTION_LAST]
     if place == "frame":
         left, top, right, bottom = zone_box("foot", size)

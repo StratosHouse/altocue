@@ -1077,7 +1077,7 @@ def _library_scroll(item: dict[str, Any]) -> str:
     gap = min(KEY_GAP, seconds * 0.3 / max(len(query), 1))
     keys = "".join(f'<b class="k" style="--t:{begin + index * gap:.3f}s">{kit.esc(char)}</b>' for index, char in enumerate(query))
     typed = begin + len(query) * gap
-    reveal = typed + 0.22
+    reveal = typed + 0.22 if query else 0.1
     rows = kit.rows(item, "items")
     lanes = 2 if len(rows) <= 6 else 3
     made = []
@@ -1090,10 +1090,8 @@ def _library_scroll(item: dict[str, Any]) -> str:
             tiles.append(f'<figure class="tile" style="--t:{arrive:.3f}s">{picture}<figcaption>{kit.esc(row.get("text", ""))}</figcaption></figure>')
         made.append(f'<div class="lane {"lf" if lane % 2 == 0 else "rt"}">{"".join(tiles)}</div>')
     run = max(seconds - reveal, 0.4)
-    return (
-        f'<div class="ls"><div class="sb" style="--t:{typed:.3f}s"><span class="mg">{SEARCH_ICON}</span><span class="q">{keys}<i class="cr"></i></span></div>'
-        f'<div class="wall" style="--t:{reveal:.3f}s;--run:{run:.3f}s">{"".join(made)}</div></div>'
-    )
+    bar = f'<div class="sb" style="--t:{typed:.3f}s"><span class="mg">{SEARCH_ICON}</span><span class="q">{keys}<i class="cr"></i></span></div>' if query else ""
+    return f'<div class="ls{"" if query else " bare"}">{bar}<div class="wall" style="--t:{reveal:.3f}s;--run:{run:.3f}s">{"".join(made)}</div></div>'
 
 
 SCROLL_CSS = """
@@ -1107,6 +1105,7 @@ $ .k{font-weight:inherit;opacity:0;animation:lskey .01s linear var(--t) forwards
 $ .cr{display:inline-block;width:4u;height:56u;margin-left:4u;border-radius:2u;background:var(--accent);animation:lsblink 1s steps(2,jump-none) infinite}
 $ .wall{position:relative;display:flex;flex-direction:column;gap:18u;margin-top:30u;padding:4u 0;overflow:hidden;
 -webkit-mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent)}
+$ .bare .wall{margin-top:0}
 $ .lane{display:flex;gap:18u;width:max-content;animation:lsleft var(--run) linear var(--t) both}
 $ .lane.rt{animation-name:lsright}
 $ .tile{position:relative;flex:none;margin:0;width:300u;height:169u;border-radius:16u;overflow:hidden;background:color-mix(in srgb,var(--ink) 10%,var(--panel));
@@ -1131,10 +1130,10 @@ FORMATS = (
     Format(
         id="library_scroll",
         title="Library scroll",
-        summary="A search types itself, then a wall of real results scrolls past, each with its licence on it.",
+        summary="A search types itself, then a wall of real results scrolls past, each with its licence or name on it.",
         group="product",
         jobs=("prove", "explain"),
-        slots=(Slot("query", limit=28), Slot("items", kind="list", limit=18, each=20)),
+        slots=(Slot("query", limit=28, required=False), Slot("items", kind="list", limit=18, each=20)),
         example={
             "query": "sample search",
             "items": [{"text": "CC0"}, {"text": "Public domain"}, {"text": "CC BY 4.0"}, {"text": "CC0"}, {"text": "Public domain"}, {"text": "CC BY 4.0"}],

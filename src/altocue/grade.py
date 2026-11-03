@@ -757,7 +757,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--look", help="Overrides [grade] look. `--compare` shows them all")
     parser.add_argument("--look-strength", type=float, default=None, help="How much of the look or LUT, from 0 to 1")
     parser.add_argument("--lut", default=None, help="Your own .cube file, in place of a look")
-    parser.add_argument("--compare", action="store_true", help="Write every look on one real frame to work/luts/looks.jpg, and stop")
+    parser.add_argument("--compare", action="store_true", help="Write every look on one real frame to work/luts/looks.jpg, each one alone in work/luts/looks/, and stop")
 
 
 def _summary(clip_id: str, entry: dict[str, Any]) -> str:
@@ -784,7 +784,8 @@ def run(args: argparse.Namespace) -> int:
     if args.compare:
         from . import looks
 
-        print(f"Looks on one frame: {looks.sheet(project)}")
+        sheet = looks.sheet(project)
+        print(f"Looks on one frame: {sheet}\nEach look alone, and the frame before any correction as raw.jpg: {sheet.parent / 'looks'}")
         return 0
     report = grade_project(project, force=args.force, look=args.look, strength=args.look_strength, lut=args.lut)
     for clip_id, entry in report["clips"].items():

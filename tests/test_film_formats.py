@@ -204,3 +204,10 @@ def test_every_frame_in_the_wall_carries_its_licence():
 def test_a_wall_with_no_frames_is_an_error():
     with pytest.raises(AltocueError, match="items"):
         formats.check({"type": "library_scroll", "query": "ocean drone", "items": []})
+
+
+def test_a_wall_can_show_pictures_with_no_search_typed():
+    """The colour beat shows every look on one take, named, with nothing searched."""
+    drawn = formats.find("library_scroll").draw({**wall(), "query": ""})
+    assert 'class="sb"' not in drawn and 'class="ls bare"' in drawn
+    assert float(re.search(r'class="wall" style="--t:([\d.]+)s', drawn).group(1)) < 0.2

@@ -26,6 +26,9 @@ from .stock import pixabay as pixabay_source
 from .stock import stills
 
 SPOTS_FILE = "broll/spots.json"
+WALL_FILE = "broll/wall.json"
+WALL_FOLDER = "broll/wall"
+WALL_COUNT = 12
 CHOSEN_FILE = "broll.json"
 VIDEO_TYPES = {".mp4", ".mov", ".m4v", ".webm"}
 
@@ -70,6 +73,8 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--rights-checked", action="store_true", help="You have checked the rights of an Internet Archive pick yourself")
     parser.add_argument("--pick", nargs="+", default=None, metavar="SPOT=CHOICE", help="b1=c2, b2=skip, b3=shot:shot-1 or b4=file:clip.mp4")
     parser.add_argument("--share", type=float, default=None, help="Most of the runtime B-roll may cover, such as 0.3")
+    parser.add_argument("--wall", metavar="WORDS", default=None, help="Search stock for these words and keep a frame of each result with its licence, for a film")
+    parser.add_argument("--count", type=int, default=WALL_COUNT, help="With --wall: how many results to keep")
 
 
 def keywords(text: str) -> list[str]:
@@ -482,6 +487,53 @@ def drop_stale_picks(project: Project, spots: list[dict[str, Any]]) -> None:
     write_json(path, {"cut": mark, "inserts": kept})
 
 
+def wall(project: Project, query: str, provider: str, count: int) -> list[dict[str, Any]]:
+    """Real results for one search, each saved as a frame inside the project with its licence recorded, for a film to show the search.
+
+    Every frame goes through the same record a download does, so `altocue credits` owes what it shows. Only the search words are sent.
+    """
+    words = " ".join(query.split())
+    if not words:
+        raise AltocueError("A wall needs words to search for.", fix='Pass them to --wall, such as --wall "ocean drone".')
+    env = stock.SOURCES.get(provider, ((), ""))[1]
+    if env and not os.environ.get(env):
+        raise AltocueError(f"{env} is not set.", fix=KEY_HELP.get(provider, "Use --search auto."))
+    steps = stock.plan(provider, None)
+    print(f"Searching {', '.join(dict.fromkeys(name for name, _ in steps))} for {words!r}. Only the search words are sent.")
+    found: list[stock_base.Result] = []
+    for name, kind in steps:
+        if len(found) >= count:
+            break
+        try:
+            found += [item for item in stock.search(name, words, kind=kind, shape=orientation(project), limit=count - len(found)) if item.preview]
+        except AltocueError as error:
+            if provider != "auto":
+                raise
+            print(f"Skipped {name}: {str(error).splitlines()[0]}")
+    folder = project.root / WALL_FOLDER
+    folder.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for item in found[:count]:
+        relative = f"{WALL_FOLDER}/{item.source}-{stock_base.slug(item.id)}.jpg"
+        try:
+            http.download(item.preview, project.root / relative, timeout=60)
+            with Image.open(project.root / relative) as picture:
+                picture.verify()
+        except (AltocueError, OSError):
+            (project.root / relative).unlink(missing_ok=True)
+            continue
+        asset_credits.record(
+            project, file=relative, source=item.source, source_url=item.source_url, licence=item.licence, licence_url=item.licence_url,
+            credit=item.credit, kind=item.kind, title=item.title, warnings=item.warnings,
+        )  # fmt: skip
+        chip = stock_base.short_licence(item.licence)
+        rows.append({"image": relative, "text": chip, "title": plain(item.title), "source": item.source, "licence": item.licence, "page": item.source_url})
+    if not rows:
+        raise AltocueError(f"No stock result for {words!r} had a picture to show.", fix="Try plainer words, or another source.")
+    write_json(project.root / WALL_FILE, {"query": words, "items": rows})
+    return rows
+
+
 def write_credits(project: Project, inserts: list[dict[str, Any]]) -> None:
     found = [item for item in inserts if item.get("source") in stock.SOURCES]
     if not found:
@@ -495,6 +547,13 @@ def write_credits(project: Project, inserts: list[dict[str, Any]]) -> None:
 
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
+    if getattr(args, "wall", None) is not None:
+        rows = wall(project, args.wall, args.search or "auto", max(int(args.count), 1))
+        print(UNTRUSTED_NOTE)
+        for row in rows:
+            print(f"- {row['image']}: {row['source']}, {row['licence']}, {row['page']}")
+        print(f"{len(rows)} frames in {WALL_FOLDER}, listed in {WALL_FILE} with the licence for each. Use its items in a library_scroll.")
+        return 0
     if args.pick:
         inserts = apply_picks(project, args.pick, getattr(args, "rights_checked", False))
         print(f"B-roll chosen for {len(inserts)} of {len(load_spots(project))} spots. It lands in the next `altocue render`.")

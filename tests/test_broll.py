@@ -8,6 +8,7 @@ from threading import Thread
 import pytest
 
 from altocue import broll, cut
+from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import Edl, Segment, Word
 from altocue.project import Project, write_json
@@ -361,3 +362,69 @@ def test_a_recut_keeps_the_search_words_and_the_library(project, tmp_path, capsy
     again = json.loads((project.work / broll.SPOTS_FILE).read_text())
     assert again["spots"][0]["query"] == "hands on a desk" and again["library"] == [str(folder)]
     assert "file name, folder" in capsys.readouterr().out
+
+
+# A wall of real results, for showing a search on screen
+
+
+def stock_result(number: int, source: str = "pixabay", licence: str = "Pixabay Content License", credit: str = ""):
+    from altocue.stock.base import Result
+
+    return Result(
+        str(number), f"Pixabay {number}", "video", f"https://example.test/{number}.mp4", f"https://example.test/{number}.jpg", 8.0, 1920, 1080, licence,
+        "https://pixabay.com/service/license-summary/", credit, source, f"https://pixabay.com/videos/id-{number}/", author="someone",
+    )  # fmt: skip
+
+
+def test_a_wall_search_saves_each_frame_with_its_licence(tmp_path, monkeypatch, capsys):
+    from PIL import Image
+
+    from altocue import stock
+    from altocue.stock import credits
+
+    made = Project.create(tmp_path / "film", aspect="16:9")
+    asked = []
+
+    def search(name, query, *, kind, shape, limit):
+        asked.append((name, query, kind, shape, limit))
+        return [stock_result(number) for number in range(1, limit + 1)] if name == "pixabay" and kind == "video" else []
+
+    def download(url, dest, **_):
+        Image.new("RGB", (64, 36), (20, 90, 140)).save(dest)
+        return dest
+
+    monkeypatch.setenv("PIXABAY_API_KEY", "test-key")
+    monkeypatch.setattr(stock, "search", search)
+    monkeypatch.setattr(broll.http, "download", download)
+    assert main(["broll", "--wall", "ocean drone", "--count", "4", "-p", str(made.root)]) == 0
+    wall = json.loads((made.root / broll.WALL_FILE).read_text())
+    assert wall["query"] == "ocean drone" and len(wall["items"]) == 4
+    assert asked[0][:4] == ("pixabay", "ocean drone", "video", "landscape")
+    for item in wall["items"]:
+        assert (made.root / item["image"]).is_file() and item["text"] == "Pixabay licence" and item["licence"] == "Pixabay Content License"
+    recorded = {row["file"]: row for row in credits.records(made)}
+    assert set(recorded) == {item["image"] for item in wall["items"]}
+    assert all(row["licence"] == "Pixabay Content License" and row["source_url"].startswith("https://pixabay.com/") for row in recorded.values())
+
+
+def test_a_wall_frame_that_owes_a_credit_keeps_it(tmp_path, monkeypatch):
+    from PIL import Image
+
+    from altocue import stock
+    from altocue.stock import credits
+
+    made = Project.create(tmp_path / "film", aspect="16:9")
+    owed = "Ocean by someone, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Ocean.jpg"
+    monkeypatch.delenv("PIXABAY_API_KEY", raising=False)
+    monkeypatch.setattr(stock, "search", lambda name, query, **_: [stock_result(7, "wikimedia", "CC-BY-4.0", owed)] if name == "wikimedia" else [])
+    monkeypatch.setattr(broll.http, "download", lambda url, dest, **_: Image.new("RGB", (64, 36)).save(dest))
+    assert main(["broll", "--wall", "ocean", "--count", "1", "-p", str(made.root)]) == 0
+    wall = json.loads((made.root / broll.WALL_FILE).read_text())
+    assert wall["items"][0]["text"] == "CC BY 4.0"
+    assert credits.records(made)[0]["credit"] == owed
+
+
+def test_a_wall_needs_words_to_search_for(tmp_path):
+    made = Project.create(tmp_path / "film", aspect="16:9")
+    with pytest.raises(AltocueError, match="search"):
+        broll.wall(made, "  ", "auto", 4)

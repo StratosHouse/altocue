@@ -14,7 +14,7 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from altocue import brand as brands
-from altocue import cli, ffmpeg, film, flash, kinds, score, storyboard, study
+from altocue import cli, ffmpeg, film, flash, kinds, mix, score, storyboard, study
 from altocue.errors import AltocueError
 from altocue.motion import compositions, formats, hyperframes, scenes
 from altocue.motion.formats import kit, product
@@ -1704,3 +1704,141 @@ def test_a_footage_label_moves_to_the_head_where_captions_run_at_the_foot():
     drawn = scenes._clip(low, default_brand(), 3)
     top = float(re.search(r'footnote[^>]*top:([\d.]+)px', drawn).group(1))
     assert top < scenes.zone_box("phone_b", (1080, 1080))[1] * 1080 + 40
+
+
+# Real takes inside a film: part of a clip's sound, a frame of a clip, every word said, a track begun on a downbeat
+
+
+def ramp_wav(path: Path, seconds: float = 3.0, rate: int = 48000) -> Path:
+    """A tone whose loudness rises with time, so where a slice came from can be read off its level."""
+    at = np.arange(round(seconds * rate)) / rate
+    return ffmpeg.write_wav(path, 0.05 * (1 + at) * np.sin(2 * np.pi * 220 * at), rate)
+
+
+def test_a_scene_can_play_part_of_a_clips_sound(tmp_path):
+    project = small_film(tmp_path / "film")
+    ramp_wav(project.root / "assets" / "take.wav")
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["scenes"][0].update(voice="assets/take.wav", voice_from=1.0, voice_to=2.0)
+    path.write_text(json.dumps(made))
+    loaded = film.load(project)
+    assert loaded.voice[made["scenes"][0]["id"]] == pytest.approx(1.0, abs=0.01)
+    done = film.timing(loaded, "16:9")
+    track, _ = ffmpeg.read_wav(film.voice_track(project, loaded.board, done))
+    heard = np.abs(track[: round(1.2 * 48000)])
+    middle = heard[round(0.3 * 48000) : round(0.7 * 48000)].max()
+    assert middle == pytest.approx(0.05 * 2.5, rel=0.08)  # the second second of the ramp, not the first
+    assert heard[round(1.05 * 48000) :].max() < 1e-3  # and it stops where the span stops
+
+
+def test_a_voice_span_outside_its_file_is_refused():
+    with pytest.raises(AltocueError, match="voice_from"):
+        film.voice_span({"id": "a", "voice_from": 4.0, "voice_to": 5.0}, 3.0)
+
+
+def test_a_picture_can_be_a_frame_of_a_clip(tmp_path):
+    from conftest import make_clip
+
+    project = small_film(tmp_path / "film")
+    make_clip(project.root / "assets" / "take.mp4", seconds=2.0)
+    item = {"type": "split_wipe", "frames": [{"text": "Raw", "image": "assets/take.mp4", "frame": 0.5}, {"text": "Graded", "image": "assets/take.mp4", "frame": 1.5}]}
+    placed = film.ready(project, item)
+    stills = list(placed["stage_images"].values())
+    assert len(stills) == 2 and all(Path(still).suffix == ".png" and Path(still).is_file() for still in stills)
+    assert all("frame" not in row for row in placed["frames"])
+    with pytest.raises(AltocueError, match="frame"):
+        film.ready(project, {"type": "split_wipe", "frames": [{"text": "Raw", "image": "assets/take.mp4"}]})
+
+
+def test_a_raw_take_can_be_captioned_word_for_word_with_its_cuts_tagged(tmp_path, monkeypatch):
+    """A cold open shows the mess as said: every um and spoken cue in the captions, each one tagged with why the cut takes it."""
+    from altocue import transcribe
+    from altocue.models import Word
+    from altocue.motion.html import caption_html
+
+    project = small_film(tmp_path / "film")
+    (project.root / "assets" / "raw.mp4").write_bytes(b"clip")
+    said = [Word("Okay,", 0.0, 0.3), Word("um", 0.4, 0.6, kind="filler"), Word("this", 0.7, 0.9), Word("is", 0.9, 1.1), Word("Wait,", 1.4, 1.6, kind="cue")]
+    monkeypatch.setattr(transcribe, "transcribe_file", lambda path, engine=None, language="en": said)
+    tags = [{"start": 0.0, "end": 1.3, "kind": "retake"}, {"start": 0.4, "end": 0.6, "kind": "filler"}, {"start": 1.3, "end": 1.7, "kind": "cue"}]
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["scenes"][0]["items"].append(
+        {"type": "footage", "file": "assets/raw.mp4", "zone": "phone", "start": 0, "captions": {"place": "frame", "verbatim": True, "tags": tags}}
+    )
+    path.write_text(json.dumps(made))
+    line, _ = film.film_line(film.load(project), "16:9")
+    words = [word for page in line["captions"] for word in page["words"]]
+    assert [word["text"] for word in words] == ["Okay", "um", "this", "is", "Wait"]
+    assert [word.get("tag") for word in words] == ["retake", "filler", "retake", "retake", "cue"]
+    page = next(page for page in line["captions"] if any(word["text"] == "um" for word in page["words"]))
+    drawn = caption_html(page, "boxed", 3)
+    assert '<b class="tg on new">um<i>filler</i></b>' in drawn
+    plain = [word["text"] for word in film.words_of(project, project.root / "assets" / "raw.mp4")]
+    assert plain == ["Okay,", "this", "is"]  # captions without "verbatim" leave fillers and cues out, as before
+
+
+def test_a_track_can_start_on_a_downbeat_and_its_grid_moves_with_it(tmp_path, monkeypatch):
+    project = small_film(tmp_path / "film")
+    music = project.root / "assets" / "music" / "track.wav"
+    ramp_wav(music, seconds=40.0)
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["music"] = {"path": "assets/music/track.wav", "from": 10.25}
+    made["snap"] = True
+    path.write_text(json.dumps(made))
+    grid = [round(0.25 + 0.5 * index, 3) for index in range(80)]  # beats at .25, .75, ... in the track's own seconds
+    monkeypatch.setattr(film, "track_beats", lambda project_, track: grid)
+    done = film.timing(film.load(project), "16:9")
+    for scene in done["scenes"][:-1]:
+        assert (scene["end"] * 2) == pytest.approx(round(scene["end"] * 2), abs=0.02)  # on the film's whole and half seconds, where the shifted beats fall
+    bed, start, _ = mix._shaped(np.tile(np.arange(48000 * 40, dtype=float)[:, None], (1, 2)), 48000, "land", start=48000 * 10)
+    assert start == 48000 * 10 and bed[1000, 0] == 48000 * 10 + 1000  # past the click guard, the bed is the track from that sample
+
+
+def test_film_render_writes_the_credit_a_chosen_track_owes(tmp_path, renderer, capsys):
+    from altocue.stock import credits
+
+    project = small_film(tmp_path / "film")
+    ramp_wav(project.root / "assets" / "music" / "tune.wav", seconds=20.0)
+    owed = "Tune by Someone, CC BY 4.0, https://example.test/tune"
+    credits.record(project, file="assets/music/tune.wav", source="ccmixter", source_url="https://example.test/tune", licence="CC-BY-4.0", credit=owed, kind="audio")
+    (project.root / "motion.json").write_text(json.dumps({"music": {"path": "assets/music/tune.wav"}}))
+    assert altocue("film", "render", "-p", str(project.root), "--draft") == 0
+    assert owed in (project.out / "credits.txt").read_text()
+
+
+def test_one_picture_can_change_shape_in_place():
+    size = (1920, 1080)
+    item = scenes._place({"type": "footage", "file": "assets/take.mp4", "zone": "right", "start": 2.0, "end": 5.0, "scene": "a", "shapes": ["16:9", "9:16", "1:1"]}, size)
+    left, top, right, bottom = scenes.zone_box("right", size)
+    for (x, y, w, h), (a, b) in zip(item["boxes"], ((16, 9), (9, 16), (1, 1)), strict=True):
+        assert w / h == pytest.approx(a / b, rel=0.01)
+        assert x >= left * size[0] - 1 and y >= top * size[1] - 1 and x + w <= right * size[0] + 1 and y + h <= bottom * size[1] + 1
+    drawn = scenes._clip(item, default_brand(), 7)
+    assert "@keyframes shape-7" in drawn and "animation:shape-7 3.000s" in drawn
+    assert [label for label in re.findall(r'class="clip footnote"[^>]*><span>([^<]+)</span>', drawn)] == ["16:9", "9:16", "1:1"]
+
+
+def test_a_shape_that_is_not_an_aspect_is_refused():
+    with pytest.raises(AltocueError, match="aspect"):
+        scenes.shape_box("wide", (0, 0, 100, 100))
+
+
+def test_footage_in_a_film_counts_as_a_played_file_for_the_disclosure_gates(tmp_path):
+    from altocue.qa import gates
+
+    project = small_film(tmp_path / "film")
+    timeline = {"scenes": [{"id": "a"}], "items": [{"type": "footage", "file": "generated/take.mp4", "start": 1.0, "end": 4.0}], "inserts": []}
+    context = SimpleNamespace(timeline=timeline, project=project, edl=None, shots=[])
+    assert gates._used_files(context) == [(project.root / "generated" / "take.mp4", [(1.0, 4.0)])]
+
+
+def test_a_quiet_take_draws_lower_bars_than_a_loud_one(tmp_path):
+    at = np.arange(48000 * 2) / 48000
+    quiet = ffmpeg.write_wav(tmp_path / "quiet.wav", 0.02 * np.sin(2 * np.pi * 220 * at), 48000)
+    loud = ffmpeg.write_wav(tmp_path / "loud.wav", 0.4 * np.sin(2 * np.pi * 220 * at), 48000)
+    low, high = film.levels(quiet, 8), film.levels(loud, 8)
+    assert len(low) == len(high) == 8 and all(0 <= value <= 1 for value in low + high)
+    assert max(low) < min(high)
