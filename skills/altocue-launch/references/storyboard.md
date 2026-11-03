@@ -22,6 +22,10 @@ Detail for the `altocue-launch` skill: how to write each part of the storyboard,
 
 **Formats that earn their place.** Hook: `count_up`, `word_slam`. Problem: `notification_stack`, `state_gauge`, `marker`, `strike_replace`. Product: `work_cascade`, `cursor_walk`, `prompt_result`, `floating_device`, `bento_grid`. Payoff: `number_wheel`, `recap_check`, `before_after`. Close: `logo_sting` with `cta`. Run `altocue library search <what you want>` for the rest.
 
+## A real track
+
+With `"snap": true`, cuts move to the track's beats, counted from the top of the file. The film plays the track from its top, or from `"from"` seconds into it, as in `"music": {"path": "assets/music/track.mp3", "from": 12.4}`, so the beats it cuts on are the beats you hear. Pick `from` on a downbeat where the track is already moving. The music fades at the end. Without `snap`, a track is backtimed so its own ending lands on the film's last frame.
+
 ## Motion rules
 
 - **Important text holds about 1.5 s** after it lands, and every graphic gets its reading time at 3 words a second. Count-ups last about a second: set `"run": 1`.

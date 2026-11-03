@@ -25,3 +25,7 @@ The craft notes for each film type, and the checks each one carries for itself. 
 ## One take
 
 Any film can declare `"one_take": {"frames": 720}`: one unbroken move made of segments, at an exact frame count. Every scene but the last names a `seam`, `black` or `white`: what fills the frame as it ends, such as a mouth closing over the lens or a flash of sun. Seams are plain cuts, and each scene's camera stays still. `film check` fails a missing seam, a link at a seam and a length off by a frame. `altocue qa` holds every seam in its colour for ten frames each side, and fails any cut it finds outside a hold. Light seams hold across takes, and object seams often do not. If a segment fails in its last second, move the seam earlier to the nearest black or white.
+
+## Split screen
+
+The zones `half_top` and `half_bottom` are the two halves of the frame, edge to edge. Footage in one is bled to its edges, holds still under every camera, and gets a thin accent line on the seam. Set `"focus": 0.3` to keep a face in the crop, as a share down the picture. Write `"captions": {"place": "seam"}` to centre the captions on that line, large, and clear of the face. Put the graphics in `top` or `bottom`, inside the other half. A presenter who talks across several scenes is one footage item with `"end": {"scene": "last", "from": "end"}` and `"carry": true`.

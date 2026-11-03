@@ -36,6 +36,9 @@ CAPTION_INSET = 28
 FOOTNOTE_LIFT = 104
 LABEL_INSET = 24
 FRAME_CAPTION_SHARE = 0.06  # font size as a share of the frame's width, for one track across the whole frame
+SEAM_CAPTION_SHARE = 0.072  # font size as a share of the frame's width, for captions over the line between two halves
+SEAM_LINE = 4  # pixels. The accent line between two halves
+HALVES = ("half_top", "half_bottom")  # edge to edge, for a split screen: footage in one, graphics in the other
 STEADY = ("corner_stamp", "say_line")  # held still over the camera: a push would carry a line at the foot out of the safe zone
 
 # Named places on the canvas as left, top, right, bottom shares. Left and right stack on a tall canvas, so a two-column scene recomposes instead of cropping.
@@ -53,6 +56,8 @@ ZONES = {
         "phone_b": (0.725, 0.13, 0.96, 0.87),
         "phone": (0.62, 0.07, 0.885, 0.93),
         "foot": (0.05, 0.885, 0.95, 0.945),
+        "half_top": (0.0, 0.0, 1.0, 0.5),
+        "half_bottom": (0.0, 0.5, 1.0, 1.0),
     },
     "tall": {
         "center": (0.07, 0.2, 0.93, 0.78),
@@ -67,6 +72,8 @@ ZONES = {
         "phone_b": (0.51, 0.36, 0.95, 0.8),
         "phone": (0.22, 0.41, 0.78, 0.86),
         "foot": (0.06, 0.73, 0.94, 0.815),
+        "half_top": (0.0, 0.0, 1.0, 0.5),
+        "half_bottom": (0.0, 0.5, 1.0, 1.0),
     },
     "square": {
         "center": (0.08, 0.12, 0.92, 0.88),
@@ -81,6 +88,8 @@ ZONES = {
         "phone_b": (0.52, 0.33, 0.86, 0.93),
         "phone": (0.36, 0.38, 0.64, 0.93),
         "foot": (0.06, 0.83, 0.94, 0.95),
+        "half_top": (0.0, 0.0, 1.0, 0.5),
+        "half_bottom": (0.0, 0.5, 1.0, 1.0),
     },
 }
 
@@ -95,6 +104,7 @@ FILM_CSS = """
 .footage.framed{border-radius:calc(30px * var(--scale));box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 16%,transparent),0 34px 90px #00000080}
 .footnote{display:flex;justify-content:center;font-size:calc(42px * var(--scale));font-weight:600;letter-spacing:-.01em;color:var(--ink)}
 .footnote span{padding:.28em .7em;border-radius:99px;background:color-mix(in srgb,var(--panel) 72%,transparent)}
+.seam{left:0;right:0;background:var(--accent);box-shadow:0 0 18px color-mix(in srgb,var(--accent) 55%,transparent)}
 """
 
 
@@ -133,6 +143,8 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     if item["type"] == "footage":
         at = "head" if bottom > zone_box("foot", size)[1] else "foot"  # captions and lines for the sound off run at the foot
         place = f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"
+        if zone in HALVES:  # the inner edge, where the two halves meet
+            return {**item, "place": place, "label_at": at, "seam": round((top if top > 0 else bottom) * height)}
         return {**item, "place": place, "label_at": at}
     if area == "full":
         return {**item, "place": box}
@@ -358,7 +370,10 @@ def timeline(done: dict[str, Any], *, size: tuple[int, int], fps: int, brand: Br
     """The same shape `altocue render` writes, so every later stage can read a film like any other project."""
     scenes = done["scenes"]
     total = done["total"]
-    items = [_place({**item, "fixed": item.get("fixed", item["type"] in STEADY or bool(item.get("carry")))}, size) for item in done["items"]]
+    def steady(item: dict[str, Any]) -> bool:  # a half sits still under every camera, so its seam stays on its line
+        return bool(item.get("fixed", item["type"] in STEADY or item.get("carry") or item.get("zone") in HALVES))
+
+    items = [_place({**item, "fixed": steady(item)}, size) for item in done["items"]]
     return {
         "width": size[0],
         "height": size[1],
@@ -393,8 +408,9 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
     if item["type"] == "footage":
         attrs = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track}"'
         name = escape(formats.stage_name(item["file"]))
-        place = f' style="{item["place"]}"' if item.get("place") else ""
-        look = "clip footage framed" if item.get("zone") else "clip footage"
+        focus = _focus_style(item.get("focus"))
+        place = f' style="{";".join(part for part in (item.get("place"), focus) if part)}"' if item.get("place") or focus else ""
+        look = "clip footage framed" if item.get("zone") and "seam" not in item else "clip footage"
         trim = f' data-media-start="{float(item["from"]):.3f}"' if item.get("from") else ""
         moving = Path(item["file"]).suffix.lower() in (".mp4", ".mov", ".webm")
         tag = (
@@ -402,6 +418,9 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
             if moving
             else f'<img id="footage-{track}" class="{look}" {attrs}{place} src="{name}" alt="">'
         )
+        if "seam" in item:
+            line = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 2000}"'
+            tag += f'\n<div class="clip seam" {line} style="top:{item["seam"] - SEAM_LINE / 2:.0f}px;height:{SEAM_LINE}px"></div>'
         if not item.get("label"):
             return tag
         timing = f'data-start="{item["start"]:.3f}" data-duration="{item["end"] - item["start"]:.3f}" data-track-index="{track + 1000}"'
@@ -410,6 +429,16 @@ def _clip(item: dict[str, Any], brand: Brand, track: int) -> str:
     made = item_html(item, brand, track)
     extra = item.get("zone_class")
     return made.replace('class="clip ', f'class="clip {extra} ', 1) if extra else made
+
+
+def _focus_style(focus: Any) -> str:
+    """Where a cropped picture holds still: a share down the frame, or [across, down]. The face stays in, whatever the box cuts."""
+    if focus is None:
+        return ""
+    across, down = (0.5, focus) if storyboard.number(focus) else focus
+    if not all(storyboard.number(value) and 0 <= value <= 1 for value in (across, down)):
+        raise AltocueError(f"A footage focus of {focus!r} is not a share of the frame.", fix='Use a number from 0 to 1, such as "focus": 0.3, or [0.5, 0.3].')
+    return f"object-position:{across * 100:.1f}% {down * 100:.1f}%"
 
 
 def _box(item: dict[str, Any]) -> dict[str, float]:
@@ -422,6 +451,7 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
 
     `picture` sets them across the foot of the clip's own picture, sized to its width. `frame` sets one track across the
     foot of the whole frame, where a line for the sound off sits, held still over the camera and large enough for a phone.
+    `seam` centres them on the line between the two halves of a split screen, so they never sit on the presenter's face.
     """
     box = _box(item)
     if len(box) < 4:
@@ -429,6 +459,16 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
     begin = float(item["start"]) - float(item.get("from") or 0)
     said = [{"text": w["text"], "start": begin + float(w["start"]), "end": begin + float(w["end"]), "segment": 0} for w in words]
     inside = [w for w in said if item["start"] - 0.01 <= w["start"] < item["end"] - CAPTION_LAST]
+    if place == "seam":
+        if "seam" not in item:
+            raise AltocueError(f"Captions on the seam need {item.get('file')} in half of the frame.", fix="Give the footage the zone half_top or half_bottom.")
+        font = round(size[0] * SEAM_CAPTION_SHARE, 1)
+        tall = font * 1.12 * 2 + font * 0.7  # room for two lines on their plate, centred on the line
+        left_px, across = size[0] * zone_box("foot", size)[0], size[0] * (1 - 2 * zone_box("foot", size)[0])
+        box = f"left:{left_px:.0f}px;width:{across:.0f}px;right:auto;bottom:auto;top:{item['seam'] - tall / 2:.0f}px;height:{tall:.0f}px"
+        style = f"{box};align-items:center;align-content:center;padding:0;font-size:{font}px"
+        pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
+        return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": style, "size": font, "steady": True} for page in pages]
     if place == "frame":
         left, top, right, bottom = zone_box("foot", size)
         font = round(min((bottom - top) * size[1] * 0.85, size[0] * FRAME_CAPTION_SHARE), 1)
