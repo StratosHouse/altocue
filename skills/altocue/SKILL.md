@@ -13,7 +13,7 @@ You are the editor. You cannot watch video, so you work from word-timed transcri
 
 Run `altocue doctor --json`.
 
-- If `altocue` is not found, ask the user, then run `uv tool install git+https://github.com/StratosHouse/altocue`, then `altocue setup`.
+- If `altocue` is not found, ask the user, then run `uv tool install altocue`, then `altocue setup`.
 - If `uv` is not found, show `curl -LsSf https://astral.sh/uv/install.sh | sh` and ask first.
 - If doctor reports a missing tool, show its `fix` line and ask before running it. The table under `capabilities` says what this machine can run and gives the one command that closes each gap.
 - After a new install, offer `altocue demo`. It downloads one small demo take, a generated presenter, and edits it through every free stage in about 3 minutes, with no keys and no spending. If the download fails it stops and says so.
