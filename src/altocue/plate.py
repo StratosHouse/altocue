@@ -211,9 +211,18 @@ def assemble(project: Project, edl: Edl, c: Canvas, pieces: list[Piece], folder:
     with locks.heavy("building the picture"):
         parts = [_build_piece(project, piece, edl, clips, c, folder) for piece in pieces]
         listing = folder / "list.ffconcat"
-        listing.write_text("ffconcat version 1.0\n" + "\n".join(f"file '{p.name}'" for p in parts) + "\n")
+        ffmpeg.concat_list(listing, parts)
         ffmpeg.run(["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(picture)])
     return picture
+
+
+def same_rate(project: Project, edl: Edl) -> None:
+    """Picture is counted at the output rate, and sound, captions and transitions at the cut's. Two rates drift apart."""
+    if int(edl.fps) != int(project.fps):
+        raise AltocueError(
+            f"The cut is at {edl.fps} fps and the output is set to {project.fps} fps, so sound and picture would drift apart.",
+            fix=f"Set fps = {edl.fps} under [output] in altocue.toml, or run `altocue cut` again at the new rate.",
+        )
 
 
 def build(project: Project, *, draft: bool = False) -> tuple[Path, Path]:
@@ -223,6 +232,7 @@ def build(project: Project, *, draft: bool = False) -> tuple[Path, Path]:
     edl = project.edl()
     if not edl.segments:
         raise AltocueError("The cut is empty.", fix="Run `altocue cut` and check edl.json.")
+    same_rate(project, edl)
     c = canvas(project, draft=draft)
     edits = timelines.picture_edits(project, edl)
     pieces = layout([segment_frames(s, c.fps) for s in edl.segments], edits["transitions"], edits["freezes"])

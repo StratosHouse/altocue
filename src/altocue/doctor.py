@@ -173,6 +173,10 @@ def check_keys() -> list[Check]:
         ("pixabay", "PIXABAY_API_KEY", "free stock B-roll from Pixabay"),
         ("gemini", "GEMINI_API_KEY", "Editor in Chief through Gemini"),
         ("elevenlabs", "ELEVENLABS_API_KEY", "hosted transcription"),
+        ("freesound", "FREESOUND_API_KEY", "sound effects from Freesound"),
+        ("1of10", "ONEOF10_API_KEY", "benchmarks through 1of10"),
+        ("spyglass", "SPYGLASS_API_KEY", "benchmarks through Spyglass"),
+        ("youtube", "YOUTUBE_API_KEY", "a raw YouTube list in benchmark"),
     )
     return [Check(name, bool(os.environ.get(env)), False, f"{env} {'set' if os.environ.get(env) else 'not set'}: {use}") for name, env, use in keys]
 
@@ -277,6 +281,10 @@ def capabilities(core: list[Check] | None = None) -> list[Capability]:
         key("PEXELS_API_KEY", "Stock from Pexels"),
         key("FAL_KEY", "Generation through fal.ai"),
         tool("higgsfield", "Generation through Higgsfield", "npm install -g @higgsfield/cli"),
+        key("FREESOUND_API_KEY", "Sound effects from Freesound"),
+        key("ONEOF10_API_KEY", "Benchmarks through 1of10"),
+        key("SPYGLASS_API_KEY", "Benchmarks through Spyglass"),
+        key("YOUTUBE_API_KEY", "A raw YouTube list in benchmark"),
     ]
 
 

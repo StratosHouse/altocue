@@ -48,16 +48,17 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 
 ## Install
 
-You need [uv](https://docs.astral.sh/uv/) and ffmpeg. Stock Homebrew or apt ffmpeg is fine. On Linux, add tesseract so QA can read text in the picture. Motion graphics and films need Node 22 or later. 16 GB of memory is comfortable, and it needs about 3.5 GB of disk: 2.5 GB for the speech model, the rest for the tool and its renderer.
+You need [uv](https://docs.astral.sh/uv/) and ffmpeg. Stock Homebrew or apt ffmpeg is fine. On a Mac, install the Xcode command line tools, as below: QA reads text in the picture through them, and Apple voice isolation needs them. On Linux, or on a Mac without them, add tesseract so QA can read text in the picture. Motion graphics and films need Node 22 or later. 16 GB of memory is comfortable. Keep 5 GB of disk free: 2.5 GB goes to the speech model, about 0.3 GB to the renderer, and each render needs room. `altocue doctor` warns under that, and transcription will not start.
 
 ```bash
+xcode-select --install   # on a Mac, once, unless xcode-select -p already finds them
 uv tool install altocue
 altocue setup
 ```
 
 `setup` asks before it installs anything: the motion renderer, and a better noise remover where the Mac has no voice isolation built in. Both are optional. `altocue setup --yes` says yes to both.
 
-Graphics render offline. Altocue's formats use only the fonts it ships, and `altocue library add` embeds the fonts a fetched item names, so the network is needed only to fetch.
+Renders work offline, with two exceptions. Altocue's formats use only the fonts it ships, and `altocue library add` embeds the fonts a fetched item names. A face it could not embed, which `library add` names, is fetched at render time when the cache does not have it yet. If `setup` could not fetch headless Chrome, the first render fetches it.
 
 **Prove it works:**
 
@@ -102,7 +103,7 @@ altocue run
 
 - **Edit by transcript.** `script.md` holds every sentence. Keep, remove or reorder them, then run `altocue cut --from-script`. Gain, crops, zooms and order you set by hand survive a re-cut, and anything lost is reported.
 - **See the edit on a timeline.** `altocue timeline -p .` shows the cut, captions, every graphic, the inserts and the voice, music and effects in the HyperFrames studio, at a local address it prints. Nothing else opens. The studio is a view: change `edl.json` or `motion.json`, then run it again. Stop it with `altocue timeline --stop`.
-- **Check it anywhere.** `altocue review --page` writes one file you can open anywhere, even on a phone: the film beside every gate, note and caption. A click on a note jumps there. It opens nothing unless you pass `--open`.
+- **Check it anywhere.** `altocue review --page` writes one file you open yourself, with no server: the film beside every gate, note and caption. A click on a note jumps there. It prints the path and opens nothing.
 - **Know where you are.** `altocue status` shows what is done, what is stale and what comes next.
 
 ## The tools
@@ -120,7 +121,7 @@ altocue run
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/direct-tile.svg" width="56" alt=""><br><strong>Direct</strong><br>Story shape, beats, keyframes and shot lists, with the craft rules built in.</td>
-    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/generate-tile.svg" width="56" alt=""><br><strong>Generate</strong><br>Inserts through Higgsfield and fal.ai, behind a spend gate that also covers the MCP route. Every asset keeps its provenance, and <code>altocue recipes</code> shows what each hosted command costs before anything runs.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/generate-tile.svg" width="56" alt=""><br><strong>Generate</strong><br>Inserts through Higgsfield and fal.ai, behind a spend gate that also covers the MCP route when the agent reserves first. Every asset keeps its provenance, and <code>altocue recipes</code> shows what each hosted command costs before anything runs.</td>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/broll-tile.svg" width="56" alt=""><br><strong>B-roll</strong><br>Finds the spots that want a cutaway, then fills them from your clips, free stock with no key, or generation.</td>
   </tr>
   <tr>
@@ -204,7 +205,7 @@ Films that need real footage run on the editing stages: a reel in the style of o
 
 <div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/flow.png" alt="Footage goes through transcribe, clips, cut, clean, grade, frame, B-roll, direct, generate, sound, caption and motion. The library feeds the graphics. A film with no footage starts at render. Then master, QA gates, the Editor in Chief and the verdict. FIX notes go back to you or your agent. Passes go on to deliver and data." width="100%"></div>
 
-Every stage reads and writes plain files, so you or your agent can step in anywhere. The picture and sound edit is built with ffmpeg. Graphics render as a transparent layer on top, so changing a caption never re-encodes the edit. Altocue never launches a third-party application. The timeline view is the HyperFrames studio at a local address, and a browser opens only when you ask.
+Every stage reads and writes plain files, so you or your agent can step in anywhere. The picture and sound edit is built with ffmpeg. Graphics render as a transparent layer on top, so changing a caption never re-encodes the edit. Altocue never opens an application window, an editor or a browser on its own. The one exception is `altocue timeline`, which starts the HyperFrames studio and prints its local address. Some steps run command-line tools in the background, with no window: ffmpeg, headless Chrome inside a render, npm during setup, and the codex and higgsfield CLIs when you choose them.
 
 ## The Editor in Chief
 
@@ -262,7 +263,7 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **A tall take makes a tight wide version.** Captions can land on the face, and the gates will say so. B-roll in a platform version gets a centre crop.
 - **Fetched blocks are not rescaled.** A 16:9 block in a 9:16 film is clipped, audio inside a fetched block is not mixed, and seven kept items carry placeholder HyperFrames logos.
 - **The spend cap is one budget for the project.** Runs, reservations and imports all count. On the MCP route an agent spends, not Altocue, so the cap holds only if the agent reserves first. An import with no reservation is named in the report.
-- **Project footage stays off Higgsfield until the project agrees.** Its terms, updated October 23, 2026, allow training on uploads without an Enterprise Agreement. The MCP server itself cannot be gated, so Altocue refuses to reserve or import an uploading recipe without that yes.
+- **Project footage stays off Higgsfield until the project agrees.** Its terms, updated October 23, 2026, allow training on uploads without an Enterprise Agreement. The MCP server itself cannot be gated, so Altocue refuses to reserve or import an uploading recipe, or a shot listed in `shots.json` that sends project files, without that yes. A recipe is checked against Higgsfield whatever provider is named.
 - **A generated person may not claim experience.** The claims and disclosure gates read flags and words. They are checks, not legal advice, and they miss a generated person nobody flagged. An exemption is recorded, not judged.
 - **Lip closure is not measured.** `altocue qa --check ugc` leaves a sheet of frames for a person.
 - **Credit prices are planning figures.** Most known prices date from October 8, 2026, and 18 of the 37 recipes have no known price.

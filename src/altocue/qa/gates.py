@@ -25,6 +25,7 @@ from . import edges, faces, flashes, ocr, rules
 NOT_APPLICABLE = "n/a"
 
 LOUDNESS_TOLERANCE = 1.0
+SILENT_LUFS = -70.0  # ebur128 reports digital silence at its floor of -70
 PEAK_TOLERANCE = 0.5  # the limiter aims under the ceiling; AAC may overshoot a little
 BLACK_FILTER = "blackdetect=d=0.01:pix_th=0.03"  # d under one frame at 60 fps, so a single black frame shows
 FREEZE_FILTER = "freezedetect=n=-60dB:d=0.5"
@@ -291,25 +292,27 @@ def gate_loudness(c: Context) -> list[GateResult]:
     target, peak_target = master.project_target(c.project)
     ceiling = peak_target + PEAK_TOLERANCE
     band = f"{target:g} LUFS +/- {LOUDNESS_TOLERANCE:g}"
-    try:
-        had_sound = any(clip.has_audio for clip in c.project.clips())
-    except AltocueError:
-        had_sound = True
+
+    def nothing_to_hear() -> bool:
+        return master.no_sound_in(c.project)  # decided from the mix, as master decides it
+
     if c.audio is None:
-        if not had_sound:
-            return [not_applicable(g, "No clip in this project has sound.") for g in ("loudness", "true_peak")]
+        if nothing_to_hear():
+            return [not_applicable(g, "This film has nothing to hear.") for g in ("loudness", "true_peak")]
         return [GateResult(id=g, passed=False, detail="The file has no audio stream.") for g in ("loudness", "true_peak")]
     try:
         measured = ffmpeg.loudness(c.file)
     except AltocueError:
-        if not had_sound:
-            return [not_applicable(g, "No clip in this project has sound.") for g in ("loudness", "true_peak")]
+        if nothing_to_hear():
+            return [not_applicable(g, "This film has nothing to hear.") for g in ("loudness", "true_peak")]
         why = "The sound track measures as silent."
         return [
             GateResult(id="loudness", passed=False, threshold=band, detail=why),
             GateResult(id="true_peak", passed=False, threshold=ceiling, detail=why),
         ]
     level, peak = measured["integrated"], measured["true_peak"]
+    if level <= SILENT_LUFS and nothing_to_hear():
+        return [not_applicable(g, "This film has nothing to hear.") for g in ("loudness", "true_peak")]
     return [
         GateResult(
             id="loudness",
@@ -993,52 +996,83 @@ def _shot_list(project: Project) -> dict[str, dict[str, Any]]:
     return {str(row["id"]): row for row in rows if isinstance(row, dict) and row.get("id")}
 
 
-def _same_file(path: Path, target: Path, digest: str) -> bool:
-    """The same bytes count, because a source is often the download an import was copied from."""
+def _same_file(path: Path, target: Path, digest: str, ids: set[str] | None = None) -> bool:
+    """The same file, the same bytes, or a file Altocue made from it: a trim, an upscale or a re-encode carries its provenance id."""
     if not path.is_file():
         return False
     if path.resolve() == target.resolve():
         return True
     from ..generate import store
 
+    if ids and ids & store.lineage(store.read_provenance(path)):
+        return True
     return store.sha256(path) == digest
 
 
-def _placed(c: Context, shot: str, asset: Path, digest: str) -> list[tuple[float, float]] | None:
-    """Where a shot is in the edit: inserts, plus every segment cut from it as a source."""
+def _used_files(c: Context) -> list[tuple[Path, list[tuple[float, float]]]]:
+    """Every file the edit plays, with the output seconds it covers."""
+    found: list[tuple[Path, list[tuple[float, float]]]] = []
+    for item in (c.timeline or {}).get("inserts", []):
+        found.append((c.project.root / item["file"], [(float(item["start"]), float(item["end"]))]))
+    try:
+        clips = {clip.id: Path(clip.path) for clip in c.project.clips()}
+    except AltocueError:
+        clips = {}
+    if clips and c.edl:
+        for clip, path in clips.items():
+            spans = [(at.start, at.end) for at, segment in zip(c.shots, c.edl.segments, strict=True) if segment.clip == clip]
+            if spans:
+                found.append((path, spans))
+    return found
+
+
+def _placed(c: Context, shot: str, asset: Path, digest: str, ids: set[str] | None = None) -> list[tuple[float, float]] | None:
+    """Where a shot is in the edit: inserts, plus every segment cut from it as a source, by path, bytes or provenance id."""
     if c.edl is None and c.timeline is None:
         return None
-    root = c.project.root
     spans = []
     for item in (c.timeline or {}).get("inserts", []):
-        chosen = item.get("source") == "generated" and item.get("title") == shot
-        if chosen or _same_file(root / item["file"], asset, digest):
+        if item.get("source") == "generated" and item.get("title") == shot:
             spans.append((float(item["start"]), float(item["end"])))
-    try:
-        clips = {clip.id for clip in c.project.clips() if _same_file(Path(clip.path), asset, digest)}
-    except AltocueError:
-        clips = set()
-    if clips and c.edl:
-        spans += [(shot_at.start, shot_at.end) for shot_at, segment in zip(c.shots, c.edl.segments, strict=True) if segment.clip in clips]
+    for path, used in _used_files(c):
+        if _same_file(path, asset, digest, ids):
+            spans += [span for span in used if span not in spans]
     return spans
 
 
+def _lines(row: dict[str, Any], data: dict[str, Any]) -> dict[str, str]:
+    return {"script": str(row.get("script") or data.get("script") or ""), "prompt": str(row.get("prompt") or data.get("prompt") or "")}
+
+
 def cast(c: Context) -> list[Performer]:
-    """Every synthetic person the project knows about, with where each one falls in the edit."""
+    """Every synthetic person the project knows about, with where each one falls in the edit.
+
+    A person is found through the manifest, and also through the provenance a played file carries. So a trim, an upscale
+    or a re-encode made by Altocue is still the generated person, even in a project whose manifest never saw it.
+    """
     if c._cast is not None:
         return c._cast
     from ..generate import store
 
     listed = _shot_list(c.project)
     found: list[Performer] = []
+    known: set[str] = set()
     for shot, entry in store.read_manifest(c.project).items():
         sidecar = c.project.root / entry["provenance"]
         data = json.loads(sidecar.read_text()) if sidecar.exists() else {}
         row = listed.get(shot, {})
         if "person" not in {*(data.get("synthetic") or []), *(row.get("synthetic") or [])}:
             continue
-        lines = {"script": str(row.get("script") or data.get("script") or ""), "prompt": str(row.get("prompt") or data.get("prompt") or "")}
-        found.append(Performer(shot, lines, _placed(c, shot, c.project.root / entry["asset"], str(data.get("sha256", "")))))
+        ids = store.lineage(data)
+        known |= ids
+        found.append(Performer(shot, _lines(row, data), _placed(c, shot, c.project.root / entry["asset"], str(data.get("sha256", "")), ids)))
+    if c.edl is not None or c.timeline is not None:
+        for path, spans in _used_files(c):
+            data = store.read_provenance(path) or {}
+            if "person" in (data.get("synthetic") or []) and not store.lineage(data) & known:
+                known |= store.lineage(data)
+                name = str(data.get("shot") or path.name)
+                found.append(Performer(name, _lines(listed.get(name, {}), data), spans))
     c._cast = found
     return found
 

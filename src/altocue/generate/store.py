@@ -5,7 +5,10 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import math
 import os
+import socket
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -121,7 +124,36 @@ def provenance_path(asset: Path) -> Path:
 
 
 def write_provenance(asset: Path, data: dict[str, Any]) -> Path:
-    return atomic_json(provenance_path(asset), {"asset": asset.name, "sha256": sha256(asset), **data})
+    """Every asset gets a provenance id. A file Altocue makes from it later carries that id, so the honesty gates can follow it."""
+    return atomic_json(provenance_path(asset), {"asset": asset.name, "sha256": sha256(asset), "provenance_id": uuid.uuid4().hex, **data})
+
+
+def read_provenance(path: Path) -> dict[str, Any] | None:
+    """The provenance beside a file, or beside the file a link points to."""
+    sidecar = provenance_path(Path(path).resolve())
+    try:
+        data = json.loads(sidecar.read_text()) if sidecar.is_file() else None
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def lineage(data: dict[str, Any] | None) -> set[str]:
+    """Every provenance id a file stands for: its own, and each one it was made from. An older record with no id goes by its bytes."""
+    if not data:
+        return set()
+    own = data.get("provenance_id") or data.get("sha256")
+    return {str(item) for item in [own, *(data.get("derived_from") or [])] if item}
+
+
+def carry_provenance(source: Path, dest: Path, how: str) -> Path | None:
+    """A trim, upscale or re-encode of a generated file is still that file, so its record goes with it."""
+    data = read_provenance(source)
+    if data is None:
+        return None
+    keep = {key: data[key] for key in ("shot", "purpose", "kind", "prompt", "script", "provider", "model", "synthetic", "consent", "claims") if key in data}
+    made = {**keep, "made_by": how, "made_from": Path(source).name, "derived_from": sorted(lineage(data)), "date": now()}
+    return write_provenance(Path(dest), made)
 
 
 def ledger_path(project: Project) -> Path:
@@ -142,9 +174,36 @@ def log_spend(project: Project, row: dict[str, Any]) -> None:
         ledger.write(json.dumps({"t": now(), **row}, ensure_ascii=False) + "\n")
 
 
+def usd(value: Any) -> float:
+    """One booked figure. A negative or unreadable one becomes NaN, so the total it joins fails closed at the gate."""
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        return math.nan
+    return number if number >= 0 else math.nan
+
+
 def spent_usd(project: Project) -> float:
+    """Every ledger row, less a cancelled job the provider's billing showed was not charged."""
     path = ledger_path(project)
-    return sum(float(json.loads(line).get("usd") or 0) for line in path.read_text().splitlines()) if path.exists() else 0.0
+    rows = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    return sum(usd(row.get("usd")) for row in rows if not row.get("not_billed"))
+
+
+def clear_canceled(project: Project, shot: str) -> list[dict[str, Any]]:
+    """Call inside `booking`. Marks this shot's cancelled jobs as not billed, and returns them."""
+    path = ledger_path(project)
+    if not path.exists():
+        return []
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    cleared = [row for row in rows if row.get("shot") == shot and row.get("may_be_billed") and not row.get("not_billed")]
+    for row in cleared:
+        row["not_billed"] = now()
+    if cleared:
+        part = path.with_name(path.name + ".tmp")
+        part.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
+        os.replace(part, path)
+    return cleared
 
 
 def in_flight_usd(project: Project) -> float:
@@ -153,7 +212,7 @@ def in_flight_usd(project: Project) -> float:
     if not folder.exists():
         return 0.0
     records = [json.loads(path.read_text()) for path in folder.glob("*.json")]
-    return sum(float(record.get("cost_usd") or 0) for record in records if record.get("state") in BILLED_STATES)
+    return sum(usd(record.get("cost_usd")) for record in records if record.get("state") in BILLED_STATES)
 
 
 def reservations_path(project: Project) -> Path:
@@ -174,12 +233,62 @@ def open_reservation(project: Project, shot: str) -> dict[str, Any] | None:
 
 
 def reserved_usd(project: Project) -> float:
-    return sum(float(row["usd"]) for row in read_reservations(project) if row["state"] == "open")
+    return sum(usd(row["usd"]) for row in read_reservations(project) if row["state"] == "open")
+
+
+def holds_path(project: Project) -> Path:
+    return generated_dir(project) / "holds.json"
+
+
+def read_holds(project: Project) -> list[dict[str, Any]]:
+    path = holds_path(project)
+    return json.loads(path.read_text())["holds"] if path.exists() else []
+
+
+def _alive(row: dict[str, Any]) -> bool:
+    """A hold counts while the run that took it is alive. One on another machine always counts, because it cannot be checked."""
+    if row.get("host") != socket.gethostname():
+        return True
+    try:
+        os.kill(int(row["pid"]), 0)
+    except ProcessLookupError:
+        return False
+    except (OSError, KeyError, TypeError, ValueError):
+        return True
+    return True
+
+
+def held_usd(project: Project) -> float:
+    """What running `generate` runs have booked and not yet sent. A run that died sent nothing more, so its hold no longer counts."""
+    return sum(usd(row["usd"]) for row in read_holds(project) if row["state"] == "open" and _alive(row))
+
+
+def open_hold(project: Project, run: str, amount: float) -> None:
+    """Call inside `booking`. A run books its whole estimate before any job is sent."""
+    rows = [row for row in read_holds(project) if _alive(row)]
+    rows.append({"run": run, "state": "open", "usd": round(amount, 6), "pid": os.getpid(), "host": socket.gethostname(), "at": now()})
+    atomic_json(holds_path(project), {"holds": rows})
+
+
+def draw_hold(project: Project, run: str, amount: float) -> None:
+    """Call inside `booking`, with the job record that now counts this money as in flight."""
+    rows = read_holds(project)
+    for row in rows:
+        if row["run"] == run and row["state"] == "open":
+            row["usd"] = round(max(usd(row["usd"]) - amount, 0.0), 6)
+    atomic_json(holds_path(project), {"holds": rows})
+
+
+def close_hold(project: Project, run: str) -> None:
+    """Call inside `booking`. What the run did not send goes back to the cap."""
+    path = holds_path(project)
+    if path.exists():
+        atomic_json(path, {"holds": [row for row in read_holds(project) if row["run"] != run and _alive(row)]})
 
 
 def committed_usd(project: Project) -> float:
-    """Everything the cap has to count: spent, running, and promised to a reservation."""
-    return round(spent_usd(project) + in_flight_usd(project) + reserved_usd(project), 6)
+    """Everything the cap has to count: spent, running, promised to a reservation, and held by a run that has not sent it yet."""
+    return round(spent_usd(project) + in_flight_usd(project) + reserved_usd(project) + held_usd(project), 6)
 
 
 @contextmanager

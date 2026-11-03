@@ -99,7 +99,7 @@ altocue film stills --aspect 1:1
 
 `film check` must show no errors. It tests the brief, lengths, known formats, copy limits, every must-show and search term, every beat covered, hold and reading times, the hook by 3 s, and the limit of three flashes a second from WCAG 2.2.
 
-`film stills` renders one still per scene and a contact sheet, reports anything off canvas or overlapping, and measures text size and contrast on the still. **Open the contact sheet and look at every frame before any full render.** State what you see before you change anything.
+`film stills` renders one still per scene and a contact sheet, reports anything off canvas or overlapping, and measures text size and contrast on the still. **View the contact sheet with your own file-reading tool, never by launching an app, and look at every frame before any full render.** State what you see before you change anything.
 
 ## 8. Fix by the symptom
 

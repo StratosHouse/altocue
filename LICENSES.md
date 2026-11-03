@@ -1,6 +1,6 @@
 # Licences
 
-Altocue's own code is MIT. Nothing it needs charges a licence fee, so a team of any size can use it without buying anything. The one part that is not open source is GSAP, noted below.
+Altocue's own code is MIT. Nothing it needs charges a licence fee, so a team of any size can use it without buying anything. Two things `altocue setup` installs are free to use but not open source: GSAP, inside HyperFrames, and headless Chrome for Testing, under Google's terms. Both are noted below.
 
 ## Required
 
@@ -23,12 +23,12 @@ Altocue's own code is MIT. Nothing it needs charges a licence fee, so a team of 
 | Music stings: Music Jingles | CC0 1.0 | Kenney, in `src/altocue/data/music/`. See its `README.md` |
 | Whooshes 1795, 1796, 1800 and 1801 | CC0 1.0 | BigSoundBank, by Joseph Sardin, in `src/altocue/data/sfx/` |
 | 12 shader transitions | MIT, text in `src/altocue/data/transitions/LICENSE` | gl-transitions contributors, in `src/altocue/data/transitions/`, each file's header kept |
-| Country and land outlines | Public domain | Natural Earth 1:110m, packaged by world-atlas (ISC), in `src/altocue/data/maps/` |
+| Country and land outlines | Public domain shapes. The world-atlas packaging is ISC, text in `src/altocue/data/maps/LICENSE` | Natural Earth 1:110m, packaged by world-atlas, copyright 2013-2019 Michael Bostock, in `src/altocue/data/maps/` |
 
 - **Kenney is credited by name only, never the logo.** Credit is optional under CC0, and we give it.
 - **BigSoundBank warns that third parties can file wrong Content ID claims on its CC0 sounds.** Its page gives a dispute link.
 - **The shader notice.** Copyright (c) 2017-present gl-transitions contributors. Named authors in the twelve headers: rectalogic, mikolalysenko, Anastasia Dunbar, gre, Gunnar Roth, 0gust1, Sergey Kosarevsky, pschroen and Ben Zhang. `gl-luminance-melt` also carries code by Ian McEwan and Ashima Arts, under MIT.
-- **Looks, overlays, film backdrops, formats and the film score are original code.** Nothing third party is bundled for them.
+- **Looks, overlays, film backdrops, formats, the film score and the two bundled compositions are original code.** The compositions are `ascii-tunnel` and `particle-flow`, in `src/altocue/data/compositions/`. Nothing third party is bundled for any of them.
 - **The review page embeds Geist,** which is already bundled above.
 - **The demo take is ours.** `altocue demo` downloads it at run time. It is not in the repo.
 

@@ -30,7 +30,7 @@ Altocue turns raw footage, a long recording or a brief into a finished video fro
 - **Never spend money silently.** Every paid generation shows its cost first and needs a yes.
 - **Never upload silently.** Every hosted step names where the footage is going.
 - **Never claim a check that did not run.**
-- **Never start a third-party application.** Altocue writes files and prints their paths. The timeline view is the HyperFrames studio at a local address it prints. A browser opens only for `--open`.
+- **Never open a window.** Altocue writes files and prints their paths. It never opens an application window, an editor or a browser on its own. The one exception is `altocue timeline`, which starts the HyperFrames studio at a local address it prints. Background command-line tools with no window are fine: ffmpeg, headless Chrome inside a render, npm during setup, and the codex and higgsfield CLIs when chosen.
 - **Never predict.** The data stages measure, compare and learn. There is no virality score.
 
 ## The pipeline
@@ -179,7 +179,7 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Built-ins are read live.** The catalog lists formats from this install, so a new format is in the library without a rebuild.
 - **A licence gate and a deny list.** An item without an allowed licence, or one that rebuilds a brand, is refused, and the reason is kept. Excluded sources stay listed with their reason.
 - **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it.
-- **A render needs no network.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`.
+- **A render works offline.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`. Two exceptions: a face `library add` could not embed is fetched at render time when the cache lacks it, and headless Chrome is fetched on the first render if setup missed it.
 
 ## Films with no footage
 

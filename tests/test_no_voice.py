@@ -229,6 +229,16 @@ def test_a_stated_offset_moves_a_sound(tmp_path):
     assert np.argmax(np.abs(out) > 0.001) == pytest.approx(0.96 * RATE, abs=240)
 
 
+@pytest.mark.parametrize("with_voice", [False, True])
+def test_an_effect_its_offset_pushes_past_the_end_is_clipped_not_a_crash(tmp_path, with_voice):
+    """Only `at` was checked against the film, so an offset past the end broke the mix with a numpy broadcast error."""
+    voice = ffmpeg.write_wav(tmp_path / "voice.wav", tone(2, 200, 0.2), RATE) if with_voice else None
+    cues = [{"file": str(click(tmp_path)), "at": 1.9, "offset_ms": 300}, {"file": str(click(tmp_path, "late.wav")), "at": 1.99, "offset_ms": 5}]
+    out = mix.mix_bed(voice, tmp_path / "mix.wav", sfx=cues, seconds=None if with_voice else 2.0)
+    assert len(stereo(out)) == 2 * RATE
+    assert [row["cut_at_end"] for row in report(out)["sfx"]] == [True, True]
+
+
 def test_an_unknown_alignment_is_refused(tmp_path):
     with pytest.raises(AltocueError) as caught:
         mix.mix_bed(None, tmp_path / "mix.wav", sfx=[{"name": "pop", "at": 1.0, "align": "middle"}], seconds=2.0)

@@ -16,7 +16,7 @@ B-roll covers the picture while the voice keeps playing. Use it to show what is 
 - **Keep the speaker on screen.** `[broll] share` defaults to 0.3 of the runtime. QA fails anything over 0.4.
 - **Real footage beats stock.** Search the user's own clips first.
 - **Own footage by default.** Stock and the user's clips sit inside an edit they made. [evidence] Someone else's show, or shorts from other sites, stay reused content on YouTube even with permission. See [the platform rules](../altocue/references/platform-rules.md).
-- **Look before you pick.** Open `work/broll/sheet.jpg`. Never choose from a title.
+- **Look before you pick.** View `work/broll/sheet.jpg` with your own file-reading tool, never by launching an app. Never choose from a title.
 - **Get a yes before searching stock.** The search words go to the stock site, and they come from the transcript. Footage never leaves the machine.
 - **Read the licence before you pick.** `work/broll-review.md` shows each option's licence and whether a credit is owed.
 
@@ -33,7 +33,7 @@ B-roll covers the picture while the voice keeps playing. Use it to show what is 
    altocue broll --search auto
    ```
    `auto` tries Pixabay when `PIXABAY_API_KEY` is set, then NASA and Wikimedia Commons, then photos from The Met, Cleveland, NASA and Commons. It works on a fresh install with no key. A source that fails is skipped and named. Name one source to go straight to it, such as `--search nasa`. Add `--kind photo` or `--kind video` to narrow it. Use `--search pexels` only if the user already has a Pexels key.
-5. Open `work/broll/sheet.jpg`. Every option is labelled, such as `b1 c2`.
+5. View `work/broll/sheet.jpg` with your own file-reading tool, never by launching an app. Every option is labelled, such as `b1 c2`.
 6. Pick. Each spot takes one option, a generated shot, any file, or a skip:
    ```bash
    altocue broll --pick b1=c2 b2=skip b3=shot:shot-1 b4=file:clips/desk.mp4

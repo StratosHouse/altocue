@@ -138,15 +138,12 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--editor-vendor", help="Who made the edit, to label independence: anthropic, openai, google")
     parser.add_argument("--reset-rounds", action="store_true", help="Forget the fix rounds and start again")
     parser.add_argument("--page", action="store_true", help="Write review/page.html and print its path: the film beside its gates, notes and captions")
-    parser.add_argument("--open", dest="open_page", action="store_true", help="With --page, also open it in your browser. Nothing opens without this")
 
 
-def write_page(project: Project, file: Path, *, opening: bool) -> int:
-    """A view of what was saved. It runs no gate, calls no reviewer and writes no verdict."""
+def write_page(project: Project, file: Path) -> int:
+    """A view of what was saved. It runs no gate, calls no reviewer and writes no verdict. It prints the path and opens nothing."""
     target = page.write(project, file)
     print(f"Review page: {target}")
-    if opening and not page.show(target):
-        print("Could not open a browser here. Open it yourself: it is one file and needs no server.")
     return 0
 
 
@@ -154,7 +151,7 @@ def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     file = qa.resolve(project, args.file, "final")
     if getattr(args, "page", False):
-        return write_page(project, file, opening=args.open_page)
+        return write_page(project, file)
     if not args.file and project.edl_path.exists() and project.edl_path.stat().st_mtime > file.stat().st_mtime:
         raise AltocueError(f"{file.name} is older than the cut.", fix="Run `altocue run`, then `altocue review`.")
     if args.reset_rounds:

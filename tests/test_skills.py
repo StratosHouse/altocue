@@ -320,6 +320,16 @@ def planted(text: str) -> list[str]:
     return problems_in(text, flags=every_flag(), stages={})
 
 
+OPEN_A_FILE = re.compile(r"\b[Oo]pen (?:`[^`]+\.(?:jpe?g|png|gif|html|mp4|mov)`|the (?:frames|contact sheet|thumbnail sheet)|a frame)")
+
+
+@pytest.mark.parametrize("path", EVERY, ids=lambda p: str(p.relative_to(SKILLS)))
+def test_a_skill_never_tells_the_agent_to_open_an_image(path):
+    """On a Mac an agent told to open a file may run `open`, which starts Preview. Altocue never opens a window."""
+    found = OPEN_A_FILE.search(path.read_text())
+    assert not found, f"{path}: {found.group(0) if found else ''}. Say view it with your own file-reading tool."
+
+
 def test_a_missing_stage_is_caught():
     assert planted("Run `altocue export --to fcpxml`.") == ["altocue export: no such stage"]
 

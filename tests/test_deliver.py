@@ -18,6 +18,7 @@ from altocue.errors import AltocueError
 from altocue.ingest import ingest
 from altocue.models import Edl, Segment, Word
 from altocue.project import Project
+from altocue.qa import gates
 
 OPENING = "Most films lose people in the first three seconds."
 CLOSING = "So we cut the slow start and kept going."
@@ -39,6 +40,14 @@ def finished(tmp_path: Path) -> Project:
     project.save_edl(Edl(fps=30, segments=[Segment(id="s001", clip=clip.id, start=0.0, end=2.0), Segment(id="s002", clip=clip.id, start=2.2, end=3.7)]))
     render.build(project, renderer="basic")
     master.master_file(project.out / "render.mp4", project.out / "final.mp4")
+    return ship(project)
+
+
+def ship(project: Project, verdict: str = "SHIP") -> Project:
+    """What `altocue review` saves when code passes this exact film."""
+    digest = hashlib.sha256((project.out / "final.mp4").read_bytes()).hexdigest()
+    project.review_dir.mkdir(parents=True, exist_ok=True)
+    (project.review_dir / "report.json").write_text(json.dumps({"verdict": verdict, "file_sha256": digest, "reasons": []}))
     return project
 
 
@@ -312,6 +321,7 @@ def test_a_matching_platform_reuses_the_picture(finished, monkeypatch):
     (finished.root / "altocue.toml").write_text((finished.root / "altocue.toml").read_text().replace('aspect = "9:16"', 'aspect = "9:16"\nplatform = "reels"'))
     render.build(Project.open(finished.root), renderer="basic")
     master.master_file(finished.out / "render.mp4", finished.out / "final.mp4")
+    ship(finished)
     monkeypatch.setattr(deliver, "render_version", lambda version, renderer: pytest.fail("the master already fits, so nothing needs rendering"))
     assert main(["deliver", "-p", str(finished.root), "--for", "reels", "--renderer", "basic"]) in (0, 1)
     assert (finished.root / "deliver" / "reels.mp4").exists()
@@ -353,6 +363,100 @@ def test_deliver_refuses_a_film_older_than_the_cut(finished, capsys):
     assert "older than the cut" in capsys.readouterr().err
 
 
+def test_deliver_refuses_a_film_no_reviewer_passed(finished, capsys):
+    (finished.review_dir / "report.json").unlink()
+    assert main(["deliver", "-p", str(finished.root)]) == 1
+    err = capsys.readouterr().err
+    assert "SHIP" in err and "--override" in err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_deliver_refuses_a_fix_verdict(finished, capsys):
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root)]) == 1
+    assert "FIX" in capsys.readouterr().err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_deliver_refuses_a_ship_for_another_render(finished, capsys):
+    saved = json.loads((finished.review_dir / "report.json").read_text())
+    (finished.review_dir / "report.json").write_text(json.dumps({**saved, "file_sha256": "0" * 64}))
+    assert main(["deliver", "-p", str(finished.root)]) == 1
+    assert "another render" in capsys.readouterr().err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_a_ship_is_written_into_the_report(finished):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    signoff = json.loads((finished.root / "deliver" / "deliver.json").read_text())["signoff"]
+    assert signoff["verdict"] == "SHIP" and signoff["override"] is None
+    assert signoff["file_sha256"] == hashlib.sha256((finished.out / "final.mp4").read_bytes()).hexdigest()
+
+
+def test_an_override_is_a_flag_that_is_printed_and_written_into_the_report(finished, capsys):
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root), "--override", "Client asked for a rough cut to look at"]) == 0
+    out = capsys.readouterr().out
+    assert "Override" in out and "Client asked for a rough cut to look at" in out and "FIX" in out
+    signoff = json.loads((finished.root / "deliver" / "deliver.json").read_text())["signoff"]
+    assert signoff == {**signoff, "verdict": "FIX", "override": "Client asked for a rough cut to look at"}
+
+
+def test_an_empty_override_is_not_a_reason(finished, capsys):
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root), "--override", "  "]) == 1
+    assert not (finished.root / "deliver").exists()
+
+
+def place_a_generated_person(project: Project, script: str) -> None:
+    """The film's own take, registered as a generated person, so the honesty gates find it in the cut."""
+    from altocue.generate import store
+
+    take = Path(project.clips()[0].path)
+    asset = store.generated_dir(project) / "host-1.mp4"
+    asset.parent.mkdir(parents=True, exist_ok=True)
+    asset.write_bytes(take.read_bytes())
+    store.write_provenance(asset, {"shot": "host", "synthetic": ["person"], "script": script, "prompt": "A presenter"})
+    store.record_asset(project, "host", asset=asset, digest="abc", imported=True, check_passed=None, meta={"synthetic": ["person"]})
+
+
+@pytest.mark.parametrize("verdict", ["SHIP", "FIX"])
+def test_claims_cannot_be_overridden(finished, capsys, monkeypatch, verdict):
+    monkeypatch.setattr(gates, "transcribe", lambda *_: (None, "No transcriber in this test."))
+    place_a_generated_person(finished, "I bought this last week and it changed my life.")
+    ship(finished, verdict)
+    assert main(["deliver", "-p", str(finished.root), "--override", "ship it anyway"]) == 1
+    err = capsys.readouterr().err
+    assert "claims" in err and "cannot be overridden" in err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_disclosure_cannot_be_overridden(finished, capsys, monkeypatch):
+    monkeypatch.setattr(gates, "transcribe", lambda *_: (None, "No transcriber in this test."))
+    place_a_generated_person(finished, "Here is how the tool works.")
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root), "--override", "ship it anyway"]) == 1
+    err = capsys.readouterr().err
+    assert "disclosure" in err and "cannot be overridden" in err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_a_cut_at_another_frame_rate_than_the_output_is_refused_before_it_can_drift(finished, capsys):
+    """Picture was counted at the output rate and sound at the cut's, so they drifted apart over many cuts."""
+    toml = finished.root / "altocue.toml"
+    toml.write_text(re.sub(r"(?m)^fps = 0", "fps = 25", toml.read_text()))
+    project = Project.open(finished.root)
+    assert project.fps == 25 and project.edl().fps == 30
+    from altocue import plate
+
+    with pytest.raises(AltocueError, match="30 fps") as caught:
+        plate.build(project)
+    assert "drift" in str(caught.value) and caught.value.fix
+    assert main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"]) == 1
+    assert "drift" in capsys.readouterr().err
+    assert not (finished.root / "deliver").exists()
+
+
 def test_an_unknown_platform_stops_before_any_work(finished, capsys):
     assert main(["deliver", "-p", str(finished.root), "--for", "myspace"]) == 1
     assert "myspace" in capsys.readouterr().err
@@ -372,6 +476,7 @@ def test_a_new_film_drops_the_old_versions_from_the_report(finished, monkeypatch
     monkeypatch.setattr(deliver, "render_version", lambda version, renderer: finished.out / "render.mp4")
     main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
     master.master_file(finished.out / "render.mp4", finished.out / "final.mp4", -15.0)
+    ship(finished)
     main(["deliver", "-p", str(finished.root)])
     assert json.loads((finished.root / "deliver" / "deliver.json").read_text())["versions"] == []
 

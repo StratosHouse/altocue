@@ -29,6 +29,7 @@ CHECKS = {"video": ("motion", "frames", "none"), "image": ("still", "none")}
 REQUIRED = ("id", "purpose", "kind", "tier", "prompt", "aspect", "duration", "placement", "check")
 OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra", "synthetic", "script")
 SYNTHETIC = ("person", "voice", "scene", "product")
+SHOT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")  # it names files, so it can never climb out of the project
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
 PUNCTUATION = " .,!?;:\"'"
 
@@ -161,7 +162,7 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
         found.append(error("no-model", "Shots ask for a tier, never a model. Model ids live in models.toml."))
     for key in sorted(set(raw) - {*REQUIRED, *OPTIONAL, "model"}):
         found.append(Finding("warning", name, "unknown-field", f"{key} is not a shot field, so it is ignored."))
-    if "id" in raw and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", str(raw["id"])):
+    if "id" in raw and not SHOT_ID.fullmatch(str(raw["id"])):
         found.append(error("id", "An id is letters, digits, hyphens and underscores, because it names files."))
     kind = raw.get("kind")
     if kind is not None and kind not in KINDS:

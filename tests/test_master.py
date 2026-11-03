@@ -274,6 +274,42 @@ def test_a_film_with_no_sound_at_all_passes_through(tmp_path):
     assert (tmp_path / "out.mp4").exists()
 
 
+def silent_take(path: Path) -> Path:
+    args = ["-f", "lavfi", "-i", "testsrc2=size=128x72:rate=30:duration=2", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo:d=2"]
+    ffmpeg.run([*args, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(path)])
+    return path
+
+
+def test_a_silent_track_with_no_music_does_not_stop_the_master(tmp_path, capsys):
+    """An empty desktop track gives the clip a sound stream, so the film was not called silent, and master stopped `altocue run`."""
+    from altocue.ingest import ingest
+
+    project = Project.create(tmp_path / "video")
+    silent_take(project.sources / "desktop.mp4")
+    assert ingest(project)[0].has_audio
+    silent_take(project.out / "render.mp4")
+    ffmpeg.write_wav(project.work / "mix.wav", np.zeros(RATE * 2), RATE)
+    assert master.no_sound_in(project)
+    assert main(["master", "--project", str(project.root)]) == 0
+    assert "nothing to hear" in capsys.readouterr().out
+    assert (project.out / "final.mp4").exists()
+    from altocue.qa import gates
+
+    found = gates.gate_loudness(gates.Context.open(project, project.out / "final.mp4"))
+    assert [g.value for g in found] == [gates.NOT_APPLICABLE, gates.NOT_APPLICABLE]  # QA reads silence the same way
+
+
+def test_a_mix_with_sound_in_it_is_still_mastered_or_refused(tmp_path):
+    from altocue.ingest import ingest
+
+    project = Project.create(tmp_path / "video")
+    silent_take(project.sources / "desktop.mp4")
+    ingest(project)
+    tone = np.sin(np.linspace(0, 2 * np.pi * 440 * 2, RATE * 2)) * 0.3
+    ffmpeg.write_wav(project.work / "mix.wav", tone, RATE)
+    assert not master.no_sound_in(project)
+
+
 def test_every_named_target_says_where_its_numbers_come_from():
     for target in master.TARGETS.values():
         assert target.source

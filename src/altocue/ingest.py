@@ -36,7 +36,7 @@ def ingest(project: Project, order: list[str] | None = None) -> list[Clip]:
     if order is None and project.media_path.exists():
         order = [clip.id for clip in project.clips()]
     ranks = {name: rank for rank, name in enumerate(order or [])}
-    links = [link for link in project.sources.iterdir() if not link.name.startswith(".")]
+    links = [link for link in project.sources.iterdir() if not link.name.startswith(".") and not link.name.endswith(".provenance.json")]
     clips = [ffmpeg.probe_clip(link, clip_id=link.stem) for link in sorted(links, key=lambda link: (ranks.get(link.stem, len(ranks)), link.name))]
     if not clips:
         raise AltocueError("No clips in sources/.", fix="Add video files with `altocue new`.")

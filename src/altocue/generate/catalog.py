@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -145,12 +146,26 @@ class Catalog:
 
 
 def credit_rate(catalog: Catalog, provider: str, project: Any = None) -> float | None:
-    """Dollars per credit: the project's own figure, else the catalog's. None for a provider that bills dollars."""
+    """Dollars per credit: the project's own figure, else the catalog's. None for a provider that bills dollars.
+
+    A rate of 0 or less would price every job as free or as a refund, and NaN passes every comparison, so both are errors.
+    """
     config = catalog.provider(provider)
     if "usd_per_credit" not in config:
         return None
     chosen = project.setting("generate", "usd_per_credit", None) if project else None
-    return float(chosen if chosen is not None else config["usd_per_credit"])
+    value = chosen if chosen is not None else config["usd_per_credit"]
+    try:
+        rate = float(value)
+    except (TypeError, ValueError):
+        rate = math.nan
+    if not math.isfinite(rate) or rate <= 0:
+        where = "under [generate] in altocue.toml" if chosen is not None else f"for {provider} in {catalog.path}"
+        raise AltocueError(
+            f"usd_per_credit {where} is {value}, and a credit price must be a number above zero.",
+            fix="Set it to your plan's dollars per credit, such as 0.08.",
+        )
+    return rate
 
 
 def priced(catalog: Catalog, provider: str, shot: str, req: GenRequest) -> Cost:

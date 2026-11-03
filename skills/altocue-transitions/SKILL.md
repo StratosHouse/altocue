@@ -45,7 +45,7 @@ Shaders from gl-transitions run in WebGL on the HyperFrames stage and come back 
 
 These twelve ship with Altocue, each with its licence header: `gl-cross-zoom`, `gl-cube`, `gl-directional-warp`, `gl-dreamy`, `gl-film-burn`, `gl-glitch-memories`, `gl-linear-blur`, `gl-luminance-melt`, `gl-overexposure`, `gl-ripple`, `gl-swirl`, `gl-whip-pan`.
 
-For anything else, find it and fetch it once. It stays in the project, so renders need no network:
+For anything else, find it and fetch it once. It stays in the project, so renders of it need no network:
 
 ```bash
 altocue library search shader wipe --kind transition

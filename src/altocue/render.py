@@ -153,7 +153,7 @@ def bake_insert(project: Project, insert: dict[str, Any], picture: Path, c: plat
         before, after = _piece(fitted, frames - leave, leave, c, work, "out-a"), _piece(picture, first + frames - leave, leave, c, work, "out-b")
         parts.append(transitions.join(before, after, insert["out"]["type"], leave, c, plate.encode_args(c), work, project))
     listing = work / "list.ffconcat"
-    listing.write_text("ffconcat version 1.0\n" + "\n".join(f"file '{p.resolve()}'" for p in parts) + "\n")
+    ffmpeg.concat_list(listing, parts)
     ffmpeg.run(["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", str(dest)])
     return str(dest)
 

@@ -127,6 +127,19 @@ def test_an_insert_with_edges_is_one_clip_with_the_plate_blended_in(tmp_path):
     assert (np.diff(levels[:6]) >= -1).all()  # and it rises through the dissolve
 
 
+def test_a_project_path_with_an_apostrophe_still_bakes_an_insert_with_edges(tmp_path):
+    """The concat list quoted full paths in single quotes, so one apostrophe in a folder name broke the render."""
+    project = Project.create(tmp_path / "Sam's videos" / "it's a take")
+    picture = plain_clip(tmp_path / "picture.mp4", 60, "0x202020")
+    plain_clip(project.root / "shot.mp4", 60, "0xe0e0e0")
+    item = {"file": "shot.mp4", "start": 0.5, "end": 1.5, "in": {"type": "dissolve", "duration": 0.2}, "out": {"type": "dissolve", "duration": 0.2}}
+    baked = render.bake_insert(project, item, picture, C, project.work / "inserts")
+    assert Path(baked).is_file()
+    count = ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", baked]
+    frames = subprocess.run(count, capture_output=True, text=True, check=True)
+    assert int(frames.stdout.strip()) == 30
+
+
 def test_an_insert_too_short_for_its_edges_is_refused(tmp_path):
     project = Project.create(tmp_path / "video")
     picture = plain_clip(tmp_path / "picture.mp4")
