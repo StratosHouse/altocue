@@ -410,7 +410,7 @@ def tail(scene: dict[str, Any], lap: float) -> float:
     return scene["end"] + lap
 
 
-def compose(line: dict[str, Any], brand: Brand) -> str:
+def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
     """One page. Ground, then the world, then a camera per scene, then anything laid over the lot."""
     width, height, total = line["width"], line["height"], line["total"]
     css, geo = base_css(line, brand)
@@ -446,13 +446,13 @@ def compose(line: dict[str, Any], brand: Brand) -> str:
         ahead.append(_clip(item, brand, track))
     tokens = root_tokens(line, brand, geo)
     sheet = css + formats.stylesheet(everything(line)) + FILM_CSS + "\n".join(keyframes)
-    blur = f'data-motion-blur="on" data-motion-blur-shutter="{SHUTTER}"'
+    blur_attrs = f'data-motion-blur="on" data-motion-blur-shutter="{SHUTTER}"' if blur else 'data-motion-blur="off"'
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
 <style>{sheet}</style></head>
 <body>
-<div id="root" data-composition-id="root" data-start="0" data-duration="{total:.3f}" data-width="{width}" data-height="{height}" {blur} style="{tokens}">
+<div id="root" data-composition-id="root" data-start="0" data-duration="{total:.3f}" data-width="{width}" data-height="{height}" {blur_attrs} style="{tokens}">
 <div class="ground"></div>
 <div class="world" style="animation:world {total:.3f}s linear 0s both">
 {chr(10).join(behind)}

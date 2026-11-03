@@ -326,9 +326,9 @@ def slug(aspect: str) -> str:
     return aspect.replace(":", "x")
 
 
-def stage_for(project: Project, line: dict[str, Any], brand: brands.Brand, place: str) -> Path:
-    stage = project.work / "film" / place / "stage"
-    page = scenes.compose(line, brand)
+def stage_for(project: Project, line: dict[str, Any], brand: brands.Brand, place: str, *, blur: bool = True) -> Path:
+    stage = project.work / "film" / place / ("stage" if blur else "stage-sharp")
+    page = scenes.compose(line, brand, blur=blur)
     return hyperframes.build_stage(stage, scenes.everything(line), brand, page)
 
 

@@ -442,7 +442,7 @@ def run_film(project: Project, film: Any) -> int:
 
     aspect = str(project.setting("output", "aspect", "16:9"))
     line, brand = films.film_line(film, aspect)
-    stage = films.stage_for(project, line, brand, films.slug(aspect))
+    stage = films.stage_for(project, line, brand, films.slug(aspect), blur=False)  # blur samples around an instant, so it stays out of this test
     results: dict[str, Any] = {}
     failed = False
     times = [round(line["total"] * (index + 0.5) / SEEK_SAMPLES, 3) for index in range(SEEK_SAMPLES)]

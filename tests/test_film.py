@@ -610,6 +610,11 @@ def test_the_page_registers_for_the_renderer_checks():
     assert "__timelines" in page and "data-motion-blur" in page
 
 
+def test_a_page_can_be_built_without_motion_blur_for_the_seek_test():
+    page = scenes.compose(timeline_for(board()), default_brand(), blur=False)
+    assert 'data-motion-blur="off"' in page
+
+
 def test_every_film_page_has_a_solid_ground():
     page = scenes.compose(timeline_for(board()), default_brand())
     assert 'class="ground"' in page
