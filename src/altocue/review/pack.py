@@ -15,12 +15,12 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .. import ffmpeg, qa
+from .. import ffmpeg, master, qa
 from ..errors import AltocueError
 from ..models import GateResult
 from ..project import Project, write_json
 from ..qa import gates as qa_gates
-from . import rubric
+from . import rubric, sheets
 
 SHEET_STEP = 2.0
 CELL_WIDTH = 216
@@ -31,7 +31,7 @@ HOOK_SECONDS = qa_gates.HOOK_SECONDS
 TRANSCRIPT_LINE = 10
 FORBIDDEN = (
     "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/, out/, bench/ or results/, "
-    "director-notes.md, review/REPORT.md, review/report.json, review/rounds.json, review/facts.json, review/facts.md or review/history/"
+    "director-notes.md, review/REPORT.md, review/report.json, review/page.html, review/rounds.json, review/facts.json, review/facts.md or review/history/"
 )
 
 
@@ -139,7 +139,42 @@ def transcript(project: Project, file: Path, digest: str) -> dict[str, Any]:
     return qa_gates.transcript_record(digest, words, reason)
 
 
-def numbers(context: qa_gates.Context, digest: str, gates: list[GateResult], cuts: list[float]) -> dict[str, Any]:
+def timeline_sheets(
+    context: qa_gates.Context, heard: list[dict[str, Any]], cuts: list[float], silence: list[tuple[float, float]], frames: list[Path], dest: Path
+) -> list[dict[str, Any]]:
+    """One sheet per 20 seconds. Captions are what any viewer sees. Nothing here reads a label or a reason."""
+    duration = context.clip.duration
+    samples, rate = context.samples() if context.audio else (None, 16000)
+    track = sheets.loudness(context.file) if context.audio else []
+    target = master.project_target(context.project)[0]
+    pace = sheets.pacing(context.shots, heard, duration)
+    summary = f"{pace['shots']} shots, {pace['words_per_minute']:g} words a minute, longest shot {pace['longest_shot']:g} s"
+    spans = sheets.pages(duration)
+    listed = []
+    for index, span in enumerate(spans):
+        name = f"timeline_{index + 1:03d}.jpg"
+        sheets.draw(
+            dest / name,
+            index=index,
+            total=len(spans),
+            span=span,
+            duration=duration,
+            frames=frames,
+            samples=samples,
+            rate=rate,
+            track=track,
+            captions=(context.timeline or {}).get("captions", []),
+            words=heard,
+            cuts=cuts,
+            silence=silence,
+            target=target,
+            summary=summary,
+        )
+        listed.append({"file": f"timeline/{name}", "start": span[0], "end": span[1]})
+    return listed
+
+
+def numbers(context: qa_gates.Context, digest: str, gates: list[GateResult], cuts: list[float], words: list[dict[str, Any]]) -> dict[str, Any]:
     clip, video, audio = context.clip, context.video, context.audio
     end = clip.duration
     try:
@@ -171,6 +206,7 @@ def numbers(context: qa_gates.Context, digest: str, gates: list[GateResult], cut
         "frozen": qa_gates.frozen_runs(context.file, end),
         "astats": astats(context.file) if audio else {},
         "cuts": cuts,
+        "pacing": sheets.pacing(context.shots, words, clip.duration),
         "gates": [g.to_dict() for g in gates],
     }
 
@@ -204,7 +240,9 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
         sheet_times = contact_sheets(file, fps, folder / "sheets", work)
         cut_frames(file, cuts, fps, folder / "cuts", work / "cuts")
         hook_times = hook_frames(file, fps, folder / "hook", work)
-    write_json(folder / "numbers.json", numbers(context, digest, gates, cuts))
+        facts = numbers(context, digest, gates, cuts, heard["words"])
+        timeline = timeline_sheets(context, heard["words"], cuts, facts["silence"], sorted((work / "sheet").glob("f_*.jpg")), folder / "timeline")
+    write_json(folder / "numbers.json", facts)
     write_json(
         folder / "transcript.json",
         {
@@ -215,7 +253,7 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
         },
     )
     (folder / "transcript.txt").write_text(transcript_text(heard["words"]) + "\n")
-    write_json(folder / "manifest.json", {"sheet_times": sheet_times, "cuts": cuts, "hook_times": hook_times})
+    write_json(folder / "manifest.json", {"sheet_times": sheet_times, "cuts": cuts, "hook_times": hook_times, "timeline": timeline})
     return load(project)
 
 
@@ -351,14 +389,18 @@ Read this whole file, then the images it lists. Nothing else.
 - `cuts/`: the last frame before and the first frame after every cut, side by side, with the cut's time.
   Use these for jump cuts and mismatches.
 - `hook/`: 4 frames a second for the first 3 seconds, at full width. Use these for the hook and caption legibility.
+- `timeline/`: one sheet per 20 seconds of film. Top to bottom on one time axis: frames, captions, speech (a bar per word heard),
+  the waveform and momentary loudness in LUFS, with the film's loudness target as a dashed line. Amber lines are cuts. Red shading is measured silence.
+  Use these for rhythm and sound: where the cuts fall, where the level dips or jumps, where speech stops, whether captions sit on the words.
 
 Look at every image listed. {cuts_line}
 The black strip under each image is added by this pack. It is not part of the film.
 
 {listing}
 
-You see stills and read a transcript. You do not hear the film and you do not see motion.
-State that under `could_not_judge` for anything that depends on it.
+You see stills, read a transcript and see the sound drawn on the timeline sheets. You do not hear the film and you do not see motion.
+A sheet shows level, silence and rhythm. It does not show tone, noise, harshness, music choice or lip sync.
+State that under `could_not_judge` for anything that depends on them.
 
 {prompt_text(info)}
 ## How to return your review
