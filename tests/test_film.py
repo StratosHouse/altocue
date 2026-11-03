@@ -22,7 +22,7 @@ from altocue.project import Project
 from altocue.qa import film as film_qa
 
 REPO = Path(__file__).resolve().parents[1]
-TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song")
+TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song", "invite", "heritage")
 LAUNCH_VARIANTS = ("15", "20", "24", "30")
 
 
@@ -1124,6 +1124,54 @@ def test_a_song_cut_master_is_held_to_its_hit_and_to_a_phone(tmp_path):
     assert next(row for row in late if row["check"] == "cut on the crash")["level"] == "FAIL"
     dark = clip_with(tmp_path / "dark.mp4", segments(("0x101010", 1.0), ("0x202020", 1.0)), seconds=2.0)
     assert next(row for row in kinds.finished_song(None, on_hit, {}, dark) if row["check"] == "phone brightness")["level"] == "FAIL"
+
+
+# Invitation and Heritage: every fact typed from an intake sheet (b024, k003, k007)
+
+
+def example_film(kind: str) -> SimpleNamespace:
+    record = film.load_type(kind)
+    made = film.example(record)
+    return SimpleNamespace(brief=made["brief"], board=made["storyboard"], record=record, project=SimpleNamespace(fps=30, root=None))
+
+
+def messages(problems: list[storyboard.Problem]) -> str:
+    return " ".join(problem.message for problem in problems)
+
+
+def test_an_invitation_types_every_fact_from_the_intake_sheet(tmp_path, capsys):
+    assert kinds.plan(example_film("invite")) == []
+    folder = tmp_path / "invite"
+    assert cli.main(["film", "new", "invite", str(folder)]) == 0
+    assert cli.main(["film", "check", "-p", str(folder)]) == 0
+    retyped = example_film("invite")
+    retyped.board["scenes"][4]["items"][0]["lines"][0] = "Ada and Thomas"
+    assert 'names, "Ada and Tomas", never reaches the screen exactly' in messages(kinds.plan(retyped))
+
+
+def test_an_invitation_date_is_ahead_and_its_weekday_agrees():
+    wrong_day = example_film("invite")
+    wrong_day.board["scenes"][2]["items"][0]["text"] = "See you on Friday."
+    assert "The screen says Friday, and 17 May 2031 is a Saturday" in messages(kinds.plan(wrong_day))
+    past = example_film("invite")
+    past.brief["intake"]["date"] = "2020-05-16"
+    assert "already happened" in messages(kinds.plan(past))
+    vague = example_film("invite")
+    vague.brief["intake"]["date"] = "next spring"
+    assert "not a date" in messages(kinds.plan(vague))
+
+
+def test_a_heritage_film_labels_every_reconstruction_and_keeps_its_eras_in_order():
+    assert kinds.plan(example_film("heritage")) == []
+    made = example_film("heritage")
+    founding = made.board["scenes"][0]
+    founding["items"] = [item for item in founding["items"] if item["type"] != "corner_stamp"]
+    made.board["scenes"][2]["era"] = "1991"
+    made.board["scenes"][1]["era"] = "2026"
+    said = messages(kinds.plan(made))
+    assert "A reconstructed period carries no label on screen" in said and "goes back to 1991" in said
+    made.board["scenes"][2]["era"] = "1975"
+    assert 'era "1975", which is not in the ledger' in messages(kinds.plan(made))
 
 
 def test_cuts_compare_against_the_plan_in_frames():

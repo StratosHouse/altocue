@@ -33,6 +33,7 @@ from __future__ import annotations
 import copy
 import re
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from .errors import AltocueError
@@ -101,6 +102,34 @@ def fill(board: dict[str, Any]) -> dict[str, Any]:
 
     body = {key: value for key, value in board.items() if key != "layers"}
     return {**_walk(body, swap), "layers": dict(board.get("layers") or {})}
+
+
+def event_day(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def intake_layers(brief: dict[str, Any]) -> dict[str, str]:
+    """The intake sheet's facts as layers, so names, dates and venues are typed from the sheet in code and never retyped (b024).
+
+    A date written as 2031-05-17 also gives `date_text`, "Saturday 17 May 2031", and `day`, "Saturday".
+    """
+    intake = brief.get("intake")
+    if not isinstance(intake, dict):
+        return {}
+    layers = {str(key): str(value) for key, value in intake.items() if isinstance(value, str | int | float) and not isinstance(value, bool)}
+    when = event_day(intake.get("date"))
+    if when:
+        layers.update(date_text=f"{when:%A} {when.day} {when:%B %Y}", day=f"{when:%A}")
+    return layers
+
+
+def with_intake(brief: dict[str, Any], board: dict[str, Any]) -> dict[str, Any]:
+    """The storyboard with the intake sheet's facts as its layers. The sheet wins over anything typed in the storyboard."""
+    facts = intake_layers(brief)
+    return {**board, "layers": {**(board.get("layers") or {}), **facts}} if facts else board
 
 
 def number(value: Any) -> bool:
@@ -505,7 +534,7 @@ def check(
     _check_brief(brief, record, add)
     _check_scenes(board, record, approved, add)
     try:
-        filled = fill(board)
+        filled = fill(with_intake(brief, board))
         done = resolve(filled, fps=fps, voice=voice)
     except AltocueError as error:
         add("error", "storyboard", str(error.args[0]), error.fix or "")

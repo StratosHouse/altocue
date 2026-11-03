@@ -26,7 +26,7 @@ from .errors import AltocueError
 from .motion import compositions, formats, hyperframes, scenes
 from .project import CONFIG, SIZES, Project, write_json
 
-ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song")
+ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song", "invite", "heritage")
 LOCK = "storyboard.lock.json"
 FOLDERS = ("assets", "assets/voice", "assets/music", "generated", "motion")
 DRAFT_FPS = 30
@@ -186,13 +186,14 @@ def voice_lengths(project: Project, board: dict[str, Any]) -> dict[str, float]:
 
 
 def load(project: Project) -> Film:
-    board = read(project.root / "storyboard.json", "storyboard")
+    brief = read(project.root / "brief.json", "brief")
+    board = storyboard.with_intake(brief, read(project.root / "storyboard.json", "storyboard"))  # facts come from the intake sheet, never retyped
     lock = project.root / LOCK
     card_name = board.get("style_card")
     card = read(project.root / card_name, "style card") if card_name else None
     return Film(
         project=project,
-        brief=read(project.root / "brief.json", "brief"),
+        brief=brief,
         board=board,
         record=load_type(str(board.get("type", "launch"))),
         approved=json.loads(lock.read_text()).get("scenes") if lock.exists() else None,

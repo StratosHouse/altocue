@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -258,7 +260,79 @@ def finished_song(project: Project, film: Any, line: dict[str, Any], path: Path)
     return rows
 
 
-PLAN: dict[str, Callable[[Any], list[Problem]]] = {"plate": plan_plate, "song": plan_song}
+# Invitation and Heritage: no generation, and every fact typed from an intake sheet (b024, k003, k007)
+
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+INVITE_FACTS = ("names", "date", "venue", "rsvp")
+RECONSTRUCTED = re.compile(r"reconstruct", re.IGNORECASE)
+
+
+def shown_text(film: Any) -> tuple[dict[str, Any], str]:
+    """The film resolved with its intake facts, and every string it puts on screen."""
+    done = storyboard.resolve(storyboard.fill(storyboard.with_intake(film.brief, film.board)), fps=film.project.fps)
+    return done, "\n".join(text for item in done["items"] for text in storyboard.on_screen(item))
+
+
+def plan_facts(film: Any, needed: tuple[str, ...] = ()) -> list[Problem]:
+    """Each fact on the intake sheet reaches the screen exactly as written: spelling, capitals and all."""
+    intake = film.brief.get("intake")
+    fix = 'Add "intake" to brief.json, with the facts as the person gave them.'
+    if not isinstance(intake, dict) or not intake:
+        return [Problem("error", "brief", "There is no intake sheet, so no fact on screen can be checked.", fix)]
+    found = [Problem("error", "brief", f'The intake sheet has no "{key}".', fix) for key in needed if not intake.get(key)]
+    try:
+        _, shown = shown_text(film)
+    except AltocueError as error:
+        return [*found, Problem("error", "storyboard", str(error.args[0]), error.fix or "")]
+    layers = storyboard.intake_layers(film.brief)
+    for key in intake:
+        value = layers.get("date_text") if key == "date" and "date_text" in layers else layers.get(key)
+        if value and value not in shown:
+            message = f'The intake sheet\'s {key}, "{value}", never reaches the screen exactly.'
+            found.append(Problem("error", "storyboard", message, "Type it from the sheet with {{" + key + "}}, never by hand."))
+    return found
+
+
+def plan_invite(film: Any) -> list[Problem]:
+    found = plan_facts(film, INVITE_FACTS)
+    when = storyboard.event_day((film.brief.get("intake") or {}).get("date"))
+    if (film.brief.get("intake") or {}).get("date") and when is None:
+        found.append(Problem("error", "brief", "The intake's date is not a date.", "Write it as 2031-05-17, and the film writes it out in words."))
+    if when and when <= date.today():
+        found.append(Problem("error", "brief", f"The event on {when:%d %B %Y} has already happened.", "Check the date with the hosts."))
+    if when:
+        _, shown = shown_text(film)
+        said = {day for day in WEEKDAYS if re.search(rf"\b{day}\b", shown.lower())} - {f"{when:%A}".lower()}
+        if said:
+            message = f"The screen says {', '.join(sorted(said)).title()}, and {when:%d %B %Y} is a {when:%A}."
+            found.append(Problem("error", "storyboard", message, "Use {{day}} or {{date_text}}, typed from the date."))
+    return found
+
+
+def plan_heritage(film: Any) -> list[Problem]:
+    """An era ledger, one era a scene in order, and a label on every reconstructed period (k003, k007)."""
+    found = plan_facts(film)
+    eras = [str(era) for era in film.brief.get("eras") or []]
+    if not eras:
+        found.append(Problem("error", "brief", "There is no era ledger.", 'Add "eras": the periods the film passes through, in order, such as ["1962", "1987", "2026"].'))
+    reached = -1
+    for scene in film.board.get("scenes") or []:
+        where, era = str(scene.get("id")), str(scene.get("era", ""))
+        if eras and era not in eras:
+            found.append(Problem("error", where, f'This scene names the era "{era}", which is not in the ledger.', f"Use one of {', '.join(eras)}."))
+        elif eras:
+            at = eras.index(era)
+            if at < reached and not scene.get("flashback"):
+                found.append(Problem("error", where, f"The film goes back to {era} after a later era.", 'Keep the eras in order, or mark the scene "flashback": true.'))
+            reached = max(reached, at)
+        if scene.get("reconstructed"):
+            labels = [text for item in scene.get("items", []) for text in storyboard.on_screen(item) if RECONSTRUCTED.search(text)]
+            if not labels:
+                found.append(Problem("error", where, "A reconstructed period carries no label on screen.", 'Add a corner_stamp with "label": "Reconstruction".'))
+    return found
+
+
+PLAN: dict[str, Callable[[Any], list[Problem]]] = {"plate": plan_plate, "song": plan_song, "invite": plan_invite, "heritage": plan_heritage}
 FINISHED: dict[str, Callable[[Project, Any, dict[str, Any], Path], list[dict[str, Any]]]] = {"plate": finished_plate, "song": finished_song}
 
 
