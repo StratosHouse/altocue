@@ -67,3 +67,5 @@ select = ["E", "F", "I", "UP", "B"]
 testpaths = ["tests"]
 markers = ["slow: needs real models or real footage", "network: needs a provider key"]
 addopts = "-m 'not slow and not network'"
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"  # renders in tests are large, and this disk also holds swap
