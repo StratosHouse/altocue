@@ -7,6 +7,7 @@ outranks all of them, so a cue that lands against one can read fast or sit short
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from html import escape
 from itertools import groupby
@@ -24,6 +25,8 @@ GAP_FRAMES = 2
 CLAUSE_END = ",;:"
 BREAK_BEFORE = {"and", "but", "or", "so", "because", "that", "which", "who", "when", "to", "of", "in", "on", "at", "for", "with", "from", "by"}
 KEEP_WITH_NEXT = {"a", "an", "the", "my", "your", "his", "her", "its", "our", "their", "this", "these", "those", "i", "we", "you", "they", "he", "she", "it"}
+# Chinese and Japanese write words with no space between them. Korean spaces its words, so Hangul is not here.
+UNSPACED = re.compile(r"[\u3000-\u303f\u3040-\u30ff\u31f0-\u31ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]")
 
 
 @dataclass
@@ -71,7 +74,11 @@ def fits(text: str) -> bool:
 
 
 def _joined(words: list[dict[str, Any]]) -> str:
-    return " ".join(w["text"].strip() for w in words)
+    text = ""
+    for word in (w["text"].strip() for w in words):
+        unspaced = bool(text) and bool(word) and UNSPACED.match(text[-1]) and UNSPACED.match(word[0])
+        text += word if not text or unspaced else f" {word}"
+    return text
 
 
 def _clause_break(words: list[dict[str, Any]]) -> int:
