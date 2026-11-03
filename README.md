@@ -48,7 +48,7 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 
 ## Install
 
-You need [uv](https://docs.astral.sh/uv/) and ffmpeg. Stock Homebrew or apt ffmpeg is fine. On Linux, add tesseract so QA can read text in the picture. Motion graphics and films need Node 22 or later. 16 GB of memory is comfortable, and it needs about 3.5 GB of disk: 2.5 GB for the speech model, the rest for the tool and its renderer.
+You need [uv](https://docs.astral.sh/uv/) and ffmpeg. Stock Homebrew or apt ffmpeg is fine. On a Mac, install the Xcode command line tools with `xcode-select --install`: QA reads text in the picture through them, and Apple voice isolation needs them. On Linux, or on a Mac without them, add tesseract so QA can read text in the picture. Motion graphics and films need Node 22 or later. 16 GB of memory is comfortable. Keep 5 GB of disk free: 2.5 GB goes to the speech model, about 0.3 GB to the renderer, and each render needs room. `altocue doctor` warns under that, and transcription will not start.
 
 ```bash
 uv tool install altocue
@@ -57,7 +57,7 @@ altocue setup
 
 `setup` asks before it installs anything: the motion renderer, and a better noise remover where the Mac has no voice isolation built in. Both are optional. `altocue setup --yes` says yes to both.
 
-Graphics render offline. Altocue's formats use only the fonts it ships, and `altocue library add` embeds the fonts a fetched item names, so the network is needed only to fetch.
+Renders work offline, with two exceptions. Altocue's formats use only the fonts it ships, and `altocue library add` embeds the fonts a fetched item names. A face it could not embed, which `library add` names, is fetched at render time when the cache does not have it yet. If `setup` could not fetch headless Chrome, the first render fetches it.
 
 **Prove it works:**
 

@@ -179,7 +179,7 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Built-ins are read live.** The catalog lists formats from this install, so a new format is in the library without a rebuild.
 - **A licence gate and a deny list.** An item without an allowed licence, or one that rebuilds a brand, is refused, and the reason is kept. Excluded sources stay listed with their reason.
 - **Offline by default.** Search, show, sources and stats never use the network. `altocue library update` fetches a newer catalog, and a weekly job rebuilds it.
-- **A render needs no network.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`.
+- **A render works offline.** Formats use only the fonts Altocue ships. Fetched items, the libraries they load and the fonts they name are saved in the project and listed in `library.lock.json`. Two exceptions: a face `library add` could not embed is fetched at render time when the cache lacks it, and headless Chrome is fetched on the first render if setup missed it.
 
 ## Films with no footage
 

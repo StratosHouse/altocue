@@ -18,7 +18,7 @@ import pytest
 from canaries import CANARIES, CONTROLS
 from test_skills import OTHER_EDITORS, every_flag, problems_in
 
-from altocue import doctor, film, learn, library, looks, project, transitions
+from altocue import doctor, film, learn, library, looks, mix, project, transcribe, transitions
 from altocue.generate import recipes
 from altocue.motion import formats, shaders
 from altocue.qa import gates
@@ -42,7 +42,7 @@ FIXED = [
     r"\b1of10\b|\bCC0\b|\b3D\b",  # names: a product, a licence and a kind of graphic
     r"^\d+\. ",  # the steps of a numbered list
     r"16 GB of memory",  # a comfortable machine, from running it
-    r"about 3\.5 GB of disk: 2\.5 GB for the speech model",  # the speech model, the tool and its renderer, measured on a Mac
+    r"2\.5 GB goes to the speech model, about 0\.3 GB to the renderer",  # the speech model and the renderer, measured on a Mac
     r"730 KB demo take",  # the published demo take, pinned by hash in demo.py
     r"about 35 MB of models",  # the two speaker models fetched by setup --speakers
     r"peaks at about 3\.2 GB and refuses to start with under about 4 GB free",  # measured by the clips stream
@@ -81,6 +81,7 @@ CLAIMS: dict[str, tuple[str, Callable[[], list[object]]]] = {
     "film looks": (r"\b(\d+) film looks", lambda: [len(looks.IDS)]),
     "widest aspect": (r"up to (\d+):1 either way", lambda: [int(project.WIDEST)]),
     "node": (r"Node (\d+) or later", lambda: [doctor.NODE_MINIMUM]),
+    "disk": (r"Keep (\d+) GB of disk free", lambda: [int(doctor.DISK_NEEDED)]),
     "renderer": (r"HyperFrames (\d+\.\d+\.\d+)", lambda: [RENDERER]),
     "library": (
         r"holds (\d+) entries: (\d+) built in, (\d+) to fetch, (\d+) live searches and (\d+) links",
@@ -148,6 +149,32 @@ def test_no_number_goes_unchecked():
         if not any(start <= found.start() and found.end() <= end for start, end in covered)
     ]
     assert not loose, f"Numbers with nothing behind them. Read each from the code in CLAIMS, or list it in FIXED with a reason: {loose}"
+
+
+def test_there_is_one_disk_figure_and_it_is_the_codes():
+    """The README said 3.5 GB while doctor and transcription held back 5."""
+    assert doctor.DISK_NEEDED == transcribe.MIN_FREE_DISK_GB
+    for page in (README, INSTALL):
+        assert re.findall(r"Keep (\d+) GB of disk free", page) == [str(int(doctor.DISK_NEEDED))]
+        assert "3.5 GB" not in page
+
+
+def test_the_changelog_counts_the_effects_that_ship():
+    """It said 12 CC0 effects, the number added in 0.2. Twenty ship."""
+    changelog = (ROOT / "CHANGELOG.md").read_text()
+    stings = sorted((Path(film.__file__).parent / "data" / "music").glob("*.ogg"))
+    assert re.search(rf"\b{len(mix.sfx_names())} CC0 effects bundled", changelog)
+    assert re.search(rf"\b{len(stings)} CC0 stings", changelog)
+
+
+def test_the_install_pages_name_the_mac_tools_that_qa_needs():
+    for page in (README, INSTALL):
+        assert "xcode-select --install" in page and "Xcode command line tools" in page
+
+
+def test_the_network_claims_name_both_exceptions():
+    for page in (README, INSTALL):
+        assert "render" in page and "headless Chrome" in page and "could not embed" in page
 
 
 def test_every_kind_in_the_library_has_a_row():

@@ -16,13 +16,13 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 
 - 123 original motion formats in 12 groups: kinetic type, products, paper, data, explainers, proof, teaching, film, maps, backdrops, isometric scenes and wipes
 - `altocue library`: one searchable catalog with built-in, fetched, searched and linked tiers, a licence gate, a brand deny list and a weekly sync, and the `altocue-library` skill
-- Any HyperFrames composition can be mounted as a graphic, and fetched items are kept self-contained so a render needs no network
+- Any HyperFrames composition can be mounted as a graphic, and fetched items are kept self-contained, so a render needs the network only for a font that could not be embedded
 - Copy longer than a format allows fails before the render
 
 ### Renderer
 
 - Graphics render through HyperFrames 0.9.5, up from 0.8.222, with undici held at 7.30.1, which clears 29 security advisories
-- Renders need no network: formats use only the fonts Altocue ships, and `altocue library add` embeds the fonts a fetched item names
+- Renders work offline: formats use only the fonts Altocue ships, and `altocue library add` embeds the fonts a fetched item names. A face it could not embed is fetched at render time, and headless Chrome on the first render if setup missed it
 - Serif formats render in Instrument Serif, as designed. Renders had been drawing them in Inter
 - The graphics page is marked `data-no-timeline`
 - The weekly library sync says how far the HyperFrames pin is behind the latest release
@@ -33,7 +33,7 @@ Altocue becomes a full editing suite: a library, films with no footage, long vid
 - Stock with no key: NASA, Wikimedia Commons, The Met and Cleveland, with Pixabay first when you have its key
 - Stills as a slow push-in, and an opt-in Internet Archive source
 - `altocue music`, `altocue sfx` and `altocue credits`, with the `altocue-sound` skill
-- 12 CC0 effects and 4 CC0 stings bundled
+- 20 CC0 effects bundled, 12 of them new, and 4 CC0 stings
 - `out/credits.txt` on every render, and a credits QA gate
 - Pixabay honours the shape you ask for. Slow zooms fixed on ffmpeg 8.1
 
