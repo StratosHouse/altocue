@@ -19,7 +19,7 @@ The master is only ever read. Everything lands in `deliver/`, so `out/` and `edl
    altocue deliver --for reels,youtube
    ```
 3. Read what it printed. A version that failed a gate says so, and its workspace is kept.
-4. Open the thumbnail sheet and each version's frames before calling it done.
+4. View the thumbnail sheet and each version's frames with your own file-reading tool, never by launching an app, before calling it done.
 
 ## What it makes
 
