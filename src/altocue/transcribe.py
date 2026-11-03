@@ -244,13 +244,31 @@ class FasterWhisper(LocalEngine):
     english = "small.en"
     multilingual = "large-v3-turbo"
 
-    def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
-        from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
+    def device(self) -> str:
+        """An Nvidia card when there is one, unless ALTOCUE_WHISPER_DEVICE=cpu says otherwise."""
+        if os.environ.get("ALTOCUE_WHISPER_DEVICE", "auto") == "cpu":
+            return "cpu"
+        try:
+            import ctranslate2  # pyright: ignore[reportMissingImports]
 
+            return "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+        except Exception:
+            return "cpu"
+
+    def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
         # Decoded by ffmpeg first: some PyAV builds reject faster-whisper's open arguments.
         samples, _ = ffmpeg.read_wav(wav)
-        model = WhisperModel(self.model or (self.english if language == "en" else self.multilingual), device="cpu", compute_type="int8")
-        segments, _ = model.transcribe(
+        if self.device() == "cuda":
+            try:
+                return self._run(samples, self.model or self.multilingual, "cuda", "float16", language=language, prompt=prompt)
+            except RuntimeError as error:  # the card is there but cuBLAS or cuDNN is not
+                print(f"faster-whisper could not use the Nvidia card ({error}). Transcribing on the CPU instead.", file=sys.stderr)
+        return self._run(samples, self.model or (self.english if language == "en" else self.multilingual), "cpu", "int8", language=language, prompt=prompt)
+
+    def _run(self, samples: Any, name: str, device: str, compute: str, *, language: str, prompt: str) -> list[Word]:
+        from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
+
+        segments, _ = WhisperModel(name, device=device, compute_type=compute).transcribe(
             samples,
             word_timestamps=True,
             language=language,

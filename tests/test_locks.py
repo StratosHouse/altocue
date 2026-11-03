@@ -37,6 +37,36 @@ def test_a_second_heavy_job_waits_its_turn(tmp_path, monkeypatch, capsys):
     assert "Waiting for another Altocue job" in out and "got it" in out
 
 
+def test_a_machine_can_allow_several_heavy_jobs_at_once(tmp_path, monkeypatch):
+    """A render PC with room for more sets ALTOCUE_HEAVY_JOBS; the third job still waits for one of the two."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("ALTOCUE_HEAVY_JOBS", "2")
+    first = subprocess.Popen([sys.executable, "-c", HOLD], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    second = subprocess.Popen([sys.executable, "-c", HOLD], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    assert first.stdout.readline().strip() == "held"
+    assert second.stdout.readline().strip() == "held"
+    third = subprocess.Popen(
+        [sys.executable, "-c", 'from altocue import locks\nwith locks.heavy("the third job"):\n    print("got it")'],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    time.sleep(0.8)
+    assert third.poll() is None
+    first.communicate("\n")
+    out, _ = third.communicate(timeout=10)
+    second.communicate("\n")
+    assert "Waiting for another Altocue job" in out and "got it" in out
+
+
+def test_one_heavy_job_is_the_default(monkeypatch):
+    monkeypatch.delenv("ALTOCUE_HEAVY_JOBS", raising=False)
+    assert locks.heavy_jobs() == 1
+    monkeypatch.setenv("ALTOCUE_HEAVY_JOBS", "nonsense")
+    assert locks.heavy_jobs() == 1
+    monkeypatch.setenv("ALTOCUE_HEAVY_JOBS", "4")
+    assert locks.heavy_jobs() == 4
+
+
 NESTED = """
 from altocue import locks
 with locks.heavy("the outer job"):
