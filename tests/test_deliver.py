@@ -523,3 +523,24 @@ def test_stems_with_the_mix_gone_say_what_to_do(finished, capsys):
     (finished.work / "voice.wav").unlink()
     assert main(["deliver", "-p", str(finished.root), "--stems"]) == 1
     assert "altocue render" in capsys.readouterr().err
+
+
+# A textless copy
+
+
+def test_deliver_writes_a_textless_copy_when_asked(finished, capsys):
+    """The cut picture with no captions or graphics, and the voice as cut, mastered. Another film can lay it in a frame."""
+    assert main(["deliver", "-p", str(finished.root), "--textless"]) == 0
+    textless = finished.root / "deliver" / "textless.mp4"
+    kinds = sorted(stream["codec_type"] for stream in streams(textless))
+    assert kinds == ["audio", "video"]
+    plate_seconds = ffmpeg.probe_clip(finished.work / "plate.mp4").duration
+    assert abs(ffmpeg.probe_clip(textless).duration - plate_seconds) < 0.1
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["textless"]["file"] == "textless.mp4" and report["textless"]["loudness"]["integrated"] < -5
+    assert "textless" in capsys.readouterr().out
+
+
+def test_a_textless_copy_stays_off_unless_asked(finished):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    assert not (finished.root / "deliver" / "textless.mp4").exists()

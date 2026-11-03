@@ -1793,3 +1793,18 @@ def test_a_snapped_track_plays_from_the_point_its_beats_are_counted_from(tmp_pat
     line, _ = film.film_line(film.load(project), "16:9")
     film.make_sound(film.load(project), line, done, made, tmp_path)
     assert laid["music_from"] == 1.3 and laid["music_end"] == "fade"
+
+
+def test_a_scene_can_start_its_voice_part_way_into_the_take(tmp_path):
+    """The take's opening line belongs to another film. `voice_from` drops it, and the line still starts on the scene."""
+    project = Project.create(tmp_path / "film")
+    take = project.root / "assets" / "take.wav"
+    take.parent.mkdir(parents=True)
+    rate = 48000
+    ffmpeg.write_wav(take, np.concatenate([np.full(rate, 0.5), np.full(rate, 0.25)]), rate)  # one second at 0.5, then one at 0.25
+    made = {"scenes": [{"id": "a", "seconds": 1.0}, {"id": "b", "seconds": 2.0, "voice": "assets/take.wav", "voice_from": 1.0}]}
+    done = {"total": 3.0, "scenes": [{"id": "a", "start": 0.0, "end": 1.0}, {"id": "b", "start": 1.0, "end": 3.0}]}
+    track, _ = ffmpeg.read_wav(film.voice_track(project, made, done))
+    assert abs(track[: rate - 100]).max() < 1e-3  # nothing of the take before its scene
+    assert np.median(abs(track[rate + 100 : 2 * rate - 100])) == pytest.approx(0.25, abs=0.01)  # the take from one second in
+    assert abs(track[2 * rate + 100 :]).max() < 1e-3

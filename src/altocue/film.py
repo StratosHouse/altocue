@@ -409,7 +409,10 @@ def render_picture(stage: Path, output: Path, *, fps: int, draft: bool, total: f
 
 
 def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -> Path | None:
-    """Every recorded line at its scene's start. A film with no lines has no voice track, and the music leads."""
+    """Every recorded line at its scene's start. A film with no lines has no voice track, and the music leads.
+
+    `voice_from` starts a take that many seconds in, so a footage item trimmed with `from` keeps its sound in sync.
+    """
     if not any(scene.get("voice") and (project.root / str(scene["voice"])).is_file() for scene in board.get("scenes", [])):
         return None
     count = round(done["total"] * mix.RATE)
@@ -423,6 +426,7 @@ def voice_track(project: Project, board: dict[str, Any], done: dict[str, Any]) -
         wav.parent.mkdir(parents=True, exist_ok=True)
         ffmpeg.extract_wav(path, wav)
         line, _ = ffmpeg.read_wav(wav)
+        line = line[round(float(scene.get("voice_from", 0)) * mix.RATE) :]  # a take whose opening belongs to another film
         begin = max(round((starts[scene["id"]] + float(scene.get("voice_offset", 0))) * mix.RATE), 0)
         end = min(begin + len(line), count)
         track[begin:end] += line[: end - begin]

@@ -27,6 +27,7 @@ The master is only ever read. Everything lands in `deliver/`, so `out/` and `edl
 - **`film.mp4`,** the master with a soft subtitle track and chapter marks.
 - **`chapters.txt`,** to paste into a YouTube description, from `chapters.json` or `beats.json`. YouTube needs at least three chapters of 10 seconds each, and the run says why if it writes none.
 - **`thumbnails/`,** candidates from real frames, sharp and with open eyes where there is a face.
+- **`textless.mp4`, with `--textless`,** the cut picture with no captions or graphics, and its voice mastered. Another film lays it in a frame, or an app adds its own text.
 - **`deliver.json`,** the record of all of it.
 
 ## Versions for each app
