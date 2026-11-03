@@ -1646,3 +1646,61 @@ def test_a_name_the_transcriber_mishears_is_spelled_as_written(tmp_path, monkeyp
     line, _ = film.film_line(film.load(project), "16:9")
     assert [word["text"] for page in line["captions"] for word in page["words"]] == ["This", "is", "Altocue"]
     assert all(page["spelled"] == {"AltaQ": "Altocue"} for page in line["captions"])
+
+
+# One caption track across the frame, frames of real formats, and the review's own scale
+
+
+def test_captions_can_run_across_the_foot_of_the_frame_and_hold_still():
+    """One track across the main frame while anyone speaks, where a phone can read it, and steady over the camera."""
+    for size in ((1920, 1080), (1080, 1920), (1080, 1080)):
+        item = scenes._place({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 4.0, "end": 9.0, "scene": "cut"}, size)
+        pages = scenes.caption_pages(item, SAID, size, place="frame")
+        left, top, right, bottom = scenes.zone_box("foot", size)
+        found = dict(part.split(":", 1) for part in pages[0]["place"].split(";"))
+        assert float(found["left"].removesuffix("px")) == pytest.approx(left * size[0], abs=1)
+        assert float(found["bottom"].removesuffix("px")) == pytest.approx((1 - bottom) * size[1], abs=1)
+        assert pages[0]["steady"] and film_qa.read_size(*size, pages[0]["size"])["phone_px"] >= film_qa.PHONE_FLOOR * 1.3
+    made = board()
+    made["scenes"][1]["camera"] = {"move": "push", "amount": 0.1}
+    made["scenes"][1]["items"].append({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0})
+    line = timeline_for(made)
+    item = next(i for i in line["items"] if i["type"] == "footage")
+    line["captions"] = scenes.caption_pages(item, SAID, (1920, 1080), place="frame")
+    page = scenes.compose(line, default_brand())
+    assert ">fixes<" not in page.split('id="cam-problem"')[1].split('<div class="over">')[0] and ">fixes<" in page.split('<div class="over">')[1]
+
+
+def test_a_footage_item_can_ask_for_its_captions_across_the_frame(tmp_path, monkeypatch):
+    project = small_film(tmp_path / "film")
+    (project.root / "assets" / "cut.mp4").write_bytes(b"clip")
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["scenes"][1]["items"].append({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0, "captions": {"place": "frame"}})
+    path.write_text(json.dumps(made))
+    monkeypatch.setattr(film, "words_of", lambda project, file: SAID)
+    line, _ = film.film_line(film.load(project), "16:9")
+    assert line["captions"] and all(page["steady"] for page in line["captions"])
+
+
+def test_a_strip_can_hold_wide_frames():
+    drawn = formats.find("stage_strip").draw({"stages": [{"text": "Maps", "image": "a.png"}], "size": "frames", "start": 0, "end": 4})
+    assert 'class="strip frames"' in drawn and ".frames img" in formats.find("stage_strip").css
+
+
+def test_the_review_scale_is_read_from_the_rubric(monkeypatch):
+    from altocue import live
+    from altocue.review import rubric
+
+    assert live.count("ship_at") == rubric.SHIP_AT
+    assert live.count("score_top") == 5
+
+
+def test_a_footage_label_moves_to_the_head_where_captions_run_at_the_foot():
+    """A label at the foot of a picture that reaches the caption line would sit under the captions."""
+    low = scenes._place({"type": "footage", "file": "assets/a.mp4", "zone": "phone_b", "label": "Cut", "start": 0, "end": 2, "scene": "a"}, (1080, 1080))
+    high = scenes._place({"type": "footage", "file": "assets/a.mp4", "zone": "phone_b", "label": "Cut", "start": 0, "end": 2, "scene": "a"}, (1920, 1080))
+    assert low["label_at"] == "head" and high["label_at"] == "foot"
+    drawn = scenes._clip(low, default_brand(), 3)
+    top = float(re.search(r'footnote[^>]*top:([\d.]+)px', drawn).group(1))
+    assert top < scenes.zone_box("phone_b", (1080, 1080))[1] * 1080 + 40

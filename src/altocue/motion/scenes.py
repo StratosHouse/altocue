@@ -34,6 +34,8 @@ CAPTION_SHARE = 0.1  # font size as a share of the picture's width
 CAPTION_LAST = 0.1  # seconds. A word that starts this close to the clip's end is left off
 CAPTION_INSET = 28
 FOOTNOTE_LIFT = 104
+LABEL_INSET = 24
+FRAME_CAPTION_SHARE = 0.06  # font size as a share of the frame's width, for one track across the whole frame
 STEADY = ("corner_stamp", "say_line")  # held still over the camera: a push would carry a line at the foot out of the safe zone
 
 # Named places on the canvas as left, top, right, bottom shares. Left and right stack on a tall canvas, so a two-column scene recomposes instead of cropping.
@@ -91,7 +93,7 @@ FILM_CSS = """
 .zone.mid>*{margin-left:auto;margin-right:auto}
 .footage{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--panel)}
 .footage.framed{border-radius:calc(30px * var(--scale));box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 16%,transparent),0 34px 90px #00000080}
-.footnote{display:flex;justify-content:center;font-size:calc(34px * var(--scale));font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.footnote{display:flex;justify-content:center;font-size:calc(42px * var(--scale));font-weight:600;letter-spacing:-.01em;color:var(--ink)}
 .footnote span{padding:.28em .7em;border-radius:99px;background:color-mix(in srgb,var(--panel) 72%,transparent)}
 """
 
@@ -129,7 +131,9 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     width, height = size
     box = f"left:{left * width:.0f}px;right:{(1 - right) * width:.0f}px;top:{top * height:.0f}px;bottom:{(1 - bottom) * height:.0f}px"
     if item["type"] == "footage":
-        return {**item, "place": f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"}
+        at = "head" if bottom > zone_box("foot", size)[1] else "foot"  # captions and lines for the sound off run at the foot
+        place = f"left:{left * width:.0f}px;top:{top * height:.0f}px;width:{(right - left) * width:.0f}px;height:{(bottom - top) * height:.0f}px"
+        return {**item, "place": place, "label_at": at}
     if area == "full":
         return {**item, "place": box}
     scale = fit_scale(fmt, zone, size, float(item.get("scale", 1.0)))
@@ -413,10 +417,11 @@ def _box(item: dict[str, Any]) -> dict[str, float]:
     return {key: float(found[key].removesuffix("px")) for key in ("left", "top", "width", "height") if key in found}
 
 
-def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int]) -> list[dict[str, Any]]:
-    """A clip's own speech as word-timed pages, set across the foot of its picture, in film seconds.
+def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple[int, int], *, place: str = "picture") -> list[dict[str, Any]]:
+    """A clip's own speech as word-timed pages, in film seconds.
 
-    The size is a share of the picture's width, which keeps a caption on a small phone frame large enough to read on a phone.
+    `picture` sets them across the foot of the clip's own picture, sized to its width. `frame` sets one track across the
+    foot of the whole frame, where a line for the sound off sits, held still over the camera and large enough for a phone.
     """
     box = _box(item)
     if len(box) < 4:
@@ -424,21 +429,31 @@ def caption_pages(item: dict[str, Any], words: list[dict[str, Any]], size: tuple
     begin = float(item["start"]) - float(item.get("from") or 0)
     said = [{"text": w["text"], "start": begin + float(w["start"]), "end": begin + float(w["end"]), "segment": 0} for w in words]
     inside = [w for w in said if item["start"] - 0.01 <= w["start"] < item["end"] - CAPTION_LAST]
-    font = round(min(max(box["width"] * CAPTION_SHARE, 24.0), 64.0), 1)
-    lift = FOOTNOTE_LIFT if item.get("label") else CAPTION_INSET  # clear of the footage's own label
-    bottom = size[1] - (box["top"] + box["height"]) + lift
-    place = f"left:{box['left']:.0f}px;width:{box['width']:.0f}px;right:auto;top:auto;bottom:{bottom:.0f}px;padding:0 {box['width'] * 0.05:.0f}px;font-size:{font}px"
+    if place == "frame":
+        left, top, right, bottom = zone_box("foot", size)
+        font = round(min((bottom - top) * size[1] * 0.85, size[0] * FRAME_CAPTION_SHARE), 1)
+        across, under, inset = (right - left) * size[0], (1 - bottom) * size[1], 0.0
+        left_px = left * size[0]
+    else:
+        font = round(min(max(box["width"] * CAPTION_SHARE, 24.0), 64.0), 1)
+        lift = FOOTNOTE_LIFT if item.get("label") else CAPTION_INSET  # clear of the footage's own label
+        across, under, inset = box["width"], size[1] - (box["top"] + box["height"]) + lift, box["width"] * 0.05
+        left_px = box["left"]
+    style = f"left:{left_px:.0f}px;width:{across:.0f}px;right:auto;top:auto;bottom:{under:.0f}px;padding:0 {inset:.0f}px;font-size:{font}px"
     pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
-    return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": place, "size": font} for page in pages]
+    steady = {"steady": True} if place == "frame" else {}
+    return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": style, "size": font, **steady} for page in pages]
 
 
 def _below(item: dict[str, Any]) -> str:
-    """A footage label sits across the foot of its picture."""
+    """A footage label sits across the foot of its picture, or its head when the picture reaches the caption line."""
     found = dict(part.split(":", 1) for part in str(item.get("place") or "").split(";") if ":" in part)
     if not found:
         return ""
-    foot = float(found["top"].removesuffix("px")) + float(found["height"].removesuffix("px"))
-    return f' style="left:{found["left"]};width:{found["width"]};top:{foot - 92:.0f}px"'
+    head = float(found["top"].removesuffix("px"))
+    foot = head + float(found["height"].removesuffix("px"))
+    at = head + LABEL_INSET if item.get("label_at") == "head" else foot - 92
+    return f' style="left:{found["left"]};width:{found["width"]};top:{at:.0f}px"'
 
 
 def tail(scene: dict[str, Any], lap: float) -> float:
@@ -475,7 +490,7 @@ def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
             if shown["end"] >= total - 1 / line["fps"]:
                 shown = {**shown, "end": total + LAST_HOLD}  # the last thing on screen stays up, so the film does not end on a fade
             inner.append(_clip(shown, brand, track))
-        spoken = [page for page in line.get("captions", []) if page.get("scene") == scene["id"] and page.get("place")]
+        spoken = [page for page in line.get("captions", []) if page.get("scene") == scene["id"] and page.get("place") and not page.get("steady")]
         if spoken:
             track += 1
             inner += [caption_html(page, "boxed", track, page["place"]) for page in spoken]
@@ -486,6 +501,10 @@ def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
     for item in [*fixed, *line.get("links", [])]:
         track += 1
         ahead.append(_clip(item, brand, track))
+    steady = [page for page in line.get("captions", []) if page.get("steady") and page.get("place")]
+    if steady:
+        track += 1
+        ahead += [caption_html(page, "boxed", track, page["place"]) for page in steady]
     tokens = root_tokens(line, brand, geo)
     sheet = css + formats.stylesheet(everything(line)) + FILM_CSS + "\n".join(keyframes)
     blur_attrs = f'data-motion-blur="on" data-motion-blur-shutter="{SHUTTER}"' if blur else 'data-motion-blur="off"'
