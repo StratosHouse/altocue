@@ -259,7 +259,14 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "link": {"type": "through", "seconds": 0.7, "why": "We push through the face into the same frame, corrected."},
             "items": [
                 {"type": "mask_rise", "lines": ["Captions", "*to the word*"], "start": -0.3, "zone": "left"},
-                {"type": "footage", "file": "assets/final-b.mp4", "zone": "phone", "start": -0.3, "important": False, "captions": True},
+                {
+                    "type": "footage",
+                    "file": "assets/final-b.mp4",
+                    "zone": "phone",
+                    "start": -0.3,
+                    "important": False,
+                    "captions": {"spell": {"color": "colour"}},  # British spelling, as the clip's own caption has it
+                },
             ],
         },
         {
