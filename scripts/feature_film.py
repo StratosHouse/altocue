@@ -142,7 +142,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
     speech = assets / "voice"
     speech.mkdir(exist_ok=True)
     ffmpeg.run(["-i", str(final_a), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-a.wav")])
-    ffmpeg.run(["-i", str(final_b), "-vn", "-t", "6.8", "-af", "afade=t=out:st=6.4:d=0.4", "-ar", "48000", "-ac", "1", str(speech / "final-b.wav")])
+    ffmpeg.run(["-i", str(final_b), "-vn", "-ar", "48000", "-ac", "1", str(speech / "final-b.wav")])
     frame_raw, frame_graded = matched_frames(raw_a, final_a, assets)
     crops = look_crops(looks, assets)
     clip = stock_clip(project, "ocean waves aerial") if stock else None
@@ -192,7 +192,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         "brand": {"colors": {"ink": "#f3f7fa", "soft": "#a3b1bd", "accent": "#b5f4d9", "panel": "#080d13", "surface": "#111b24"}, "name": "Altocue"},
         "deliverables": ["16:9", "9:16", "1:1"],
         "claims": ["Every number on screen is read from the tool when this film is built"],
-        "length": 88,
+        "length": 87,
         "cap_seconds": CAP,
     }
 
@@ -203,7 +203,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "open",
             "beat": "hook",
-            "seconds": 4.5,
+            "seconds": 3.6,
             "verb": "promise",
             "energy": 3,
             "carry": "the line falls into the footage",
@@ -212,7 +212,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
             "items": [
                 {"type": "word_slam", "text": "You film it. *Your agent edits it.*", "start": 0, "zone": "center", "align": "center", "role": "hook", "important": True}
             ],
-            "sound": [{"name": "rise", "at": 3.2}],
+            "sound": [{"name": "rise", "at": 2.4}],
         },
         {
             "id": "cut",
@@ -235,7 +235,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "captions",
             "beat": "example",
-            "seconds": 6.5,
+            "seconds": 10.5,
             "verb": "caption",
             "energy": 5,
             "carry": "the words move to the colour",
@@ -252,7 +252,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "colour",
             "beat": "example",
-            "seconds": 6,
+            "seconds": 5.5,
             "verb": "correct",
             "energy": 5,
             "carry": "the sweep turns into the waveform",
@@ -276,7 +276,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "sound",
             "beat": "example",
-            "seconds": 6,
+            "seconds": 5,
             "verb": "clean",
             "energy": 6,
             "carry": "the level steps up into the formats",
@@ -299,7 +299,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "formats",
             "beat": "reveal",
-            "seconds": 3.5,
+            "seconds": 3,
             "verb": "count",
             "energy": 7,
             "carry": "the count opens onto the first format",
@@ -449,7 +449,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "looks",
             "beat": "reveal",
-            "seconds": 4.5,
+            "seconds": 4,
             "verb": "compare",
             "energy": 6,
             "carry": "the row becomes search results",
@@ -470,7 +470,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "library",
             "beat": "reveal",
-            "seconds": 6.5,
+            "seconds": 6,
             "verb": "search",
             "energy": 6,
             "carry": "the result ticks into the gates",
@@ -525,7 +525,7 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
         {
             "id": "verdict",
             "beat": "ask",
-            "seconds": 5,
+            "seconds": 4.5,
             "verb": "decide",
             "energy": 9,
             "carry": "the verdict lands on the mark",
@@ -557,8 +557,8 @@ def build(folder: Path, demo: Path, reviewed: Path, looks: Path, stock: bool) ->
                     "type": "logo_sting",
                     "text": "Altocue",
                     "image": "assets/logos/altocue.svg",
-                    "label": "This film was made with Altocue",
-                    "cta": "Open source, MIT",
+                    "label": "MIT. This film was made with Altocue.",
+                    "cta": "github.com/StratosHouse/altocue",
                     "start": -0.3,
                     "role": "cta",
                     "important": True,
