@@ -153,7 +153,7 @@ class HiggsfieldProvider:
     def estimate(self, req: GenRequest) -> Cost | None:
         """The live price, in credits. Unknown means unpriced, and an unpriced shot is never paid for."""
         entry = self.catalog.resolve(self.id, req)
-        plain = replace(req, first_frame=None, last_frame=None, refs=[])
+        plain = replace(req, first_frame=None, last_frame=None, refs=[], motion=None)  # the CLI uploads any local path it is given, so media stays out of a quote
         try:
             data = self._cli("generate", "cost", entry.model, *to_flags(entry.payload(plain, str)), timeout=60)
         except NeedsLogin:

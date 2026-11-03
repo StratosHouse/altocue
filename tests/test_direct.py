@@ -269,6 +269,27 @@ def test_multi_shot_block_is_checked_as_a_block():
     assert "block-length" in lint(prompt="SHOT 1 - 0.0s to 4.0s - WIDE: she enters.\nHARD CUT.\nSHOT 2 - 4.0s to 5.0s - CLOSE: she turns.")
 
 
+def test_a_motion_video_is_a_video_file_for_a_video_shot(tmp_path):
+    """c001, c013, c280: a blockout sets camera and timing, and the prompt carries only the look."""
+    assert "motion" in rules(validate({"shots": [shot(motion="blockout.png")]}), "error")
+    assert "motion" in rules(validate({"shots": [shot(motion="@s00")]}), "error")
+    assert "motion" in rules(validate({"shots": [shot(kind="image", check="still", motion="blockout.mp4")]}), "error")
+    assert "missing-file" in rules(validate({"shots": [shot(motion="blockout.mp4")]}, root=tmp_path), "error")
+    assert "outside-project" in rules(validate({"shots": [shot(motion="../blockout.mp4")]}, root=tmp_path), "error")
+    (tmp_path / "blockout.mp4").write_bytes(b"0")
+    assert validate({"shots": [shot(motion="blockout.mp4")]}, root=tmp_path).ok
+
+
+def test_a_prompt_that_restates_the_motion_videos_camera_warns():
+    found = lint(motion="blockout.mp4")
+    assert "motion-restated" in found and not found & {"no-move", "endpoint"}
+    assert not lint(motion="blockout.mp4", prompt="Wet asphalt under sodium light, a red wool coat, 35mm film grain, steam from a grate.") & {
+        "motion-restated",
+        "no-move",
+        "endpoint",
+    }
+
+
 def test_image_prompts_skip_camera_rules():
     found = lint(kind="image", check="still", prompt="A brass lantern on a wet stone step, warm practical light from the left.")
     assert not found & {"no-move", "endpoint", "one-move"}

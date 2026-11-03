@@ -54,10 +54,21 @@ def open_run(project: Project, shots_file: str = "shots.json", provider: str | N
     return review, get_provider(name, catalog, project=project), catalog
 
 
+def seconds_of(path: Path | None) -> float | None:
+    """A motion video's length, which some routes bill on. None when it cannot be read, and the price assumes the longest."""
+    if path is None or not path.is_file():
+        return None
+    try:
+        return round(ffmpeg.probe_clip(path).duration, 3)
+    except AltocueError:
+        return None
+
+
 def shot_request(shot: Shot, style: str = "", root: Path | None = None) -> GenRequest:
     def where(value: str) -> Path:
         return Path(value) if value.startswith("@") or root is None else root / value
 
+    motion = where(shot.motion) if shot.motion else None
     return GenRequest(
         kind=shot.kind,  # type: ignore[arg-type]
         tier=shot.tier,  # type: ignore[arg-type]
@@ -70,15 +81,19 @@ def shot_request(shot: Shot, style: str = "", root: Path | None = None) -> GenRe
         refs=[where(value) for value in shot.refs],
         seed=shot.seed,
         extra=shot.extra,
+        motion=motion,
+        motion_seconds=seconds_of(motion) if root is not None else None,
     )
 
 
-def estimate(shots: Sequence[Shot], provider: str | GenProvider = "fal", *, catalog: Catalog | None = None, style: str = "") -> Cost:
+def estimate(
+    shots: Sequence[Shot], provider: str | GenProvider = "fal", *, catalog: Catalog | None = None, style: str = "", root: Path | None = None
+) -> Cost:
     """What these shots would cost. A shot no route can serve is an error, not a cheaper shot."""
     source = get_provider(provider, catalog or load_catalog()) if isinstance(provider, str) else provider
     total = Cost()
     for shot in shots:
-        cost = source.estimate(shot_request(shot, style))
+        cost = source.estimate(shot_request(shot, style, root))
         if cost is None:
             total.unpriced.append(shot.id)
             total.lines.append(CostLine(shot=shot.id, model="", usd=None, note="could not be priced"))
@@ -144,6 +159,7 @@ def _fingerprint(provider: str, model: str, params: dict[str, Any], req: GenRequ
         "first_frame": media(req.first_frame),
         "last_frame": media(req.last_frame),
         "refs": [media(path) for path in req.refs],
+        **({"motion": media(req.motion)} if req.motion else {}),  # only when set, so every digest made before it stays the same
     }
     return hashlib.sha256(json.dumps(material, sort_keys=True, default=str).encode()).hexdigest()[:12]
 
@@ -192,7 +208,7 @@ def build_plan(
         if status == "restore":
             item.status, item.restore = "done", True
         if status == "new":
-            item.cost = estimate([shot], provider, style=review.style)
+            item.cost = estimate([shot], provider, style=review.style, root=project.root)
         if status == "resume" and record:
             item.job = JobRef.from_dict(record["job"])
             item.state = record["state"]
@@ -212,9 +228,14 @@ def project_file(project: Project, value: str | Path) -> str | None:
     return f"{entry['asset']}, imported as {text[1:]}" if entry and entry.get("imported") else None
 
 
+def sent(req: GenRequest) -> list[Path]:
+    """Every file a request sends: stills, references and a motion video. Each is a project file under the upload rules."""
+    return list(filter(None, [req.first_frame, req.last_frame, *req.refs, req.motion]))
+
+
 def _own_files(project: Project, plan: list[Planned]) -> list[str]:
     """Project files a run would send."""
-    paths = [path for item in plan if item.status == "new" for path in filter(None, [item.req.first_frame, item.req.last_frame, *item.req.refs])]
+    paths = [path for item in plan if item.status == "new" for path in sent(item.req)]
     return [name for name in (project_file(project, path) for path in paths) if name]
 
 
@@ -222,7 +243,7 @@ def shot_files(project: Project, shot: str, shots_file: str = "shots.json") -> l
     """Project files a listed shot sends, for a reservation or an import that names no recipe."""
     path = project.root / shots_file
     known = next((s for s in load_shots(path).shots if s.id == shot), None) if path.exists() else None
-    return [name for name in (project_file(project, value) for value in known.media()) if name] if known else []
+    return [name for name in (project_file(project, value) for value in known.uploads()) if name] if known else []
 
 
 def _uploads(project: Project, plan: list[Planned]) -> list[str]:
@@ -230,7 +251,7 @@ def _uploads(project: Project, plan: list[Planned]) -> list[str]:
     for item in plan:
         if item.status != "new":
             continue
-        for path in filter(None, [item.req.first_frame, item.req.last_frame, *item.req.refs]):
+        for path in sent(item.req):
             text = str(path)
             label = project_file(project, path) or f"the still from {text[1:]}"
             names.append(f"{label} (for {item.shot.id})")
@@ -635,6 +656,7 @@ class Run:
                         "first_frame": item.shot.first_frame,
                         "last_frame": item.shot.last_frame,
                         "refs": item.shot.refs,
+                        "motion": item.shot.motion,
                         "check": check,
                         "synthetic": flags,
                         "derived_from": ancestors,

@@ -27,10 +27,11 @@ TIERS: tuple[str, ...] = ("draft", "standard", "hero")
 ASPECTS = ("21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16")
 CHECKS = {"video": ("motion", "frames", "none"), "image": ("still", "none")}
 REQUIRED = ("id", "purpose", "kind", "tier", "prompt", "aspect", "duration", "placement", "check")
-OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra", "synthetic", "script")
+OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra", "synthetic", "script", "motion")
 SYNTHETIC = ("person", "voice", "scene", "product")
 SHOT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")  # it names files, so it can never climb out of the project
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
+VIDEO_SUFFIXES = {".mp4", ".mov"}  # what the routes that take a motion video accept
 PUNCTUATION = " .,!?;:\"'"
 
 MAX_REFS = 7
@@ -97,9 +98,14 @@ class Shot(Model):
     extra: dict[str, Any] = field(default_factory=dict)
     synthetic: list[str] = field(default_factory=list)
     script: str = ""
+    motion: str | None = None
 
     def media(self) -> list[str]:
         return [value for value in (self.first_frame, self.last_frame, *self.refs) if value]
+
+    def uploads(self) -> list[str]:
+        """Every file this shot sends: its stills, and a motion video when it has one."""
+        return [*self.media(), *filter(None, [self.motion])]
 
     def shot_refs(self) -> list[str]:
         """Earlier shots this one is built from, written `@id`."""
@@ -195,6 +201,12 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
     first = raw.get("first_frame")
     if isinstance(first, str) and not first.startswith("@") and Path(first).suffix.lower() not in IMAGE_SUFFIXES:
         found.append(error("first-frame", f"first_frame must be a still, and {first} is not an image."))
+    motion = raw.get("motion")
+    if motion is not None:
+        if not isinstance(motion, str) or motion.startswith("@") or Path(motion).suffix.lower() not in VIDEO_SUFFIXES:
+            found.append(error("motion", f"motion is a video in the project, such as a blockout render, ending {' or '.join(sorted(VIDEO_SUFFIXES))}."))
+        elif kind == "image":
+            found.append(error("motion", "An image has no motion. A motion video drives a video shot."))
     return name, found
 
 
@@ -214,9 +226,21 @@ def _media_findings(shots: list[Shot], root: Path | None) -> list[Finding]:
                     found.append(Finding("error", shot.id, "missing-file", f"{value} is not in the project."))
                 elif path.suffix.lower() not in IMAGE_SUFFIXES:
                     found.append(Finding("error", shot.id, "not-an-image", f"{value} is not an image."))
+        if shot.motion and root is not None:
+            found += _project_file(shot, shot.motion, root)
         if shot.kind == "image":
             stills.add(shot.id)
     return found
+
+
+def _project_file(shot: Shot, value: str, root: Path) -> list[Finding]:
+    """A file a shot sends that is not a still: it must be the project's own, and it must be there."""
+    path = (root / value).resolve()
+    if not path.is_relative_to(root.resolve()):
+        return [Finding("error", shot.id, "outside-project", f"{value} is outside the project, so it cannot be uploaded.")]
+    if not path.is_file():
+        return [Finding("error", shot.id, "missing-file", f"{value} is not in the project.")]
+    return []
 
 
 def _character_findings(shots: list[Shot]) -> list[Finding]:
@@ -298,6 +322,10 @@ def lint_prompt(shot: Shot) -> list[Finding]:
     if words > MAX_WORDS or words < MIN_WORDS:
         warn("prompt-length", f"{words} words. A single shot lands best at about 50 to 80.")
     moves = [name for name, pattern in MOVES.items() if has(pattern)]
+    if shot.motion:
+        if set(moves) - {"static"}:
+            warn("motion-restated", f"{', '.join(moves)}. The motion video sets camera and timing, and restated motion drifts. Keep only the look here.")
+        return found
     if not moves:
         warn("no-move", "No named camera move. Name one, or say the frame is locked off.")
     if len(moves) > 1 and not has(r"\bthen\b"):
@@ -482,7 +510,7 @@ def run(args: argparse.Namespace) -> int:
     name = args.provider or project.setting("generate", "provider", "")
     cost = None
     if review.ok and name:
-        cost = estimate(review.shots, get_provider(name, catalog_for(project), project=project), style=review.style)
+        cost = estimate(review.shots, get_provider(name, catalog_for(project), project=project), style=review.style, root=project.root)
     if args.json:
         report = {
             "ok": review.ok,

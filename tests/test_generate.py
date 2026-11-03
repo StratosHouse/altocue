@@ -393,6 +393,77 @@ def test_estimate_refuses_an_impossible_shot():
         estimate(shots_of(shot(first_frame="a.png", refs=["b.png"])), "fal")
 
 
+# A motion video, such as a blockout render (c001, c013, c280)
+
+
+def test_only_routes_whose_docs_list_a_video_reference_take_a_motion_video():
+    """fal's Seedance 2.0 reference pages list video_urls, and the Higgsfield CLI lists --video-references for seedance_2_0 and its Mini."""
+    catalog = load_catalog()
+    takers = {(e.provider, e.surface, e.tier, e.capability, e.fields["motion"]) for e in catalog.entries if "motion" in e.fields}
+    fal = {("fal", "", tier, "reference_to_video", "video_urls") for tier in TIERS}
+    cli = {("higgsfield", "", tier, cap, "video-references") for tier in TIERS for cap in ("reference_to_video", "frame_and_refs_to_video")}
+    assert takers == fal | cli
+    assert not [e for e in catalog.entries if e.surface == "mcp" and "motion" in e.fields]
+
+
+def test_a_motion_video_counts_as_a_reference_and_reaches_the_models_own_field():
+    request = GenRequest(kind="video", tier="standard", prompt="p", aspect="9:16", duration_s=5, motion=Path("blockout.mp4"), motion_seconds=4.0)
+    assert capability_of(request) == "reference_to_video"
+    entry = load_catalog().resolve("fal", request)
+    assert entry.payload(request, lambda path: f"url:{path.name}")["video_urls"] == ["url:blockout.mp4"]
+    framed = GenRequest(kind="video", tier="standard", prompt="p", aspect="9:16", duration_s=5, first_frame=Path("a.png"), motion=Path("b.mp4"))
+    assert capability_of(framed) == "frame_and_refs_to_video"
+    assert load_catalog().resolve("higgsfield", framed).payload(framed, str)["video-references"] == ["b.mp4"]
+
+
+def test_a_motion_video_on_a_route_that_takes_none_is_refused_with_a_fix():
+    catalog = load_catalog()
+    entry = catalog.find("fal", "draft", "reference_to_video")
+    catalog.entries[catalog.entries.index(entry)] = entry.without_field("motion")
+    with pytest.raises(AltocueError, match="a motion video") as caught:
+        catalog.resolve("fal", GenRequest(kind="video", tier="draft", prompt="p", aspect="9:16", duration_s=5, motion=Path("b.mp4")))
+    assert caught.value.fix
+    with pytest.raises(AltocueError, match="frame_and_refs_to_video"):
+        load_catalog().resolve("fal", GenRequest(kind="video", tier="draft", prompt="p", aspect="9:16", duration_s=5, first_frame=Path("a.png"), motion=Path("b.mp4")))
+
+
+def test_a_motion_video_outside_the_routes_length_is_refused():
+    request = GenRequest(kind="video", tier="draft", prompt="p", aspect="9:16", duration_s=5, motion=Path("b.mp4"), motion_seconds=20.0)
+    with pytest.raises(AltocueError, match="motion video of 20s"):
+        load_catalog().resolve("fal", request)
+
+
+def test_a_motion_video_is_priced_on_its_seconds_and_the_outputs(tmp_path):
+    """fal bills video references at a lower token rate across input and output together."""
+    make_clip(tmp_path / "blockout.mp4", seconds=2.0, audio=False)
+    cost = estimate(shots_of(shot(tier="standard", motion="blockout.mp4", prompt="Wet asphalt, sodium light, film grain.")), "fal", root=tmp_path)
+    assert cost.usd == pytest.approx(0.1864 * 7, abs=0.01)
+    unread = estimate(shots_of(shot(tier="standard", motion="missing.mp4")), "fal")
+    assert unread.usd == pytest.approx(0.1864 * 20)  # unread, it is priced at the longest a route takes
+
+
+def test_a_motion_video_is_sent_and_recorded_as_a_project_file(project, fal, capsys):
+    make_clip(project.root / "blockout.mp4", seconds=2.0, audio=False)
+    write_shots(project, shot(motion="blockout.mp4", prompt="Wet asphalt, sodium light, film grain, a red coat."))
+    assert go(project, "--yes") == 0
+    assert "blockout.mp4 (for s01)" in capsys.readouterr().out
+    assert json.loads(fal.submits[0]["body"])["video_urls"] == [f"{fal.url}/cdn/blockout.mp4"]
+    assert fal.uploads["blockout.mp4"] == (project.root / "blockout.mp4").read_bytes()
+    asset = generated_asset(project, "s01")
+    assert json.loads(asset.with_name(asset.name + ".provenance.json").read_text())["motion"] == "blockout.mp4"
+
+
+def test_a_motion_video_waits_for_upload_consent(hf_project, higgsfield, capsys):
+    make_clip(hf_project.root / "blockout.mp4", seconds=2.0, audio=False)
+    write_shots(hf_project, shot(tier="standard", motion="blockout.mp4", prompt="Wet asphalt, sodium light, film grain, a red coat."))
+    assert go(hf_project, "--yes") == 1
+    assert "has not agreed" in capsys.readouterr().err and not higgsfield.creates()
+    assert go(hf_project, "--allow-upload", "higgsfield") == 0
+    assert go(hf_project, "--yes") == 0
+    create = higgsfield.creates()[0]
+    assert create[create.index("--video-references") + 1] == str(hf_project.root / "blockout.mp4")
+
+
 def test_providers_satisfy_the_protocol():
     catalog = load_catalog()
     assert isinstance(FalProvider(catalog), GenProvider)

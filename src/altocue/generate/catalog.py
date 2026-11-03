@@ -21,14 +21,16 @@ REQUIRED = ("provider", "tier", "capability", "kind", "model", "aspects", "as_of
 def capability_of(req: GenRequest) -> str:
     if req.kind == "image":
         return "reference_to_image" if req.refs else "text_to_image"
-    if req.first_frame and req.refs:
+    referenced = bool(req.refs or req.motion)  # a motion video is a reference, so it needs a route that takes references
+    if req.first_frame and referenced:
         return "frame_and_refs_to_video"
     if req.first_frame:
         return "image_to_video"
-    return "reference_to_video" if req.refs else "text_to_video"
+    return "reference_to_video" if referenced else "text_to_video"
 
 
 PRICED_FIELDS = {"duration", "seconds", "num_frames", "num_images", "num_outputs", "n", "resolution", "quality"}
+MOST_MOTION_SECONDS = 15.0  # priced at this when the motion video could not be read, the longest any route here takes
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,8 @@ class ModelEntry:
     usd_per_second_audio: float | None = None
     usd_per_image: float | None = None
     credits_per_second: float | None = None
+    usd_per_second_video_ref: float | None = None  # billed on the motion video's seconds and the output's together
+    motion_seconds: tuple[float, ...] = ()  # the shortest and longest motion video the route takes
     price: str = ""
     note: str = ""
     surface: str = ""
@@ -64,6 +68,9 @@ class ModelEntry:
     def cost(self, req: GenRequest) -> float | None:
         if self.kind == "image":
             return self.usd_per_image
+        if req.motion and self.usd_per_second_video_ref is not None:
+            fed = MOST_MOTION_SECONDS if req.motion_seconds is None else req.motion_seconds
+            return self.usd_per_second_video_ref * (req.duration_s + fed)
         rate = self.usd_per_second_audio if req.audio and self.usd_per_second_audio else self.usd_per_second
         return None if rate is None else rate * req.duration_s
 
@@ -82,6 +89,8 @@ class ModelEntry:
             body[names["last_frame"]] = media(req.last_frame)
         if req.refs:
             body[names["refs"]] = [media(path) for path in req.refs]
+        if req.motion:
+            body[names["motion"]] = [media(req.motion)]
         if req.seed is not None and "seed" in names:
             body[names["seed"]] = req.seed
         return {**body, **req.extra}
@@ -100,6 +109,11 @@ class ModelEntry:
             problems.append("a last frame")
         if req.audio and "audio" not in self.fields:
             problems.append("generated audio")
+        if req.motion and "motion" not in self.fields:
+            problems.append("a motion video")
+        elif req.motion and self.motion_seconds and req.motion_seconds is not None and not self.motion_seconds[0] <= req.motion_seconds <= self.motion_seconds[-1]:
+            low, high = self.motion_seconds[0], self.motion_seconds[-1]
+            problems.append(f"a motion video of {req.motion_seconds:g}s (it takes {low:g} to {high:g}s)")
         fixed = (set(self.fields.values()) | set(self.params) | PRICED_FIELDS) & set(req.extra)
         if fixed:
             problems.append(f"extra fields that would change the request or its price: {', '.join(sorted(fixed))}")
@@ -190,7 +204,7 @@ def _entry(raw: dict[str, Any], path: Path) -> ModelEntry:
     except ValueError as error:
         raise AltocueError(f"{raw['model']} has a bad as_of date.", fix=fix) from error
     known = {key: value for key, value in raw.items() if key in ModelEntry.__dataclass_fields__}
-    return ModelEntry(**{**known, "aspects": tuple(raw["aspects"])})
+    return ModelEntry(**{**known, "aspects": tuple(raw["aspects"]), "motion_seconds": tuple(raw.get("motion_seconds", ()))})
 
 
 def load_catalog(path: str | Path | None = None) -> Catalog:

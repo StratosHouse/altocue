@@ -50,6 +50,8 @@ class GenRequest:
     refs: list[Path] = field(default_factory=list)
     seed: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    motion: Path | None = None  # a video that sets camera and timing, such as a blockout
+    motion_seconds: float | None = None  # its length, when it could be read
 
 
 @dataclass
