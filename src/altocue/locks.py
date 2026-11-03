@@ -1,4 +1,7 @@
-"""Speech models, browser renders and video encodes are heavy. Run one at a time, per machine, across projects."""
+"""Speech models, browser renders and video encodes are heavy. Run one at a time, per machine, across projects.
+
+A machine with room for more, such as a render PC, sets ALTOCUE_HEAVY_JOBS to run that many at once.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +11,7 @@ import platform
 import re
 import subprocess
 import threading
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -19,29 +23,53 @@ MOST_WORKERS = 4
 _held = threading.local()
 
 
+def heavy_jobs() -> int:
+    """How many heavy jobs this machine runs at once: one, unless ALTOCUE_HEAVY_JOBS says more."""
+    chosen = os.environ.get("ALTOCUE_HEAVY_JOBS", "")
+    return int(chosen) if chosen.isdigit() and int(chosen) > 0 else 1
+
+
+def _take(paths: list[Path]) -> object:
+    """Hold the first free lock of `paths`, or None when all are taken."""
+    for path in paths:
+        handle = path.open("w")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return handle
+        except BlockingIOError:
+            handle.close()
+    return None
+
+
 @contextmanager
 def heavy(label: str) -> Iterator[None]:
-    """Wait for any other heavy Altocue job on this machine, then hold the lock.
+    """Wait for a free heavy slot on this machine, then hold it.
 
-    A job that holds it can call a step that asks for it again. `flock` would wait on itself.
+    A job that holds one can call a step that asks for it again. `flock` would wait on itself.
     """
     if getattr(_held, "yes", False):
         yield
         return
-    path = Path.home() / ".altocue" / "heavy.lock"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print(f"Waiting for another Altocue job to finish before {label}.", flush=True)
+    folder = Path.home() / ".altocue"
+    folder.mkdir(parents=True, exist_ok=True)
+    count = heavy_jobs()
+    paths = [folder / "heavy.lock"] + [folder / f"heavy-{n}.lock" for n in range(2, count + 1)]
+    handle = _take(paths)
+    if handle is None:
+        print(f"Waiting for another Altocue job to finish before {label}.", flush=True)
+        if count == 1:
+            handle = paths[0].open("w")
             fcntl.flock(handle, fcntl.LOCK_EX)
-        _held.yes = True
-        try:
-            yield
-        finally:
-            _held.yes = False
-            fcntl.flock(handle, fcntl.LOCK_UN)
+        while handle is None:
+            time.sleep(0.5)
+            handle = _take(paths)
+    _held.yes = True
+    try:
+        yield
+    finally:
+        _held.yes = False
+        fcntl.flock(handle, fcntl.LOCK_UN)
+        handle.close()
 
 
 def memory_gb() -> float:
