@@ -42,7 +42,7 @@ def quiet_steps(monkeypatch, *, failing: str = "", gates: list | None = None) ->
     monkeypatch.setattr(demo, "steps", steps)
     monkeypatch.setattr(demo, "sample_stage", lambda root: "a sample")
     monkeypatch.setattr(demo, "preflight", lambda: None)
-    monkeypatch.setattr(demo, "start_project", lambda root, sample: demo.Project.create(root / "film"))
+    monkeypatch.setattr(demo, "start_project", lambda root, sample: demo.Project.create(root / "altocue-demo"))
     monkeypatch.setattr(demo, "outcome", lambda project: ("Fact gates: all clear.", True))
     return ran
 
@@ -145,7 +145,7 @@ def test_the_take_is_registered_as_a_generated_person(tmp_path, monkeypatch):
 
 
 def test_the_name_is_spelled_right_in_captions(tmp_path):
-    project = demo.Project.create(tmp_path / "film")
+    project = demo.Project.create(tmp_path / "altocue-demo")
     demo.spell_the_name(project)
     project = demo.Project.open(project.root)
     assert project.fix_text("AltaQ.") == "Altocue." and project.fix_text("Altoque") == "Altocue"
@@ -248,7 +248,7 @@ def write_qa(project, gates) -> None:
 
 
 def test_clear_gates_with_no_reviewer_is_never_called_a_ship(tmp_path):
-    project = demo.Project.create(tmp_path / "film")
+    project = demo.Project.create(tmp_path / "altocue-demo")
     write_qa(project, [{"id": "words", "passed": True, "skipped": False}])
     said, ok = demo.outcome(project)
     assert ok and "SHIP" in said and "needs a reviewer" in said and "1 of 1" in said
@@ -257,7 +257,7 @@ def test_clear_gates_with_no_reviewer_is_never_called_a_ship(tmp_path):
 def test_a_code_decided_fix_is_reported_as_it_stands(tmp_path):
     from altocue.project import write_json
 
-    project = demo.Project.create(tmp_path / "film")
+    project = demo.Project.create(tmp_path / "altocue-demo")
     write_qa(project, [{"id": "words", "passed": False, "skipped": False, "detail": "85% of 20 words"}])
     write_json(project.review_dir / "report.json", {"verdict": "FIX", "reasons": ["Gate failed: words (85% of 20 words)"]})
     said, ok = demo.outcome(project)
@@ -265,7 +265,7 @@ def test_a_code_decided_fix_is_reported_as_it_stands(tmp_path):
 
 
 def test_a_gate_that_did_not_run_is_named_and_is_not_a_pass(tmp_path):
-    project = demo.Project.create(tmp_path / "film")
+    project = demo.Project.create(tmp_path / "altocue-demo")
     write_qa(project, [{"id": "rules_ocr", "passed": False, "skipped": True, "detail": "no reader"}])
     said, ok = demo.outcome(project)
     assert ok and "rules_ocr" in said and "blocks SHIP" in said
@@ -286,7 +286,7 @@ def test_the_brief_says_what_must_be_said():
 
 
 def test_a_waiting_retake_is_ruled_on_so_the_film_can_pass(tmp_path, monkeypatch):
-    project = demo.Project.create(tmp_path / "film")
+    project = demo.Project.create(tmp_path / "altocue-demo")
     edl = Edl(fps=24, segments=[Segment(id="s1", clip="take", start=0.0, end=1.0)], removed=[Removed("take", 0.0, 0.5, "retake", "a false start", "review")])
     project.save_edl(edl)
     ruled = []
@@ -318,7 +318,7 @@ def test_the_demo_never_asks_for_a_paid_reviewer(tmp_path, monkeypatch):
 
     monkeypatch.setenv("GEMINI_API_KEY", "a-key")
     monkeypatch.setattr(demo, "review_run", spy)
-    project = demo.Project.create(tmp_path / "film")
+    project = demo.Project.create(tmp_path / "altocue-demo")
     write_qa(project, [])
     assert "0 gates passed" in demo.review_stage(project)
     assert seen["reviewer"] == "pack" and seen["upload"] is False and seen["paid_key"] is False

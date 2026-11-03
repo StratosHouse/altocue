@@ -125,7 +125,7 @@ def test_json_carries_the_matrix(monkeypatch, capsys):
 def test_a_missing_engine_gets_a_fix_that_works_for_this_install():
     """`pip install` reaches neither a uv tool nor anything on PyPI, because Altocue is not published there."""
     fix = transcribe.ENGINES["parakeet"].install_fix()
-    assert 'uv tool install --force "altocue[parakeet] @ git+https://github.com/StratosHouse/altocue"' in fix
+    assert 'uv tool install --force "altocue[parakeet]"' in fix
     assert "pip install" not in fix
 
 

@@ -80,7 +80,7 @@ def spell_the_name(project: Project) -> None:
 
 def start_project(root: Path, sample: Path) -> Project:
     """Registered as what it is, so the claims and disclosure gates hold this film to the rules for a generated person."""
-    project = Project.create(root / "film")
+    project = Project.create(root / "altocue-demo")
     spell_the_name(project)
     project = Project.open(project.root)
     prompt = "Altocue's published demo take. The prompt behind it is not recorded here."
@@ -278,7 +278,7 @@ def run(args: argparse.Namespace) -> int:
         if not args.keep:
             shutil.rmtree(root, ignore_errors=True)
     if args.keep:
-        print(f"Kept in {root}. The film is at {root / 'film' / 'out' / 'final.mp4'}, and the review page at {root / 'film' / 'review' / 'page.html'}.")
+        print(f"Kept in {root}. The film is at {root / 'altocue-demo' / 'out' / 'final.mp4'}, and the review page at {root / 'altocue-demo' / 'review' / 'page.html'}.")
     else:
         print("Removed the demo files. Run `altocue demo --keep` to look at the film and its review page.")
     return 0 if passed else 1

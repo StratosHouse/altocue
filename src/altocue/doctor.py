@@ -126,10 +126,9 @@ def check_denoiser() -> Check:
 
 def check_speakers() -> Check:
     from .speakers import model_folder, models_ready
-    from .transcribe import SOURCE
 
     if importlib.util.find_spec("sherpa_onnx") is None:
-        fix = f'Run `uv tool install --force "altocue[speakers] @ {SOURCE}"`, then `altocue setup --speakers`.'
+        fix = 'Run `uv tool install --force "altocue[speakers]"`, then `altocue setup --speakers`.'
         return Check("speakers", False, False, "not installed: words will have no speakers", fix)
     if not models_ready():
         return Check("speakers", False, False, "models not fetched: words will have no speakers", "Run `altocue setup --speakers`.")
@@ -222,7 +221,7 @@ def transcribing(found: dict[str, Check]) -> Capability:
     check = found["transcriber"]
     if not check.ok:
         name = transcribe.auto_order()[0]
-        return Capability("Transcribe on this machine", False, check.detail, f'uv tool install --force "altocue[{name}] @ {transcribe.SOURCE}"')
+        return Capability("Transcribe on this machine", False, check.detail, f'uv tool install --force "altocue[{name}]"')
     engine = transcribe.ENGINES[check.detail]
     download = f"the model downloads on first use, {getattr(engine, 'download', 'size unknown')}"
     return Capability("Transcribe on this machine", True, f"{check.detail}, " + ("model on disk" if model_cached(engine) else download))
@@ -238,9 +237,8 @@ def motion_row(found: dict[str, Check]) -> Capability:
 
 def speakers_fix(check: Check) -> str:
     """The package first, because the models it fetches are useless without it."""
-    from .transcribe import SOURCE
 
-    return "altocue setup --speakers" if "not fetched" in check.detail else f'uv tool install --force "altocue[speakers] @ {SOURCE}"'
+    return "altocue setup --speakers" if "not fetched" in check.detail else 'uv tool install --force "altocue[speakers]"'
 
 
 def row(feature: str, ok: bool, how: str, fix: str) -> Capability:
@@ -249,7 +247,6 @@ def row(feature: str, ok: bool, how: str, fix: str) -> Capability:
 
 def capabilities(core: list[Check] | None = None) -> list[Capability]:
     """Every feature and whether it runs here. A gap carries the one command that closes it."""
-    from . import transcribe
 
     found = {check.id: check for check in (core_checks() if core is None else core)}
 
@@ -270,7 +267,7 @@ def capabilities(core: list[Check] | None = None) -> list[Capability]:
         row("Stronger noise removal", found["denoiser"].ok, found["denoiser"].detail, "altocue setup --yes"),
         row("Tell speakers apart", found["speakers"].ok, found["speakers"].detail, speakers_fix(found["speakers"])),
         row("Text gates in QA", found["ocr"].ok, found["ocr"].detail, install("tesseract", "tesseract-ocr")),
-        row("Face gates in QA", faces_ready, "YuNet, ships with Altocue" if faces_ready else "the face model is missing", f"uv tool install --force {transcribe.SOURCE}"),
+        row("Face gates in QA", faces_ready, "YuNet, ships with Altocue" if faces_ready else "the face model is missing", "uv tool install --force altocue"),
         Capability("Review pack for a fresh agent", True, ALWAYS),
         Capability("Review page", True, ALWAYS),
         key("GEMINI_API_KEY", "Editor in Chief through Gemini"),
