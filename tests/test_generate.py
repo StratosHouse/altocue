@@ -1125,7 +1125,7 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     assert create[2] == "seedance_2_0"
     assert "--wait" not in create
     assert "--json" in create
-    assert create[create.index("--prompt") + 1] == PROMPT
+    assert f"--prompt={PROMPT}" in create
     assert create[create.index("--start-image") + 1] == str(hf_project.root / "key.png")
     assert create[create.index("--image-references") + 1] == str(hf_project.root / "ref.png")
     assert create[create.index("--aspect_ratio") + 1] == "9:16"
@@ -1143,6 +1143,13 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     assert sidecar["cost_usd"] == pytest.approx(0.8)
     assert spend(hf_project)[0]["basis"] == "credits"
     assert "per credit" in capsys.readouterr().out
+
+
+def test_a_prompt_that_starts_with_dashes_reaches_higgsfield_as_the_prompt(hf_project, higgsfield):
+    """Glued to its flag, a prompt such as `--wait for it` cannot be read as a flag of its own."""
+    write_shots(hf_project, shot(prompt="--wait for the door to open, then a slow push in on her hands."))
+    assert go(hf_project, "--yes") == 0
+    assert "--prompt=--wait for the door to open, then a slow push in on her hands." in higgsfield.creates()[0]
 
 
 def test_higgsfield_job_is_saved_before_polling(hf_project, higgsfield, monkeypatch):
