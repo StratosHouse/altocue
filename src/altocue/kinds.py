@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ffmpeg
+from . import ffmpeg, storyboard
 from .errors import AltocueError
 from .project import Project
 from .storyboard import Problem
@@ -174,8 +174,92 @@ def finished_plate(project: Project, film: Any, line: dict[str, Any], path: Path
     return rows
 
 
-PLAN: dict[str, Callable[[Any], list[Problem]]] = {"plate": plan_plate}
-FINISHED: dict[str, Callable[[Project, Any, dict[str, Any], Path], list[dict[str, Any]]]] = {"plate": finished_plate}
+# Song Cut: owned footage cut to a song, its hits pinned by ear (c203)
+#
+# Altocue has no stem separator and no onset detector. The renderer's beat grid is its only hit
+# finder, and c203 measured a grid 0.32 s off the real crash. So a person pins each hit on the
+# drums and bass, says how, and these checks hold the cut to it.
+
+SHORTEST_SHOT = 0.8  # seconds. A 0.5 s insert read as a jolt (c203)
+PHONE_DARK = 50.0  # median mean grey out of 255 under which a film is too dark to watch on a phone. A house floor, not calibrated
+
+
+def hits_of(board: dict[str, Any]) -> list[dict[str, Any]]:
+    return [hit for hit in board.get("hits") or [] if isinstance(hit, dict)]
+
+
+def plan_song(film: Any) -> list[Problem]:
+    found: list[Problem] = []
+
+    def add(level: str, where: str, message: str, fix: str) -> None:
+        found.append(Problem(level, where, message, fix))
+
+    board = storyboard.fill(film.board)
+    track = (board.get("music") or {}).get("path")
+    if not track or not (film.project.root / str(track)).is_file():
+        fix = 'Set "music": {"path": "assets/music/song.wav"}, a track you have rights to.'
+        add("error", "storyboard", f"A Song Cut is cut to your song, and there is none at {track or 'music.path'}.", fix)
+    done = storyboard.resolve(board, fps=film.project.fps)
+    cuts = [scene["start"] for scene in done["scenes"][1:]]
+    frame = 1 / film.project.fps
+    hits = hits_of(board)
+    if not hits:
+        add("error", "storyboard", "No hit points.", 'Add "hits": [{"name": "crash", "at": 12.48, "how": "kick and bass enter, by ear"}].')
+    for hit in hits:
+        name, at = str(hit.get("name", "hit")), hit.get("at")
+        if not storyboard.number(at) or not 0 < at < done["total"]:
+            add("error", "storyboard", f'The hit "{name}" has no time inside the film.', "Set its second, read from the song.")
+            continue
+        nearest = min(cuts, key=lambda cut: abs(cut - at), default=None)
+        if nearest is None or abs(nearest - at) > frame:
+            off = f"{abs(nearest - at):.2f} s from the nearest cut" if nearest is not None else "with no cut at all"
+            add("error", "storyboard", f'The {name} at {at:g} s falls {off}.', "Move a scene boundary onto it, so the cut lands on the hit.")
+        if not hit.get("how"):
+            fix = 'Add "how", such as pinned by ear on the kick and bass. Altocue has no stem or onset tool, and a beat grid can miss the real hit.'
+            add("warning", "storyboard", f"The {name} does not say how it was found.", fix)
+    if board.get("snap"):
+        message = "Cuts snap to a beat grid, and a grid can miss the real crash by a third of a second."
+        add("warning", "storyboard", message, "Turn snap off and cut to the hits you pinned.")
+    texts = [item for item in done["items"] if item.get("type") != "footage" and storyboard.on_screen(item)]
+    first = min((float(hit["at"]) for hit in hits if storyboard.number(hit.get("at"))), default=None)
+    words = sum(len(" ".join(storyboard.on_screen(item)).split()) for item in texts)
+    if len(texts) != 1 or words != 1:
+        add("error", "storyboard", f"A Song Cut puts one word on screen, and this puts {words} in {len(texts)} items.", "Keep one title word, on the first hit.")
+    elif first is not None and abs(texts[0]["start"] - first) > frame:
+        add("error", str(texts[0]["scene"]), f"The title lands at {texts[0]['start']:g} s and the first hit is at {first:g} s.", "Start it on the hit.")
+    for scene in done["scenes"]:
+        if scene["end"] - scene["start"] + frame / 2 < SHORTEST_SHOT:
+            message = f"This shot runs {scene['end'] - scene['start']:.2f} s, under {SHORTEST_SHOT:g} s."
+            add("error", str(scene["id"]), message, "Shorter shots read as a jolt. Give it longer, or cut it.")
+    for scene in board.get("scenes") or []:
+        if scene.get("sound"):
+            add("warning", str(scene.get("id")), "Sound effects over a song.", "Cut them. The song carries the edit (c203 added nine and removed every one).")
+    return found
+
+
+def finished_song(project: Project, film: Any, line: dict[str, Any], path: Path) -> list[dict[str, Any]]:
+    from .qa import film as film_qa
+
+    stats = film_qa.frame_stats(path)
+    cuts = film_qa.analyse(stats)["cuts"]
+    rows = []
+    level = float(np.median(stats["mean"])) if stats["count"] else 0.0
+    dark = level < PHONE_DARK
+    detail = f"median brightness {level:.0f} of 255, floor {PHONE_DARK:g}" + (", too dark for a phone" if dark else "")
+    rows.append({"level": "FAIL" if dark else "PASS", "check": "phone brightness", "detail": detail})
+    for hit in hits_of(film.board):
+        at = hit.get("at")
+        if not storyboard.number(at):
+            continue
+        near = min(cuts, key=lambda cut: abs(cut - at), default=None)
+        landed = near is not None and abs(near - at) <= 1.5 / stats["fps"]
+        where = f"the nearest cut in the picture is at {near:.3f} s" if near is not None else "no cut was found in the picture"
+        rows.append({"level": "PASS" if landed else "FAIL", "check": f"cut on the {hit.get('name', 'hit')}", "detail": f"hit at {float(at):.3f} s, {where}"})
+    return rows
+
+
+PLAN: dict[str, Callable[[Any], list[Problem]]] = {"plate": plan_plate, "song": plan_song}
+FINISHED: dict[str, Callable[[Project, Any, dict[str, Any], Path], list[dict[str, Any]]]] = {"plate": finished_plate, "song": finished_song}
 
 
 def names(record: dict[str, Any]) -> list[str]:

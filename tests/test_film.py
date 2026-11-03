@@ -7,6 +7,7 @@ import re
 import subprocess
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -21,7 +22,7 @@ from altocue.project import Project
 from altocue.qa import film as film_qa
 
 REPO = Path(__file__).resolve().parents[1]
-TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate")
+TYPES = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song")
 LAUNCH_VARIANTS = ("15", "20", "24", "30")
 
 
@@ -1074,6 +1075,55 @@ def test_a_plate_edit_pass_must_keep_the_plates_timing(tmp_path, capsys):
 def test_a_plate_edit_with_no_plate_says_where_it_goes(tmp_path, capsys):
     project = film.new_film("plate", str(tmp_path / "glass"))
     assert "No plate at assets/plate.mp4" in " ".join(errors(film.problems_in(film.load(project))))
+
+
+# Song Cut: owned footage cut to a song (c203)
+
+
+def song_film(folder: Path) -> film.Film:
+    project = film.new_film("song", str(folder))
+    (project.root / "assets" / "music").mkdir(parents=True, exist_ok=True)
+    with wave.open(str(project.root / "assets" / "music" / "song.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\0\0" * 8000)
+    return film.load(project)
+
+
+def test_a_song_cut_lands_its_cut_and_its_one_word_on_the_hit(tmp_path, capsys):
+    made = song_film(tmp_path / "rowing")
+    assert errors(kinds.plan(made)) == []
+    made.board["hits"][0]["at"] = 8.3
+    assert any("falls 0.30 s from the nearest cut" in m for m in errors(kinds.plan(made)))
+
+
+def test_a_song_cut_keeps_to_the_posts_cheap_rules(tmp_path, capsys):
+    made = song_film(tmp_path / "rowing")
+    made.board["scenes"][0]["seconds"] = 0.5
+    made.board["scenes"][1]["sound"] = [{"name": "boom", "at": 0.2}]
+    made.board["scenes"][4]["items"].append({"type": "word_slam", "text": "Again and again", "start": 0, "duration": 2.0})
+    made.board["snap"] = True
+    del made.board["hits"][0]["how"]
+    found = kinds.plan(made)
+    said = " ".join(problem.message for problem in found)
+    assert "under 0.8 s" in said and "one word on screen" in said and "Sound effects" in said and "beat grid" in said and "how it was found" in said
+
+
+def test_a_song_cut_with_no_song_says_where_it_goes(tmp_path, capsys):
+    project = film.new_film("song", str(tmp_path / "rowing"))
+    assert any("none at assets/music/song.wav" in m for m in errors(film.problems_in(film.load(project))))
+
+
+def test_a_song_cut_master_is_held_to_its_hit_and_to_a_phone(tmp_path):
+    cut = clip_with(tmp_path / "cut.mp4", segments(("0x707070", 1.0), ("0xd0d0d0", 1.0)), seconds=2.0)
+    on_hit = SimpleNamespace(board={"hits": [{"name": "crash", "at": 1.0}]})
+    rows = kinds.finished_song(None, on_hit, {}, cut)
+    assert all(row["level"] == "PASS" for row in rows), rows
+    late = kinds.finished_song(None, SimpleNamespace(board={"hits": [{"name": "crash", "at": 1.5}]}), {}, cut)
+    assert next(row for row in late if row["check"] == "cut on the crash")["level"] == "FAIL"
+    dark = clip_with(tmp_path / "dark.mp4", segments(("0x101010", 1.0), ("0x202020", 1.0)), seconds=2.0)
+    assert next(row for row in kinds.finished_song(None, on_hit, {}, dark) if row["check"] == "phone brightness")["level"] == "FAIL"
 
 
 def test_cuts_compare_against_the_plan_in_frames():

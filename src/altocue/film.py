@@ -26,7 +26,7 @@ from .errors import AltocueError
 from .motion import compositions, formats, hyperframes, scenes
 from .project import CONFIG, SIZES, Project, write_json
 
-ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate")
+ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song")
 LOCK = "storyboard.lock.json"
 FOLDERS = ("assets", "assets/voice", "assets/music", "generated", "motion")
 DRAFT_FPS = 30
