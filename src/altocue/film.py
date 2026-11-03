@@ -25,6 +25,7 @@ from . import ffmpeg, flash, kinds, live, locks, master, mix, score, storyboard,
 from .errors import AltocueError
 from .motion import compositions, formats, hyperframes, scenes
 from .project import CONFIG, SIZES, Project, write_json
+from .stock import credits
 
 ORDER = ("launch", "explainer", "demo", "ad", "gauge", "case", "line", "music", "plate", "song", "invite", "heritage")
 LOCK = "storyboard.lock.json"
@@ -600,6 +601,9 @@ def run_render(args: argparse.Namespace) -> int:
     summary = json.loads((project.review_dir / "film-final.json").read_text())
     report.update(score=summary.get("score"), master=summary.get("master"), flash=summary.get("flash"))
     write_json(project.review_dir / "film.json", report)
+    owed = credits.write_txt(project)  # a film cut to a downloaded track ships the credit it owes, as a render does
+    if owed:
+        print(f"Credits owed: out/{owed.name}")
     for name in report["films"]:
         print(f"Rendered out/{name}")
     music = report.get("score") or {}

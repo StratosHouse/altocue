@@ -1840,3 +1840,25 @@ def test_the_phone_sheet_never_asks_for_a_frame_past_the_end():
     for total in (18.5, 24.0, 7.25, 30.0):
         moments = film_qa.phone_times(total, fps=30)
         assert moments and all(0 <= at <= total - 2 / 30 for at in moments)
+
+
+def test_a_film_cut_to_a_downloaded_track_ships_its_credit(tmp_path, renderer):
+    """The track is named in storyboard.json, so the credits read the storyboard, and a film render writes credits.txt."""
+    from altocue.qa import gates
+    from altocue.stock import credits
+
+    project = small_film(tmp_path / "film")
+    track = project.root / "music" / "song.wav"
+    track.parent.mkdir()
+    ffmpeg.write_wav(track, 0.1 * np.sin(np.arange(48000 * 20) * 2 * np.pi * 220 / 48000), 48000)
+    owed = {"licence": "CC-BY-4.0", "credit": "Song by Someone, CC BY 4.0", "kind": "audio", "title": "Song"}
+    credits.record(project, file="music/song.wav", source="incompetech", source_url="https://incompetech.com", **owed)
+    path = project.root / "storyboard.json"
+    made = json.loads(path.read_text())
+    made["music"] = {"path": "music/song.wav"}
+    path.write_text(json.dumps(made))
+    assert [row["file"] for row in credits.used(project)] == ["music/song.wav"]
+    assert altocue("film", "render", "-p", str(project.root), "--draft") == 0
+    assert "Song by Someone" in (project.out / credits.TEXT).read_text()
+    gate = gates.gate_credits(gates.Context.open(project, project.out / "final.mp4"))
+    assert gate.passed and not gate.skipped and gate.value == 0

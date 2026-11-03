@@ -93,7 +93,9 @@ def carried(project: Project) -> list[dict[str, Any]]:
 
 def film_text(project: Project) -> str:
     """Everything that says what this film uses. Paths are searched as text, because each file names them its own way."""
-    return "\n".join(path.read_text() for path in (project.timeline_path, project.root / "motion.json", project.root / "broll.json") if path.exists())
+    # a film from a storyboard names its track there
+    named = (project.timeline_path, project.root / "motion.json", project.root / "broll.json", project.root / "storyboard.json")
+    return "\n".join(path.read_text() for path in named if path.exists())
 
 
 def used(project: Project) -> list[dict[str, Any]]:
