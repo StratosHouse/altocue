@@ -24,7 +24,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ffmpeg
       - run: uv sync
-      - run: uv run ruff check src tests
+      - run: uv run ruff check src tests scripts
       - run: uv run pytest
       - run: uv run python scripts/check_repo.py
         env:

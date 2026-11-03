@@ -142,7 +142,6 @@ scene.view_settings.view_transform = "Standard"
 scene.render.filepath = OUT_PNG
 bpy.ops.render.render(write_still=True)
 
-bpy.ops.mesh.separate if False else None
 bpy.ops.object.select_all(action="DESELECT")
 mark.select_set(True)
 bpy.context.view_layer.objects.active = mark
