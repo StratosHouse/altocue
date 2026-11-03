@@ -1,0 +1,179 @@
+{
+  "id": "song",
+  "name": "Song Cut",
+  "promise": "Your own footage cut to a song, with the cut and one title word landing on the hit.",
+  "cost": "$0 with footage and a song you have rights to.",
+  "generation": "none",
+  "aspect": "16:9",
+  "fps": 30,
+  "default": "main",
+  "no_hook": true,
+  "checks": [
+    "song"
+  ],
+  "beats": [
+    "build",
+    "crash",
+    "answer"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "rights"
+  ],
+  "formats": [
+    "word_slam"
+  ],
+  "notes": [
+    "Bring your clips to assets/clips/ and the song to assets/music/song.wav. Use only footage and music you own or have rights to.",
+    "Pin each hit on the drums and bass by ear and write how under \"hits\". Altocue has no stem or onset tool, and a beat grid can miss the real crash.",
+    "One word on screen, on the first hit. No sound effects, and no shot under 0.8 s."
+  ],
+  "brief": {
+    "example": true,
+    "company": "A season recap for an invented amateur rowing club, cut from its own phone footage.",
+    "audience": "Club members and their families",
+    "goal": "Share it",
+    "message": "A quiet winter, then the race.",
+    "must_show": [
+      "the crew crossing the line"
+    ],
+    "tone": "Quiet, then loud",
+    "rights": "Every clip filmed by club members, and a song licensed for this use. Replace both with your own.",
+    "deliverables": [
+      "16:9",
+      "9:16"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Winter, then the race",
+        "route": "montage",
+        "clock": "music",
+        "hero": {
+          "scene": "crash",
+          "offset": 0
+        },
+        "music": {
+          "path": "assets/music/song.wav"
+        },
+        "hits": [
+          {
+            "name": "crash",
+            "at": 8.0,
+            "how": "the kick and bass come in together, pinned by ear"
+          }
+        ],
+        "scenes": [
+          {
+            "id": "dawn",
+            "beat": "build",
+            "seconds": 2.4,
+            "verb": "wait",
+            "energy": 2,
+            "carry": "the still water",
+            "items": [
+              {
+                "type": "footage",
+                "file": "assets/clips/dawn.mp4",
+                "start": 0
+              }
+            ]
+          },
+          {
+            "id": "training",
+            "beat": "build",
+            "seconds": 2.8,
+            "verb": "work",
+            "energy": 3,
+            "carry": "the stroke rate",
+            "items": [
+              {
+                "type": "footage",
+                "file": "assets/clips/training.mp4",
+                "start": 0
+              }
+            ]
+          },
+          {
+            "id": "start",
+            "beat": "build",
+            "seconds": 2.8,
+            "verb": "hold",
+            "energy": 4,
+            "carry": "the start line",
+            "items": [
+              {
+                "type": "footage",
+                "file": "assets/clips/start.mp4",
+                "start": 0
+              }
+            ]
+          },
+          {
+            "id": "crash",
+            "beat": "crash",
+            "seconds": 2.6,
+            "verb": "go",
+            "energy": 9,
+            "carry": "the first stroke",
+            "items": [
+              {
+                "type": "footage",
+                "file": "assets/clips/go.mp4",
+                "start": 0
+              },
+              {
+                "type": "word_slam",
+                "text": "Row",
+                "start": 0,
+                "duration": 2.2,
+                "zone": "center",
+                "align": "center",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "race",
+            "beat": "answer",
+            "seconds": 3.0,
+            "verb": "push",
+            "energy": 8,
+            "carry": "the lead",
+            "items": [
+              {
+                "type": "footage",
+                "file": "assets/clips/race.mp4",
+                "start": 0
+              }
+            ]
+          },
+          {
+            "id": "line",
+            "beat": "answer",
+            "seconds": 3.6,
+            "verb": "finish",
+            "energy": 6,
+            "shows": [
+              "the crew crossing the line"
+            ],
+            "items": [
+              {
+                "type": "footage",
+                "file": "assets/clips/line.mp4",
+                "start": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

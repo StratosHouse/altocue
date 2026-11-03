@@ -186,7 +186,7 @@ altocue film qa
 
 That gives a 16:9 master at 60 fps, with 9:16 and 1:1 cutdowns re-rendered from the same storyboard rather than cropped. `--variant` picks a 30, 24, 20 or 15 second shape.
 
-There are 8 film types. `altocue film types` lists each with its promise and cost, and `altocue film new <type> <folder>` starts one from a working example.
+There are 12 film types. `altocue film types` lists each with its promise and cost, and `altocue film new <type> <folder>` starts one from a working example.
 
 | Type | What it makes |
 |---|---|
@@ -198,8 +198,12 @@ There are 8 film types. `altocue film types` lists each with its promise and cos
 | `case` | An event told like an evidence log, with timestamps and maps |
 | `line` | Record the voice first, and every spoken line gets its own picture, in sync |
 | `music` | A brand film cut to the sections of a song, every cut on the beat |
+| `plate` | One change to your own clip, comped back so everything outside it stays as you shot it |
+| `song` | Your own footage cut to a song, with the cut and one title word on the hit |
+| `invite` | An event film and its card, every name, date and place typed from the hosts' intake sheet |
+| `heritage` | An anniversary told across its eras, every reconstructed period labelled on screen |
 
-Films that need real footage run on the editing stages: a reel in the style of one you admire, one statement from a long recording as a short, or an ad cut from real product footage.
+Plate Edit and Song Cut bring your own clips into a film, and each type checks its own promise: the untouched pixels against your plate, the cut against the hit. Films that need real footage throughout run on the editing stages: a reel in the style of one you admire, one statement from a long recording as a short, or an ad cut from real product footage, whose label, framing and hands `altocue qa --check proof` holds to the real product.
 
 ## How it works
 
@@ -211,7 +215,7 @@ Every stage reads and writes plain files, so you or your agent can step in anywh
 
 The editor never signs off their own work.
 
-1. **Fact gates in code.** 31 of them. Loudness, true peak, black and frozen frames, duration, sound at every cut, words heard against words expected, captions, caption reading speed, the lines the brief must say, text held long enough to read, safe zones, text and graphics on faces, flashes a second, stray frames at insert edges, credits owed, and claims and disclosure for a generated person. Any failure is an automatic FIX, with no model call.
+1. **Fact gates in code.** 31 of them. Loudness, true peak, black and frozen frames, duration, sound at every cut, words heard against words expected, captions, caption reading speed, the lines the brief must say, banned words said or shown, text held long enough to read, safe zones, text and graphics on faces, flashes a second, stray frames at insert edges, credits owed, and claims and disclosure for a generated person. Any failure is an automatic FIX, with no model call.
 2. **A separate reviewer.** Gemini watches the actual video, or Codex reads the review pack. It gets the film, the brief, the rubric and a note of anything planned on purpose, such as an end card. It never sees the reasons for a cut. With neither turned on, a fresh agent reviews the pack and the report says it is not independent.
 3. **Code decides.** The reviewer only scores. SHIP needs every gate passing, nothing under 3, a weighted score of 3.8 or more and no blocker. Notes without a valid timecode are thrown away, unless they claim a blocker, which forces another look.
 4. **Two rounds, then you.** After 2 rounds of fixes, the open list goes to a human.

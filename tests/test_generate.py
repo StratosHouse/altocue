@@ -393,6 +393,125 @@ def test_estimate_refuses_an_impossible_shot():
         estimate(shots_of(shot(first_frame="a.png", refs=["b.png"])), "fal")
 
 
+# A motion video, such as a blockout render (c001, c013, c280)
+
+
+def test_only_routes_whose_docs_list_a_video_reference_take_a_motion_video():
+    """fal's Seedance 2.0 reference pages list video_urls, and the Higgsfield CLI lists --video-references for seedance_2_0 and its Mini."""
+    catalog = load_catalog()
+    takers = {(e.provider, e.surface, e.tier, e.capability, e.fields["motion"]) for e in catalog.entries if "motion" in e.fields}
+    fal = {("fal", "", tier, "reference_to_video", "video_urls") for tier in TIERS}
+    cli = {("higgsfield", "", tier, cap, "video-references") for tier in TIERS for cap in ("reference_to_video", "frame_and_refs_to_video")}
+    assert takers == fal | cli
+    assert not [e for e in catalog.entries if e.surface == "mcp" and "motion" in e.fields]
+
+
+def test_a_motion_video_counts_as_a_reference_and_reaches_the_models_own_field():
+    request = GenRequest(kind="video", tier="standard", prompt="p", aspect="9:16", duration_s=5, motion=Path("blockout.mp4"), motion_seconds=4.0)
+    assert capability_of(request) == "reference_to_video"
+    entry = load_catalog().resolve("fal", request)
+    assert entry.payload(request, lambda path: f"url:{path.name}")["video_urls"] == ["url:blockout.mp4"]
+    framed = GenRequest(kind="video", tier="standard", prompt="p", aspect="9:16", duration_s=5, first_frame=Path("a.png"), motion=Path("b.mp4"))
+    assert capability_of(framed) == "frame_and_refs_to_video"
+    assert load_catalog().resolve("higgsfield", framed).payload(framed, str)["video-references"] == ["b.mp4"]
+
+
+def test_a_motion_video_on_a_route_that_takes_none_is_refused_with_a_fix():
+    catalog = load_catalog()
+    entry = catalog.find("fal", "draft", "reference_to_video")
+    catalog.entries[catalog.entries.index(entry)] = entry.without_field("motion")
+    with pytest.raises(AltocueError, match="a motion video") as caught:
+        catalog.resolve("fal", GenRequest(kind="video", tier="draft", prompt="p", aspect="9:16", duration_s=5, motion=Path("b.mp4")))
+    assert caught.value.fix
+    with pytest.raises(AltocueError, match="frame_and_refs_to_video"):
+        load_catalog().resolve("fal", GenRequest(kind="video", tier="draft", prompt="p", aspect="9:16", duration_s=5, first_frame=Path("a.png"), motion=Path("b.mp4")))
+
+
+def test_a_motion_video_outside_the_routes_length_is_refused():
+    request = GenRequest(kind="video", tier="draft", prompt="p", aspect="9:16", duration_s=5, motion=Path("b.mp4"), motion_seconds=20.0)
+    with pytest.raises(AltocueError, match="motion video of 20s"):
+        load_catalog().resolve("fal", request)
+
+
+def test_a_motion_video_is_priced_on_its_seconds_and_the_outputs(tmp_path):
+    """fal bills video references at a lower token rate across input and output together."""
+    make_clip(tmp_path / "blockout.mp4", seconds=2.0, audio=False)
+    cost = estimate(shots_of(shot(tier="standard", motion="blockout.mp4", prompt="Wet asphalt, sodium light, film grain.")), "fal", root=tmp_path)
+    assert cost.usd == pytest.approx(0.1864 * 7, abs=0.01)
+    unread = estimate(shots_of(shot(tier="standard", motion="missing.mp4")), "fal")
+    assert unread.usd == pytest.approx(0.1864 * 20)  # unread, it is priced at the longest a route takes
+
+
+def test_a_motion_video_is_sent_and_recorded_as_a_project_file(project, fal, capsys):
+    make_clip(project.root / "blockout.mp4", seconds=2.0, audio=False)
+    write_shots(project, shot(motion="blockout.mp4", prompt="Wet asphalt, sodium light, film grain, a red coat."))
+    assert go(project, "--yes") == 0
+    assert "blockout.mp4 (for s01)" in capsys.readouterr().out
+    assert json.loads(fal.submits[0]["body"])["video_urls"] == [f"{fal.url}/cdn/blockout.mp4"]
+    assert fal.uploads["blockout.mp4"] == (project.root / "blockout.mp4").read_bytes()
+    asset = generated_asset(project, "s01")
+    assert json.loads(asset.with_name(asset.name + ".provenance.json").read_text())["motion"] == "blockout.mp4"
+
+
+def test_a_motion_video_waits_for_upload_consent(hf_project, higgsfield, capsys):
+    make_clip(hf_project.root / "blockout.mp4", seconds=2.0, audio=False)
+    write_shots(hf_project, shot(tier="standard", motion="blockout.mp4", prompt="Wet asphalt, sodium light, film grain, a red coat."))
+    assert go(hf_project, "--yes") == 1
+    assert "has not agreed" in capsys.readouterr().err and not higgsfield.creates()
+    assert go(hf_project, "--allow-upload", "higgsfield") == 0
+    assert go(hf_project, "--yes") == 0
+    create = higgsfield.creates()[0]
+    assert create[create.index("--video-references") + 1] == str(hf_project.root / "blockout.mp4")
+
+
+# A music track as a timing input (b025)
+
+
+def tone(path: Path, seconds: float) -> Path:
+    import wave
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\0\0" * int(8000 * seconds))
+    return path
+
+
+def test_only_routes_whose_docs_list_audio_references_take_a_track():
+    """fal's Seedance 2.0 reference pages list audio_urls. The Higgsfield CLI lists --audio-references for seedance_2_0 and its Mini."""
+    catalog = load_catalog()
+    takers = {(e.provider, e.surface, e.tier, e.capability, e.fields["track"]) for e in catalog.entries if "track" in e.fields}
+    fal = {("fal", "", tier, "reference_to_video", "audio_urls") for tier in TIERS}
+    cli = {("higgsfield", "", tier, cap, "audio-references") for tier in TIERS for cap in ("image_to_video", "reference_to_video", "frame_and_refs_to_video")}
+    assert takers == fal | cli
+
+
+def test_a_track_needs_an_image_or_video_beside_it_and_a_length_the_route_takes():
+    base = {"kind": "video", "tier": "standard", "prompt": "p", "aspect": "9:16", "duration_s": 5, "track": Path("bed.wav")}
+    with pytest.raises(AltocueError, match="no image or video beside it"):
+        load_catalog().resolve("higgsfield", GenRequest(**base))
+    with pytest.raises(AltocueError, match="a music track of 20s"):
+        load_catalog().resolve("fal", GenRequest(refs=[Path("a.png")], track_seconds=20.0, **base))
+    entry = load_catalog().resolve("fal", GenRequest(refs=[Path("a.png")], track_seconds=8.0, **base))
+    assert entry.payload(GenRequest(refs=[Path("a.png")], **base), lambda path: path.name)["audio_urls"] == ["bed.wav"]
+    with pytest.raises(AltocueError, match="a music track"):
+        load_catalog().resolve("fal", GenRequest(first_frame=Path("a.png"), **base))  # fal's image route lists no audio
+
+
+def test_a_track_is_sent_with_sound_off_and_recorded(project, fal, capsys):
+    (project.root / "ref.png").write_bytes(PICTURE)
+    tone(project.root / "assets" / "music" / "bed.wav", 5.0)
+    write_shots(project, shot(refs=["ref.png"], audio={"track": "assets/music/bed.wav"}, prompt=f"{PROMPT} No music, only soft diegetic sound."))
+    assert go(project, "--yes") == 0
+    assert "assets/music/bed.wav (for s01)" in capsys.readouterr().out
+    body = json.loads(fal.submits[0]["body"])
+    assert body["audio_urls"] == [f"{fal.url}/cdn/bed.wav"] and body["generate_audio"] is False
+    asset = generated_asset(project, "s01")
+    assert json.loads(asset.with_name(asset.name + ".provenance.json").read_text())["track"] == "assets/music/bed.wav"
+
+
 def test_providers_satisfy_the_protocol():
     catalog = load_catalog()
     assert isinstance(FalProvider(catalog), GenProvider)
@@ -711,6 +830,36 @@ def test_failed_job_is_reported_and_a_rerun_goes_through_the_gate_again(project,
     assert go(project, "--yes") == 0
     assert len(fal.submits) == 2
     assert jobs(project)[0]["attempt"] == 2
+
+
+def test_a_blind_retry_is_refused_after_three_failed_takes(project, fal, capsys):
+    """c333, b022: before another take, change the one thing at fault. A stale failure label is not evidence."""
+    fal.result_code = 500
+    fal.result_body = {"detail": "Runner failed", "error_type": "runner_server_error"}
+    fal.status_extra = {"error": "Runner failed", "error_type": "runner_server_error"}
+    write_shots(project, shot())
+    for _ in range(3):
+        assert go(project, "--yes") == 1
+    assert len(fal.submits) == 3
+    capsys.readouterr()
+    assert go(project, "--yes") == 1
+    assert "blind retry" in capsys.readouterr().err and len(fal.submits) == 3
+    fal.result_code, fal.result_body, fal.status_extra = 200, None, {}
+    write_shots(project, shot(prompt=f"{PROMPT} The hinge creaks as it opens."))
+    assert go(project, "--yes") == 0 and len(fal.submits) == 4
+
+
+def test_a_kept_take_says_why_in_words_that_can_be_checked(project, fal, capsys):
+    write_shots(project, shot())
+    assert go(project, "--yes") == 0
+    assert go(project, "--keep", "s01") == 1
+    assert go(project, "--keep", "s01", "--because", "looks really cinematic") == 1
+    assert "does not say what in the take was right" in capsys.readouterr().err
+    assert go(project, "--keep", "s01", "--because", "eyeline lands on the lantern, the door matches s02") == 0
+    asset = generated_asset(project, "s01")
+    sidecar = json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+    assert sidecar["kept_because"] == "eyeline lands on the lantern, the door matches s02" and sidecar["prompt"] == PROMPT
+    assert json.loads((project.work / "generated" / "manifest.json").read_text())["shots"]["s01"]["kept_because"]
 
 
 def test_submit_is_never_repeated_when_the_answer_is_unclear(project, fal, capsys):
@@ -1099,6 +1248,7 @@ if args[:2] == ["generate", "get"]:
     data = {{"id": args[2], "status": status}}
     if status == "completed":
         data["result_url"] = state.get("result_urls", {{}}).get(args[2], state["result_url"])
+        data.update(state.get("result_extra", {{}}))
     out(data)
 die("unknown command " + " ".join(args))
 """
@@ -1169,6 +1319,54 @@ def test_higgsfield_full_run(hf_project, higgsfield, fal, capsys):
     assert sidecar["cost_usd"] == pytest.approx(0.8)
     assert spend(hf_project)[0]["basis"] == "credits"
     assert "per credit" in capsys.readouterr().out
+
+
+def test_a_job_record_that_differs_from_the_request_is_kept_and_not_placed(hf_project, higgsfield, capsys):
+    """b015: the record holds the settings the model actually used, defaults nobody asked for included."""
+    used = {"aspect_ratio": "16:9", "duration": 5, "resolution": "720p", "generate_audio": True}
+    higgsfield.write(result_extra={"job_type": "seedance_2_0", "params": used})
+    write_shots(hf_project, shot(tier="standard"))
+    assert go(hf_project, "--yes") == 1
+    out = capsys.readouterr().out
+    assert "aspect_ratio 16:9, asked for 9:16" in out and "generate_audio True, asked for False" in out and "duration 5" not in out
+    assert json.loads((hf_project.work / "generated" / "manifest.json").read_text())["shots"]["s01"]["check_passed"] is False
+    assert generated_asset(hf_project, "s01", require_passed=False).exists()  # paid for, so it is kept
+
+
+def test_a_job_record_that_matches_the_request_passes(hf_project, higgsfield):
+    used = {"aspect_ratio": "9:16", "duration": "5", "resolution": "720p", "generate_audio": "false", "mode": "std"}
+    higgsfield.write(result_extra={"job_type": "seedance_2_0", "params": used})
+    write_shots(hf_project, shot(tier="standard"))
+    assert go(hf_project, "--yes") == 0
+
+
+def test_a_record_naming_another_model_or_seed_is_caught(project, fal, capsys):
+    fal.result_body = {"images": [{"url": f"{fal.url}/media/still.png"}], "seed": 99}
+    write_shots(project, still(seed=7))
+    assert go(project, "--yes") == 1
+    assert "seed 99, asked for 7" in capsys.readouterr().out
+
+
+def test_an_import_is_held_against_its_job_record(project, fal, capsys, tmp_path):
+    """c004: a web page kept an old duration. The record shows it before the file reaches the edit."""
+    write_shots(project, shot(duration=8))
+    take = make_clip(tmp_path / "take.mp4", seconds=1.0, size="160x284", audio=False)
+    (project.root / "job.json").write_text(json.dumps([{"id": "j1", "params": {"duration": 5, "aspect_ratio": "9:16"}}]))
+    asset = import_asset(project, file=take, shot="s01", prompt=PROMPT, model="m", cost=1.0, record="job.json", out=print)
+    assert "duration 5, asked for 8" in capsys.readouterr().out
+    sidecar = json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+    assert sidecar["check"]["passed"] is False and sidecar["record_mismatches"] == ["duration 5, asked for 8"]
+
+
+def test_the_prompt_the_service_ran_is_recorded_beside_the_one_sent(hf_project, higgsfield, capsys):
+    """c335: keep the brief, the submitted prompt, the settings used and the review apart."""
+    higgsfield.write(result_extra={"params": {"prompt": "A woman walks to a door, cinematic, 4k."}})
+    write_shots(hf_project, shot(tier="standard"))
+    assert go(hf_project, "--yes") == 0
+    assert "rewrote the prompt" in capsys.readouterr().out
+    asset = generated_asset(hf_project, "s01")
+    sidecar = json.loads(asset.with_name(asset.name + ".provenance.json").read_text())
+    assert sidecar["prompt_ran"] == "A woman walks to a door, cinematic, 4k." and sidecar["prompt"] == PROMPT
 
 
 def test_a_prompt_that_starts_with_dashes_reaches_higgsfield_as_the_prompt(hf_project, higgsfield):

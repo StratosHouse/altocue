@@ -1,0 +1,187 @@
+{
+  "id": "heritage",
+  "name": "Heritage Film",
+  "promise": "An anniversary told across its eras, with the founding facts typed from an intake sheet and every reconstructed period labelled.",
+  "cost": "$0 with your own material.",
+  "generation": "none",
+  "aspect": "16:9",
+  "fps": 30,
+  "default": "main",
+  "checks": [
+    "heritage"
+  ],
+  "beats": [
+    "founding",
+    "growth",
+    "today"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "intake",
+    "eras"
+  ],
+  "formats": [
+    "corner_stamp",
+    "typewriter",
+    "chapter_card",
+    "word_slam"
+  ],
+  "notes": [
+    "Fill \"intake\" with the founding facts exactly as the client gave them, and \"eras\" with the periods in order. Each scene names its \"era\", and the facts are typed with {{name}}, {{founded}} and {{place}}.",
+    "Any scene that shows a period not filmed at the time is a reconstruction: mark it \"reconstructed\": true and label it on screen. Real faces and real records are the anchor. Never invent a person's words."
+  ],
+  "brief": {
+    "example": true,
+    "company": "The sixtieth anniversary of an invented rowing club, told across three eras.",
+    "audience": "Members past and present",
+    "goal": "Share it at the anniversary dinner",
+    "message": "Sixty years on the same river.",
+    "must_show": [
+      "the first boat"
+    ],
+    "tone": "Plain and proud",
+    "intake": {
+      "name": "Millbrook Rowing Club",
+      "founded": "1966",
+      "place": "the Old Quay"
+    },
+    "eras": [
+      "1966",
+      "1991",
+      "2026"
+    ],
+    "brand": {
+      "colors": {
+        "accent": "#d9b26f",
+        "panel": "#0e1418",
+        "surface": "#1a242b"
+      }
+    },
+    "deliverables": [
+      "16:9"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Sixty years",
+        "route": "montage",
+        "clock": "reads",
+        "hero": {
+          "scene": "today",
+          "offset": 0.4
+        },
+        "music": {
+          "style": "paper"
+        },
+        "backdrop": [
+          {
+            "type": "grain_field",
+            "strength": 0.06,
+            "over": true
+          }
+        ],
+        "scenes": [
+          {
+            "id": "founding",
+            "beat": "founding",
+            "era": "1966",
+            "reconstructed": true,
+            "seconds": 8,
+            "verb": "found",
+            "energy": 3,
+            "carry": "the first boat",
+            "shows": [
+              "the first boat"
+            ],
+            "link": {
+              "type": "dissolve",
+              "why": "The years pass in one dissolve."
+            },
+            "items": [
+              {
+                "type": "corner_stamp",
+                "text": "{{founded}}",
+                "label": "Reconstruction",
+                "corner": "tl",
+                "start": 0
+              },
+              {
+                "type": "typewriter",
+                "text": "{{founded}}. *{{name}}* rows out from {{place}}.",
+                "start": 0.3,
+                "zone": "center",
+                "role": "hook",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "growth",
+            "beat": "growth",
+            "era": "1991",
+            "seconds": 7,
+            "verb": "grow",
+            "energy": 5,
+            "carry": "the crews",
+            "link": {
+              "type": "dissolve",
+              "why": "The river stays and the people change."
+            },
+            "items": [
+              {
+                "type": "corner_stamp",
+                "text": "1991",
+                "label": "Club archive",
+                "corner": "tl",
+                "start": 0
+              },
+              {
+                "type": "typewriter",
+                "text": "Twenty five years on, *three crews* on the same water.",
+                "start": 0.3,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "today",
+            "beat": "today",
+            "era": "2026",
+            "seconds": 7,
+            "verb": "row",
+            "energy": 7,
+            "silences": [
+              {
+                "from": 0.0,
+                "to": 0.5
+              }
+            ],
+            "items": [
+              {
+                "type": "corner_stamp",
+                "text": "2026",
+                "label": "Filmed this year",
+                "corner": "tl",
+                "start": 0
+              },
+              {
+                "type": "word_slam",
+                "text": "Still *rowing.*",
+                "start": 0.6,
+                "zone": "center",
+                "important": true
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

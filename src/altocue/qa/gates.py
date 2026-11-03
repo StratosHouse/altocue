@@ -929,8 +929,10 @@ def gate_format(c: Context) -> GateResult:
 
 
 def describe(finding: dict[str, Any]) -> str:
+    """A finding, with where it came from: said aloud, or on screen in a named layer."""
     why = f" ({finding['why']})" if finding.get("why") else ""
-    return f"{finding['kind']} {finding['term']!r} in {finding['layer']} at {stamp(finding['start'])}{why}"
+    where = "said" if finding.get("source") == "speech" else f"on screen in {finding['layer']}" if finding.get("source") == "screen" else f"in {finding['layer']}"
+    return f"{finding['kind']} {finding['term']!r} {where} at {stamp(finding['start'])}{why}"
 
 
 def gate_rules_strings(c: Context) -> GateResult:
@@ -940,14 +942,15 @@ def gate_rules_strings(c: Context) -> GateResult:
         return skipped("rules_strings", "No timeline.json, so the on-screen strings are unknown.")
     spoken = c.spoken()
     strings = rules.on_screen(c.timeline)
-    if spoken is None and c.rules.required:
+    if spoken is None and (c.rules.required or c.rules.banned):
         check_without_words = rules.Rules(banned=c.rules.banned, spellings=c.rules.spellings)
         found = rules.check(strings, check_without_words, [])
         if not found:
-            return skipped("rules_strings", "Required lines depend on what is said, and no transcript is available.")
+            return skipped("rules_strings", "Required lines and banned words in speech depend on what is said, and no transcript is available.")
     else:
         found = rules.check(strings, c.rules, spoken or [])
-    detail = "; ".join(describe(f) for f in found[:5]) or f"{len(strings)} on-screen strings clean"
+    heard = f" and {len(spoken)} spoken words" if spoken else ""
+    detail = "; ".join(describe(f) for f in found[:5]) or f"{len(strings)} on-screen strings{heard} clean"
     return GateResult(id="rules_strings", passed=not found, value=len(found), threshold=0, detail=detail)
 
 
