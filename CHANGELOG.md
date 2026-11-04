@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+
+- Add the original Studio collection: smooth type, depth, routes, linked-file handoffs, task selection, approval rules, edit diagrams and clear endings. All use bundled open fonts and require no purchased media.
+- Include a portable agent prompt, real native JSON, use cases and optional sound notes for every built-in graphic, available through the CLI and exported live library.
+- Tighten uncertain leading transcript silence only when the audio envelope provides sustained speech evidence. Preserve word ends and uncertain quiet/noisy attacks.
+- Preserve explicit film graphic placement, including heading dimensions, instead of overriding it with a default zone.
+- Keep adjacent clips and held captions on exact frame boundaries, preventing one-frame title overlaps and caption carryover onto an incoming face.
+- Include settled-ending frames within the reviewer image budget. A short end card can no longer fall entirely between regular contact-sheet samples.
+- Recognize explicitly declared graphic/still reading holds in film QA, while retaining frozen-video and missing-speech checks.
+- Check visible composite faces under opaque graphics, and distinguish explicitly planned full-frame graphic holds from unintended freezes. Visible-face overlap and unplanned holds still fail.
+- Promote native motion recipes in place of the B-roll feature tile. Existing CLI compatibility remains available.
+- Public previews remain silent. No paid sound pack, private film or customer footage ships in the package.
+
 ## 0.2.0
 
 Altocue becomes a full editing suite: a library, films with no footage, long video to shorts, deliverables and data checks.

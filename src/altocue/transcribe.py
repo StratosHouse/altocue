@@ -478,7 +478,7 @@ def clean(words: list[Word], *, duration: float, envelope: Envelope | None = Non
     found = spread_collapsed(found, duration)
     found = drop_loops(found)
     found = drop_stock_phrases(found)
-    found = [shorten(word, envelope) for word in found]
+    found = [shorten(tighten_start(word, envelope), envelope) for word in found]
     if envelope is not None and envelope.reliable:
         found = [w for w in found if envelope.speech[max(0, int((w.start - GHOST_MARGIN) / HOP)) : math.ceil((w.end + GHOST_MARGIN) / HOP)].any()]
     return separate(found, duration)
@@ -549,6 +549,27 @@ def drop_stock_phrases(words: list[Word]) -> list[Word]:
             if tokens[index:stop] == phrase and sum(w.confidence for w in words[index:stop]) / len(phrase) < STOCK_CONFIDENCE:
                 keep[index:stop] = [False] * len(phrase)
     return [w for w, kept in zip(words, keep, strict=True) if kept]
+
+
+def tighten_start(word: Word, envelope: Envelope | None) -> Word:
+    """A first word can absorb the preceding pause. Keep a generous attack handle.
+
+    Only a reliable envelope and 300 ms of leading quiet can move an edge. Short
+    words, already voiced starts and uncertain/noisy recordings stay untouched.
+    """
+    if envelope is None or not envelope.reliable or word.end - word.start < 0.3:
+        return word
+    first = max(0, int(word.start / HOP))
+    mask = envelope.speech[first : math.ceil(word.end / HOP)]
+    sustain = 3
+    if len(mask) < sustain:
+        return word
+    hits = np.flatnonzero(np.convolve(mask.astype(int), np.ones(sustain, dtype=int), "valid") == sustain)
+    if not len(hits) or hits[0] * HOP < 0.3:
+        return word
+    # A 120 ms handle preserves a quiet consonant before voiced energy.
+    start = max(word.start, (first + int(hits[0])) * HOP - 0.12)
+    return dataclasses.replace(word, start=min(start, word.end - MIN_WORD))
 
 
 def shorten(word: Word, envelope: Envelope | None) -> Word:

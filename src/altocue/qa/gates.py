@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw
 from .. import claims, ffmpeg, master, platforms
 from ..errors import AltocueError
 from ..models import Clip, Edl, GateResult, Word
+from ..motion import formats
 from ..project import Project
 from ..stock import credits
 from . import edges, faces, flashes, ocr, rules
@@ -407,13 +408,17 @@ def gate_black(c: Context) -> GateResult:
 
 
 def gate_frozen(c: Context) -> GateResult:
-    bad = c.unplanned(frozen_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS, HOLD_ITEMS), *c.inserts(), *asked_for(c, "freezes", "transitions")])
+    from .film import reading_holds
+
+    holds = [(float(i["start"]), float(i["end"])) for i in (c.timeline or {}).get("items", []) if i.get("held") and opaque_graphic(i)]
+    holds = sorted(set(holds + reading_holds(c.timeline or {})))
+    bad = c.unplanned(frozen_runs(c.file, c.footage_end), [*c.planned(HOLD_LABELS, HOLD_ITEMS), *holds, *c.inserts(), *asked_for(c, "freezes", "transitions")])
     return GateResult(
         id="frozen_frames",
         passed=not bad,
         value=len(bad),
         threshold=0,
-        detail=f"frozen at {spans(bad)}" if bad else "no frozen picture in the edit",
+        detail=f"frozen at {spans(bad)}" if bad else f"no unplanned frozen picture; {len(holds)} declared full-frame graphic holds",
     )
 
 
@@ -513,7 +518,10 @@ def gate_cut_sound(c: Context) -> GateResult:
 def gate_silence(c: Context) -> GateResult:
     if c.audio is None:
         return not_applicable("silence", "The file has no audio stream.")
-    bad = c.unplanned(silent_runs(c.file, c.footage_end), c.planned(SILENT_LABELS))
+    from .film import reading_holds
+
+    reading = reading_holds(c.timeline or {}, speechless=True)
+    bad = c.unplanned(silent_runs(c.file, c.footage_end), [*c.planned(SILENT_LABELS), *reading])
     longest = max((b - a for a, b in bad), default=0.0)
     return GateResult(
         id="silence",
@@ -727,6 +735,16 @@ def zone_for(c: Context) -> dict[str, float]:
     return TALL_ZONE if height > width else FLAT_ZONE
 
 
+def opaque_graphic(item: dict[str, Any]) -> bool:
+    """A registered graphic that replaces the whole picture, without a smaller placement."""
+    fmt = formats.find(item.get("type", ""))
+    return bool(fmt and fmt.area == "full" and not fmt.needs_alpha and not item.get("place") and "y" not in item and item.get("zone") in (None, "full"))
+
+
+def opaque_at(c: Context, at: float) -> bool:
+    return any(opaque_graphic(i) and float(i["start"]) <= at < float(i["end"]) for i in (c.timeline or {}).get("items", []))
+
+
 def sightings(c: Context) -> dict[str, Any]:
     """Find each planned string in the real picture, once, and note the faces beside it."""
     if c._seen is not None:
@@ -769,7 +787,7 @@ def sightings(c: Context) -> dict[str, Any]:
                 boxes.append({"text": record["text"], "box": placed_box(record, wanted), "at": item["at"], "layer": item["layer"], "frame": path})
             if hits and can_see_faces and len(found_faces) < FACE_SAMPLES:
                 clear = path
-                if c.plate and item["at"] < c.footage_end:
+                if c.plate and item["at"] < c.footage_end and not opaque_at(c, item["at"]):
                     clear = grab(c.plate, item["at"], Path(folder) / f"plate_{path.name}") or path
                 found_faces.append({"at": item["at"], "boxes": faces.find(clear), "hits": [placed_box(r, wanted) for r in hits], "layer": item["layer"]})
     c._seen = {"boxes": boxes, "read": read, "total": len(picks), "faces": found_faces, "can_see_faces": can_see_faces}
@@ -923,6 +941,11 @@ def gate_graphics_clear(c: Context) -> GateResult:
                 looked += 1
                 with Image.open(over) as image:
                     alpha = np.asarray(image.convert("RGBA"))[..., 3]
+                # A real full-frame replacement hides the old face. Text over
+                # any face in the visible replacement is still checked above,
+                # using OCR and face detection on the composited output.
+                if opaque_at(c, at) and float((alpha > GRAPHIC_OPAQUE).mean()) > 0.999:
+                    continue
                 height, width = alpha.shape
                 for x, y, w, h in faces.find(under):
                     box = alpha[int(y * height) : int((y + h) * height) + 1, int(x * width) : int((x + w) * width) + 1]

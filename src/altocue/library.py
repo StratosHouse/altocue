@@ -315,11 +315,45 @@ def core_entry(id: str, details: dict[str, Any]) -> dict[str, Any]:
     return {"id": id, "kind": "motion", "tier": "built-in", "tags": ["core"], "licence": "MIT", "url": REPO, "ship": SHIP_BUILT_IN, "source": "altocue", **details}
 
 
+def creation_prompt(row: dict[str, Any]) -> str:
+    """A portable, local-only recipe, using this install's real slots and example."""
+    line = {"type": row["id"], **row.get("example", {})}
+    if row["id"] != "endcard":
+        line.update(start=1.0, duration=row.get("seconds") or 3.0)
+    limits = []
+    for slot in row.get("slots", []):
+        if slot.get("limit"):
+            unit = "rows" if slot["kind"] == "list" else "characters"
+            limits.append(f"{slot['name']}: at most {slot['limit']} {unit}" + (f", {slot['each']} characters per row" if slot.get("each") else ""))
+    constraints = "; ".join(limits)
+    return (
+        f"Use Altocue's built-in {row['id']} ({row['title']}). {row['summary']} "
+        f"Use it to {', '.join(row['jobs'])}. Replace the sample words with my actual message, preserving its meaning. "
+        + (f"Keep these slot limits: {constraints}. " if constraints else "")
+        + "Place this item in motion.json, align its start to the relevant spoken thought, and leave enough time to read it. "
+        "Keep captions and faces clear. Use my brand and aspect ratio. Do not invent results, metrics or approval. "
+        "Sound is optional: match a quiet licensed cue to the visible action, keep speech clear, and do not fetch audio or spend automatically. "
+        "Render a private preview and run native QA before delivery. Start from this valid example:\n"
+        + json.dumps(line, ensure_ascii=False)
+    )
+
+
+def prompt_entry(row: dict[str, Any]) -> dict[str, Any]:
+    notes = ["Optional licensed cue at the visible arrival or focus change. Keep it below speech; a silent version needs no sound pack."]
+    if row["id"] == "studio_link_receipt":
+        notes = ["Soft contact on the file arrival; a short travel cue when the file moves; a quiet contact when it reaches the next owner."]
+    elif row["id"] == "studio_sound_wave":
+        notes = ["This signal is illustrative. Prefer the real voice or a restrained reveal cue; do not imply a measured audio result."]
+    return {**row, "prompt": creation_prompt(row), "use_cases": list(row["jobs"]), "sound_notes": notes,
+            "collection": "studio" if row["id"].startswith("studio_") else "built-in"}
+
+
 def builtins() -> list[dict[str, Any]]:
     """Read from this install, so a new format is in the library without a rebuild and a newer catalog cannot promise one it lacks."""
     from .motion import formats
 
-    return [core_entry(id, details) for id, details in CORE.items()] + [format_entry(fmt) for fmt in formats.load().values()]
+    rows = [core_entry(id, details) for id, details in CORE.items()] + [format_entry(fmt) for fmt in formats.load().values()]
+    return [prompt_entry(row) for row in rows]
 
 
 def current() -> dict[str, Any]:
@@ -448,6 +482,8 @@ def _print_show(args: argparse.Namespace) -> int:
     line = _motion_line(row)
     if line:
         print(f'Add to "items" in motion.json:\n{json.dumps(line, ensure_ascii=False)}')
+    if row.get("prompt"):
+        print(f"\nPrompt for your agent:\n{row['prompt']}")
     if row["tier"] != "built-in":
         print(UNTRUSTED_NOTE)
     return 0

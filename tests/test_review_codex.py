@@ -119,6 +119,17 @@ def test_image_cap_keeps_sheets_and_hook_first(project):
     assert any("sheet" in p.name for p in chosen) and any("hook" in p.name for p in chosen)
 
 
+def test_settled_ending_is_kept_even_when_long_film_exceeds_image_budget(project):
+    root = project.review_dir / "pack"
+    (root / "ending").mkdir()
+    last = root / "ending/end_02.jpg"
+    last.write_bytes(b"jpg")
+    (root / "timeline").mkdir()
+    for index in range(50):
+        (root / "timeline" / f"page_{index:03d}.jpg").write_bytes(b"jpg")
+    assert last in codex.pick_images(root)
+
+
 def test_report_says_when_not_every_image_was_sent():
     result = {"reviewer": {"sees": "stills", "images": 30, "images_in_pack": 80}}
     assert any("30 of the pack's 80" in line for line in report.limits(result, []))

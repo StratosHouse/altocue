@@ -80,6 +80,15 @@ def test_hook_frames_four_per_second_for_three_seconds(built):
     assert Image.open(frames[0]).size[0] == 1080
 
 
+def test_off_grid_ending_is_sampled_after_its_arrival(tmp_path):
+    item = build(Case("end", "", Recipe(seconds=6.25, vf="drawbox=color=white:t=fill:enable='gte(t,5.8)'", burn_captions=False, face=False)), tmp_path)
+    dest = item.project.work / "ending"
+    times = pack.ending_frames(item.file, 6.25, 30, dest, item.project.work / "end-raw", .45)
+    assert times[-1] > 6.2
+    ending = np.asarray(Image.open(sorted(dest.glob("*.jpg"))[-1]).convert("L"))
+    assert ending[: -ending.shape[1] // 12].mean() > 215
+
+
 def test_transcript_comes_from_the_rendered_file(built):
     data = json.loads((folder(built) / "transcript.json").read_text())
     assert data["available"] and data["source"] == "re-transcribed from the rendered file"

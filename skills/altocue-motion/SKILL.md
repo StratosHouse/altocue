@@ -35,6 +35,10 @@ Write `motion.json` in the project root. Times are seconds in the finished video
 
 ## Formats
 
+The original Studio collection covers clean type, depth, role maps, linked-file handoffs, tasks, edit diagrams and endings. `altocue library show studio_link_receipt` prints a copyable agent prompt and valid native JSON. Every built-in has a prompt in its `--json` entry. The full web library previews the original HTML/CSS silently and offers prompt and JSON copying. See `references/studio-graphics.md` for the complete collection and timing rules.
+
+Use one graphic per complete thought and return to the speaker between explanations. Preserve full first/last words. Keep save/send end cards after the spoken closing. An illustrative diagram does not prove an actual task ran or an approval happened. Match optional owned/licensed SFX to visible arrivals, travel and selection; typing sounds require visible typing. No paid sound pack is bundled or required.
+
 Every built-in format goes in `"type"`, with its own slots and copy limits, and copy that cannot fit is an error before the render. Search first with `altocue library search <what you want> --kind motion`, then `altocue library show <id>`. Places to start, by job:
 
 - **Hook:** `word_slam`, `mask_rise`, `typewriter`, `word_swap`, `spotlight`.
