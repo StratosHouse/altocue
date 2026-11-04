@@ -605,6 +605,14 @@ def test_a_montage_holds_its_graphics_to_each_hard_cut():
     assert leave == pytest.approx(seconds)
 
 
+def test_strike_replace_holds_its_internal_exit_only_at_a_montage_cut():
+    made = board(route="montage")
+    made["scenes"][0]["items"] = [{"type": "strike_replace", "swap": ["FIX", "SHIP"]}]
+    assert "--strike-out:var(--dur);" in montage_page(made)
+    made["scenes"][0]["link"] = {"type": "dissolve", "seconds": 0.4}
+    assert "--strike-out:var(--dur);" not in montage_page(made)
+
+
 def test_a_graphic_that_ends_inside_its_scene_still_fades():
     seconds, leave = _leave(montage_page(board(route="montage")), "Nobody reads")
     assert seconds == pytest.approx(4.0) and leave == pytest.approx(3.8)

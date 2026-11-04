@@ -216,8 +216,9 @@ def _strike_replace(item: dict) -> str:
     size = _fit(max(len(old), len(new), 1), 136, em=0.55)
     lead = f'<span class="m lead"><span class="t" style="--i:0">{kit.esc(item["lead"])}</span></span>' if item.get("lead") else ""
     fresh = f'<span class="m new"><span class="t" style="--i:2">{kit.esc(new)}</span></span>' if new else ""
+    hold = "--strike-out:var(--dur);" if item.get("held") else ""
     return (
-        f'<div class="lock"><i class="scrim"></i><h1 style="--size:{size}px;--hit:{land - 0.56:.3f}s;--land:{land:.3f}s">{lead}'
+        f'<div class="lock"><i class="scrim"></i><h1 style="--size:{size}px;--hit:{land - 0.56:.3f}s;--land:{land:.3f}s;{hold}">{lead}'
         f'<span class="m old"><span class="t" style="--i:1"><span class="hit">{kit.esc(old)}<i class="bar"></i></span></span></span>{fresh}</h1></div>'
     )
 
@@ -593,9 +594,9 @@ $scrimkeys""",
 .f-strike_replace h1{margin:0;font-size:calc(var(--size) * var(--scale));font-weight:700;line-height:1;letter-spacing:-.048em;$drop}
 .f-strike_replace .m{display:block;overflow:hidden;padding:.04em .14em .16em;margin:0 -.14em -.12em}
 .f-strike_replace .lead{font-size:.62em;font-weight:500;letter-spacing:-.035em}
-.f-strike_replace .t{display:block;animation:srin .86s var(--ease) calc(var(--i) * .09s) both,srout .42s cubic-bezier(.7,0,.84,0) calc(var(--dur) - .52s + var(--i) * .04s) forwards}
+.f-strike_replace .t{display:block;animation:srin .86s var(--ease) calc(var(--i) * .09s) both,srout .42s cubic-bezier(.7,0,.84,0) var(--strike-out,calc(var(--dur) - .52s + var(--i) * .04s)) forwards}
 .f-strike_replace .new{color:var(--accent)}
-.f-strike_replace .new .t{animation:srin .86s var(--ease) var(--land) both,srout .42s cubic-bezier(.7,0,.84,0) calc(var(--dur) - .44s) forwards}
+.f-strike_replace .new .t{animation:srin .86s var(--ease) var(--land) both,srout .42s cubic-bezier(.7,0,.84,0) var(--strike-out,calc(var(--dur) - .44s)) forwards}
 .f-strike_replace .hit{position:relative;display:inline-block;animation:srknock .3s linear calc(var(--hit) + .17s) both,srdim .34s ease-out calc(var(--hit) + .2s) both}
 .f-strike_replace .bar{position:absolute;left:-.09em;right:-.09em;top:52%;height:.095em;background:var(--accent);transform:rotate(-2.2deg);clip-path:inset(0 100% 0 0);animation:srbar .25s cubic-bezier(.8,0,.2,1) var(--hit) both}
 @keyframes srin{from{transform:translateY(132%)}to{transform:none}}
