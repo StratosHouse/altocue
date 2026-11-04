@@ -263,7 +263,22 @@ def voiced_spans(timeline: dict[str, Any] | None) -> list[tuple[float, float]] |
             spans[-1][1] = max(spans[-1][1], end)
         else:
             spans.append([start, end])
-    return [(round(a, 3), round(b, 3)) for a, b in spans]
+    # ASR can normalize "here's the, here's the" into one copy. Read a declared
+    # on-screen retake separately when a real word-timing gap follows it. This
+    # partitions the audio, without supplying words or relaxing a match gate.
+    words = sorted([word for page in (timeline or {}).get("captions") or [] for word in page["words"]], key=lambda word: float(word["start"]))
+    cuts = []
+    for before, after in zip(words, words[1:], strict=False):
+        end, start = float(before["end"]), float(after["start"])
+        if before.get("tag") and not after.get("tag") and start - end >= 0.04:
+            cut = (start + end) / 2
+            if not any(float(word["start"]) < cut < float(word["end"]) for word in words):
+                cuts.append(cut)
+    split = []
+    for a, b in spans:
+        edges = [a, *sorted({cut for cut in cuts if a < cut < b}), b]
+        split.extend((round(start, 3), round(end, 3)) for start, end in zip(edges, edges[1:], strict=False))
+    return split
 
 
 def transcribe(path: str | Path, language: str = "en", spans: list[tuple[float, float]] | None = None) -> tuple[list[Word] | None, str]:
