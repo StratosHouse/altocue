@@ -1,13 +1,14 @@
 {
-  "generated": "2026-11-02T21:36:32Z",
+  "generated": "2026-11-04T00:49:40Z",
   "pins": {
-    "hyperframes": "0.9.5",
+    "hyperframes": "0.9.8",
     "gl-transitions": "2.2.0"
   },
-  "entries": 760,
+  "entries": 776,
   "named_by_a_built_in": [
     "flowchart",
-    "typewriter"
+    "typewriter",
+    "waveform"
   ],
   "refused_by_rule": {
     "brand": 30,
