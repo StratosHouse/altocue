@@ -1140,6 +1140,28 @@ def test_a_film_says_where_its_voice_is_so_only_there_is_read_back():
     assert gates.voiced_spans(None) is None
 
 
+def test_literal_retake_readback_partitions_at_a_word_gap_without_losing_audio():
+    timeline = {"total": 8, "scenes": [{"id": "raw", "start": 3, "end": 7, "voice": "raw.mp4", "voice_to": 4}],
+        "captions": [{"words": [
+            {"text": "here's", "start": 3.48, "end": 3.72, "tag": "RETAKE"},
+            {"text": "the", "start": 3.72, "end": 3.88, "tag": "RETAKE"},
+            {"text": "here's", "start": 3.96, "end": 4.2},
+        ]}]}
+    assert gates.voiced_spans(timeline) == [(2.85, 3.92), (3.92, 7.15)]
+
+
+def test_retake_readback_never_splits_a_word_or_a_gap_too_short_to_use():
+    timeline = {"total": 8, "scenes": [{"id": "raw", "start": 3, "end": 7, "voice": "raw.mp4", "voice_to": 4}],
+        "captions": [{"words": [
+            {"text": "the", "start": 3.72, "end": 3.88, "tag": "RETAKE"},
+            {"text": "here's", "start": 3.9, "end": 4.2},
+        ]}]}
+    assert gates.voiced_spans(timeline) == [(2.85, 7.15)]
+    timeline["captions"][0]["words"][1]["start"] = 3.96
+    timeline["captions"].append({"words": [{"text": "overlapping", "start": 3.9, "end": 4.0}]})
+    assert gates.voiced_spans(timeline) == [(2.85, 7.15)]
+
+
 def test_only_a_repeat_whose_first_copy_is_tagged_is_let_through():
     tokens = "so this is this is it".split()
     assert gates.doubled_phrases(tokens, shown=[False, True, True, False, False, False]) == []
