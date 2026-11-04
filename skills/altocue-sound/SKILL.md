@@ -1,6 +1,6 @@
 ---
 name: altocue-sound
-description: Finds music and sound effects a film is allowed to use, puts them in the project, and writes the credits a film owes. Sources are ccMixter, Incompetech, bundled CC0 stings and effects, and Freesound with the user's own key. Use when the user wants background music, a sting, a sound effect, or a credit line for a video description.
+description: Finds music and sound effects a film is allowed to use, puts them in the project, and writes the credits a film owes. Sources are ccMixter, Incompetech, bundled CC0 stings and effects, the user's own licensed sound packs, and Freesound with the user's own key. Use when the user wants background music, a sting, a sound effect, typing sounds, to use a sound pack they bought, or a credit line for a video description.
 license: MIT
 compatibility: Requires the altocue CLI. Music needs no key. FREESOUND_API_KEY is optional, and free, for sounds beyond the bundled set.
 ---
@@ -53,6 +53,45 @@ altocue sfx get whoosh3 -p .
 - **Freesound needs the user's own key.** Set `FREESOUND_API_KEY`, then `altocue sfx get freesound:1234 -p .`. Only CC0 and CC BY sounds come back.
 - **Freesound files are previews.** Originals need a sign-in flow, so you get the high-quality MP3 preview.
 - **Say the terms.** Freesound's API terms keep commercial use for negotiation. Tell the user before using one in anything sold.
+
+## Your own sound pack
+
+A pack the user bought or recorded stays on their machine. Altocue only points at the folder.
+
+```bash
+altocue sfx pack vector ~/Sounds/Vector --licence "Bought from the maker, single user"
+altocue sfx search keyboard
+altocue sfx get vector:keyboard-01 -p .
+```
+
+- **Ask for the licence in their words.** `--licence` is required and lands in `credits.json` beside the file.
+- **The copy is private.** It goes to `sfx/private/<pack>/`, with a `.gitignore` that keeps it out of git. Never commit, upload, share or bundle it, and never put it in a public preview.
+- **The licence decides publishing.** Whether the sound may appear in a published video depends on the pack's terms. If you do not know, ask the user before anything ships.
+- **It owes no credit line** unless the user gives one. QA's credit gate passes it.
+- **`altocue sfx packs`** shows each pack and whether its folder is still there. `altocue sfx forget vector` forgets one and deletes nothing.
+
+## Sound follows an event
+
+Place an effect only where something happens on screen: an arrival, a contact, a file moving, a selection, a key. Put the cue in `motion.json` `sfx`, at the word or the second it lands:
+
+```json
+{"sfx": [{"file": "sfx/private/vector/soft-hit-02.wav", "at": {"word": "saved"}, "align": "peak", "under_db": 9}]}
+```
+
+- **`align: "peak"`** puts the loudest moment on the time, so a hit lands on the frame.
+- **`under_db`** is 8 to 12 dB under the voice. Start at 9 to 10.
+
+## Typing sounds
+
+When text types on screen, give each character its own key, so the sound starts and stops with the typing:
+
+```json
+{"sfx": [{"file": "sfx/private/vector/keyboard-01.wav", "at": 2.4, "keys": {"count": 14, "every": 0.06}, "under_db": 9}]}
+```
+
+- **`keys`** is `{"count": n, "every": seconds}` for even typing, or `{"at": [0, 0.07, 0.15]}` for the second after `at` that each character lands. Match the graphic's own reveal timing.
+- **Each key is short.** It keeps the first `max_ms` of the sound, 90 by default, so a long typing recording gives one key per character. Set `max_ms` on the cue to change it.
+- **Tell the user to listen.** You cannot hear whether the keys sit right under the consonants.
 
 ## Credits
 

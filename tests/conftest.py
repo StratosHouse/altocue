@@ -22,3 +22,11 @@ def make_clip(path: Path, *, seconds: float = 2.0, size: str = "320x568", rate: 
 @pytest.fixture
 def clip(tmp_path: Path) -> Path:
     return make_clip(tmp_path / "take one.mp4")
+
+
+@pytest.fixture(autouse=True)
+def no_own_sound_packs(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pack registered on this machine never leaks into a test."""
+    from altocue.stock import packs
+
+    monkeypatch.setattr(packs, "REGISTRY", tmp_path_factory.mktemp("home") / "packs.json")

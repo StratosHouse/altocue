@@ -51,9 +51,14 @@ def record(
     kind: str = "",
     title: str = "",
     warnings: Any = (),
+    licensed: bool = False,
 ) -> dict[str, Any]:
-    """One record per file. Fetching the same file again replaces it, so a re-run never doubles a credit."""
-    if not base.clear(licence):
+    """One record per file. Fetching the same file again replaces it, so a re-run never doubles a credit.
+
+    `licensed` is a sound pack the user holds their own licence for. It needs no open licence, owes a credit
+    only if one is given, and is marked private so it never ships as a file.
+    """
+    if not licensed and not base.clear(licence):
         raise AltocueError(f"{title or file} has no clear licence, so it cannot join a project.", fix="Pick another result.")
     row = {
         "file": file,
@@ -67,6 +72,7 @@ def record(
         "date": datetime.date.today().isoformat(),
         "sha256": digest(project.root / file),
         "warnings": [base.credit_field(line, 300) for line in warnings],
+        **({"licensed": True, "private": True} if licensed else {}),
     }
     rows = [saved for saved in records(project) if saved["file"] != file]
     write_json(project.root / FILE, {"assets": [*rows, row]})
@@ -112,6 +118,8 @@ def unused(project: Project) -> list[dict[str, Any]]:
 
 
 def owes(row: dict[str, Any]) -> bool:
+    if row.get("licensed"):
+        return bool(row.get("credit"))
     return bool(row.get("credit")) or base.needs_credit(row.get("licence", "")) or not base.clear(row.get("licence", ""))
 
 
