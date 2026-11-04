@@ -178,7 +178,10 @@ def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") 
         end = page["end"] if index == len(words) - 1 else words[index + 1]["start"]
         if end - start < 0.02:
             continue
-        spans = "".join(_caption_word(w, i, index) for i, w in enumerate(words))
+        spans = "".join(
+            _caption_word(w, i, index, show_label=i == 0 or w.get("tag") != words[i - 1].get("tag"))
+            for i, w in enumerate(words)
+        )
         who = f'<i class="who">{escape(page["name"])}</i>' if page.get("name") else ""
         body = f'<span class="plate">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
         enter = " enter" if index == 0 and style != "rail" else ""
@@ -188,14 +191,15 @@ def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") 
     return "\n".join(out)
 
 
-def _caption_word(word: dict[str, Any], place: int, now: int) -> str:
+def _caption_word(word: dict[str, Any], place: int, now: int, *, show_label: bool = True) -> str:
     """One word of a page, with an unseen copy of itself that holds the room the word needs when it pops.
 
     A word a cut removed shows its tag once it has been said, and the tag pops as it is said.
     """
     text = escape(word["text"])
     if word.get("tag") and place <= now:
-        return f'<b class="tg{" on new" if place == now else ""}">{text}<i>{escape(str(word["tag"]))}</i></b>'
+        label = f'<i>{escape(str(word["tag"]))}</i>' if show_label else ""
+        return f'<b class="tg{" on new" if place == now else ""}">{text}{label}</b>'
     lit = ' class="on"' if place == now else ""
     return f'<b{lit} data-room="{escape(word["text"], quote=True)}"><span>{text}</span></b>'
 

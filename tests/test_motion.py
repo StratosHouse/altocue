@@ -29,6 +29,18 @@ def page():
     return {"start": 0.5, "end": 1.5, "segment": "a", "words": [{"text": "two", "start": 0.5, "end": 0.9}, {"text": "words", "start": 0.9, "end": 1.4}]}
 
 
+def test_adjacent_tagged_words_share_one_label_per_caption_frame():
+    from altocue.motion.html import caption_html
+
+    tagged = page()
+    for word in tagged["words"]:
+        word["tag"] = "stutter"
+    frames = caption_html(tagged, "boxed", 1).splitlines()
+    assert len(frames) == 2
+    assert all(frame.count("<i>stutter</i>") == 1 for frame in frames)
+    assert frames[-1].count('class="tg') == 2
+
+
 def test_time_can_follow_a_word():
     assert resolve_time({"word": "hello"}, WORDS) == 1.0
     assert resolve_time({"word": "runway", "occurrence": 2, "offset": 0.1}, WORDS) == pytest.approx(5.1)
