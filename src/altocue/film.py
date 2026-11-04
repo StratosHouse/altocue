@@ -423,6 +423,11 @@ def words_of(project: Project, path: Path, *, every: bool = False) -> list[dict[
     Fillers and spoken cues stay out, as captions leave them out. `every` keeps them, each with its kind, for a raw take shown as it was said.
     """
     digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    # Earlier films saved the filtered, word-timed captions for this exact source.
+    # Keep those timings for ordinary captions. Verbatim captions need the full transcript.
+    filtered = project.work / "film" / f"words-{digest}.json"
+    if not every and filtered.is_file():
+        return json.loads(filtered.read_text())["words"]
     cache = project.work / "film" / f"said-{digest}.json"
     if cache.exists():
         heard = json.loads(cache.read_text())["words"]
