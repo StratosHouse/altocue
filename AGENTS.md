@@ -34,3 +34,7 @@ uv run ruff check src tests scripts
 uv run pytest tests/test_<what you changed>.py
 uv run python scripts/check_repo.py
 ```
+
+## Directed presenter parity
+
+For a presenter-led software or workflow reel, use the [directed Studio workflow](docs/DIRECTED-STUDIO.md). The standard render reads studio.json. Every reusable Studio improvement needs a portable implementation, example, render-PC proof and a versioned handoff. Keep private footage, brand marks and licensed sounds outside the product repo.

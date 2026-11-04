@@ -152,6 +152,12 @@ def check_generate(project: Project) -> Look | None:
 def render_inputs(project: Project) -> list[Path]:
     """What a render reads. A change to any of these changes the picture or the sound."""
     inputs = [project.edl_path, project.root / "motion.json", project.root / "broll.json", *project.audio_dir.glob("*.wav"), *project.lut_dir.glob("*.cube")]
+    manifest = project.root / "studio.json"
+    inputs.append(manifest)
+    if manifest.is_file():
+        from .studio.plan import load
+
+        inputs.extend(Path(v) for v in load(project.root)["_assets"].values())
     brand = str(project.setting("brand", "name", "default"))
     return [*inputs, project.root / brand] if brand != "default" else inputs
 
@@ -160,10 +166,16 @@ def check_render(project: Project) -> Look:
     file = project.out / "render.mp4"
     if not file.exists():
         return Look(NOT_RUN)
-    made_from = _read(project.work / "render.json").get("cut")
+    saved = _read(project.work / "render.json")
+    if saved.get("studio") and not (project.root / "studio.json").is_file():
+        return Look(STALE, "the Studio plan was removed after this render")
+    made_from = saved.get("cut")
     if made_from and project.edl_path.exists() and made_from != project.cut_mark():
         return Look(STALE, "the cut changed after this render")
-    changed = _older_than(file, render_inputs(project))
+    try:
+        changed = _older_than(file, render_inputs(project))
+    except AltocueError as error:
+        return Look(STALE, str(error))
     return Look(STALE, f"{changed.name} changed after this render") if changed else Look(DONE)
 
 

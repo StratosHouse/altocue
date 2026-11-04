@@ -2,6 +2,11 @@
 
 ## 0.3.0
 
+- Add twelve directed presenter scenes through studio.json and the normal render command: authentic logo rosters, registered logo-to-page docking, voice-reactive sculpture, character motion, repo tours, reversible documents, comparisons, handoffs, parallel work and opening-brand endings.
+- Add an offline geometric demo, copyable scene catalog, per-character sound timing, portable portrait covers, exact-source dialogue conforming and bounded final-transcript checks for repeated or missing phrases.
+- Keep scene headings and product labels inside the house profile-mask allowance; invalidate a render when the Studio manifest or local source artwork changes.
+- Require reusable Studio improvements to ship with product code, a reproducible example, render evidence and operator documentation.
+
 - Add the original Studio collection: smooth type, depth, routes, linked-file handoffs, task selection, approval rules, edit diagrams and clear endings. All use bundled open fonts and require no purchased media.
 - Include a portable agent prompt, real native JSON, use cases and optional sound notes for every built-in graphic, available through the CLI and exported live library.
 - Tighten uncertain leading transcript silence only when the audio envelope provides sustained speech evidence. Preserve word ends and uncertain quiet/noisy attacks.

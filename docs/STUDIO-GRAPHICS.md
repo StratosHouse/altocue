@@ -73,3 +73,7 @@ Choose an aspect ratio and use `altocue motion`, `altocue timeline` or a native 
 Sound is optional. Use a quiet contact when a card settles, a short travel cue as an artifact moves and a restrained click when a selection changes. Use typing only while text visibly types. Calculate absolute cue times against the actual graphic or row arrival, rather than placing a sound arbitrarily at each cut. Duck cues under speech and inspect the delivered mix.
 
 Public previews are silent. No paid audio is included in Altocue, its recipes or these graphics. Users supply their own licensed sounds through native motion SFX cues. A written cue suggestion is not permission to download, redistribute or purchase sound.
+
+## Directed presenter parity
+
+For a presenter-led software or workflow reel, use the [directed Studio workflow](DIRECTED-STUDIO.md). The standard render reads studio.json. Every reusable Studio improvement needs a portable implementation, example, render-PC proof and a versioned handoff. Keep private footage, brand marks and licensed sounds outside the product repo.

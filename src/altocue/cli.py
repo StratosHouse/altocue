@@ -24,6 +24,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "generate": ("altocue.generate", "Generate inserts, behind the spend gate"),
     "plate": ("altocue.plate", "Assemble the picture and sound edit"),
     "caption": ("altocue.caption", "Build word-timed captions"),
+    "studio": ("altocue.studio", "Compose directed presenter scenes from real local assets and spoken triggers"),
     "motion": ("altocue.motion", "Render the graphics layers"),
     "render": ("altocue.render", "Composite a draft or final"),
     "master": ("altocue.master", "Master the sound"),

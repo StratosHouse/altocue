@@ -170,6 +170,19 @@ Those are the counts from `altocue library stats`. Most entries are sources and 
 
 **Transitions and texture.** 58 built-in transitions, 12 shader transitions bundled, and more shaders fetched with `altocue library add`. Picture only, so no word moves. Freeze on any word while the sound carries on. Film grain, light leaks, dust, vignette and paper are made in code and sit under the captions.
 
+## Directed presenter reels
+
+Keep the presenter below a visual that explains the spoken line. The [Studio workflow](docs/DIRECTED-STUDIO.md) adds twelve reusable scenes: real logo introductions, logo-to-page docking, voice-driven metal sculpture, a character beat, frame-timed typing, a repository tour, file moves, comparisons, agent handoffs, simultaneous work and an opening-brand ending.
+
+```sh
+altocue studio catalog
+altocue studio demo -p directed-demo
+altocue studio validate -p directed-demo
+altocue studio layer -p directed-demo --out directed-demo/graphics.mov
+```
+
+The offline demo makes its own geometric artwork and sounds. For a real 9:16 project, provide your genuine marks, current captures and licensed sounds in a local studio.json, fit its cues to the cut, then use the normal `altocue render` command. Per-character taps share the visible key clock. Portrait covers include crop proofs; final-transcript checks catch explicitly specified missing and repeated phrases. Source choices and creative approval remain the editor's job.
+
 ## Films with no footage
 
 A film can start from a brief instead of a recording. The storyboard is the source of truth: scene order, timing, what is on screen, the camera and the sound. Everything on screen is drawn in code, so a change is one value and a re-render. Altocue writes an original score fitted to the scenes, with nothing to license.

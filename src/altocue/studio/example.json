@@ -1,0 +1,10 @@
+{
+  "schema": 1, "fps": 60, "house": "Your studio", "product": "Your product", "theme": "ink",
+  "mark": "house", "assets": {"house":"assets/house.png","tool-a":"assets/tool-a.png","tool-b":"assets/tool-b.png","tool-c":"assets/tool-c.png","key":"assets/one-key.wav"},
+  "scenes": [
+    {"start":0,"end":150,"recipe":"logo-roster","title":"Meet the team.","eyebrow":"THE TOOLS","items":[{"name":"Plan","asset":"tool-a","at":12},{"name":"Build","asset":"tool-b","at":52},{"name":"Render","asset":"tool-c","at":96}]},
+    {"start":150,"end":240,"recipe":"typing","title":"Start with a prompt.","text":"Check this.","keys":[5,10,15,21,27,33,40,46,53,60,67],"sound":"key"},
+    {"start":240,"end":360,"recipe":"brand-open","verb":"Comment","keyword":"GUIDE","subtitle":"Get the setup guide"}
+  ],
+  "speech_checks":[{"start":240,"end":360,"phrase":"guide","count":1}]
+}

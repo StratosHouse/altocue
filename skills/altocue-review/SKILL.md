@@ -77,3 +77,7 @@ Turn each note into one named fix: one sentence, one change, everything else lef
 | Shorter ending | `ending` | `duration` on the `endcard`, or `altocue cut --remove` on the last segment |
 
 The same vocabulary for a generated shot is in `altocue-direct`.
+
+## Directed presenter parity
+
+For a presenter-led software or workflow reel, use the [directed Studio workflow](../../docs/DIRECTED-STUDIO.md). The standard render reads studio.json. Every reusable Studio improvement needs a portable implementation, example, render-PC proof and a versioned handoff. Keep private footage, brand marks and licensed sounds outside the product repo.
