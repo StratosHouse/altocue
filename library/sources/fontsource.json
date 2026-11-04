@@ -1,0 +1,55 @@
+{
+  "id": "fontsource",
+  "name": "Fontsource",
+  "url": "https://fontsource.org/",
+  "classes": [
+    "font"
+  ],
+  "holds": "More than 2,000 open fonts as direct files.",
+  "size": {
+    "count": 2103,
+    "unit": "fonts",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://fontsource.org/docs/api/introduction",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://fontsource.org/docs/api/introduction",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "2,500 per 10 seconds, hard limit"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "font list",
+    "results": 2103,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "Mostly OFL. Usually keep the notice."
+}

@@ -1,0 +1,58 @@
+{
+  "id": "iconify",
+  "name": "Iconify",
+  "url": "https://iconify.design/",
+  "classes": [
+    "icon",
+    "emoji"
+  ],
+  "holds": "One API over hundreds of open icon sets.",
+  "size": {
+    "count": 473203,
+    "unit": "icons",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "per_set",
+    "id": null,
+    "url": "https://iconify.design/docs/api/hosting.html",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://iconify.design/docs/api/hosting.html",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "No limit stated, behind Cloudflare"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "metadata_unreliable"
+  ],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "rocket",
+    "results": 276,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "Use an allow-list. Block CC BY-NC, GPL sets and ri. Treat simple-icons and logos as trademarks even though they read CC0."
+}

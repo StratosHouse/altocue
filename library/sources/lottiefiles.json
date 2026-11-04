@@ -1,0 +1,48 @@
+{
+  "id": "lottiefiles",
+  "name": "LottieFiles",
+  "url": "https://lottiefiles.com/page/license",
+  "classes": [
+    "animation"
+  ],
+  "holds": "The largest library of free Lottie animations.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "lottie-simple",
+    "url": "https://lottiefiles.com/page/license",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://docs.lottiefiles.com/en/platform/mcp",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "licence_conflict",
+    "no_automation"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its licence allows commercial use while its terms call the free plan strictly non-commercial, and robots are barred."
+}

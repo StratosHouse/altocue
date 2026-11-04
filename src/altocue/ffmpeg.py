@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -34,6 +35,49 @@ def run(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess
         tail = "\n".join((done.stderr or "").strip().splitlines()[-8:])
         raise AltocueError(f"ffmpeg failed:\n{tail}")
     return done
+
+
+def run_bytes(args: list[str]) -> bytes:
+    """Run ffmpeg and hand back what it wrote to stdout, for raw frames."""
+    done = subprocess.run([require("ffmpeg"), "-hide_banner", "-nostdin", "-v", "error", *args], capture_output=True)
+    if done.returncode != 0:
+        raise AltocueError(f"ffmpeg failed:\n{done.stderr.decode(errors='replace')[-400:]}")
+    return done.stdout
+
+
+def concat_list(listing: Path, parts: list[Path]) -> Path:
+    """An ffconcat list that names each part from the list's own folder, with any quote escaped, so no path can break it."""
+    lines = []
+    for part in parts:
+        name = os.path.relpath(Path(part).resolve(), listing.parent.resolve()).replace("'", "'\\''")
+        lines.append(f"file '{name}'")
+    listing.write_text("ffconcat version 1.0\n" + "\n".join(lines) + "\n")
+    return listing
+
+
+STILL_BRANDS = {b"heic", b"heix", b"mif1", b"msf1", b"avif", b"avis"}
+
+
+def sniff(path: str | Path) -> str | None:
+    """ "video", "image" or None, from the first bytes. A name proves nothing: ffmpeg follows a playlist or a list hidden in any file."""
+    with Path(path).open("rb") as handle:
+        head = handle.read(16)
+    if head[4:8] == b"ftyp":
+        return "image" if head[8:12] in STILL_BRANDS else "video"
+    if head[:4] in {b"\x1a\x45\xdf\xa3", b"OggS"} or (head[:4] == b"RIFF" and head[8:12] == b"AVI "):
+        return "video"
+    pictures = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a", b"BM", b"II*\x00", b"MM\x00*")
+    if head.startswith(pictures) or (head[:4] == b"RIFF" and head[8:12] == b"WEBP"):
+        return "image"
+    return None
+
+
+def require_media(path: str | Path, kind: str, name: str) -> None:
+    """Refuse a file that is not really a video or a picture before ffmpeg reads it."""
+    if sniff(path) != kind:
+        word = "a picture" if kind == "image" else "a video"
+        fix = "Use a real media file: MP4, MOV, WebM or MKV for video, and PNG, JPEG, WebP or HEIC for a still."
+        raise AltocueError(f"{name} is not {word} file, so nothing read it.", fix=fix)
 
 
 def probe_json(path: str | Path) -> dict:
@@ -127,9 +171,10 @@ def write_wav(path: str | Path, samples: np.ndarray, rate: int) -> Path:
     return Path(path)
 
 
-def loudness(path: str | Path) -> dict[str, float]:
-    """Integrated loudness, range and true peak, measured with `ebur128`."""
-    done = run(["-i", str(path), "-af", "ebur128=peak=true:framelog=quiet", "-f", "null", "-"])
+def loudness(path: str | Path, *, seconds: float | None = None) -> dict[str, float]:
+    """Integrated loudness, range and true peak, measured with `ebur128`. `seconds` stops early."""
+    limit = ["-t", f"{seconds:.3f}"] if seconds else []
+    done = run([*limit, "-i", str(path), "-af", "ebur128=peak=true:framelog=quiet", "-f", "null", "-"])
     text = done.stderr
     found = {
         "integrated": re.search(r"I:\s+(-?[\d.]+) LUFS", text),

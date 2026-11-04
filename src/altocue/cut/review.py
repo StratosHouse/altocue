@@ -123,9 +123,17 @@ def write_report(project: Project, edl: Edl) -> Path:
         f"- **Removed:** {source - edl.duration:.2f} s.",
         f"- **Waiting for a ruling:** {sum(r.decision == 'review' for r in edl.removed)}, still in the video.",
     ]
+    ranks = {clip.id: rank for rank, clip in enumerate(clips)}
+    moved = sum((ranks.get(a.clip, 0), a.start) > (ranks.get(b.clip, 0), b.start) for a, b in zip(edl.segments, edl.segments[1:], strict=False))
+    if moved:
+        lines.append(f"- **Moved:** {moved} joins play out of recording order.")
     silent = [clip.id for clip in clips if not clip.has_audio]
     if silent:
         lines.append(f"- **Not checked:** {', '.join(silent)} have no audio, so their edges did not snap to speech.")
+    if any(s.held for s in edl.segments) or edl.lost:
+        lines += ["", "## Hand edits", ""]
+        lines += [f"- **{s.id}:** kept {', '.join(s.held)}." for s in edl.segments if s.held]
+        lines += [f"- **Could not keep** {note}" for note in edl.lost]
     lines += ["", "## Kept", "", "| Segment | Clip | In | Out | Seconds | Opens with |", "|---|---|---:|---:|---:|---|"]
     lines += [f"| {s.id} | {s.clip} | {s.start:.3f} | {s.end:.3f} | {s.end - s.start:.3f} | {s.label} |" for s in edl.segments]
     lines += [
@@ -157,13 +165,7 @@ def load_rulings(path: str | Path) -> dict[str, tuple[str, str]]:
         raise AltocueError(f"{target} should hold one JSON object.", fix=RULING_HELP)
     rulings: dict[str, tuple[str, str]] = {}
     for key, value in raw.items():
-        decision, reason = (
-            (value, "")
-            if isinstance(value, str)
-            else (value.get("decision"), value.get("reason", ""))
-            if isinstance(value, dict)
-            else (None, "")
-        )
+        decision, reason = (value, "") if isinstance(value, str) else (value.get("decision"), value.get("reason", "")) if isinstance(value, dict) else (None, "")
         if decision not in {"cut", "keep"}:
             raise AltocueError(f"Ruling for {key} must be cut or keep.", fix=RULING_HELP)
         rulings[key] = (decision, reason)

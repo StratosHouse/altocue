@@ -1,5 +1,5 @@
 {
   "name": "altocue",
-  "version": "0.1.1",
-  "description": "Edit raw footage into finished video from your coding agent."
+  "version": "0.2.0",
+  "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out."
 }

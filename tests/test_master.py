@@ -34,9 +34,7 @@ def video(wav: Path, path: Path) -> Path:
 
 
 def video_md5(path: Path) -> str:
-    done = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:v", "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True
-    )
+    done = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:v", "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True)
     return done.stdout.strip()
 
 
@@ -272,3 +270,83 @@ def test_a_film_with_no_sound_at_all_passes_through(tmp_path):
         master.master_file(source, tmp_path / "out.mp4")
     assert master.master_file(source, tmp_path / "out.mp4", silent_film=True)["mode"] == "silent"
     assert (tmp_path / "out.mp4").exists()
+
+
+def silent_take(path: Path) -> Path:
+    args = ["-f", "lavfi", "-i", "testsrc2=size=128x72:rate=30:duration=2", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo:d=2"]
+    ffmpeg.run([*args, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(path)])
+    return path
+
+
+def test_a_silent_track_with_no_music_does_not_stop_the_master(tmp_path, capsys):
+    """An empty desktop track gives the clip a sound stream, so the film was not called silent, and master stopped `altocue run`."""
+    from altocue.ingest import ingest
+
+    project = Project.create(tmp_path / "video")
+    silent_take(project.sources / "desktop.mp4")
+    assert ingest(project)[0].has_audio
+    silent_take(project.out / "render.mp4")
+    ffmpeg.write_wav(project.work / "mix.wav", np.zeros(RATE * 2), RATE)
+    assert master.no_sound_in(project)
+    assert main(["master", "--project", str(project.root)]) == 0
+    assert "nothing to hear" in capsys.readouterr().out
+    assert (project.out / "final.mp4").exists()
+    from altocue.qa import gates
+
+    found = gates.gate_loudness(gates.Context.open(project, project.out / "final.mp4"))
+    assert [g.value for g in found] == [gates.NOT_APPLICABLE, gates.NOT_APPLICABLE]  # QA reads silence the same way
+
+
+def test_a_mix_with_sound_in_it_is_still_mastered_or_refused(tmp_path):
+    from altocue.ingest import ingest
+
+    project = Project.create(tmp_path / "video")
+    silent_take(project.sources / "desktop.mp4")
+    ingest(project)
+    tone = np.sin(np.linspace(0, 2 * np.pi * 440 * 2, RATE * 2)) * 0.3
+    ffmpeg.write_wav(project.work / "mix.wav", tone, RATE)
+    assert not master.no_sound_in(project)
+
+
+def test_every_named_target_says_where_its_numbers_come_from():
+    for target in master.TARGETS.values():
+        assert target.source
+        assert target.primary or "no primary source" in target.source.lower()
+
+
+def test_the_cited_targets_carry_the_published_numbers():
+    assert (master.TARGETS["podcast"].loudness, master.TARGETS["podcast"].true_peak) == (-16.0, -1.0)
+    assert (master.TARGETS["streaming"].loudness, master.TARGETS["streaming"].true_peak) == (-14.0, -1.0)
+    assert (master.TARGETS["broadcast"].loudness, master.TARGETS["broadcast"].true_peak) == (-23.0, -1.0)
+    assert all(master.TARGETS[name].primary for name in ("podcast", "streaming", "broadcast"))
+    assert not master.TARGETS["social"].primary and not master.TARGETS["hot"].primary
+
+
+def test_cli_masters_to_a_named_target_and_measures_it(tmp_path, film, capsys):
+    dest = tmp_path / "out.mp4"
+    assert main(["master", "--input", str(film), "--output", str(dest), "--loudness", "podcast"]) == 0
+    measured = ffmpeg.loudness(dest)
+    assert abs(measured["integrated"] + 16) <= 0.5 and measured["true_peak"] < -1
+    assert "Apple Podcasts" in capsys.readouterr().out
+
+
+def test_true_peak_on_the_command_line_beats_the_named_target(tmp_path, film):
+    dest = tmp_path / "out.mp4"
+    assert main(["master", "--input", str(film), "--output", str(dest), "--loudness", "podcast", "--true-peak", "-3"]) == 0
+    assert ffmpeg.loudness(dest)["true_peak"] < -3
+
+
+def test_an_unknown_target_is_refused(tmp_path, film):
+    with pytest.raises(SystemExit):
+        main(["master", "--input", str(film), "--output", str(tmp_path / "out.mp4"), "--loudness", "very-loud"])
+
+
+def test_a_project_can_name_its_target(tmp_path):
+    project = Project.create(tmp_path / "video")
+    config = project.root / "altocue.toml"
+    config.write_text(config.read_text().replace("loudness = -14.0", 'loudness = "podcast"').replace("true_peak = -1.5        # dBTP\n", ""))
+    assert master.project_target(Project.open(project.root)) == (-16.0, -1.0)
+
+
+def test_a_number_in_the_project_still_works(tmp_path):
+    assert master.project_target(Project.create(tmp_path / "video")) == (-14.0, -1.5)

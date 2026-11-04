@@ -1,0 +1,264 @@
+{
+  "id": "explainer",
+  "name": "Paper Explainer",
+  "promise": "A question and its sources become an explainer that shows its working.",
+  "cost": "$0 with your own voice.",
+  "generation": "optional",
+  "aspect": "16:9",
+  "fps": 30,
+  "default": "main",
+  "beats": [
+    "situation",
+    "fact",
+    "explain",
+    "question",
+    "twist"
+  ],
+  "brief_fields": [
+    "question",
+    "takeaway",
+    "facts",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables"
+  ],
+  "formats": [
+    "collage_stack",
+    "doc_highlight",
+    "marker",
+    "line_boil",
+    "bar_build",
+    "recap_check",
+    "chapter_card",
+    "torn_wipe"
+  ],
+  "notes": [
+    "Record the voice first. Put each line in assets/voice/<scene>.wav, and `seconds: voice` builds the timeline from the real takes.",
+    "Every number on screen must match a fact in the brief, with its link."
+  ],
+  "brief": {
+    "example": true,
+    "question": "Why does bread go stale faster in the fridge?",
+    "takeaway": "Cold speeds staling, so bread keeps better frozen or on the side.",
+    "facts": [
+      {
+        "fact": "Starch recrystallises fastest just above freezing",
+        "source": "Add your source here"
+      }
+    ],
+    "company": "A short kitchen science explainer.",
+    "audience": "Curious home cooks",
+    "goal": "Finish the film and share it",
+    "message": "Cold speeds staling.",
+    "must_show": [
+      "the shelf test"
+    ],
+    "terms": [
+      "stale bread"
+    ],
+    "tone": "Warm, plain and curious",
+    "brand": {
+      "colors": {
+        "ink": "#1d1a16",
+        "soft": "#6b6459",
+        "accent": "#d9482b",
+        "panel": "#efe6d6",
+        "surface": "#fbf6ea"
+      }
+    },
+    "deliverables": [
+      "16:9",
+      "9:16"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Stale bread",
+        "route": "hybrid",
+        "clock": "voice",
+        "hero": {
+          "scene": "explain",
+          "offset": 2.0
+        },
+        "layers": {
+          "question": "Why is the *fridge* worst for bread?"
+        },
+        "music": {
+          "style": "paper"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 8,
+            "tones": "#f3c9a8,#f7e6c4,#e9b48f"
+          },
+          {
+            "type": "grain_field",
+            "strength": 0.05,
+            "over": true
+          }
+        ],
+        "scenes": [
+          {
+            "id": "situation",
+            "beat": "situation",
+            "seconds": "voice",
+            "voice": "assets/voice/situation.wav",
+            "says": "You keep your bread in the fridge so it lasts longer. It does not. Stale bread starts there.",
+            "verb": "set",
+            "energy": 3,
+            "carry": "the question",
+            "link": {
+              "type": "torn_wipe",
+              "why": "A paper tear moves us to the evidence.",
+              "text": "The *evidence*"
+            },
+            "items": [
+              {
+                "type": "collage_stack",
+                "text": "{{question}}",
+                "label": "Kitchen notes, one",
+                "start": 0.2,
+                "role": "hook",
+                "important": true
+              }
+            ],
+            "camera": {
+              "move": "push",
+              "amount": 0.05
+            }
+          },
+          {
+            "id": "fact",
+            "beat": "fact",
+            "seconds": "voice",
+            "voice": "assets/voice/fact.wav",
+            "says": "Starch hardens fastest just above freezing, which is exactly where a fridge sits.",
+            "verb": "show",
+            "energy": 5,
+            "carry": "the page",
+            "link": {
+              "type": "through",
+              "why": "We push into the page."
+            },
+            "items": [
+              {
+                "type": "doc_highlight",
+                "heading": "Sample notes",
+                "text": "Starch hardens *fastest just above freezing.*",
+                "source": "Your source goes here",
+                "start": 0.2,
+                "zone": "center",
+                "scale": 0.8
+              }
+            ],
+            "camera": {
+              "move": "drift"
+            }
+          },
+          {
+            "id": "explain",
+            "beat": "explain",
+            "seconds": "voice",
+            "voice": "assets/voice/explain.wav",
+            "says": "In a simple shelf test, the fridge loaf stales in about half the time of the bread box.",
+            "verb": "compare",
+            "energy": 7,
+            "carry": "the shorter bar",
+            "shows": [
+              "the shelf test"
+            ],
+            "silences": [
+              {
+                "from": 0.2,
+                "to": 0.7
+              }
+            ],
+            "link": {
+              "type": "pan",
+              "why": "We slide along the shelf."
+            },
+            "items": [
+              {
+                "type": "bar_build",
+                "title": "Days until stale, *sample test*",
+                "start": 0.1,
+                "zone": "center",
+                "bars": [
+                  {
+                    "text": "Fridge",
+                    "value": 2
+                  },
+                  {
+                    "text": "Box",
+                    "value": 4
+                  },
+                  {
+                    "text": "Frozen",
+                    "value": 30
+                  }
+                ]
+              }
+            ],
+            "camera": {
+              "move": "push",
+              "amount": 0.05
+            }
+          },
+          {
+            "id": "question",
+            "beat": "question",
+            "seconds": "voice",
+            "voice": "assets/voice/question.wav",
+            "says": "So why does the freezer work at all?",
+            "verb": "ask",
+            "energy": 5,
+            "carry": "the answer",
+            "link": {
+              "type": "dissolve",
+              "why": "The question fades into its answer."
+            },
+            "items": [
+              {
+                "type": "line_boil",
+                "text": "So why does the *freezer* work?",
+                "start": 0.1,
+                "zone": "center",
+                "align": "center"
+              }
+            ],
+            "camera": {
+              "move": "drift"
+            }
+          },
+          {
+            "id": "twist",
+            "beat": "twist",
+            "seconds": "voice",
+            "voice": "assets/voice/twist.wav",
+            "says": "Below freezing, the starch stops moving. Cold is not the enemy. Almost cold is.",
+            "verb": "land",
+            "energy": 6,
+            "items": [
+              {
+                "type": "marker",
+                "text": "Cold is not the enemy. *Almost cold is.*",
+                "start": 0.1,
+                "zone": "center",
+                "align": "center"
+              }
+            ],
+            "camera": {
+              "move": "push",
+              "amount": 0.03
+            }
+          }
+        ]
+      }
+    }
+  }
+}

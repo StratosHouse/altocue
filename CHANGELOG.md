@@ -1,5 +1,130 @@
 # Changelog
 
+## 0.2.0
+
+Altocue becomes a full editing suite: a library, films with no footage, long video to shorts, deliverables and data checks.
+
+### Films with no footage
+
+- `altocue launch`: a dedicated launch film from a brief, with the `altocue-launch` skill. A 16:9 master at 60 fps, with 9:16 and 1:1 cutdowns re-rendered from the storyboard, never cropped
+- `altocue film`: twelve film types, with `types`, `new`, `check`, `approve`, `stills`, `score`, `render`, `variants`, `study` and `qa`, and the `altocue-film` skill
+- Plate Edit: one change to your own clip, comped back inside a region and a window, and diffed against the plate so untouched pixels stay as shot
+- Song Cut: your own footage cut to a song, the cut and one title word on each hit you pinned by ear
+- Invitation and Heritage: no generation, every name, date and place typed from an intake sheet in `brief.json`, and every reconstructed period labelled
+- A film type can carry its own checks, run by `film check` and `film qa`, never as gates
+- One-take films: a storyboard's `one_take` seams are held in black or white, the frame count is exact, and no cut falls outside a hold
+- A storyboard is the source of truth, checked for beats, holds, reading time, the hook and flashes before anything renders
+- Original music written in code and fitted to the scenes, with no samples and nothing to license
+- Numbers a film shows are read from the tool, and `altocue film check` fails a film whose numbers have moved
+
+### Motion and the library
+
+- 126 original motion formats in 12 groups: kinetic type, products, paper, data, explainers, proof, teaching, film, maps, backdrops, isometric scenes and wipes
+- `timeline_cut` lays a take's real words on a track, and each removal strikes and folds away as the playhead passes. `cut.track` reads them from a project's own words and `edl.json`
+- `library_scroll` types a search, then scrolls a wall of real stock results, each with its licence on it
+- `feature_badge` pops a feature's icon and name in a corner on the cut. The icons are Tabler's, MIT, with the notice kept, or drawn in code
+- A film can play part of a clip's sound, take a picture from a frame of a clip, caption a raw take word for word with each cut tagged, read captions from the clip that carries the sound, scale its caption track, change one picture's shape in place, and start a chosen track on a downbeat so cuts snap to heard beats. Film render writes `out/credits.txt`
+- `altocue broll --wall` keeps a frame and the licence of each stock result for a search shown on screen, and `grade --compare` keeps each look alone
+- `altocue deliver` works on a film from a storyboard, and `--no-music` writes the film with voice and effects only, for an app's own music library
+- `altocue library`: one searchable catalog with built-in, fetched, searched and linked tiers, a licence gate, a brand deny list and a weekly sync, and the `altocue-library` skill
+- Any HyperFrames composition can be mounted as a graphic, and fetched items are kept self-contained, so a render needs the network only for a font that could not be embedded
+- Copy longer than a format allows fails before the render
+
+### Renderer
+
+- Graphics render through HyperFrames 0.9.8, up from 0.8.222, with undici held at 7.30.1, which clears 29 security advisories
+- Renders work offline: formats use only the fonts Altocue ships, and `altocue library add` embeds the fonts a fetched item names. A face it could not embed is fetched at render time, and headless Chrome on the first render if setup missed it
+- Serif formats render in Instrument Serif, as designed. Renders had been drawing them in Inter
+- The graphics page is marked `data-no-timeline`
+- The weekly library sync says how far the HyperFrames pin is behind the latest release
+- A registry item that shares a name with a built-in format stays out of the catalog
+
+### Stock, music and effects
+
+- Stock with no key: NASA, Wikimedia Commons, The Met and Cleveland, with Pixabay first when you have its key
+- Stills as a slow push-in, and an opt-in Internet Archive source
+- `altocue music`, `altocue sfx` and `altocue credits`, with the `altocue-sound` skill
+- 20 CC0 effects bundled, 12 of them new, and 4 CC0 stings
+- `out/credits.txt` on every render, and a credits QA gate
+- Pixabay honours the shape you ask for. Slow zooms fixed on ffmpeg 8.1
+
+### Cutting and clips
+
+- Script mode: `altocue cut --from-script` builds a frame-safe cut from an edited `script.md`
+- Hand-set gain, crop, zoom and order survive a re-cut, and anything lost is reported
+- `altocue clips`: finds complete thoughts in a long recording and cuts each into its own project, with the `altocue-clips` skill
+- Optional speakers: words can carry who said them, and captions can name or colour each voice
+- Transcribing holds memory flat across file lengths and refuses to start when memory or disk is short
+
+### Sound
+
+- Apple voice isolation as a clean backend on a Mac
+- Phrase-by-phrase levelling, room tone in the holes, a working de-esser, and breaths turned down on request
+- Every bundled effect callable from `motion.json`, with wipes sounded at their midpoint
+- Music ducks on a smooth ramp, and its end lands on the last frame
+- A no-voice mode for films with no speech
+
+### Colour, transitions and texture
+
+- Eight film looks written as code, your own `.cube` LUT, look strength, and a comparison sheet
+- 58 built-in transitions, 12 bundled shader transitions, and more shaders fetched through the library
+- Freeze on any word while the sound carries on
+- Film grain, light leaks, dust, vignette and paper, made in code, under the captions
+- Any W:H aspect, up to 4:1 either way
+
+### Deliverables
+
+- `altocue deliver`: subtitles, chapters, thumbnails, loudness targets and a version for each platform, with the `altocue-deliver` skill. It delivers only a film with a SHIP verdict for that exact file. `--override REASON` is printed and recorded, and the claims and disclosure gates have no override
+- `altocue deliver --stems`: voice, music and effects as WAV files
+- `altocue timeline`: the edit in the HyperFrames studio, as a view. The studio is the one thing Altocue starts, and it opens no window
+
+### Data
+
+- `altocue facts`: measured facts about the finished film, never a score
+- `altocue benchmark`: winners beside non-winners, from a CSV or your own key
+- `altocue learn`: lessons from your own results, with paired hook tests
+- Skills label each claim as evidence, a source's claim or a rule of thumb
+
+### Generation
+
+- `altocue generate --reserve`, `--release`, `--not-billed`, `--report` and `--allow-upload`: one spend cap per project. A run holds its whole estimate while it works, a cancelled job stays on the cap until billing shows no charge, and on the MCP route the cap holds when the agent reserves first
+- `altocue recipes`: 37 hosted commands with what each costs before anything runs
+- Fuller provenance on every import
+- Claims and disclosure gates for a generated person, and `altocue qa --check ugc`
+- A shot can take a motion video, such as a blockout, and a music track as a timing input, each wired only to the routes whose own docs list it
+- `altocue direct` warns on a written timeline with gaps, settings in a prompt that differ from the shot's, a reference in the wrong state for the continuity ledger, and long shots in Higgsfield's own block formats
+- A finished job's record is held against the request, and a take that differs is kept but never placed. `--import --record` does the same for a job made elsewhere
+- `altocue generate --keep` records why a take was kept, provenance records the prompt the service actually ran, and three failed takes of one prompt stop a blind retry
+- The `altocue-ugc` skill
+- Higgsfield's terms checked to October 23, 2026, and Seedance 2.5 MCP routes
+
+### The Editor in Chief and checks
+
+- New gates: caption speed, brief coverage, flash rate, stray frames at insert edges, text readable, credits, claims and disclosure
+- Banned words are checked in speech as well as on screen, and each finding says where it came from
+- `altocue qa --check proof`: Product Proof Spot's label against a truth list, the product in frame, and hands clear at the end
+- `altocue review --page`: one file with the film beside every gate, note and caption. It prints its path and opens nothing
+- Timeline sheets and pacing numbers in the review pack, so a reviewer given stills can judge rhythm
+- Reviewer canaries on the demo take
+- `altocue demo`: proves a machine works on our published demo take
+- `altocue doctor` shows a capability table and checks disk. `altocue status` is wider
+
+### Skills
+
+- Craft rules sorted into the skill that uses them, each labelled evidence, a source's claim or a rule of thumb
+- Safety and platform rules, and named fixes in `altocue-review` and `altocue-direct`
+- `tests/test_skills.py` fails if a skill names a stage, flag, format, file or setting that does not exist
+- `tests/test_readme.py` fails if a number in the README differs from the code
+
+### Fixed
+
+- A caption no longer holds past a cut
+- Clips stay in the order given
+- The heavy lock holds through the plate and the composite
+- The parakeet extra installs
+- Install commands, the OCR check, and two-word name fixes in `[transcribe.fix]`
+- A segment that started exactly on a frame no longer starts one frame late
+
 ## 0.1.1
 
 - Stock search leads with Pixabay, because Pexels has paused new API keys

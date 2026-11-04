@@ -35,7 +35,7 @@ PQ = "smpte2084"
 LUT_SIZE = 33
 HDR_LUT_SIZE = 65
 LOOKS = ("natural", "warm", "cool", "punchy", "filmic")
-VERSION = 1
+VERSION = 2
 
 HLG_A, HLG_B, HLG_C = 0.17883277, 0.28466892, 0.55991073
 HLG_PEAK_NITS = 1000.0
@@ -240,6 +240,14 @@ class Match:
         return mean + (lab - mean) * (1 + (scale - 1) * strength) + shift * strength
 
 
+def skin_weight(lab: np.ndarray, center: tuple[float, float, float]) -> np.ndarray:
+    """How much each colour looks like this clip's skin, from 0 to 1."""
+    l0, a0, b0 = center
+    chroma = ((lab[..., 1] - a0) ** 2 + (lab[..., 2] - b0) ** 2) / SKIN_SIGMA_AB**2
+    light = (lab[..., 0] - l0) ** 2 / SKIN_SIGMA_L**2
+    return np.exp(-0.5 * (chroma + light))[..., None]
+
+
 @dataclass(frozen=True)
 class Correction:
     """One clip's change. A pure function of colour, so it bakes into a LUT."""
@@ -259,10 +267,7 @@ class Correction:
     def _skin_weight(self, lab: np.ndarray) -> np.ndarray:
         if self.skin_center is None:
             return np.zeros((*lab.shape[:-1], 1))
-        l0, a0, b0 = self.skin_center
-        chroma = ((lab[..., 1] - a0) ** 2 + (lab[..., 2] - b0) ** 2) / SKIN_SIGMA_AB**2
-        light = (lab[..., 0] - l0) ** 2 / SKIN_SIGMA_L**2
-        return np.exp(-0.5 * (chroma + light))[..., None]
+        return skin_weight(lab, self.skin_center)
 
     def apply(self, rgb: np.ndarray, strength: float | None = None) -> np.ndarray:
         amount = self.strength if strength is None else strength
@@ -327,9 +332,7 @@ def _face_masks(lab: np.ndarray, faces: list[Face]) -> tuple[np.ndarray, np.ndar
     for face in faces:
         cx, cy = face.center
         oval = np.zeros((height, width), np.uint8)
-        cv2.ellipse(
-            oval, (round(cx), round(cy + face.h * 0.05)), (max(1, round(face.w * 0.36)), max(1, round(face.h * 0.42))), 0, 0, 360, 1, -1
-        )
+        cv2.ellipse(oval, (round(cx), round(cy + face.h * 0.05)), (max(1, round(face.w * 0.36)), max(1, round(face.h * 0.42))), 0, 0, 360, 1, -1)
         inside = oval.astype(bool)
         if not inside.any():
             continue
@@ -584,9 +587,7 @@ def _read_clip(clip: Clip, spans: list[tuple[float, float]] | None) -> ClipStats
     with ThreadPoolExecutor(max_workers=4) as pool:
         frames = [f for f in pool.map(lambda at: read_rgb(clip, at, SAMPLE_SIDE), sample_times(clip, spans)) if f is not None]
     if not frames:
-        raise AltocueError(
-            f"Could not read any frame of {clip.id}.", fix=f"Check that {clip.path} plays. If it lives in iCloud, download it first."
-        )
+        raise AltocueError(f"Could not read any frame of {clip.id}.", fix=f"Check that {clip.path} plays. If it lives in iCloud, download it first.")
     if clip.is_hdr:
         sdr = [hdr_to_sdr(f, clip.transfer) for f in frames]
         stats = measure_frames(clip.id, sdr, frames)
@@ -620,14 +621,14 @@ def match_targets(stats: dict[str, ClipStats]) -> dict[str, str]:
     return targets
 
 
-def _bake(project: Project, clip: Clip, correction: Correction, look: str) -> np.ndarray:
+def _bake(project: Project, clip: Clip, correction: Correction, finish: Any) -> np.ndarray:
     """One `.cube` per clip, always, so the plate stage has one rule for every clip."""
     path = project.lut_dir / f"{clip.id}.cube"
-    if clip.is_hdr and correction.is_identity and look == "natural":
+    if clip.is_hdr and correction.is_identity and finish.is_identity:
         table = hdr_lut(clip.transfer)
     else:
         grid = identity_grid(LUT_SIZE)
-        table = apply_look(correction.apply(hdr_to_sdr(grid, clip.transfer) if clip.is_hdr else grid), look)
+        table = finish.apply(correction.apply(hdr_to_sdr(grid, clip.transfer) if clip.is_hdr else grid))
     write_cube(path, table, f"Altocue {clip.id}")
     return table
 
@@ -651,28 +652,49 @@ def _changes(clip: Clip, correction: Correction, stats: ClipStats | None) -> dic
     }
 
 
-def _stamp(project: Project, clips: list[Clip], look: str, enabled: bool, ranges: dict[str, list[tuple[float, float]]]) -> str:
+def _stamp(project: Project, clips: list[Clip], look: str, enabled: bool, ranges: dict[str, list[tuple[float, float]]], *, strength: float = 1.0, lut: str = "") -> str:
     files = []
     for clip in clips:
         if not Path(clip.path).exists():
-            raise AltocueError(
-                f"{clip.id} points at a missing file: {clip.path}.", fix="Restore the source file, then run `altocue ingest`."
-            )
+            raise AltocueError(f"{clip.id} points at a missing file: {clip.path}.", fix="Restore the source file, then run `altocue ingest`.")
         info = Path(clip.path).stat()
         files.append([clip.id, clip.path, info.st_size, info.st_mtime_ns, ranges.get(clip.id)])
-    text = json.dumps({"version": VERSION, "look": look, "enabled": enabled, "files": files}, sort_keys=True)
+    text = json.dumps({"version": VERSION, "look": look, "strength": strength, "lut": lut, "enabled": enabled, "files": files}, sort_keys=True)
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-def grade_project(project: Project, force: bool = False, look: str | None = None) -> dict[str, Any]:
+def _asked(project: Project, look: str | None = None, strength: float | None = None, lut: str | Path | None = None) -> tuple[Any, float, str]:
+    """What the flags and `altocue.toml` ask for. A flag beats the file, and a LUT replaces the look in the file."""
+    from . import looks
+
+    amount = float(project.setting("grade", "look_strength", 1.0) if strength is None else strength)
+    named = project.setting("grade", "lut", "")
+    user_lut = Path(lut) if lut else project.root / Path(named).expanduser() if named else None  # a flag reads from the shell, the file from the project
+    plain = "natural" if user_lut and not look else None
+    finish = looks.choose(look or plain or project.setting("grade", "look", "natural"), strength=amount, lut=user_lut)
+    return finish, amount, looks.stamp(user_lut)
+
+
+def up_to_date(project: Project) -> bool:
+    """True when `altocue grade` would keep the LUTs it has."""
+    path = project.lut_dir / "report.json"
+    if not path.exists():
+        return False
+    finish, amount, lut = _asked(project)
+    stamp = _stamp(project, project.clips(), finish.name, bool(project.setting("grade", "enabled", True)), _kept_ranges(project), strength=amount, lut=lut)
+    return json.loads(path.read_text()).get("stamp") == stamp
+
+
+def grade_project(project: Project, force: bool = False, look: str | None = None, *, strength: float | None = None, lut: str | Path | None = None) -> dict[str, Any]:
     """Bake one LUT per clip and write `work/luts/report.json`."""
-    chosen = look or project.setting("grade", "look", "natural")
-    if chosen not in LOOKS:
-        raise AltocueError(f"Unknown look {chosen}.", fix=f"Use one of {', '.join(LOOKS)}.")
+    from . import looks
+
+    finish, amount, lut_mark = _asked(project, look, strength, lut)
+    chosen = finish.name
     enabled = bool(project.setting("grade", "enabled", True))
     clips = project.clips()
     ranges = _kept_ranges(project)
-    stamp = _stamp(project, clips, chosen, enabled, ranges)
+    stamp = _stamp(project, clips, chosen, enabled, ranges, strength=amount, lut=lut_mark)
     report_path = project.lut_dir / "report.json"
     if not force and report_path.exists():
         saved = json.loads(report_path.read_text())
@@ -680,7 +702,7 @@ def grade_project(project: Project, force: bool = False, look: str | None = None
             return saved
 
     project.lut_dir.mkdir(parents=True, exist_ok=True)
-    report: dict[str, Any] = {"stamp": stamp, "version": VERSION, "look": chosen if enabled else "natural", "reference": None, "clips": {}}
+    report: dict[str, Any] = {"stamp": stamp, "version": VERSION, "look": chosen if enabled else "natural", "look_strength": amount, "reference": None, "clips": {}}
     if not enabled:
         for clip in clips:
             (project.lut_dir / f"{clip.id}.cube").unlink(missing_ok=True)  # an older grade must not keep applying
@@ -700,7 +722,8 @@ def grade_project(project: Project, force: bool = False, look: str | None = None
         sample = stats[clip.id]
         target = targets[clip.id]
         correction = leaders[clip.id] if target == clip.id else solve_clip(sample, corrected[target])
-        table = _bake(project, clip, correction, chosen)
+        fitted = looks.fit(finish, correction.apply(sample.skin) if sample.has_skin else None)
+        table = _bake(project, clip, correction, fitted)
         after_skin = apply_lut(table, sample.coded_skin) if len(sample.coded_skin) else sample.coded_skin
         after = _measure(after_skin, apply_lut(table, sample.coded_rest))
         entry: dict[str, Any] = {
@@ -711,7 +734,7 @@ def grade_project(project: Project, force: bool = False, look: str | None = None
             "faces": {"rate": round(sample.face_rate, 3), "score": round(sample.face_score, 3)},
             "before": _measure(sample.skin, sample.rest),
             "after": after,
-            "changes": _changes(clip, correction, sample),
+            "changes": {**_changes(clip, correction, sample), "look_strength": round(fitted.strength, 3), "look_skin_moved": round(fitted.moved, 2)},
         }
         if clip.is_hdr:
             entry["plain_conversion"] = _measure(sample.coded_skin, sample.coded_rest)
@@ -723,7 +746,10 @@ def grade_project(project: Project, force: bool = False, look: str | None = None
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--force", action="store_true", help="Solve again even if nothing changed")
-    parser.add_argument("--look", choices=LOOKS, help="Overrides [grade] look")
+    parser.add_argument("--look", help="Overrides [grade] look. `--compare` shows them all")
+    parser.add_argument("--look-strength", type=float, default=None, help="How much of the look or LUT, from 0 to 1")
+    parser.add_argument("--lut", default=None, help="Your own .cube file, in place of a look")
+    parser.add_argument("--compare", action="store_true", help="Write every look on one real frame to work/luts/looks.jpg, each one alone in work/luts/looks/, and stop")
 
 
 def _summary(clip_id: str, entry: dict[str, Any]) -> str:
@@ -738,6 +764,8 @@ def _summary(clip_id: str, entry: dict[str, Any]) -> str:
         notes.append("white balance " + " ".join(f"{g:.3f}" for g in changes["gains"]))
     if changes.get("strength", 1) < 1:
         notes.append(f"backed off to {changes['strength']:.0%} for skin")
+    if changes.get("look_skin_moved"):
+        notes.append(f"look at {changes['look_strength']:.0%}, skin hue moved {changes['look_skin_moved']:.1f} degrees")
     if entry.get("reference"):
         notes.append("reference")
     return f"{clip_id}: {', '.join(notes) or 'no change'}"
@@ -745,7 +773,13 @@ def _summary(clip_id: str, entry: dict[str, Any]) -> str:
 
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
-    report = grade_project(project, force=args.force, look=args.look)
+    if args.compare:
+        from . import looks
+
+        sheet = looks.sheet(project)
+        print(f"Looks on one frame: {sheet}\nEach look alone, and the frame before any correction as raw.jpg: {sheet.parent / 'looks'}")
+        return 0
+    report = grade_project(project, force=args.force, look=args.look, strength=args.look_strength, lut=args.lut)
     for clip_id, entry in report["clips"].items():
         print(_summary(clip_id, entry))
     print(f"Graded {len(report['clips'])} clips, look {report['look']}. Report: {project.lut_dir / 'report.json'}")

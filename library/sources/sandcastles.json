@@ -1,0 +1,46 @@
+{
+  "id": "sandcastles",
+  "name": "Sandcastles",
+  "url": "https://sandcastles.ai/mcp",
+  "classes": [
+    "data"
+  ],
+  "holds": "Reels, TikTok and Shorts outlier research.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "sandcastles-terms",
+    "url": "https://sandcastles.ai/mcp",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://sandcastles.ai/mcp",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "It takes a licence over user content to train AI, so warn before connecting it."
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import wave
 from pathlib import Path
@@ -101,6 +102,28 @@ with wave.open(str(out / source.name), "wb") as handle:
     return str(script)
 
 
+def isolator(folder: Path, body: str = "", code: int = 0) -> str:
+    """A stand-in for the Swift helper. Like the real one it keeps length and time."""
+    script = folder / "isolate"
+    script.write_text(f"""#!{sys.executable}
+import json, shutil, sys
+from pathlib import Path
+args = sys.argv[1:]
+if args == ["--check"]:
+    print(json.dumps({{"available": True, "model": "high quality"}}))
+    raise SystemExit(0)
+source, dest, wet = args
+Path(dest).with_name("wet.txt").write_text(wet)
+{body}
+if {code}:
+    raise SystemExit({code})
+if not Path(dest).exists():
+    shutil.copy(source, dest)
+""")
+    script.chmod(0o755)
+    return str(script)
+
+
 def wav_info(path: Path) -> tuple[int, int, int, int]:
     with wave.open(str(path), "rb") as handle:
         return handle.getframerate(), handle.getnchannels(), handle.getsampwidth(), handle.getnframes()
@@ -134,10 +157,22 @@ def test_a_hum_far_below_the_noise_is_left_alone():
     assert clean.detect_hum(speech(6) + hiss(6, -50) + tone(6, 60, -95), RATE) is None
 
 
+def test_the_quietest_stretch_is_room_and_never_half_digital_silence():
+    samples = speech(4, 0.15) + hiss(4, -60)
+    samples[: RATE // 4] = 0.0
+    stretch = clean.quietest(samples.astype(np.float32), RATE)
+    assert 20 * np.log10(np.sqrt(np.mean(np.square(stretch.astype(np.float64))))) == pytest.approx(-60, abs=2)
+
+
 def test_harder_work_for_worse_audio():
     order = [clean.plan_denoise(snr)["strength"] for snr in (60, 38, 26, 8)]
     assert order == ["none", "light", "normal", "strong"]
     assert clean.plan_denoise(38)["atten_db"] < clean.plan_denoise(8)["atten_db"]
+
+
+@pytest.mark.parametrize(("snr", "wet"), [(60, 0.0), (38, 68.4), (26, 87.4), (8, 96.8)])
+def test_the_wet_mix_leaves_the_same_noise_as_the_attenuation_limit(snr, wet):
+    assert clean.plan_denoise(snr)["wet"] == pytest.approx(wet, abs=0.05)
 
 
 def test_tone_chain_notches_only_when_hum_was_found():
@@ -150,6 +185,40 @@ def test_tone_chain_uses_stock_filters_only():
     names = {part.split("=")[0] for part in clean.tone_filters({"hz": 60}).split(",")}
     assert names <= ffmpeg.filters()
     assert not names & {"drawtext", "subtitles", "zscale"}
+
+
+def test_the_de_esser_can_be_set_or_left_out():
+    assert "deesser" not in clean.tone_filters(None, "off")
+    strengths = [next(part for part in clean.tone_filters(None, name).split(",") if part.startswith("deesser")) for name in ("light", "normal", "strong")]
+    assert len(set(strengths)) == 3
+
+
+def test_an_unknown_de_ess_strength_is_refused():
+    with pytest.raises(AltocueError) as caught:
+        clean.tone_filters(None, "extreme")
+    assert "strong" in caught.value.fix
+
+
+def sibilants(seconds: float, db: float, seed: int = 11) -> np.ndarray:
+    n = int(seconds * RATE)
+    freqs = np.fft.rfftfreq(n, 1 / RATE)
+    white = np.random.default_rng(seed).normal(0, 1, n)
+    hissed = np.fft.irfft(np.fft.rfft(white) * ((freqs > 5000) & (freqs < 9000)), n)
+    bursts = (np.arange(n) / RATE) % 0.8 < 0.15
+    return hissed / hissed.std() * 10 ** (db / 20) * bursts
+
+
+@pytest.mark.parametrize(("strength", "least"), [("light", 3.0), ("normal", 6.0), ("strong", 9.0)])
+def test_the_de_esser_takes_the_sibilants_down_and_more_when_asked(tmp_path, strength, least):
+    voice = speech(6, 0.1) + sibilants(6, -22)
+    path = ffmpeg.write_wav(tmp_path / "in.wav", voice, RATE)
+    outs = []
+    for name in ("off", strength):
+        out = tmp_path / f"{name}.wav"
+        chain = next(part for part in clean.tone_filters(None, name).split(",") if part.startswith("deesser")) if name != "off" else "anull"
+        ffmpeg.run(["-i", str(path), "-af", chain, "-c:a", "pcm_s16le", str(out)])
+        outs.append(ffmpeg.read_wav(out)[0])
+    assert band_db(outs[0], 5000, 9000) - band_db(outs[1], 5000, 9000) >= least
 
 
 def test_output_is_mono_48k_16_bit_and_the_exact_source_length(tmp_path):
@@ -210,6 +279,52 @@ def test_clips_at_different_levels_end_up_together(tmp_path):
     assert quiet["level_lufs"] == pytest.approx(clean.VOICE_LUFS, abs=1)
 
 
+def aside(tmp_path: Path) -> Clip:
+    from test_level import hush, line
+
+    takes = [hush(0.5)]
+    for index in range(10):
+        takes += [line(3, -18 if index % 2 else -32, seed=index), hush(0.6)]
+    voice = np.concatenate(takes)
+    return source(tmp_path, voice + np.random.default_rng(1).normal(0, 10 ** (-72 / 20), len(voice)), "aside.mov")
+
+
+def test_phrases_are_levelled_and_the_report_shows_the_range_fall(tmp_path):
+    report = clean.clean_clip(aside(tmp_path), tmp_path / "out.wav", deep_filter=None, denoise=False)
+    assert report["phrases"] >= 10 and report["most_boost_db"] > 3
+    assert report["range_after"] <= report["range_before"] - 5
+    assert report["level_lufs"] == pytest.approx(clean.VOICE_LUFS, abs=1)
+
+
+def test_phrase_levelling_can_be_turned_off(tmp_path):
+    clip = aside(tmp_path)
+    on = clean.clean_clip(clip, tmp_path / "on.wav", deep_filter=None, denoise=False)
+    off = clean.clean_clip(clip, tmp_path / "off.wav", deep_filter=None, denoise=False, phrases=False)
+    assert off["most_boost_db"] == 0 and off["range_after"] > on["range_after"] + 3
+
+
+def test_breaths_come_down_only_when_asked(tmp_path):
+    from test_level import breath, hush, line
+
+    voice = np.concatenate([hush(0.5), line(2, -24), hush(0.4), breath(), hush(0.4), line(2, -24, seed=2), hush(0.5)])
+    clip = source(tmp_path, voice)
+    spot = slice(int(2.95 * RATE), int(3.2 * RATE))
+    kept = clean.clean_clip(clip, tmp_path / "kept.wav", deep_filter=None, denoise=False)
+    down = clean.clean_clip(clip, tmp_path / "down.wav", deep_filter=None, denoise=False, breath_down_db=9.0)
+    assert kept["breaths"] == down["breaths"] == 1
+    a, b = ffmpeg.read_wav(tmp_path / "kept.wav")[0][spot], ffmpeg.read_wav(tmp_path / "down.wav")[0][spot]
+    assert 20 * np.log10(np.sqrt(np.mean(a**2)) / np.sqrt(np.mean(b**2))) >= 6
+
+
+def test_transcript_times_reach_the_breath_finder(tmp_path):
+    from test_level import breath, hush, line
+
+    voice = np.concatenate([hush(0.5), line(2, -24), hush(0.4), breath(), hush(0.4), line(2, -24, seed=2), hush(0.5)])
+    clip = source(tmp_path, voice)
+    report = clean.clean_clip(clip, tmp_path / "out.wav", deep_filter=None, denoise=False, words=[(0.5, 2.5), (2.9, 3.25), (3.65, 5.65)])
+    assert report["breaths"] == 0
+
+
 def test_clean_audio_skips_the_denoiser(tmp_path):
     called = tmp_path / "called"
     binary = stub(tmp_path, f"Path({str(called)!r}).write_text('x')")
@@ -228,6 +343,67 @@ def test_deep_filter_output_keeps_length_and_time(tmp_path):
     assert report["engine"] == "deep-filter"
     assert len(cleaned) == len(original)
     assert abs(lag(original, cleaned)) <= 12
+
+
+def test_isolation_output_keeps_length_and_time(tmp_path):
+    original = speech(4, 0.15) + hiss(4, -48)
+    clip = source(tmp_path, original)
+    dest = tmp_path / "out.wav"
+    report = clean.clean_clip(clip, dest, deep_filter=None, isolate=isolator(tmp_path))
+    cleaned, _ = ffmpeg.read_wav(dest)
+    assert report["engine"] == "apple"
+    assert len(cleaned) == len(original)
+    assert abs(lag(original, cleaned)) <= 12
+
+
+def test_isolation_gets_the_wet_mix_the_plan_asked_for(tmp_path):
+    seen = tmp_path / "seen.txt"
+    binary = isolator(tmp_path, f"Path({str(seen)!r}).write_text(wet)")
+    clip = source(tmp_path, speech(4, 0.15) + hiss(4, -45))
+    report = clean.clean_clip(clip, tmp_path / "out.wav", deep_filter=None, isolate=binary)
+    assert float(seen.read_text()) == pytest.approx(clean.plan_denoise(report["snr_before"])["wet"], abs=0.1)
+
+
+def test_clean_audio_skips_isolation(tmp_path):
+    called = tmp_path / "called"
+    binary = isolator(tmp_path, f"Path({str(called)!r}).write_text('x')")
+    report = clean.clean_clip(source(tmp_path, speech(4, 0.3)), tmp_path / "out.wav", deep_filter=None, isolate=binary)
+    assert report["engine"] == "none" and not called.exists()
+
+
+def test_isolation_that_eats_speech_hands_over_to_the_next_engine(tmp_path):
+    silence = (
+        "import wave\n"
+        "with wave.open(source, 'rb') as h: p, f = h.getparams(), h.readframes(h.getnframes())\n"
+        "with wave.open(dest, 'wb') as o: o.setparams(p); o.writeframes(bytes(len(f)))"
+    )
+    clip = source(tmp_path, speech(5, 0.15) + hiss(5, -45))
+    dest = tmp_path / "out.wav"
+    report = clean.clean_clip(clip, dest, deep_filter=None, isolate=isolator(tmp_path, silence))
+    assert report["engine"] == "afftdn" and report["kept_original"] is False
+    assert any("took too much speech" in note for note in report["warnings"])
+    assert np.abs(ffmpeg.read_wav(dest)[0]).max() > 0.05
+
+
+def test_isolation_that_fails_falls_back_with_a_warning(tmp_path):
+    clip = source(tmp_path, speech(4, 0.15) + hiss(4, -45))
+    report = clean.clean_clip(clip, tmp_path / "out.wav", deep_filter=None, isolate=isolator(tmp_path, code=3))
+    assert report["engine"] == "afftdn"
+    assert any("voice isolation" in note for note in report["warnings"])
+
+
+def test_isolation_of_the_wrong_length_falls_back(tmp_path):
+    short = "import wave\nwith wave.open(source, 'rb') as h: p, f = h.getparams(), h.readframes(1000)\nwith wave.open(dest, 'wb') as o: o.setparams(p); o.writeframes(f)"
+    clip = source(tmp_path, speech(4, 0.15) + hiss(4, -45))
+    dest = tmp_path / "out.wav"
+    report = clean.clean_clip(clip, dest, deep_filter=None, isolate=isolator(tmp_path, short))
+    assert report["engine"] == "afftdn" and wav_info(dest)[3] == 4 * RATE
+
+
+def test_failed_isolation_tries_deep_filter_next(tmp_path):
+    clip = source(tmp_path, speech(4, 0.15) + hiss(4, -45))
+    report = clean.clean_clip(clip, tmp_path / "out.wav", deep_filter=stub(tmp_path), isolate=isolator(tmp_path, code=3))
+    assert report["engine"] == "deep-filter"
 
 
 def test_a_denoiser_that_eats_speech_is_rejected(tmp_path):
@@ -306,6 +482,106 @@ def test_hum_scan_stays_small_on_a_long_clip():
     assert clean.detect_hum(long_take, RATE)["hz"] == 60
 
 
+def machine(monkeypatch: pytest.MonkeyPatch, *, apple: str | None = None, deep_filter: str | None = None) -> None:
+    monkeypatch.setattr(clean, "find_isolator", lambda: apple)
+    monkeypatch.setattr(clean, "find_deep_filter", lambda: deep_filter)
+
+
+def test_auto_uses_apple_voice_isolation_where_the_mac_has_it(monkeypatch, tmp_path):
+    machine(monkeypatch, apple="/iso")
+    assert clean.choose_denoiser() == ("apple", "/iso", [])
+
+
+def test_auto_uses_deep_filter_where_there_is_no_apple_unit(monkeypatch, tmp_path):
+    binary = stub(tmp_path)
+    machine(monkeypatch, deep_filter=binary)
+    assert clean.choose_denoiser() == ("deep-filter", binary, [])
+
+
+def test_auto_falls_back_to_stock_ffmpeg(monkeypatch):
+    machine(monkeypatch)
+    assert clean.choose_denoiser() == ("afftdn", None, [])
+
+
+def test_a_named_engine_wins_over_auto(monkeypatch, tmp_path):
+    binary = stub(tmp_path)
+    machine(monkeypatch, apple="/iso", deep_filter=binary)
+    assert clean.choose_denoiser("deep-filter") == ("deep-filter", binary, [])
+    assert clean.choose_denoiser("afftdn") == ("afftdn", None, [])
+
+
+def test_a_named_engine_this_machine_lacks_says_so_and_falls_back(monkeypatch):
+    machine(monkeypatch)
+    name, _, notes = clean.choose_denoiser("apple")
+    assert name == "afftdn" and "Apple voice isolation" in notes[0]
+
+
+def test_a_broken_deep_filter_is_passed_over_with_a_note(monkeypatch, tmp_path):
+    script = tmp_path / "deep-filter"
+    script.write_text("#!/bin/sh\nexit 3\n")
+    script.chmod(0o755)
+    machine(monkeypatch, deep_filter=str(script))
+    name, _, notes = clean.choose_denoiser()
+    assert name == "afftdn" and "deep-filter" in notes[0]
+
+
+def test_an_unknown_engine_is_refused():
+    with pytest.raises(AltocueError) as caught:
+        clean.choose_denoiser("magic")
+    assert "deep-filter" in caught.value.fix
+
+
+def test_the_isolator_needs_a_working_audio_unit(monkeypatch, tmp_path):
+    monkeypatch.setattr(clean.swift, "compiled", lambda source, name: Path(isolator(tmp_path)))
+    clean.find_isolator.cache_clear()
+    assert clean.find_isolator() == str(tmp_path / "isolate")
+    monkeypatch.setattr(clean.swift, "compiled", lambda source, name: Path("/usr/bin/false"))
+    clean.find_isolator.cache_clear()
+    assert clean.find_isolator() is None
+    clean.find_isolator.cache_clear()
+
+
+def test_the_isolator_needs_a_mac_and_a_compiler(monkeypatch):
+    monkeypatch.setattr(clean.swift, "compiled", lambda source, name: None)
+    clean.find_isolator.cache_clear()
+    assert clean.find_isolator() is None
+    clean.find_isolator.cache_clear()
+
+
+def test_setup_downloads_nothing_where_the_mac_already_has_isolation(monkeypatch, capsys):
+    from altocue import setup
+
+    machine(monkeypatch, apple="/iso")
+    monkeypatch.setattr(setup.urllib.request, "urlopen", lambda *a, **k: pytest.fail("downloaded"))
+    setup.install_denoiser(yes=True)
+    assert "Apple voice isolation" in capsys.readouterr().out
+
+
+def test_setup_can_still_fetch_deep_filter_on_a_mac(monkeypatch):
+    from altocue import setup
+
+    machine(monkeypatch, apple="/iso", deep_filter="/already/there")
+    setup.install_denoiser(yes=True, even_on_a_mac=True)
+
+
+def test_doctor_names_the_backend_that_applies(monkeypatch, tmp_path):
+    from altocue import doctor
+
+    machine(monkeypatch, apple="/iso")
+    monkeypatch.setattr(clean, "isolator_model", lambda: "high quality")
+    found = doctor.check_denoiser()
+    assert found.id == "denoiser" and found.ok and "Apple voice isolation" in found.detail and "high quality" in found.detail
+
+    binary = stub(tmp_path)
+    machine(monkeypatch, deep_filter=binary)
+    found = doctor.check_denoiser()
+    assert found.ok and "deep-filter" in found.detail and binary in found.detail
+
+    machine(monkeypatch)
+    found = doctor.check_denoiser()
+    assert not found.ok and not found.required and "afftdn" in found.detail and "altocue setup" in found.fix
+
+
 def test_find_deep_filter_prefers_the_override(tmp_path, monkeypatch):
     binary = stub(tmp_path)
     monkeypatch.setenv("ALTOCUE_DEEP_FILTER", binary)
@@ -343,7 +619,7 @@ def test_setup_installs_where_find_looks():
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Project:
     monkeypatch.delenv("ALTOCUE_DEEP_FILTER", raising=False)
-    monkeypatch.setattr(clean, "find_deep_filter", lambda: None)
+    machine(monkeypatch)
     media = tmp_path / "media"
     media.mkdir()
     noisy = source(media, speech(3, 0.15) + hiss(3, -48), "noisy.mov")
@@ -404,6 +680,45 @@ def test_real_deep_filter_keeps_time_and_length(tmp_path):
     assert abs(lag(original, cleaned)) <= 1
 
 
+real_isolator = pytest.mark.skipif(clean.find_isolator() is None, reason="this machine has no Apple voice isolation")
+
+
+@pytest.fixture
+def said(tmp_path: Path) -> np.ndarray:
+    """Speech from macOS `say`. The audio unit removes what it does not hear as a voice, and that includes `speech()`."""
+    aiff = tmp_path / "said.aiff"
+    subprocess.run(["say", "-o", str(aiff), "Every clip gets its own room, and nothing here should move in time."], check=True)
+    return ffmpeg.read_wav(ffmpeg.extract_wav(aiff, tmp_path / "said.wav"))[0]
+
+
+@real_isolator
+def test_real_isolation_keeps_time_and_length(tmp_path, said):
+    original = said + hiss(len(said) / RATE, -50)
+    raw = ffmpeg.write_wav(tmp_path / "raw.wav", original, RATE)
+    cleaned, _ = ffmpeg.read_wav(clean._run_isolate(clean.find_isolator(), raw, tmp_path, 100.0, len(original)))
+    assert len(cleaned) == len(original)
+    assert abs(lag(original, cleaned)) <= 1
+
+
+@real_isolator
+def test_the_wet_mix_decides_how_far_the_room_falls(tmp_path, said):
+    paused = np.r_[said, np.zeros(2 * RATE), said]
+    original = paused + hiss(len(paused) / RATE, -50)
+    raw = ffmpeg.write_wav(tmp_path / "raw.wav", original, RATE)
+    plan = clean.plan_denoise(26)
+    cleaned, _ = ffmpeg.read_wav(clean._run_isolate(clean.find_isolator(), raw, tmp_path, plan["wet"], len(original)))
+    assert clean.noise_floor(original, RATE) - clean.noise_floor(cleaned, RATE) == pytest.approx(plan["atten_db"], abs=2)
+    assert clean.speech_change(original, cleaned, RATE)["retained_db"] > -1
+
+
+@real_isolator
+def test_real_isolation_of_a_voice_it_cannot_hear_is_caught(tmp_path):
+    clip = source(tmp_path, speech(5, 0.15) + hiss(5, -45))
+    report = clean.clean_clip(clip, tmp_path / "out.wav", deep_filter=None, isolate=clean.find_isolator(), spoken=True)
+    assert report["engine"] == "afftdn" and report["status"] == "cleaned"
+    assert any("took too much speech" in note for note in report["warnings"])
+
+
 def test_a_hung_binary_is_caught_by_the_version_check(tmp_path, monkeypatch):
     script = tmp_path / "deep-filter"
     script.write_text("#!/bin/sh\nsleep 30\n")
@@ -414,6 +729,43 @@ def test_a_hung_binary_is_caught_by_the_version_check(tmp_path, monkeypatch):
 
 def test_a_working_binary_passes_the_version_check(tmp_path):
     assert clean.check_binary(stub(tmp_path)) is None
+
+
+def test_a_changed_engine_redoes_the_sound(project, monkeypatch, tmp_path):
+    clean.clean_project(project)
+    machine(monkeypatch, apple=isolator(tmp_path))
+    again = clean.clean_project(project)
+    assert again["denoiser"] == "apple" and again["clips"]["noisy"]["status"] == "cleaned"
+
+
+def test_the_project_can_name_its_engine(project, monkeypatch, tmp_path):
+    machine(monkeypatch, apple=isolator(tmp_path))
+    config = project.root / "altocue.toml"
+    config.write_text(config.read_text().replace('denoiser = "auto"', 'denoiser = "afftdn"'))
+    report = clean.clean_project(Project.open(project.root))
+    assert report["denoiser"] == "afftdn" and report["clips"]["noisy"]["engine"] == "afftdn"
+
+
+def test_a_failed_engine_reaches_the_report(project, monkeypatch, tmp_path):
+    machine(monkeypatch, apple=isolator(tmp_path, code=3))
+    report = clean.clean_project(project)
+    assert report["clips"]["noisy"]["engine"] == "afftdn"
+    assert any("voice isolation" in note for note in report["clips"]["noisy"]["warnings"])
+
+
+@pytest.mark.parametrize(("old", "new"), [('deess = "light"', 'deess = "strong"'), ("breaths = 0", "breaths = 9"), ("level_phrases = true", "level_phrases = false")])
+def test_a_changed_sound_setting_redoes_the_sound(project, old, new):
+    clean.clean_project(project)
+    config = project.root / "altocue.toml"
+    assert old in config.read_text()
+    config.write_text(config.read_text().replace(old, new))
+    assert clean.clean_project(Project.open(project.root))["clips"]["noisy"]["status"] != "reused"
+
+
+def test_the_cli_can_override_the_sound_settings(project):
+    assert main(["clean", "--project", str(project.root), "--deess", "strong", "--breaths", "9"]) == 0
+    saved = json.loads((project.audio_dir / "report.json").read_text())
+    assert saved["deess"] == "strong" and saved["breaths"] == 9
 
 
 def test_a_changed_denoise_setting_redoes_the_sound(project):

@@ -1,0 +1,46 @@
+{
+  "id": "aceternity",
+  "name": "Aceternity UI",
+  "url": "https://ui.aceternity.com/licence",
+  "classes": [
+    "motion"
+  ],
+  "holds": "Animated components with no public repo.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "aceternity",
+    "url": "https://ui.aceternity.com/licence",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://ui.aceternity.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Link only. Its licence bars redistributing source files, even modified."
+}

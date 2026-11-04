@@ -1,0 +1,44 @@
+{
+  "id": "blender",
+  "name": "Blender",
+  "url": "https://www.blender.org/",
+  "classes": [
+    "3d"
+  ],
+  "holds": "Full 3D production, installed by you and driven by script.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "GPL-2.0-or-later",
+    "url": "https://www.blender.org/about/license/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "local",
+    "docs": "https://docs.blender.org/api/current/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "What you make is yours. Scripts that use its Python API must carry a GPL-compatible licence. Transparency on macOS is untested."
+}

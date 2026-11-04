@@ -9,7 +9,9 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import urllib.request
+from io import BytesIO
 from pathlib import Path
 
 from .brand import data_path
@@ -21,7 +23,9 @@ HOME = Path.home() / ".altocue"
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--yes", "-y", action="store_true", help="Install everything without asking")
     parser.add_argument("--skip-denoiser", action="store_true")
+    parser.add_argument("--deep-filter", action="store_true", help="Fetch deep-filter even on a Mac with Apple voice isolation")
     parser.add_argument("--skip-renderer", action="store_true")
+    parser.add_argument("--speakers", action="store_true", help="Fetch the models that tell speakers apart, about 35 MB")
     parser.add_argument("--plugin", action="store_true", help="Also print the Claude Code plugin commands")
 
 
@@ -59,9 +63,12 @@ def install_renderer(yes: bool) -> None:
     print(f"Renderer installed at {target}")
 
 
-def install_denoiser(yes: bool) -> None:
-    from .clean import DEEP_FILTER_RELEASES, find_deep_filter
+def install_denoiser(yes: bool, even_on_a_mac: bool = False) -> None:
+    from .clean import DEEP_FILTER_RELEASES, find_deep_filter, find_isolator
 
+    if find_isolator() and not even_on_a_mac:
+        print("Apple voice isolation is built into this Mac, so nothing to download.")
+        return
     if find_deep_filter():
         print("deep-filter already installed.")
         return
@@ -84,6 +91,43 @@ def install_denoiser(yes: bool) -> None:
     print(f"deep-filter installed at {target}")
 
 
+def install_speakers(yes: bool) -> None:
+    """Fetch every model before keeping any, so a bad checksum leaves nothing half done."""
+    from .speakers import MODELS, model_folder, models_ready
+
+    if models_ready():
+        print(f"Speaker models already at {model_folder()}")
+        return
+    listing = "; ".join(f"{model.name}, {model.megabytes:g} MB, {model.licence}" for model in MODELS)
+    if not consent(f"Download the speaker models ({listing})?", yes):
+        return
+    fetched: dict[str, bytes] = {}
+    for model in MODELS:
+        with urllib.request.urlopen(model.url, timeout=300) as response:
+            body = response.read()
+        digest = hashlib.sha256(body).hexdigest()
+        if digest != model.sha256:
+            raise AltocueError(f"The {model.name} model failed its checksum ({digest}).", fix="Run it again. If it repeats, report it.")
+        if model.member:
+            with tarfile.open(fileobj=BytesIO(body), mode="r:bz2") as archive:  # read by name, so nothing in the archive picks where it lands
+                fetched[model.file] = _member(archive, model.member)
+                fetched["segmentation-LICENSE"] = _member(archive, model.member.rsplit("/", 1)[0] + "/LICENSE")
+        else:
+            fetched[model.file] = body
+    folder = model_folder()
+    folder.mkdir(parents=True, exist_ok=True)
+    for name, body in fetched.items():
+        (folder / name).write_bytes(body)
+    print(f"Speaker models installed at {folder}: {listing}.")
+
+
+def _member(archive: tarfile.TarFile, name: str) -> bytes:
+    found = archive.extractfile(name)
+    if found is None:
+        raise AltocueError(f"{name} is missing from the download.")
+    return found.read()
+
+
 def run(args: argparse.Namespace) -> int:
     from . import doctor
 
@@ -93,7 +137,9 @@ def run(args: argparse.Namespace) -> int:
     if not args.skip_renderer:
         install_renderer(args.yes)
     if not args.skip_denoiser:
-        install_denoiser(args.yes)
+        install_denoiser(args.yes, even_on_a_mac=args.deep_filter)
+    if getattr(args, "speakers", False):
+        install_speakers(args.yes)
     if args.plugin:
         print("\nIn Claude Code:\n  /plugin marketplace add StratosHouse/altocue\n  /plugin install altocue@altocue")
     print("\nRun `altocue doctor` to confirm.")

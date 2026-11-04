@@ -1,0 +1,49 @@
+{
+  "id": "open-doodles",
+  "name": "Open Doodles",
+  "url": "https://www.opendoodles.com/",
+  "classes": [
+    "illustration"
+  ],
+  "holds": "A small CC0 set of sketched illustrations.",
+  "size": {
+    "count": 33,
+    "unit": "illustrations",
+    "as_of": "2026-11-02",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://www.opendoodles.com/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.opendoodles.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": ""
+}

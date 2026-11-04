@@ -15,23 +15,23 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .. import ffmpeg, qa
+from .. import ffmpeg, master, qa
 from ..errors import AltocueError
 from ..models import GateResult
 from ..project import Project, write_json
 from ..qa import gates as qa_gates
-from . import rubric
+from . import rubric, sheets
 
 SHEET_STEP = 2.0
 CELL_WIDTH = 216
 COLUMNS, ROWS = 5, 4
 CUT_WIDTH = 360
 HOOK_STEP = 0.25
-HOOK_SECONDS = 3.0
+HOOK_SECONDS = qa_gates.HOOK_SECONDS
 TRANSCRIPT_LINE = 10
 FORBIDDEN = (
-    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/ or out/, "
-    "review/REPORT.md, review/report.json, review/rounds.json or review/history/"
+    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/, out/, bench/ or results/, "
+    "director-notes.md, review/REPORT.md, review/report.json, review/page.html, review/rounds.json, review/facts.json, review/facts.md or review/history/"
 )
 
 
@@ -70,10 +70,7 @@ def contact_sheets(file: Path, fps: float, dest: Path, work: Path) -> list[float
     per_sheet = COLUMNS * ROWS
     dest.mkdir(parents=True, exist_ok=True)
     for page in range(0, len(frames), per_sheet):
-        cells = [
-            stamped(Image.open(path).convert("RGB"), timecode(at))
-            for path, at in zip(frames[page : page + per_sheet], times[page:], strict=False)
-        ]
+        cells = [stamped(Image.open(path).convert("RGB"), timecode(at)) for path, at in zip(frames[page : page + per_sheet], times[page:], strict=False)]
         width, height = cells[0].size
         rows = (len(cells) - 1) // COLUMNS + 1
         sheet = Image.new("RGB", (width * COLUMNS, height * rows), (20, 20, 20))
@@ -128,8 +125,11 @@ def astats(file: Path) -> dict[str, float]:
     return found
 
 
-def transcript(project: Project, file: Path, digest: str) -> dict[str, Any]:
-    """Reuse what QA heard from this exact file. Otherwise transcribe it now."""
+def transcript(project: Project, file: Path, digest: str, context: qa_gates.Context | None = None) -> dict[str, Any]:
+    """Reuse what QA heard from this exact file. Otherwise transcribe it now. A film with no voice is not transcribed:
+    over music alone a speech model hears stock phrases such as "We'll be right back", and a reviewer reads them as said."""
+    if context is not None and qa_gates.voiceless(context):
+        return qa_gates.transcript_record(digest, [], qa_gates.NO_VOICE_HEARD)
     saved = project.review_dir / "transcript.json"
     if saved.exists():
         data = json.loads(saved.read_text())
@@ -139,7 +139,42 @@ def transcript(project: Project, file: Path, digest: str) -> dict[str, Any]:
     return qa_gates.transcript_record(digest, words, reason)
 
 
-def numbers(context: qa_gates.Context, digest: str, gates: list[GateResult], cuts: list[float]) -> dict[str, Any]:
+def timeline_sheets(
+    context: qa_gates.Context, heard: list[dict[str, Any]], cuts: list[float], silence: list[tuple[float, float]], frames: list[Path], dest: Path
+) -> list[dict[str, Any]]:
+    """One sheet per 20 seconds. Captions are what any viewer sees. Nothing here reads a label or a reason."""
+    duration = context.clip.duration
+    samples, rate = context.samples() if context.audio else (None, 16000)
+    track = sheets.loudness(context.file) if context.audio else []
+    target = master.project_target(context.project)[0]
+    pace = sheets.pacing(context.shots, heard, duration)
+    summary = f"{pace['shots']} shots, {pace['words_per_minute']:g} words a minute, longest shot {pace['longest_shot']:g} s"
+    spans = sheets.pages(duration)
+    listed = []
+    for index, span in enumerate(spans):
+        name = f"timeline_{index + 1:03d}.jpg"
+        sheets.draw(
+            dest / name,
+            index=index,
+            total=len(spans),
+            span=span,
+            duration=duration,
+            frames=frames,
+            samples=samples,
+            rate=rate,
+            track=track,
+            captions=(context.timeline or {}).get("captions", []),
+            words=heard,
+            cuts=cuts,
+            silence=silence,
+            target=target,
+            summary=summary,
+        )
+        listed.append({"file": f"timeline/{name}", "start": span[0], "end": span[1]})
+    return listed
+
+
+def numbers(context: qa_gates.Context, digest: str, gates: list[GateResult], cuts: list[float], words: list[dict[str, Any]]) -> dict[str, Any]:
     clip, video, audio = context.clip, context.video, context.audio
     end = clip.duration
     try:
@@ -171,14 +206,32 @@ def numbers(context: qa_gates.Context, digest: str, gates: list[GateResult], cut
         "frozen": qa_gates.frozen_runs(context.file, end),
         "astats": astats(context.file) if audio else {},
         "cuts": cuts,
+        "pacing": sheets.pacing(context.shots, words, clip.duration),
         "gates": [g.to_dict() for g in gates],
     }
 
 
+BRIEF_FIELDS = (("message", "Message"), ("company", "What it is"), ("audience", "For"), ("goal", "Goal"), ("tone", "Tone"))
+BRIEF_LISTS = (("must_show", "Must show"), ("claims", "Claims"), ("notes", "Planned on purpose"))
+
+
 def read_brief(project: Project) -> str:
+    """The brief in the user's words: brief.md, or the brief.json a film from a storyboard keeps. Brand colours stay out."""
     path = project.root / "brief.md"
     text = path.read_text().strip() if path.exists() else ""
-    return text or "No brief was written for this video."
+    if text:
+        return text
+    made = project.root / "brief.json"
+    try:
+        brief = json.loads(made.read_text()) if made.exists() else {}
+    except ValueError:
+        brief = {}
+    lines = [f"- **{label}:** {brief[key]}" for key, label in BRIEF_FIELDS if isinstance(brief.get(key), str) and brief[key].strip()]
+    for key, label in BRIEF_LISTS:
+        rows = [str(row) for row in brief.get(key) or [] if str(row).strip()]
+        if rows:
+            lines += ["", f"{label}:", *(f"- {row}" for row in rows)]
+    return "\n".join(lines).strip() or "No brief was written for this video."
 
 
 def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, Any]:
@@ -192,17 +245,21 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
         history = project.review_dir / "history"
         history.mkdir(exist_ok=True)
         old.replace(history / f"verdict-{qa.sha256(old)[:12]}.json")
+    for stale in ("facts.json", "facts.md"):  # numbers would anchor the score, so they come back after it
+        (project.review_dir / stale).unlink(missing_ok=True)
     context = qa_gates.Context.open(project, file)
     digest = qa.sha256(file)
     fps = context.clip.fps or 30.0
     cuts = [round(shot.start, 3) for shot in context.shots[1:]]
-    heard = transcript(project, file, digest)
+    heard = transcript(project, file, digest, context)
     with tempfile.TemporaryDirectory(prefix="altocue-pack-") as temp:
         work = Path(temp)
         sheet_times = contact_sheets(file, fps, folder / "sheets", work)
         cut_frames(file, cuts, fps, folder / "cuts", work / "cuts")
         hook_times = hook_frames(file, fps, folder / "hook", work)
-    write_json(folder / "numbers.json", numbers(context, digest, gates, cuts))
+        facts = numbers(context, digest, gates, cuts, heard["words"])
+        timeline = timeline_sheets(context, heard["words"], cuts, facts["silence"], sorted((work / "sheet").glob("f_*.jpg")), folder / "timeline")
+    write_json(folder / "numbers.json", facts)
     write_json(
         folder / "transcript.json",
         {
@@ -213,7 +270,7 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
         },
     )
     (folder / "transcript.txt").write_text(transcript_text(heard["words"]) + "\n")
-    write_json(folder / "manifest.json", {"sheet_times": sheet_times, "cuts": cuts, "hook_times": hook_times})
+    write_json(folder / "manifest.json", {"sheet_times": sheet_times, "cuts": cuts, "hook_times": hook_times, "timeline": timeline})
     return load(project)
 
 
@@ -257,7 +314,8 @@ def planned_text(info: dict[str, Any]) -> str:
 def prompt_text(info: dict[str, Any]) -> str:
     """What every reviewer is told, whichever way it receives the film."""
     if info.get("transcript_available", True):
-        heard = transcript_text(info.get("transcript", [])) or "(No speech was heard.)"
+        reason = str(info.get("transcript_reason", "") or "")
+        heard = transcript_text(info.get("transcript", [])) or f"(No speech was heard.{' ' + reason if reason else ''})"
     else:
         heard = f"(No transcript. {info.get('transcript_reason', '')})"
     return f"""# Editor in Chief review
@@ -349,14 +407,18 @@ Read this whole file, then the images it lists. Nothing else.
 - `cuts/`: the last frame before and the first frame after every cut, side by side, with the cut's time.
   Use these for jump cuts and mismatches.
 - `hook/`: 4 frames a second for the first 3 seconds, at full width. Use these for the hook and caption legibility.
+- `timeline/`: one sheet per 20 seconds of film. Top to bottom on one time axis: frames, captions, speech (a bar per word heard),
+  the waveform and momentary loudness in LUFS, with the film's loudness target as a dashed line. Amber lines are cuts. Red shading is measured silence.
+  Use these for rhythm and sound: where the cuts fall, where the level dips or jumps, where speech stops, whether captions sit on the words.
 
 Look at every image listed. {cuts_line}
 The black strip under each image is added by this pack. It is not part of the film.
 
 {listing}
 
-You see stills and read a transcript. You do not hear the film and you do not see motion.
-State that under `could_not_judge` for anything that depends on it.
+You see stills, read a transcript and see the sound drawn on the timeline sheets. You do not hear the film and you do not see motion.
+A sheet shows level, silence and rhythm. It does not show tone, noise, harshness, music choice or lip sync.
+State that under `could_not_judge` for anything that depends on them.
 
 {prompt_text(info)}
 ## How to return your review

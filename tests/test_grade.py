@@ -72,9 +72,7 @@ def render(source: Path, chain: str, dest: Path) -> Path:
 def first_frame_rgb(path: Path, width: int, height: int) -> np.ndarray:
     """Decode with the BT.709 limited matrix, regardless of what the file claims."""
     chain = "scale=in_color_matrix=bt709:in_range=tv:flags=accurate_rnd+full_chroma_int,format=rgb24"
-    raw = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(path), "-frames:v", "1", "-vf", chain, "-f", "rawvideo", "-"], capture_output=True, check=True
-    ).stdout
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-frames:v", "1", "-vf", chain, "-f", "rawvideo", "-"], capture_output=True, check=True).stdout
     return np.frombuffer(raw, np.uint8).reshape(height, width, 3).astype(np.float32) / 255
 
 
@@ -96,9 +94,7 @@ def to_signal(linear: np.ndarray) -> np.ndarray:
     return np.clip(linear, 0, 1) ** (1 / 2.4)
 
 
-def scene(
-    *, gains=(1.0, 1.0, 1.0), level: float = 1.0, wall=(150, 150, 150), size=(640, 480), face_at=(320, 230, 95), skin=(205, 150, 120)
-) -> np.ndarray:
+def scene(*, gains=(1.0, 1.0, 1.0), level: float = 1.0, wall=(150, 150, 150), size=(640, 480), face_at=(320, 230, 95), skin=(205, 150, 120)) -> np.ndarray:
     """A face against a neutral wall, then a colour cast and level in linear light."""
     image = face_image(size[0], size[1], (face_at,), wall, skin).astype(np.float32) / 255
     return (to_signal(to_linear(image) * np.array(gains, np.float32) * level) * 255).astype(np.uint8)

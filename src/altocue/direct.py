@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
-from . import ffmpeg
+from . import claims, ffmpeg
 from .errors import AltocueError
 from .models import GateResult, Model
 from .project import Project
@@ -27,8 +27,12 @@ TIERS: tuple[str, ...] = ("draft", "standard", "hero")
 ASPECTS = ("21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16")
 CHECKS = {"video": ("motion", "frames", "none"), "image": ("still", "none")}
 REQUIRED = ("id", "purpose", "kind", "tier", "prompt", "aspect", "duration", "placement", "check")
-OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra")
+OPTIONAL = ("first_frame", "last_frame", "refs", "characters", "audio", "seed", "extra", "synthetic", "script", "motion")
+SYNTHETIC = ("person", "voice", "scene", "product")
+SHOT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")  # it names files, so it can never climb out of the project
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
+VIDEO_SUFFIXES = {".mp4", ".mov"}  # what the routes that take a motion video accept
+AUDIO_SUFFIXES = {".wav", ".mp3"}  # what the routes that take a music track accept
 PUNCTUATION = " .,!?;:\"'"
 
 MAX_REFS = 7
@@ -73,6 +77,15 @@ UNRELIABLE = r"\b(analog(ue)? clock|clock face|mirror(ed)? text|reversed text)\b
 BLOCK = r"\bHARD CUT\b|\bSHOT\s+1\b"
 BLOCK_SHOT = r"\bSHOT\s+\d+\s*-\s*([\d.]+)s?\s+to\s+([\d.]+)s?"
 AGGRESSIVE = r"\b(unstabili[sz]ed|jitter|shaky|shake)"
+SHOT_LABEL = re.compile(r"\[?\bSHOT\s+\d+\]?\s*[-:]?\s*", re.IGNORECASE)
+WINDOW = re.compile(r"(?<![\w.:])(\d+(?:\.\d+)?)\s*s?\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds)\b", re.IGNORECASE)
+SAID_LENGTH = re.compile(
+    r"\b(?:duration|length|runtime)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds)\b"
+    r"|\b(\d+(?:\.\d+)?)[- ]?(?:s|sec|second)s?[- ](?:clip|shot|video|take|film|sequence)\b",
+    re.IGNORECASE,
+)
+SAID_ASPECT = re.compile(r"(?<![\d:])(\d{1,2}:\d{1,2})(?![\d:])")
+SLACK = 0.05  # seconds a written time may be off before it counts
 
 
 @dataclass
@@ -90,12 +103,29 @@ class Shot(Model):
     last_frame: str | None = None
     refs: list[str] = field(default_factory=list)
     characters: list[str] = field(default_factory=list)
-    audio: bool = False
+    audio: bool | dict[str, Any] = False  # generated sound on or off, or {"track": "assets/music/bed.wav"} as a timing input
     seed: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    synthetic: list[str] = field(default_factory=list)
+    script: str = ""
+    motion: str | None = None  # a video that sets camera and timing, such as assets/blockout.mp4
 
     def media(self) -> list[str]:
         return [value for value in (self.first_frame, self.last_frame, *self.refs) if value]
+
+    @property
+    def sound(self) -> bool:
+        """Whether the model makes sound. With a track it stays off unless asked, so the master goes in during the edit (R52)."""
+        return bool(self.audio.get("sound", False)) if isinstance(self.audio, dict) else bool(self.audio)
+
+    @property
+    def track(self) -> str | None:
+        """A music track sent as a timing input, so movement lands on its beats (b025)."""
+        return str(self.audio["track"]) if isinstance(self.audio, dict) and self.audio.get("track") else None
+
+    def uploads(self) -> list[str]:
+        """Every file this shot sends: its stills, a motion video and a music track when it has them."""
+        return [*self.media(), *filter(None, [self.motion, self.track])]
 
     def shot_refs(self) -> list[str]:
         """Earlier shots this one is built from, written `@id`."""
@@ -158,7 +188,7 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
         found.append(error("no-model", "Shots ask for a tier, never a model. Model ids live in models.toml."))
     for key in sorted(set(raw) - {*REQUIRED, *OPTIONAL, "model"}):
         found.append(Finding("warning", name, "unknown-field", f"{key} is not a shot field, so it is ignored."))
-    if "id" in raw and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", str(raw["id"])):
+    if "id" in raw and not SHOT_ID.fullmatch(str(raw["id"])):
         found.append(error("id", "An id is letters, digits, hyphens and underscores, because it names files."))
     kind = raw.get("kind")
     if kind is not None and kind not in KINDS:
@@ -181,6 +211,9 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
     for key in ("refs", "characters"):
         if key in raw and not (isinstance(raw[key], list) and all(isinstance(item, str) for item in raw[key])):
             found.append(error(key, f"{key} must be a list of strings."))
+    strangers = set(raw.get("synthetic") or []) - set(SYNTHETIC) if isinstance(raw.get("synthetic", []), list) else {"synthetic"}
+    if strangers:
+        found.append(error("synthetic", f"synthetic is a list drawn from {', '.join(SYNTHETIC)}, and {', '.join(sorted(strangers))} is not one."))
     if kind == "image" and raw.get("first_frame"):
         found.append(error("first-frame", "An image has no first frame. Use refs."))
     if raw.get("last_frame") and not raw.get("first_frame"):
@@ -188,6 +221,23 @@ def _schema(raw: Any, index: int) -> tuple[str, list[Finding]]:
     first = raw.get("first_frame")
     if isinstance(first, str) and not first.startswith("@") and Path(first).suffix.lower() not in IMAGE_SUFFIXES:
         found.append(error("first-frame", f"first_frame must be a still, and {first} is not an image."))
+    audio = raw.get("audio")
+    if isinstance(audio, dict):
+        track, stray = audio.get("track"), set(audio) - {"track", "sound"}
+        if stray or not isinstance(track, str) or track.startswith("@") or Path(track).suffix.lower() not in AUDIO_SUFFIXES:
+            found.append(error("audio", f'audio is true, false, or {{"track": "assets/music/bed.wav"}}, a track ending {" or ".join(sorted(AUDIO_SUFFIXES))}.'))
+        elif kind == "image":
+            found.append(error("audio", "An image has no sound. A track times a video shot."))
+        if not isinstance(audio.get("sound", False), bool):
+            found.append(error("audio", "audio.sound is true or false: whether the model also makes sound."))
+    elif audio is not None and not isinstance(audio, bool):
+        found.append(error("audio", 'audio is true, false, or {"track": "assets/music/bed.wav"}.'))
+    motion = raw.get("motion")
+    if motion is not None:
+        if not isinstance(motion, str) or motion.startswith("@") or Path(motion).suffix.lower() not in VIDEO_SUFFIXES:
+            found.append(error("motion", f"motion is a video in the project, such as a blockout render, ending {' or '.join(sorted(VIDEO_SUFFIXES))}."))
+        elif kind == "image":
+            found.append(error("motion", "An image has no motion. A motion video drives a video shot."))
     return name, found
 
 
@@ -207,9 +257,21 @@ def _media_findings(shots: list[Shot], root: Path | None) -> list[Finding]:
                     found.append(Finding("error", shot.id, "missing-file", f"{value} is not in the project."))
                 elif path.suffix.lower() not in IMAGE_SUFFIXES:
                     found.append(Finding("error", shot.id, "not-an-image", f"{value} is not an image."))
+        for value in filter(None, [shot.motion, shot.track]) if root is not None else []:
+            found += _project_file(shot, value, root)
         if shot.kind == "image":
             stills.add(shot.id)
     return found
+
+
+def _project_file(shot: Shot, value: str, root: Path) -> list[Finding]:
+    """A file a shot sends that is not a still: it must be the project's own, and it must be there."""
+    path = (root / value).resolve()
+    if not path.is_relative_to(root.resolve()):
+        return [Finding("error", shot.id, "outside-project", f"{value} is outside the project, so it cannot be uploaded.")]
+    if not path.is_file():
+        return [Finding("error", shot.id, "missing-file", f"{value} is not in the project.")]
+    return []
 
 
 def _character_findings(shots: list[Shot]) -> list[Finding]:
@@ -228,6 +290,102 @@ def _character_findings(shots: list[Shot]) -> list[Finding]:
         if shot.characters and not shot.refs and not shot.first_frame:
             found.append(Finding("warning", shot.id, "identity-ref", "A character with no reference image will get an invented face."))
     return found
+
+
+def _honesty_findings(shots: list[Shot]) -> list[Finding]:
+    """A claim the film can never ship is money wasted for certain, so this one stops the run."""
+    found: list[Finding] = []
+    for shot in shots:
+        said = claims.experience(f"{shot.script}\n{shot.prompt}") if "person" in shot.synthetic else []
+        if said:
+            quoted = ", ".join(f'"{phrase}"' for phrase in said[:3])
+            why = f"A generated person cannot say {quoted}. A label does not cure this. Show what can be seen, or film a real customer."
+            found.append(Finding("error", shot.id, "claims", why))
+        if shot.characters and not shot.synthetic:
+            why = "A character with no synthetic flag. The honesty gates read that flag. Set it to person if this figure is generated."
+            found.append(Finding("warning", shot.id, "synthetic-flag", why))
+    return found
+
+
+def _words(value: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", value.lower()))
+
+
+def _ledger_findings(shots: list[Shot], ledger: Any) -> list[Finding]:
+    """A reference must show its character in the state the ledger has them in at that shot (c380, c373).
+
+    The ledger is `{"maya": [{"from": "s01", "state": "unhurt"}, {"from": "s04", "state": "wounded"}]}`. A reference
+    names its state in its file name, such as refs/maya-unhurt.png or refs/maya-wounded.png, and an `@id` still carries the state of its own shot.
+    """
+    order = {shot.id: index for index, shot in enumerate(shots)}
+    if not isinstance(ledger, dict):
+        return [Finding("error", "shots.json", "ledger", 'The ledger is {"name": [{"from": "shot id", "state": "wounded"}]}.')]
+    states: dict[str, list[tuple[int, str]]] = {}
+    found: list[Finding] = []
+    for name, entries in ledger.items():
+        rows = entries if isinstance(entries, list) else [None]
+        for entry in rows:
+            if not (isinstance(entry, dict) and isinstance(entry.get("state"), str) and entry.get("from") in order):
+                found.append(Finding("error", "shots.json", "ledger", f"A ledger entry for {name} must name a shot in this list and a state: {entry}."))
+                continue
+            states.setdefault(str(name), []).append((order[entry["from"]], entry["state"]))
+
+    def state_at(name: str, index: int) -> str | None:
+        return next((state for at, state in sorted(states.get(name, []), reverse=True) if at <= index), None)
+
+    for index, shot in enumerate(shots):
+        for name in (who for who in shot.characters if who in states):
+            now, known = state_at(name, index), {state for _, state in states[name]}
+            if now is None:
+                continue
+            for value in shot.media():
+                if value.startswith("@"):
+                    still = next((other for other in shots if other.id == value[1:]), None)
+                    shown = state_at(name, order[still.id]) if still and name in still.characters else None
+                else:
+                    named = _words(Path(value).stem)
+                    mine = _words(name) <= named or len(shot.characters) == 1
+                    shown = next((state for state in known if mine and _words(state) <= named), None)
+                if shown and shown != now:
+                    since = max(at for at, state in states[name] if state == now and at <= index)
+                    why = f"{value} shows {name} {shown}, and the ledger has {name} {now} from {shots[since].id}. Use the reference for this moment."
+                    found.append(Finding("warning", shot.id, "ledger-state", why))
+    return found
+
+
+def windows(prompt: str) -> list[tuple[float, float]]:
+    """The time windows a prompt writes, such as "0-1.5 s", "3.0 to 5.5 seconds" or "SHOT 2 - 2s to 4s", in order."""
+    return [(float(start), float(end)) for start, end in WINDOW.findall(SHOT_LABEL.sub(" ", prompt))]
+
+
+def timeline_problems(found: list[tuple[float, float]], duration: float) -> list[str]:
+    """A written timeline must start at 0, run on with no gap or overlap, and end at the shot's duration."""
+    problems = []
+    ordered = sorted(found)
+    if ordered[0][0] > SLACK:
+        problems.append(f"nothing is planned before {ordered[0][0]:g}s")
+    for (_, end), (start, _) in zip(ordered, ordered[1:], strict=False):
+        if start - end > SLACK:
+            problems.append(f"a gap from {end:g}s to {start:g}s")
+        elif end - start > SLACK:
+            problems.append(f"an overlap from {start:g}s to {end:g}s")
+    last = max(end for _, end in ordered)
+    if abs(last - duration) > SLACK:
+        problems.append(f"it ends at {last:g}s and the shot runs {duration:g}s")
+    return problems
+
+
+def settings_problems(shot: Shot) -> list[str]:
+    """Settings written in a prompt that disagree with the job's own. The model reads one, the bill the other (c004, c010)."""
+    problems = []
+    named = sorted({aspect for aspect in SAID_ASPECT.findall(shot.prompt) if aspect in ASPECTS} - {shot.aspect})
+    if named:
+        problems.append(f"the prompt says {', '.join(named)} and the shot is {shot.aspect}")
+    if shot.kind == "video":
+        said = sorted({float(a or b) for a, b in SAID_LENGTH.findall(shot.prompt)} - {float(shot.duration)})
+        if said:
+            problems.append(f"the prompt says {', '.join(f'{value:g}s' for value in said)} and the shot runs {shot.duration:g}s")
+    return problems
 
 
 def lint_prompt(shot: Shot) -> list[Finding]:
@@ -260,22 +418,36 @@ def lint_prompt(shot: Shot) -> list[Finding]:
         warn("drift", f"Identity drift grows with length. Consider two clips under {DRIFT_SECONDS}s.")
     if not shot.characters and has(OTS, 0):
         warn("ots-no-character", "Over-the-shoulder with no named character makes the model invent a person.")
+    settings = settings_problems(shot)
+    if settings:
+        warn("settings", f"{'; '.join(settings)}. Make the prompt and the shot's settings say the same thing, or the model and the bill disagree.")
     if shot.kind != "video":
         return found
+    written = windows(prompt)
+    if len(written) > 1:
+        gaps = timeline_problems(written, shot.duration)
+        if gaps:
+            warn("timeline", f"The written timeline has {'; '.join(gaps)}. Windows run from 0 to the duration with no gap, or the model fills them itself.")
 
-    if shot.audio and not has(r"\bmusic\b"):
+    if shot.sound and not has(r"\bmusic\b"):
         warn("no-music", 'An open prompt tends to come back scored. Add "no music, only soft diegetic sound".')
+    if shot.track and shot.sound:
+        warn("track-sound", "The track sets the timing. Keep the model's own sound off and lay the master in the edit, or the clip comes back scored.")
     if has(BLOCK, 0):
-        for start, end in re.findall(BLOCK_SHOT, prompt):
-            if float(end) - float(start) > MAX_BLOCK_SHOT:
-                length = float(end) - float(start)
-                warn("block-length", f"A {length:g}s shot in a hard-cut block reads as a slideshow. Stay under {MAX_BLOCK_SHOT}s.")
+        shots = dict.fromkeys([*((float(a), float(b)) for a, b in re.findall(BLOCK_SHOT, prompt)), *written])  # the house form, and Higgsfield's own (b022)
+        for start, end in shots:
+            if end - start > MAX_BLOCK_SHOT:
+                warn("block-length", f"A {end - start:g}s shot in a hard-cut block reads as a slideshow. Stay under {MAX_BLOCK_SHOT}s.")
         return found
 
     words = len(prompt.split())
     if words > MAX_WORDS or words < MIN_WORDS:
         warn("prompt-length", f"{words} words. A single shot lands best at about 50 to 80.")
     moves = [name for name, pattern in MOVES.items() if has(pattern)]
+    if shot.motion:
+        if set(moves) - {"static"}:
+            warn("motion-restated", f"{', '.join(moves)}. The motion video sets camera and timing, and restated motion drifts. Keep only the look here.")
+        return found
     if not moves:
         warn("no-move", "No named camera move. Name one, or say the frame is locked off.")
     if len(moves) > 1 and not has(r"\bthen\b"):
@@ -304,6 +476,9 @@ def validate(data: dict[str, Any], root: Path | None = None) -> Review:
             review.shots.append(Shot.from_dict(item))
     review.findings += _media_findings(review.shots, root)
     review.findings += _character_findings(review.shots)
+    review.findings += _honesty_findings(review.shots)
+    if data.get("ledger") is not None:
+        review.findings += _ledger_findings(review.shots, data["ledger"])
     for shot in review.shots:
         review.findings += lint_prompt(shot)
     return review
@@ -459,7 +634,7 @@ def run(args: argparse.Namespace) -> int:
     name = args.provider or project.setting("generate", "provider", "")
     cost = None
     if review.ok and name:
-        cost = estimate(review.shots, get_provider(name, catalog_for(project), project=project), style=review.style)
+        cost = estimate(review.shots, get_provider(name, catalog_for(project), project=project), style=review.style, root=project.root)
     if args.json:
         report = {
             "ok": review.ok,

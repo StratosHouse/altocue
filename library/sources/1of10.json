@@ -1,0 +1,44 @@
+{
+  "id": "1of10",
+  "name": "1of10",
+  "url": "https://1of10.com/",
+  "classes": [
+    "data"
+  ],
+  "holds": "YouTube research: outliers, titles and thumbnails across long-form and Shorts.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "1of10-terms",
+    "url": "https://1of10.com/llms-full.txt",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://1of10.com/llms-full.txt",
+    "key": "paid",
+    "key_env": "ONEOF10_API_KEY",
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Your own Pro key. Read research endpoints only, so a run can never spend credits. YouTube only, and no retention or hook data."
+}

@@ -1,0 +1,640 @@
+"""Deliverables from one finished film. The master is only ever read."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import subprocess
+from pathlib import Path
+
+import numpy as np
+import pytest
+from conftest import make_clip
+
+from altocue import cut, deliver, ffmpeg, frame, master, mix, platforms, render
+from altocue.cli import main
+from altocue.errors import AltocueError
+from altocue.ingest import ingest
+from altocue.models import Edl, Segment, Word
+from altocue.project import Project
+from altocue.qa import gates
+
+OPENING = "Most films lose people in the first three seconds."
+CLOSING = "So we cut the slow start and kept going."
+
+
+def timed_words(text: str, start: float, step: float) -> list[Word]:
+    return [Word(token, round(start + i * step, 3), round(start + (i + 1) * step - 0.02, 3)) for i, token in enumerate(text.split())]
+
+
+@pytest.fixture
+def finished(tmp_path: Path) -> Project:
+    """A two-shot film, rendered with the basic renderer and mastered, with no transcriber involved."""
+    source = make_clip(tmp_path / "take.mp4", seconds=4.0, size="320x568")
+    project = Project.create(tmp_path / "video", aspect="9:16")
+    (project.sources / "take.mp4").symlink_to(source)
+    clip = ingest(project)[0]
+    project.save_words(clip.id, timed_words(OPENING, 0.1, 0.2) + timed_words(CLOSING, 2.3, 0.15), "test")
+    ffmpeg.extract_wav(source, project.audio_dir / "take.wav", rate=48000)
+    project.save_edl(Edl(fps=30, segments=[Segment(id="s001", clip=clip.id, start=0.0, end=2.0), Segment(id="s002", clip=clip.id, start=2.2, end=3.7)]))
+    render.build(project, renderer="basic")
+    master.master_file(project.out / "render.mp4", project.out / "final.mp4")
+    return ship(project)
+
+
+def ship(project: Project, verdict: str = "SHIP") -> Project:
+    """What `altocue review` saves when code passes this exact film."""
+    digest = hashlib.sha256((project.out / "final.mp4").read_bytes()).hexdigest()
+    project.review_dir.mkdir(parents=True, exist_ok=True)
+    (project.review_dir / "report.json").write_text(json.dumps({"verdict": verdict, "file_sha256": digest, "reasons": []}))
+    return project
+
+
+def fingerprint(project: Project) -> dict[str, str]:
+    """Every file outside deliver/ and the version workspace, by content and time."""
+    found = {}
+    for path in sorted(project.root.rglob("*")):
+        parts = path.relative_to(project.root).parts
+        if not path.is_file() or path.is_symlink() or parts[0] == "deliver" or parts[:2] == ("work", "versions"):
+            continue
+        found[str(path)] = f"{hashlib.sha256(path.read_bytes()).hexdigest()}:{path.stat().st_mtime_ns}"
+    return found
+
+
+def streams(path: Path) -> list[dict]:
+    return ffmpeg.probe_json(path)["streams"]
+
+
+def chapters_of(path: Path) -> list[dict]:
+    done = subprocess.run(["ffprobe", "-v", "error", "-show_chapters", "-of", "json", str(path)], capture_output=True, text=True, check=True)
+    return json.loads(done.stdout)["chapters"]
+
+
+def stamps(text: str) -> list[tuple[float, float]]:
+    pattern = r"(\d\d):(\d\d):(\d\d)[,.](\d{3}) --> (\d\d):(\d\d):(\d\d)[,.](\d{3})"
+    found = []
+    for groups in re.findall(pattern, text):
+        n = [int(v) for v in groups]
+        found.append((n[0] * 3600 + n[1] * 60 + n[2] + n[3] / 1000, n[4] * 3600 + n[5] * 60 + n[6] + n[7] / 1000))
+    return found
+
+
+# Subtitles and the soft track
+
+
+def test_deliver_writes_subtitles_a_soft_track_and_a_report(finished, capsys):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    folder = finished.root / "deliver"
+    srt, vtt = (folder / "subtitles.srt").read_text(), (folder / "subtitles.vtt").read_text()
+    assert srt.startswith("1\n00:00:00,100 --> ") and "Most films lose people" in srt
+    assert vtt.startswith("WEBVTT\n\n00:00:00.100 --> ")
+    subtitle = next(s for s in streams(folder / "film.mp4") if s["codec_type"] == "subtitle")
+    assert subtitle["codec_name"] == "mov_text" and subtitle["tags"]["language"] == "eng"
+    assert subtitle["disposition"]["default"] == 0  # the captions are burned in, so a player must not double them
+    report = json.loads((folder / "deliver.json").read_text())
+    assert report["subtitles"]["reading"]["cues"] >= 2 and report["film"]["file"] == "film.mp4"
+    assert "subtitles.srt" in capsys.readouterr().out
+
+
+def test_no_cue_crosses_a_cut_in_a_real_project(finished):
+    main(["deliver", "-p", str(finished.root)])
+    cues = stamps((finished.root / "deliver" / "subtitles.srt").read_text())
+    cut_at = cut.segment_ends(finished.edl())["s001"]
+    assert any(end <= cut_at for _, end in cues) and any(start >= cut_at for start, _ in cues)
+    assert not any(start < cut_at < end for start, end in cues)
+
+
+def test_the_soft_copy_keeps_the_masters_picture_and_sound(finished):
+    main(["deliver", "-p", str(finished.root)])
+
+    def media_md5(path, stream):
+        done = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", stream, "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True, check=True)
+        return done.stdout.strip()
+
+    film, final = finished.root / "deliver" / "film.mp4", finished.out / "final.mp4"
+    assert media_md5(film, "0:v") == media_md5(final, "0:v")
+    assert media_md5(film, "0:a") == media_md5(final, "0:a")
+
+
+def test_a_project_with_no_transcript_still_delivers_and_says_why(tmp_path, finished, capsys):
+    (finished.words_dir / "take.json").unlink()
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    assert not (finished.root / "deliver" / "subtitles.srt").exists()
+    assert "No subtitles" in capsys.readouterr().out
+
+
+# Chapters
+
+
+def chapter_rows():
+    return [{"title": "Open", "start": 0}, {"title": "Middle", "start": 12.5}, {"title": "End", "start": 30}]
+
+
+def test_chapters_come_from_the_project_list(tmp_path):
+    project = Project.create(tmp_path / "video")
+    (project.root / "chapters.json").write_text(json.dumps(chapter_rows()))
+    found, source = deliver.chapter_list(project, [], 45.0)
+    assert source == "chapters.json"
+    assert [(c["title"], c["start"], c["end"]) for c in found] == [("Open", 0.0, 12.5), ("Middle", 12.5, 30.0), ("End", 30.0, 45.0)]
+
+
+def test_chapters_can_come_from_the_directors_beats(tmp_path):
+    project = Project.create(tmp_path / "video")
+    (project.root / "beats.json").write_text(json.dumps({"beats": [{"name": "Hook", "start": 0}, {"name": "Turn", "start": {"word": "turn"}}]}))
+    words = [{"text": "turn,", "start": 15.0, "end": 15.4}]
+    found, source = deliver.chapter_list(project, words, 30.0)
+    assert source == "beats.json" and [c["start"] for c in found] == [0.0, 15.0]
+
+
+def test_a_list_wins_over_beats(tmp_path):
+    project = Project.create(tmp_path / "video")
+    (project.root / "chapters.json").write_text(json.dumps(chapter_rows()))
+    (project.root / "beats.json").write_text(json.dumps({"beats": [{"name": "Hook", "start": 0}]}))
+    assert deliver.chapter_list(project, [], 45.0)[1] == "chapters.json"
+
+
+def test_no_list_means_no_chapters(tmp_path):
+    assert deliver.chapter_list(Project.create(tmp_path / "video"), [], 45.0) == ([], "")
+
+
+def test_the_first_chapter_always_opens_the_film(tmp_path):
+    project = Project.create(tmp_path / "video")
+    (project.root / "chapters.json").write_text(json.dumps([{"title": "Late", "start": 4}, {"title": "Next", "start": 20}]))
+    assert deliver.chapter_list(project, [], 45.0)[0][0]["start"] == 0.0
+
+
+@pytest.mark.parametrize(
+    ("rows", "text"),
+    [
+        ([{"title": "No time"}], "start"),
+        ([{"start": 2}], "title"),
+        ([{"title": "Past", "start": 90}], "past the end"),
+        ([{"title": "One", "start": 5}, {"title": "Two", "start": 5}], "same moment"),
+    ],
+)
+def test_bad_chapters_are_refused(tmp_path, rows, text):
+    project = Project.create(tmp_path / "video")
+    (project.root / "chapters.json").write_text(json.dumps(rows))
+    with pytest.raises(AltocueError, match=text):
+        deliver.chapter_list(project, [], 45.0)
+
+
+def test_the_youtube_block_follows_youtubes_rules():
+    rows = [{"title": "Open", "start": 0.0, "end": 12.5}, {"title": "Middle", "start": 12.5, "end": 75.0}, {"title": "End", "start": 75.0, "end": 3700.0}]
+    assert deliver.youtube_problems(rows) == []
+    assert deliver.youtube_block(rows) == "00:00:00 Open\n00:00:12 Middle\n00:01:15 End\n"
+    assert deliver.youtube_block(rows[:2]) == "00:00 Open\n00:12 Middle\n"
+
+
+def test_a_list_youtube_would_ignore_says_why():
+    short = [{"title": "A", "start": 0.0, "end": 12.0}, {"title": "B", "start": 12.0, "end": 16.0}, {"title": "C", "start": 16.0, "end": 40.0}]
+    assert any("10 seconds" in problem for problem in deliver.youtube_problems(short))
+    assert any("three" in problem for problem in deliver.youtube_problems(short[:2]))
+
+
+def test_chapter_titles_are_escaped_for_ffmpeg():
+    text = deliver.ffmetadata([{"title": "Q=A; #1", "start": 0.0, "end": 1.5}])
+    slash = chr(92)
+    assert text.startswith(";FFMETADATA1\n") and f"START=0\nEND=1500\ntitle=Q{slash}=A{slash}; {slash}#1\n" in text
+
+
+def test_chapters_reach_the_mp4_and_the_description_block(finished):
+    rows = [{"title": "Open", "start": 0}, {"title": "Turn", "start": 1.5}, {"title": "End", "start": 2.5}]
+    (finished.root / "chapters.json").write_text(json.dumps(rows))
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    marks = chapters_of(finished.root / "deliver" / "film.mp4")
+    assert [c["tags"]["title"] for c in marks] == ["Open", "Turn", "End"]
+    assert abs(float(marks[1]["start_time"]) - 1.5) < 0.01
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["chapters"]["youtube"]["problems"]  # these run under 10 seconds, so YouTube would ignore them
+    assert not (finished.root / "deliver" / "chapters.txt").exists()
+
+
+def test_a_valid_list_writes_the_description_block(finished, monkeypatch):
+    rows = [{"title": "Open", "start": 0}, {"title": "Turn", "start": 1.5}, {"title": "End", "start": 2.5}]
+    (finished.root / "chapters.json").write_text(json.dumps(rows))
+    monkeypatch.setattr(deliver, "youtube_problems", lambda chapters: [])
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    assert (finished.root / "deliver" / "chapters.txt").read_text().startswith("00:00 Open\n")
+
+
+# Thumbnails and loudness
+
+
+def test_thumbnails_and_a_contact_sheet_land_in_deliver(finished):
+    main(["deliver", "-p", str(finished.root)])
+    folder = finished.root / "deliver" / "thumbnails"
+    assert (folder / "contact-sheet.jpg").exists()
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert all((folder / c["file"]).exists() for c in report["thumbnails"]["candidates"])
+
+
+def test_the_report_gives_loudness_as_measured_with_its_source(finished):
+    main(["deliver", "-p", str(finished.root)])
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    loud = report["film"]["loudness"]
+    assert loud["target"] == -14.0 and abs(loud["measured"]["integrated"] + 14) <= 0.5 and loud["passed"] is True
+    assert "no primary source" in loud["source"].lower()
+
+
+def test_a_named_target_remasters_the_copy_and_never_the_final(finished):
+    before = fingerprint(finished)
+    assert main(["deliver", "-p", str(finished.root), "--loudness", "podcast"]) == 0
+    measured = ffmpeg.loudness(finished.root / "deliver" / "film.mp4")
+    assert abs(measured["integrated"] + 16) <= 0.5 and measured["true_peak"] < -1
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["film"]["loudness"]["name"] == "podcast" and "Apple Podcasts" in report["film"]["loudness"]["source"]
+    assert fingerprint(finished) == before
+
+
+# Platform versions
+
+
+def test_one_edit_becomes_a_file_per_platform_and_the_master_is_untouched(finished):
+    before = fingerprint(finished)
+    assert main(["deliver", "-p", str(finished.root), "--for", "square,youtube", "--renderer", "basic"]) in (0, 1)
+    assert fingerprint(finished) == before
+    folder = finished.root / "deliver"
+    sizes = {name: next(s for s in streams(folder / f"{name}.mp4") if s["codec_type"] == "video") for name in ("square", "youtube")}
+    assert (sizes["square"]["width"], sizes["square"]["height"]) == (1080, 1080)
+    assert (sizes["youtube"]["width"], sizes["youtube"]["height"]) == (1920, 1080)
+    versions = {v["platform"]: v for v in json.loads((folder / "deliver.json").read_text())["versions"]}
+    assert versions["youtube"]["size"] == [1920, 1080]
+    assert "estimate" in versions["youtube"]["zone_source"].lower()
+    assert {"loudness", "true_peak", "duration", "safe_zone", "face_clear", "graphics_clear", "format"} <= {g["id"] for g in versions["square"]["gates"]}
+    assert abs(versions["square"]["loudness"]["measured"]["integrated"] + 14) <= 0.5
+
+
+def test_a_version_uses_the_frame_stage_not_a_blind_crop(finished, monkeypatch):
+    seen = []
+    real = frame.frame_project
+
+    def spy(project, force=False):
+        seen.append(project.size)
+        return real(project, force=force)
+
+    monkeypatch.setattr(frame, "frame_project", spy)
+    main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
+    assert (1080, 1080) in seen
+
+
+def test_a_version_runs_under_the_heavy_lock_one_at_a_time(finished, monkeypatch):
+    labels, depth = [], {"now": 0, "most": 0}
+    real = deliver.locks.heavy
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def counted(label):
+        labels.append(label)
+        depth["now"] += 1
+        depth["most"] = max(depth["most"], depth["now"])
+        with real(label):
+            yield
+        depth["now"] -= 1
+
+    monkeypatch.setattr(deliver.locks, "heavy", counted)
+    monkeypatch.setattr(deliver, "render_version", lambda version, renderer: finished.out / "render.mp4")
+    main(["deliver", "-p", str(finished.root), "--for", "square,youtube", "--renderer", "basic"])
+    assert sum("square" in label for label in labels) == 1 and sum("youtube" in label for label in labels) == 1
+    assert depth["most"] == 1
+
+
+def test_a_film_over_the_limit_is_not_rendered_and_says_so(finished, monkeypatch, capsys):
+    short = platforms.Platform("reels", "9:16", platforms.PLATFORMS["reels"].zone, "Estimate.", 1.0, None, "A test limit.")
+    monkeypatch.setitem(platforms.PLATFORMS, "reels", short)
+    monkeypatch.setattr(deliver, "render_version", lambda version, renderer: pytest.fail("no render for a film that cannot post"))
+    assert main(["deliver", "-p", str(finished.root), "--for", "reels", "--renderer", "basic"]) == 1
+    assert "over the" in capsys.readouterr().out
+    assert not (finished.root / "deliver" / "reels.mp4").exists()
+
+
+def test_a_film_under_the_minimum_says_so():
+    linked = platforms.PLATFORMS["linkedin"]
+    assert "under" in deliver.length_problem(linked, 2.0)
+    assert deliver.length_problem(linked, 60.0) is None
+    assert "over" in deliver.length_problem(linked, 901.0)
+    assert deliver.length_problem(platforms.PLATFORMS["square"], 99999.0) is None
+
+
+def test_a_matching_platform_reuses_the_picture(finished, monkeypatch):
+    finished.config["output"]["platform"] = "reels"
+    (finished.root / "altocue.toml").write_text((finished.root / "altocue.toml").read_text().replace('aspect = "9:16"', 'aspect = "9:16"\nplatform = "reels"'))
+    render.build(Project.open(finished.root), renderer="basic")
+    master.master_file(finished.out / "render.mp4", finished.out / "final.mp4")
+    ship(finished)
+    monkeypatch.setattr(deliver, "render_version", lambda version, renderer: pytest.fail("the master already fits, so nothing needs rendering"))
+    assert main(["deliver", "-p", str(finished.root), "--for", "reels", "--renderer", "basic"]) in (0, 1)
+    assert (finished.root / "deliver" / "reels.mp4").exists()
+
+
+def test_a_tall_version_lifts_its_text_inside_the_zone(finished, monkeypatch):
+    seen = {}
+    real = render.build
+
+    def spy(project, **kwargs):
+        done = real(project, **kwargs)
+        seen["zone"] = json.loads(project.timeline_path.read_text())["zone"]
+        return done
+
+    monkeypatch.setattr(deliver.render, "build", spy)
+    main(["deliver", "-p", str(finished.root), "--for", "shorts", "--renderer", "basic"])
+    assert seen["zone"] == platforms.PLATFORMS["shorts"].zone
+
+
+def test_a_failed_version_keeps_its_workspace_and_a_passed_one_clears_it(finished, monkeypatch):
+    main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())["versions"][0]
+    leftover = (finished.work / "versions" / "square").exists()
+    assert leftover == (not report["passed"])
+
+
+# The guard rails
+
+
+def test_deliver_needs_a_finished_film(tmp_path, capsys):
+    project = Project.create(tmp_path / "video")
+    assert main(["deliver", "-p", str(project.root)]) == 1
+    assert "altocue master" in capsys.readouterr().err
+
+
+def test_deliver_refuses_a_film_older_than_the_cut(finished, capsys):
+    os.utime(finished.out / "final.mp4", (1, 1))
+    assert main(["deliver", "-p", str(finished.root)]) == 1
+    assert "older than the cut" in capsys.readouterr().err
+
+
+def test_deliver_refuses_a_film_no_reviewer_passed(finished, capsys):
+    (finished.review_dir / "report.json").unlink()
+    assert main(["deliver", "-p", str(finished.root)]) == 1
+    err = capsys.readouterr().err
+    assert "SHIP" in err and "--override" in err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_deliver_refuses_a_fix_verdict(finished, capsys):
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root)]) == 1
+    assert "FIX" in capsys.readouterr().err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_deliver_refuses_a_ship_for_another_render(finished, capsys):
+    saved = json.loads((finished.review_dir / "report.json").read_text())
+    (finished.review_dir / "report.json").write_text(json.dumps({**saved, "file_sha256": "0" * 64}))
+    assert main(["deliver", "-p", str(finished.root)]) == 1
+    assert "another render" in capsys.readouterr().err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_a_ship_is_written_into_the_report(finished):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    signoff = json.loads((finished.root / "deliver" / "deliver.json").read_text())["signoff"]
+    assert signoff["verdict"] == "SHIP" and signoff["override"] is None
+    assert signoff["file_sha256"] == hashlib.sha256((finished.out / "final.mp4").read_bytes()).hexdigest()
+
+
+def test_an_override_is_a_flag_that_is_printed_and_written_into_the_report(finished, capsys):
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root), "--override", "Client asked for a rough cut to look at"]) == 0
+    out = capsys.readouterr().out
+    assert "Override" in out and "Client asked for a rough cut to look at" in out and "FIX" in out
+    signoff = json.loads((finished.root / "deliver" / "deliver.json").read_text())["signoff"]
+    assert signoff == {**signoff, "verdict": "FIX", "override": "Client asked for a rough cut to look at"}
+
+
+def test_an_empty_override_is_not_a_reason(finished, capsys):
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root), "--override", "  "]) == 1
+    assert not (finished.root / "deliver").exists()
+
+
+def place_a_generated_person(project: Project, script: str) -> None:
+    """The film's own take, registered as a generated person, so the honesty gates find it in the cut."""
+    from altocue.generate import store
+
+    take = Path(project.clips()[0].path)
+    asset = store.generated_dir(project) / "host-1.mp4"
+    asset.parent.mkdir(parents=True, exist_ok=True)
+    asset.write_bytes(take.read_bytes())
+    store.write_provenance(asset, {"shot": "host", "synthetic": ["person"], "script": script, "prompt": "A presenter"})
+    store.record_asset(project, "host", asset=asset, digest="abc", imported=True, check_passed=None, meta={"synthetic": ["person"]})
+
+
+@pytest.mark.parametrize("verdict", ["SHIP", "FIX"])
+def test_claims_cannot_be_overridden(finished, capsys, monkeypatch, verdict):
+    monkeypatch.setattr(gates, "transcribe", lambda *_: (None, "No transcriber in this test."))
+    place_a_generated_person(finished, "I bought this last week and it changed my life.")
+    ship(finished, verdict)
+    assert main(["deliver", "-p", str(finished.root), "--override", "ship it anyway"]) == 1
+    err = capsys.readouterr().err
+    assert "claims" in err and "cannot be overridden" in err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_disclosure_cannot_be_overridden(finished, capsys, monkeypatch):
+    monkeypatch.setattr(gates, "transcribe", lambda *_: (None, "No transcriber in this test."))
+    place_a_generated_person(finished, "Here is how the tool works.")
+    ship(finished, "FIX")
+    assert main(["deliver", "-p", str(finished.root), "--override", "ship it anyway"]) == 1
+    err = capsys.readouterr().err
+    assert "disclosure" in err and "cannot be overridden" in err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_a_cut_at_another_frame_rate_than_the_output_is_refused_before_it_can_drift(finished, capsys):
+    """Picture was counted at the output rate and sound at the cut's, so they drifted apart over many cuts."""
+    toml = finished.root / "altocue.toml"
+    toml.write_text(re.sub(r"(?m)^fps = 0", "fps = 25", toml.read_text()))
+    project = Project.open(finished.root)
+    assert project.fps == 25 and project.edl().fps == 30
+    from altocue import plate
+
+    with pytest.raises(AltocueError, match="30 fps") as caught:
+        plate.build(project)
+    assert "drift" in str(caught.value) and caught.value.fix
+    assert main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"]) == 1
+    assert "drift" in capsys.readouterr().err
+    assert not (finished.root / "deliver").exists()
+
+
+def test_an_unknown_platform_stops_before_any_work(finished, capsys):
+    assert main(["deliver", "-p", str(finished.root), "--for", "myspace"]) == 1
+    assert "myspace" in capsys.readouterr().err
+    assert not (finished.root / "deliver" / "deliver.json").exists()
+
+
+def test_a_later_run_keeps_the_versions_it_did_not_touch(finished, monkeypatch):
+    monkeypatch.setattr(deliver, "render_version", lambda version, renderer: finished.out / "render.mp4")
+    main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
+    main(["deliver", "-p", str(finished.root), "--for", "youtube", "--renderer", "basic"])
+    main(["deliver", "-p", str(finished.root)])
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert [v["platform"] for v in report["versions"]] == ["square", "youtube"]
+
+
+def test_a_new_film_drops_the_old_versions_from_the_report(finished, monkeypatch):
+    monkeypatch.setattr(deliver, "render_version", lambda version, renderer: finished.out / "render.mp4")
+    main(["deliver", "-p", str(finished.root), "--for", "square", "--renderer", "basic"])
+    master.master_file(finished.out / "render.mp4", finished.out / "final.mp4", -15.0)
+    ship(finished)
+    main(["deliver", "-p", str(finished.root)])
+    assert json.loads((finished.root / "deliver" / "deliver.json").read_text())["versions"] == []
+
+
+def test_a_second_run_replaces_the_first(finished):
+    main(["deliver", "-p", str(finished.root)])
+    main(["deliver", "-p", str(finished.root)])
+    assert (finished.root / "deliver" / "film.mp4").exists()
+
+
+# Stems
+
+
+def test_deliver_writes_stems_when_asked(finished, capsys):
+    assert main(["deliver", "-p", str(finished.root), "--stems"]) == 0
+    folder = finished.root / "deliver" / "stems"
+    assert sorted(path.name for path in folder.iterdir()) == ["effects.wav", "music.wav", "voice.wav"]
+    assert "stems" in capsys.readouterr().out
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["stems"]["files"] == ["stems/voice.wav", "stems/music.wav", "stems/effects.wav"]
+
+
+def test_stems_add_up_to_the_films_own_mix(finished):
+    main(["deliver", "-p", str(finished.root), "--stems"])
+    folder = finished.root / "deliver" / "stems"
+    parts = [mix._read_stereo(folder / f"{name}.wav") for name in mix.STEMS]
+    whole = mix._read_stereo(finished.work / "mix.wav")
+    assert all(len(part) == len(whole) for part in parts)
+    assert abs(sum(parts) - whole).max() < 3 / 32768
+
+
+def test_stems_stay_off_unless_asked(finished):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    assert not (finished.root / "deliver" / "stems").exists()
+
+
+def test_stems_touch_nothing_outside_deliver(finished):
+    before = fingerprint(finished)
+    assert main(["deliver", "-p", str(finished.root), "--stems"]) == 0
+    assert fingerprint(finished) == before
+
+
+def test_stems_with_the_mix_gone_say_what_to_do(finished, capsys):
+    (finished.work / "voice.wav").unlink()
+    assert main(["deliver", "-p", str(finished.root), "--stems"]) == 1
+    assert "altocue render" in capsys.readouterr().err
+
+
+# A textless copy
+
+
+def test_deliver_writes_a_textless_copy_when_asked(finished, capsys):
+    """The cut picture with no captions or graphics, and the voice as cut, mastered. Another film can lay it in a frame."""
+    room = np.random.default_rng(3).normal(0, 0.001, 48000 * 2)  # a render also leaves its room loop beside the voice
+    ffmpeg.write_wav(finished.work / "voice-room.wav", room, 48000)
+    assert main(["deliver", "-p", str(finished.root), "--textless"]) == 0
+    textless = finished.root / "deliver" / "textless.mp4"
+    kinds = sorted(stream["codec_type"] for stream in streams(textless))
+    assert kinds == ["audio", "video"]
+    plate_seconds = ffmpeg.probe_clip(finished.work / "plate.mp4").duration
+    assert abs(ffmpeg.probe_clip(textless).duration - plate_seconds) < 0.1
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["textless"]["file"] == "textless.mp4" and report["textless"]["loudness"]["integrated"] < -5
+    assert "textless" in capsys.readouterr().out
+    heard = ffmpeg.read_wav(ffmpeg.extract_wav(textless, finished.work / "check-textless.wav", rate=16000))[0]
+    voice = ffmpeg.read_wav(ffmpeg.extract_wav(finished.work / "voice.wav", finished.work / "check-voice.wav", rate=16000))[0]
+    count = min(len(heard), len(voice)) // 800
+    rise = [np.sqrt(np.mean(track[: count * 800].reshape(count, 800) ** 2, axis=1)) for track in (heard, voice)]
+    assert np.corrcoef(*rise)[0, 1] > 0.9  # the voice as cut, never the room loop that fills the tail
+
+
+def test_a_textless_copy_stays_off_unless_asked(finished):
+    assert main(["deliver", "-p", str(finished.root)]) == 0
+    assert not (finished.root / "deliver" / "textless.mp4").exists()
+
+
+# The film with no music, for a platform's own music library
+
+
+def media_md5(path: Path, stream: str) -> str:
+    done = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", stream, "-c", "copy", "-f", "md5", "-"], capture_output=True, text=True, check=True)
+    return done.stdout.strip()
+
+
+def test_no_music_keeps_the_picture_and_drops_only_the_music(finished, monkeypatch, capsys):
+    """A song from an app's own library goes on in the app, so the film ships once more with voice and effects only."""
+    import numpy as np
+
+    music = finished.root / "bed.wav"
+    at = np.arange(48000 * 4) / 48000
+    ffmpeg.write_wav(music, 0.3 * np.sin(2 * np.pi * 3000 * at), 48000)  # far above the test voice, so its share is easy to measure
+    (finished.root / "motion.json").write_text(json.dumps({"music": {"path": "bed.wav"}}))
+    render.build(finished, renderer="basic")
+    master.master_file(finished.out / "render.mp4", finished.out / "final.mp4")
+    ship(finished)
+    before = fingerprint(finished)
+    assert main(["deliver", "-p", str(finished.root), "--no-music"]) == 0
+    dry = finished.root / "deliver" / "film-no-music.mp4"
+    report = json.loads((finished.root / "deliver" / "deliver.json").read_text())
+    assert report["no_music"]["file"] == dry.name and report["no_music"]["made_of"] == ["voice", "effects"]
+    assert media_md5(dry, "0:v") == media_md5(finished.out / "final.mp4", "0:v")
+    assert ffmpeg.probe_clip(dry).duration == pytest.approx(ffmpeg.probe_clip(finished.out / "final.mp4").duration, abs=0.05)
+    sound = finished.root / "deliver" / "dry.wav"
+    ffmpeg.extract_wav(dry, sound)
+    heard, _ = ffmpeg.read_wav(sound)
+    spectrum = np.abs(np.fft.rfft(heard))
+    bins = np.fft.rfftfreq(len(heard), 1 / 48000)
+    near_music = spectrum[(bins > 2900) & (bins < 3100)].sum()
+    near_voice = spectrum[(bins > 150) & (bins < 300)].sum()
+    assert near_music < 0.05 * near_voice
+    assert fingerprint(finished) == before
+
+
+def test_no_music_says_so_when_there_was_no_music(finished, capsys):
+    assert main(["deliver", "-p", str(finished.root), "--no-music"]) == 0
+    assert "had no music" in capsys.readouterr().out
+    assert (finished.root / "deliver" / "film-no-music.mp4").is_file()
+
+
+@pytest.fixture
+def finished_film(tmp_path: Path, monkeypatch) -> Project:
+    """A film from a storyboard, its picture faked so no renderer runs, with a voice line and the score under it."""
+    import numpy as np
+
+    from altocue import film
+
+    def picture(stage: Path, output: Path, *, fps: int, draft: bool, total: float) -> Path:
+        page = (stage / "index.html").read_text()
+        width, height = re.search(r'data-width="(\d+)"', page).group(1), re.search(r'data-height="(\d+)"', page).group(1)
+        source = f"color=c=0x101020:s={width}x{height}:r={fps}:d={total}"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-pix_fmt", "yuv420p", str(output)], check=True)
+        return output
+
+    monkeypatch.setattr(film, "render_picture", picture)
+    assert main(["film", "new", "launch", str(tmp_path / "film"), "--variant", "15"]) == 0
+    project = Project.open(tmp_path / "film")
+    at = np.arange(48000 * 2) / 48000
+    ffmpeg.write_wav(project.root / "assets" / "voice" / "line.wav", 0.3 * np.sin(2 * np.pi * 220 * at), 48000)
+    board = json.loads((project.root / "storyboard.json").read_text())
+    board["scenes"][0]["voice"] = "assets/voice/line.wav"
+    (project.root / "storyboard.json").write_text(json.dumps(board))
+    assert main(["film", "render", "-p", str(project.root), "--draft"]) == 0
+    return ship(project)
+
+
+def test_a_film_delivers_its_thumbnails_and_a_version_with_no_music(finished_film, capsys):
+    assert main(["deliver", "-p", str(finished_film.root), "--no-music"]) == 0
+    folder = finished_film.root / "deliver"
+    report = json.loads((folder / "deliver.json").read_text())
+    assert report["film"]["file"] == "film.mp4" and report["thumbnails"]["candidates"]
+    assert media_md5(folder / "film-no-music.mp4", "0:v") == media_md5(finished_film.out / "final.mp4", "0:v")
+    full, dry = ffmpeg.loudness(folder / "film.mp4"), ffmpeg.loudness(folder / "film-no-music.mp4")
+    assert dry["range"] != full["range"] or dry["integrated"] != full["integrated"]
+
+
+def test_a_film_asks_for_its_other_shapes_from_the_storyboard(finished_film, capsys):
+    assert main(["deliver", "-p", str(finished_film.root), "--for", "tiktok"]) == 1
+    assert "film render --cutdowns" in capsys.readouterr().err

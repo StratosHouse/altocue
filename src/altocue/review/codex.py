@@ -26,10 +26,11 @@ def available() -> bool:
 
 def pick_images(pack_dir: Path) -> list[Path]:
     """Sheets and the hook first, because they cover the whole film. Cuts fill what is left."""
+    timeline = sorted((pack_dir / "timeline").glob("*.jpg"))
     sheets = sorted((pack_dir / "sheets").glob("*.jpg"))
     hook = sorted((pack_dir / "hook").glob("*.jpg"))[::2]
     cuts = sorted((pack_dir / "cuts").glob("*.jpg"))
-    chosen = [*sheets, *hook][:MAX_IMAGES]
+    chosen = [*timeline, *sheets, *hook][:MAX_IMAGES]
     room = MAX_IMAGES - len(chosen)
     if room and cuts:
         step = max(1, len(cuts) // room)
@@ -46,9 +47,7 @@ def review(project: Project, prompt: str, *, upload: bool, say: Callable[[str], 
         )
     binary = shutil.which("codex")
     if not binary:
-        raise AltocueError(
-            "The codex CLI is not on PATH.", fix="Install it from https://developers.openai.com/codex, or use --reviewer pack."
-        )
+        raise AltocueError("The codex CLI is not on PATH.", fix="Install it from https://developers.openai.com/codex, or use --reviewer pack.")
     images = pick_images(project.review_dir / "pack")
     total = sum(1 for _ in (project.review_dir / "pack").rglob("*.jpg"))
     say(f"Sending {len(images)} frames, the transcript and the measurements to OpenAI through the codex CLI. The video itself stays here.")

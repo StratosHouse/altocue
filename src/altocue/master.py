@@ -7,6 +7,7 @@ import json
 import math
 import os
 import subprocess
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -32,15 +33,75 @@ AUDIO_CODECS = {".wav": ["-c:a", "pcm_s16le"], ".flac": ["-c:a", "flac"]}
 AAC = ["-c:a", "aac", "-b:a", "192k"]
 
 
-def _loudness_arg(value: str) -> float:
-    return HOT_LOUDNESS if value == "hot" else float(value)
+@dataclass(frozen=True)
+class Target:
+    """A named loudness target, and where its numbers come from. `primary` is False when no first-hand source publishes them."""
+
+    name: str
+    loudness: float
+    true_peak: float
+    source: str
+    primary: bool
+
+
+TARGETS = {
+    "streaming": Target(
+        "streaming",
+        -14.0,
+        -1.0,
+        "Spotify for Artists: tracks are adjusted to -14 dB LUFS, and masters should stay below -1 dB true peak. "
+        "https://support.spotify.com/us/artists/article/loudness-normalization/",
+        True,
+    ),
+    "podcast": Target(
+        "podcast",
+        -16.0,
+        -1.0,
+        "Apple Podcasts audio requirements: around -16 dB LKFS, +/- 1 dB, true peak no higher than -1 dBFS. https://podcasters.apple.com/support/893-audio-requirements",
+        True,
+    ),
+    "broadcast": Target(
+        "broadcast",
+        -23.0,
+        -1.0,
+        "EBU R 128 (2023): programme loudness -23.0 LUFS, true peak no higher than -1 dBTP. https://tech.ebu.ch/docs/r/r128.pdf",
+        True,
+    ),
+    "social": Target(
+        "social",
+        LOUDNESS,
+        TRUE_PEAK,
+        "No primary source. TikTok, Instagram, YouTube and LinkedIn publish no loudness target, so this is Altocue's own default.",
+        False,
+    ),
+    "hot": Target("hot", HOT_LOUDNESS, TRUE_PEAK, "No primary source. Altocue's loud option, for films that must compete on a phone speaker.", False),
+}
+
+
+def named_target(name: str) -> Target:
+    if name not in TARGETS:
+        raise AltocueError(f"Unknown loudness target {name}.", fix=f"Use {', '.join(TARGETS)}, or a number in LUFS.")
+    return TARGETS[name]
+
+
+def loudness_arg(value: str) -> float | Target:
+    return TARGETS[value] if value in TARGETS else float(value)
+
+
+def project_target(project: Project) -> tuple[float, float]:
+    """The project's `[audio]` target. `loudness` is a number or a name, and a set `true_peak` wins."""
+    chosen = project.setting("audio", "loudness", LOUDNESS)
+    if isinstance(chosen, str):
+        named = named_target(chosen)
+        return named.loudness, float(project.setting("audio", "true_peak", named.true_peak))
+    return float(chosen), float(project.setting("audio", "true_peak", TRUE_PEAK))
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--input", "-i", help="File to master. Default is the project's out/render.mp4")
     parser.add_argument("--output", "-o", help="Where to write it. Default is the project's out/final.mp4")
-    parser.add_argument("--loudness", type=_loudness_arg, help="Integrated LUFS, or `hot` for -12")
+    parser.add_argument("--loudness", type=loudness_arg, help=f"Integrated LUFS, or a named target: {', '.join(TARGETS)}")
     parser.add_argument("--true-peak", type=float, help="True-peak ceiling in dBTP")
 
 
@@ -69,9 +130,7 @@ def measure(path: str | Path, loudness: float, true_peak: float) -> dict[str, fl
     found = _loudnorm_json(done.stderr)
     values = {key: float(found[key]) for key in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")}
     if not all(math.isfinite(v) for v in values.values()) or values["input_i"] < -70:
-        raise Silent(
-            f"{path} is silent or too short to measure.", fix="Check the sound in the render. Master needs at least a second of audio."
-        )
+        raise Silent(f"{path} is silent or too short to measure.", fix="Check the sound in the render. Master needs at least a second of audio.")
     return values
 
 
@@ -108,9 +167,7 @@ def _encode(src: Path, dest: Path, chain: str, has_video: bool) -> str:
     return ffmpeg.run([*args, str(dest)]).stderr
 
 
-def master_file(
-    src: str | Path, dest: str | Path, loudness: float = LOUDNESS, true_peak: float = TRUE_PEAK, *, silent_film: bool = False
-) -> dict[str, Any]:
+def master_file(src: str | Path, dest: str | Path, loudness: float = LOUDNESS, true_peak: float = TRUE_PEAK, *, silent_film: bool = False) -> dict[str, Any]:
     """Master `src` to `dest` and return the numbers measured on the finished file.
 
     AAC overshoots a limiter on transients, so the ceiling is checked on the decoded
@@ -160,9 +217,7 @@ def master_file(
     mode = _loudnorm_json(log).get("normalization_type", "linear") if level.startswith("loudnorm") else "linear"
     warnings = []
     if mode == "dynamic":
-        warnings.append(
-            f"loudnorm used dynamic mode: range {found['input_lra']:g} LU, peaks {found['input_tp']:g} dBTP. Level rides through the file."
-        )
+        warnings.append(f"loudnorm used dynamic mode: range {found['input_lra']:g} LU, peaks {found['input_tp']:g} dBTP. Level rides through the file.")
     passed = measured["true_peak"] < true_peak and abs(measured["integrated"] - loudness) <= PASS_TOLERANCE
     if not passed:
         warnings.append(f"Missed the target after {attempts} tries: {measured['integrated']} LUFS, {measured['true_peak']} dBTP.")
@@ -183,10 +238,29 @@ def master_file(
 
 
 def no_sound_in(project: Project) -> bool:
+    """A film with nothing to hear. Decided from the render's own mix, because a clip can carry a track of pure silence."""
     try:
-        return not any(clip.has_audio for clip in project.clips())
+        if not any(clip.has_audio for clip in project.clips()):
+            return True
     except AltocueError:
+        pass
+    mix = project.work / "mix.wav"
+    if not mix.is_file():
         return False
+    stat = mix.stat()
+    key = (str(mix.resolve()), stat.st_mtime_ns, stat.st_size)
+    if key not in _SILENT_MIX:
+        try:
+            measure(mix, LOUDNESS, TRUE_PEAK)
+            _SILENT_MIX[key] = False
+        except Silent:
+            _SILENT_MIX[key] = True
+        except (AltocueError, KeyError, ValueError):
+            _SILENT_MIX[key] = False
+    return _SILENT_MIX[key]
+
+
+_SILENT_MIX: dict[tuple[str, int, int], bool] = {}  # one measurement per mix file, however many stages ask
 
 
 def run(args: argparse.Namespace) -> int:
@@ -200,18 +274,28 @@ def run(args: argparse.Namespace) -> int:
         src, dest = project.out / "render.mp4", project.out / "final.mp4"
         if not src.exists():
             raise AltocueError(f"No render at {src}.", fix="Run `altocue render` first.")
-    loudness = (
-        args.loudness if args.loudness is not None else float(project.setting("audio", "loudness", LOUDNESS)) if project else LOUDNESS
-    )
-    true_peak = (
-        args.true_peak if args.true_peak is not None else float(project.setting("audio", "true_peak", TRUE_PEAK)) if project else TRUE_PEAK
-    )
-    silent_film = bool(project) and no_sound_in(project)
-    result = master_file(src, dest, loudness=loudness, true_peak=true_peak, silent_film=silent_film)
+    loudness, true_peak = project_target(project) if project else (LOUDNESS, TRUE_PEAK)
+    named = args.loudness if isinstance(args.loudness, Target) else None
+    if named:
+        loudness, true_peak = named.loudness, named.true_peak
+        print(f"Target {named.name}: {loudness:g} LUFS, {true_peak:g} dBTP. {named.source}")
+    elif args.loudness is not None:
+        loudness = args.loudness
+    true_peak = args.true_peak if args.true_peak is not None else true_peak
+    try:
+        result = master_file(src, dest, loudness=loudness, true_peak=true_peak)
+    except Silent:
+        if not (project and no_sound_in(project)):  # asked only when the render is silent, because it reads the whole mix
+            raise
+        result = master_file(src, dest, loudness=loudness, true_peak=true_peak, silent_film=True)
     if project:
         write_json(project.audio_dir / "master.json", result)
+    else:
+        from .generate import store
+
+        store.carry_provenance(src, dest, "altocue master")  # a re-encode of a generated clip is still that clip
     if result["mode"] == "silent":
-        print(f"No clip in this project has sound, so {dest} is the render as it was.")
+        print(f"This film has nothing to hear, so {dest} is the render as it was.")
         return 0
     print(f"Mastered {dest}: {result['integrated']} LUFS, {result['true_peak']} dBTP, range {result['range']} LU, {result['mode']}")
     for note in result["warnings"]:

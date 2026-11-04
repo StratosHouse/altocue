@@ -8,13 +8,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .. import ffmpeg, qa
+from .. import facts, ffmpeg, qa
 from ..errors import AltocueError
 from ..models import GateResult
 from ..project import Project
-from . import codex, gemini, pack, report, rounds, rubric
+from . import codex, gemini, pack, page, report, rounds, rubric
 
-__all__ = ["add_arguments", "codex", "editor_vendor", "gemini", "independence", "pack", "qa", "report", "rounds", "rubric", "run"]
+__all__ = ["add_arguments", "codex", "editor_vendor", "facts", "gemini", "independence", "pack", "page", "qa", "report", "rounds", "rubric", "run"]
 
 HOSTS = (("CLAUDECODE", "anthropic"), ("CODEX_SANDBOX", "openai"), ("GEMINI_CLI", "google"))
 REVIEWERS = ("auto", "gemini", "pack", "codex")
@@ -43,8 +43,7 @@ def independence(reviewer: str, editor: str | None) -> tuple[bool, str]:
     if reviewer.lower() == editor.lower():
         return (
             False,
-            f"Reviewer and editor are both {editor}. The reviewer had a fresh context and no edit reasons, "
-            "but it is not an outside opinion.",
+            f"Reviewer and editor are both {editor}. The reviewer had a fresh context and no edit reasons, but it is not an outside opinion.",
         )
     return True, f"Reviewer is {reviewer}, editor is {editor}."
 
@@ -59,7 +58,7 @@ def finish(project: Project, file: Path, digest: str, result: dict[str, Any], re
         weighted=result["weighted"],
         open_items=len(qa.failed(gates)) + len(result["notes"]),
     )
-    path = report.write(project, file, result, gates, log)
+    path = report.write(project, file, result, gates, log, measured=facts.after_review(project, file))
     print(f"\n{result['verdict']}" + (f" (weighted {result['weighted']:.2f})" if result["weighted"] is not None else ""))
     if reviewer.get("independent") is False:
         print(f"  Not an independent review. {reviewer['independent_why']}")
@@ -68,12 +67,11 @@ def finish(project: Project, file: Path, digest: str, result: dict[str, Any], re
     if log["handed_off"]:
         print("Both fix rounds are used. This goes to a human now. The open list is in the report.")
     print(f"Report: {path}")
+    print("To check it beside the film: altocue review --page")
     return 0 if result["verdict"] == "SHIP" else 1
 
 
-def conclude(
-    project: Project, file: Path, digest: str, raw: dict[str, Any], reviewer: dict[str, Any], gates: list[GateResult], editor: str | None
-) -> int:
+def conclude(project: Project, file: Path, digest: str, raw: dict[str, Any], reviewer: dict[str, Any], gates: list[GateResult], editor: str | None) -> int:
     result = rubric.score(raw, gates, ffmpeg.probe_clip(file).duration)
     flag, why = independence(str(reviewer.get("vendor", "")), editor)
     if reviewer.get("via") == "review pack":
@@ -93,9 +91,7 @@ def ingest(project: Project, file: Path, source: str, editor: str | None) -> int
         raise AltocueError(f"{target.name} is not valid JSON: {error}", fix="Fix the file and ingest it again.") from error
     reviewer = raw.get("reviewer") or {}
     if not reviewer.get("vendor"):
-        raise AltocueError(
-            "The verdict does not name the reviewer's vendor.", fix='Add "reviewer": {"vendor": "...", "model": "..."} to the file.'
-        )
+        raise AltocueError("The verdict does not name the reviewer's vendor.", fix='Add "reviewer": {"vendor": "...", "model": "..."} to the file.')
     digest = qa.sha256(file)
     stated = raw.get("file_sha256")
     if stated != digest:
@@ -136,11 +132,21 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--paid-key", action="store_true", help="Confirm GEMINI_API_KEY is on a billed project")
     parser.add_argument("--editor-vendor", help="Who made the edit, to label independence: anthropic, openai, google")
     parser.add_argument("--reset-rounds", action="store_true", help="Forget the fix rounds and start again")
+    parser.add_argument("--page", action="store_true", help="Write review/page.html and print its path: the film beside its gates, notes and captions")
+
+
+def write_page(project: Project, file: Path) -> int:
+    """A view of what was saved. It runs no gate, calls no reviewer and writes no verdict. It prints the path and opens nothing."""
+    target = page.write(project, file)
+    print(f"Review page: {target}")
+    return 0
 
 
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     file = qa.resolve(project, args.file, "final")
+    if getattr(args, "page", False):
+        return write_page(project, file)
     if not args.file and project.edl_path.exists() and project.edl_path.stat().st_mtime > file.stat().st_mtime:
         raise AltocueError(f"{file.name} is older than the cut.", fix="Run `altocue run`, then `altocue review`.")
     if args.reset_rounds:
@@ -158,6 +164,12 @@ def run(args: argparse.Namespace) -> int:
     if rounds.blocked(project, digest):
         print("Both fix rounds are used, so no reviewer was called. This is with a human now. Use --reset-rounds to start again.")
         return 1
+    missing = qa.not_run(gates)
+    if missing and chosen != "pack":
+        raise AltocueError(
+            f"Not checked: {', '.join(g.id for g in missing)}. This film cannot SHIP, so no {chosen} review was paid for.",
+            fix="Run `altocue doctor`, fix what stopped those gates, then review again. `--reviewer pack` costs nothing and still works.",
+        )
     if chosen == "gemini":
         gemini.require(project, upload=args.upload, paid=args.paid_key)
 
@@ -173,9 +185,7 @@ def run(args: argparse.Namespace) -> int:
         return 0
     prompt = pack.prompt_text(info)
     if chosen == "gemini":
-        raw, reviewer = gemini.review(
-            project, file, duration=ffmpeg.probe_clip(file).duration, prompt=prompt, upload=args.upload, paid=args.paid_key
-        )
+        raw, reviewer = gemini.review(project, file, duration=ffmpeg.probe_clip(file).duration, prompt=prompt, upload=args.upload, paid=args.paid_key)
     else:
         raw, reviewer = codex.review(project, prompt, upload=args.upload)
     return conclude(project, file, digest, raw, reviewer, gates, editor)

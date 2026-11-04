@@ -1,0 +1,201 @@
+{
+  "id": "invite",
+  "name": "Invitation",
+  "promise": "An event film and its closing card, with every name, date and place typed from the hosts' intake sheet.",
+  "cost": "$0.",
+  "generation": "none",
+  "aspect": "9:16",
+  "fps": 30,
+  "default": "main",
+  "checks": [
+    "invite"
+  ],
+  "beats": [
+    "opening",
+    "journey",
+    "pause",
+    "together",
+    "card"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "intake"
+  ],
+  "formats": [
+    "word_slam",
+    "typewriter",
+    "mask_rise",
+    "corner_stamp"
+  ],
+  "notes": [
+    "Fill \"intake\" in brief.json with the facts exactly as the hosts gave them: names, date as 2031-05-17, venue and RSVP. The film types them from there, so write {{names}}, {{date_text}}, {{day}}, {{venue}} and {{rsvp}} in the storyboard and never retype a fact.",
+    "Every fact on the sheet must reach the screen exactly, the date must be ahead, and any weekday shown must be the date's own. The hosts approve the card before anything is shared."
+  ],
+  "brief": {
+    "example": true,
+    "company": "A wedding invitation for an invented couple, told by one envelope.",
+    "audience": "Their guests",
+    "goal": "Every guest saves the date",
+    "message": "Ada and Tomas are getting married, and you are invited.",
+    "must_show": [
+      "the envelope"
+    ],
+    "tone": "Warm and unhurried",
+    "intake": {
+      "names": "Ada and Tomas",
+      "date": "2031-05-17",
+      "venue": "The Old Mill, River Lane",
+      "rsvp": "Reply by 1 April"
+    },
+    "brand": {
+      "colors": {
+        "accent": "#e8b4a0",
+        "panel": "#1b1412",
+        "surface": "#2a201c"
+      }
+    },
+    "deliverables": [
+      "9:16",
+      "1:1"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Save the date",
+        "route": "continuous",
+        "clock": "reads",
+        "hero": {
+          "scene": "card",
+          "offset": 0.2
+        },
+        "music": {
+          "style": "paper"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 5,
+            "tones": "#e8b4a0,#6b3f52,#f6e3c8"
+          }
+        ],
+        "scenes": [
+          {
+            "id": "opening",
+            "beat": "opening",
+            "seconds": 3,
+            "verb": "open",
+            "energy": 3,
+            "carry": "the envelope",
+            "shows": [
+              "the envelope"
+            ],
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "You are *invited*",
+                "start": 0.2,
+                "zone": "center",
+                "role": "hook",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "journey",
+            "beat": "journey",
+            "seconds": 7,
+            "verb": "travel",
+            "energy": 5,
+            "carry": "the envelope in flight",
+            "items": [
+              {
+                "type": "typewriter",
+                "text": "One envelope. Two cities. *One day.*",
+                "start": 0.3,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "pause",
+            "beat": "pause",
+            "seconds": 4,
+            "verb": "rest",
+            "energy": 2,
+            "carry": "the quiet",
+            "silences": [
+              {
+                "from": 3.2,
+                "to": 3.8
+              }
+            ],
+            "items": [
+              {
+                "type": "typewriter",
+                "text": "And then, *a yes.*",
+                "start": 0.3,
+                "zone": "center"
+              }
+            ]
+          },
+          {
+            "id": "together",
+            "beat": "together",
+            "seconds": 4,
+            "verb": "meet",
+            "energy": 7,
+            "carry": "two names",
+            "items": [
+              {
+                "type": "word_slam",
+                "text": "*Together*",
+                "start": 0.2,
+                "zone": "center",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "card",
+            "beat": "card",
+            "seconds": 7,
+            "verb": "invite",
+            "energy": 4,
+            "items": [
+              {
+                "type": "mask_rise",
+                "lines": [
+                  "{{names}}",
+                  "*save the date*"
+                ],
+                "start": 0.2,
+                "zone": "top",
+                "important": true
+              },
+              {
+                "type": "typewriter",
+                "text": "{{date_text}}, {{venue}}",
+                "start": 1.4,
+                "zone": "bottom"
+              },
+              {
+                "type": "corner_stamp",
+                "text": "{{rsvp}}",
+                "label": "RSVP",
+                "corner": "bl",
+                "start": 2.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

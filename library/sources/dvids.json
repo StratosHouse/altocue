@@ -1,0 +1,48 @@
+{
+  "id": "dvids",
+  "name": "DVIDS",
+  "url": "https://www.dvidshub.net/",
+  "classes": [
+    "video",
+    "photo"
+  ],
+  "holds": "US military media.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "us-government",
+    "url": "https://www.dvidshub.net/about/copyright",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Disclaimer required"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://api.dvidshub.net/docs",
+    "key": "free",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "trademark_risk",
+    "people_release"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "US Government works with conditions. Commercial use needs a disclaimer and obscured markings."
+}

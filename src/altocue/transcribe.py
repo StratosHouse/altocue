@@ -3,18 +3,25 @@
 from __future__ import annotations
 
 import argparse
+import contextvars
 import dataclasses
 import functools
+import gc
 import importlib.util
 import json
 import math
 import os
 import platform
 import re
+import shutil
+import sys
 import tempfile
 import urllib.error
 import urllib.request
 import uuid
+import wave
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -23,7 +30,7 @@ import numpy as np
 
 from . import ffmpeg
 from .errors import AltocueError
-from .locks import heavy
+from .locks import free_memory_gb, heavy
 from .models import Clip, Word
 from .project import Project
 
@@ -39,6 +46,16 @@ SPREAD_MAX = 0.4
 GHOST_MARGIN = 0.3  # a word with no speech this close to it was never said
 LOOP_FILLER, LOOP_WORD, LOOP_PHRASE = 3, 6, 4
 STOCK_CONFIDENCE = 0.5
+PIECE = 60.0  # speech goes to a local engine in pieces this long, so its memory follows the piece and not the file
+REACH = 10.0  # how far either side of a mark to look for the quietest moment
+READING_BACK = contextvars.ContextVar("reading_back", default=False)  # a finished render, read back for its checks
+READBACK_PIECE = 30.0  # a finished render has music under the speech, and parakeet drops whole lines from a long stretch of it
+MLX_CACHE_BYTES = 256 * 2**20  # MLX keeps freed buffers, and by default that cache may grow past the machine's memory
+MLX_LIMIT_BYTES = 5 * 2**30  # a 60 second piece peaks near 3 GB
+MIN_FREE_DISK_GB = 5.0  # swap lives on this disk too, and a full disk with no swap took a 16 GB Mac down
+WAV_BYTES_PER_SECOND = 2 * RATE
+QUIET_WINDOW = 25  # envelope frames that must be quiet together, so a split lands in a pause and not between syllables
+ENVELOPE_BLOCK = 5000  # envelope frames read from disk at once
 
 FILLERS = frozenset("um umm uh uhh uhm er erm hm hmm mm mmm mhm ah ahh eh".split())
 FILLER_PROMPT = "Um, uh, so, like, you know, okay, hmm, I mean, right."
@@ -100,6 +117,12 @@ def core(text: str) -> str:
     return re.sub(r"[^\w']", "", text.lower().replace("’", "'"))
 
 
+def frame_levels(samples: np.ndarray, size: int) -> np.ndarray:
+    frames = len(samples) // size
+    rms = np.sqrt((samples[: frames * size].reshape(frames, size) ** 2).mean(axis=1)) + 1e-9
+    return 20 * np.log10(rms)
+
+
 @dataclass
 class Envelope:
     """A 20 ms RMS envelope. Speech is measured against the clip's own floor, so outdoor ambience stays below it."""
@@ -111,18 +134,28 @@ class Envelope:
 
     @classmethod
     def measure(cls, samples: np.ndarray, rate: int) -> Envelope:
-        size = int(rate * HOP)
-        frames = len(samples) // size
-        if not frames:
+        return cls.of_levels(frame_levels(samples, int(rate * HOP)))
+
+    @classmethod
+    def of_levels(cls, db: np.ndarray) -> Envelope:
+        if not len(db):
             return cls(np.zeros(0), 0.0, 0.0, 0.0)
-        rms = np.sqrt((samples[: frames * size].reshape(frames, size) ** 2).mean(axis=1)) + 1e-9
-        db = 20 * np.log10(rms)
         floor, loud = float(np.percentile(db, 10)), float(np.percentile(db, 90))
         return cls(db, floor, loud, max(floor + 6.0, loud - 26.0, -52.0))
 
     @classmethod
     def from_wav(cls, path: str | Path) -> Envelope:
-        return cls.measure(*ffmpeg.read_wav(path))
+        """Reads the file a block at a time, so hours of sound never sit in memory whole."""
+        with wave.open(str(path), "rb") as handle:
+            rate, channels, width = handle.getframerate(), handle.getnchannels(), handle.getsampwidth()
+            if width != 2:
+                raise AltocueError(f"{path} is not 16-bit PCM.")
+            size = int(rate * HOP)
+            levels: list[np.ndarray] = []
+            while raw := handle.readframes(size * ENVELOPE_BLOCK):
+                samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+                levels.append(frame_levels(samples.reshape(-1, channels).mean(axis=1) if channels > 1 else samples, size))
+        return cls.of_levels(np.concatenate(levels) if levels else np.zeros(0))
 
     @property
     def speech(self) -> np.ndarray:
@@ -174,12 +207,13 @@ class LocalEngine:
     hosted: bool = False
     download: str = ""
     model: str = ""
+    needs_gb: float = 3.0
 
     def available(self) -> bool:
         return importlib.util.find_spec(self.module) is not None
 
     def install_fix(self) -> str:
-        return f'Run `pip install "altocue[{self.extra}]"`.'
+        return f'Run `uv tool install --force "altocue[{self.extra}]"`.'
 
     def notice(self, seconds: float) -> str:
         return f"{self.name}: runs on this machine. The model is {self.download}, downloaded on first use."
@@ -193,6 +227,7 @@ class MlxWhisper(LocalEngine):
         import mlx_whisper  # pyright: ignore[reportMissingImports]
 
         repo = self.model or (self.english if language == "en" else self.multilingual)
+        limit_mlx()
         result = mlx_whisper.transcribe(
             str(wav),
             path_or_hf_repo=repo,
@@ -213,25 +248,40 @@ class FasterWhisper(LocalEngine):
     english = "small.en"
     multilingual = "large-v3-turbo"
 
-    def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
-        from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
+    def device(self) -> str:
+        """An Nvidia card when there is one, unless ALTOCUE_WHISPER_DEVICE=cpu says otherwise."""
+        if os.environ.get("ALTOCUE_WHISPER_DEVICE", "auto") == "cpu":
+            return "cpu"
+        try:
+            import ctranslate2  # pyright: ignore[reportMissingImports]
 
+            return "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+        except Exception:
+            return "cpu"
+
+    def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
         # Decoded by ffmpeg first: some PyAV builds reject faster-whisper's open arguments.
         samples, _ = ffmpeg.read_wav(wav)
-        model = WhisperModel(self.model or (self.english if language == "en" else self.multilingual), device="cpu", compute_type="int8")
-        segments, _ = model.transcribe(
+        if self.device() == "cuda":
+            try:
+                return self._run(samples, self.model or self.multilingual, "cuda", "float16", language=language, prompt=prompt)
+            except RuntimeError as error:  # the card is there but cuBLAS or cuDNN is not
+                print(f"faster-whisper could not use the Nvidia card ({error}). Transcribing on the CPU instead.", file=sys.stderr)
+        return self._run(samples, self.model or (self.english if language == "en" else self.multilingual), "cpu", "int8", language=language, prompt=prompt)
+
+    def _run(self, samples: Any, name: str, device: str, compute: str, *, language: str, prompt: str) -> list[Word]:
+        from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
+
+        segments, _ = WhisperModel(name, device=device, compute_type=compute).transcribe(
             samples,
+            vad_filter=READING_BACK.get(),  # music alone read as speech: "We'll be right back." in a film with no voice
             word_timestamps=True,
             language=language,
             initial_prompt=prompt or None,
             condition_on_previous_text=False,
             temperature=0.0,
         )
-        return [
-            Word(text=w.word.strip(), start=float(w.start), end=float(w.end), confidence=float(w.probability))
-            for segment in segments
-            for w in segment.words or []
-        ]
+        return [Word(text=w.word.strip(), start=float(w.start), end=float(w.end), confidence=float(w.probability)) for segment in segments for w in segment.words or []]
 
 
 class Parakeet(LocalEngine):
@@ -239,7 +289,12 @@ class Parakeet(LocalEngine):
     chunk, overlap = 120.0, 15.0
 
     def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
-        result = load_parakeet(self.model or self.repo).transcribe(str(wav), chunk_duration=self.chunk, overlap_duration=self.overlap)
+        try:
+            result = load_parakeet(self.model or self.repo).transcribe(str(wav), chunk_duration=self.chunk, overlap_duration=self.overlap)
+        except RuntimeError as error:
+            if "alloc" not in str(error).lower() and "memory" not in str(error).lower():
+                raise
+            raise AltocueError(f"{self.name} ran out of memory.", fix="Close other apps, or wait for other jobs to finish, then run this again.") from error
         return words_from_tokens(result.tokens)
 
 
@@ -249,7 +304,26 @@ def load_parakeet(name: str) -> Any:
     os.environ.setdefault("HF_HUB_VERBOSITY", "error")
     from parakeet_mlx import from_pretrained  # pyright: ignore[reportMissingImports]
 
-    return from_pretrained(name)
+    limit_mlx()
+    model = from_pretrained(name)
+    release_memory()
+    return model
+
+
+def limit_mlx() -> None:
+    """Without this, a 61 minute recording held 10 GB on a 16 GB Mac, because nothing gave the cache back."""
+    import mlx.core as mx  # pyright: ignore[reportMissingImports]
+
+    mx.set_cache_limit(MLX_CACHE_BYTES)
+    mx.set_memory_limit(MLX_LIMIT_BYTES)
+
+
+def release_memory() -> None:
+    """Hand back what the last piece held. Only an engine that has loaded MLX has anything to clear."""
+    gc.collect()
+    core = sys.modules.get("mlx.core")
+    if core is not None:
+        core.clear_cache()
 
 
 def words_from_tokens(tokens: list[Any]) -> list[Word]:
@@ -307,25 +381,21 @@ class ElevenLabs:
         }
         body, content_type = multipart(fields, wav)
         request = urllib.request.Request(self.endpoint, data=body, headers={"xi-api-key": key, "Content-Type": content_type}, method="POST")
+        from .generate import http
+
         try:
-            with urllib.request.urlopen(request, timeout=1800) as response:
+            with http.open_keyed(request, timeout=1800) as response:
                 return scribe_words(json.load(response))
         except urllib.error.HTTPError as error:
-            raise AltocueError(
-                f"ElevenLabs refused the audio (HTTP {error.code}).", fix="Check ELEVENLABS_API_KEY and your ElevenLabs plan."
-            ) from error
+            raise AltocueError(f"ElevenLabs refused the audio (HTTP {error.code}).", fix="Check ELEVENLABS_API_KEY and your ElevenLabs plan.") from error
         except urllib.error.URLError as error:
-            raise AltocueError(
-                f"Could not reach {self.host}: {error.reason}.", fix="Check your connection, or use a local engine."
-            ) from error
+            raise AltocueError(f"Could not reach {self.host}: {error.reason}.", fix="Check your connection, or use a local engine.") from error
 
 
 def multipart(fields: dict[str, str], path: Path) -> tuple[bytes, str]:
     boundary = uuid.uuid4().hex
     parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode() for name, value in fields.items()]
-    head = (
-        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\nContent-Type: audio/wav\r\n\r\n'.encode()
-    )
+    head = f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\nContent-Type: audio/wav\r\n\r\n'.encode()
     return b"".join([*parts, head, path.read_bytes(), f"\r\n--{boundary}--\r\n".encode()]), f"multipart/form-data; boundary={boundary}"
 
 
@@ -339,7 +409,7 @@ def scribe_words(data: dict[str, Any]) -> list[Word]:
 
 
 ENGINES: dict[str, Transcriber] = {
-    "parakeet": Parakeet("parakeet", "parakeet_mlx", "parakeet", download="about 2.5 GB"),
+    "parakeet": Parakeet("parakeet", "parakeet_mlx", "parakeet", download="about 2.5 GB", needs_gb=4.0),
     "mlx-whisper": MlxWhisper("mlx-whisper", "mlx_whisper", "mlx-whisper", download="about 460 MB"),
     "faster-whisper": FasterWhisper("faster-whisper", "faster_whisper", "faster-whisper", download="about 480 MB"),
     "elevenlabs": ElevenLabs(),
@@ -410,9 +480,7 @@ def clean(words: list[Word], *, duration: float, envelope: Envelope | None = Non
     found = drop_stock_phrases(found)
     found = [shorten(word, envelope) for word in found]
     if envelope is not None and envelope.reliable:
-        found = [
-            w for w in found if envelope.speech[max(0, int((w.start - GHOST_MARGIN) / HOP)) : math.ceil((w.end + GHOST_MARGIN) / HOP)].any()
-        ]
+        found = [w for w in found if envelope.speech[max(0, int((w.start - GHOST_MARGIN) / HOP)) : math.ceil((w.end + GHOST_MARGIN) / HOP)].any()]
     return separate(found, duration)
 
 
@@ -500,11 +568,7 @@ def separate(words: list[Word], duration: float) -> list[Word]:
     for word in words:
         start = min(max(word.start, previous), max(duration - MIN_WORD, 0.0))
         end = min(max(word.end, start + MIN_WORD), duration)
-        out.append(
-            dataclasses.replace(
-                word, text=word.text.strip(), start=round(start, 3), end=round(end, 3), confidence=round(word.confidence, 3)
-            )
-        )
+        out.append(dataclasses.replace(word, text=word.text.strip(), start=round(start, 3), end=round(end, 3), confidence=round(word.confidence, 3)))
         previous = end
     return out
 
@@ -522,18 +586,102 @@ def prompt_for(project: Project, *, engine: str) -> str:
     return " ".join([FILLER_PROMPT, *words])
 
 
-def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: str, cues: list[str]) -> list[Word]:
+def quiet_marks(envelope: Envelope, duration: float, piece: float | None = None) -> list[float]:
+    """Where to split a recording: the quietest pause near each mark, so no word is cut in two.
+
+    The marks follow the clip's length and the envelope stops where the sound does, so past the sound there is nothing to split.
+    """
+    length = piece or PIECE
+    reach = min(REACH, length / 3)
+    if duration <= length * 1.5 or not len(envelope.db):
+        return []
+    held = np.convolve(envelope.db, np.ones(QUIET_WINDOW) / QUIET_WINDOW, "same")
+    marks: list[float] = []
+    place = length
+    while place < duration - length / 2:
+        first, last = int((place - reach) / HOP), int((place + reach) / HOP)
+        if first >= len(held):
+            break
+        marks.append(round((first + int(np.argmin(held[first:last]))) * HOP, 3))
+        place = marks[-1] + length
+    return marks
+
+
+def in_pieces(engine: Transcriber, wav: Path, envelope: Envelope, duration: float, *, language: str, prompt: str, piece: float | None = None) -> list[Word]:
+    """Hand a local engine the recording a piece at a time, clearing up after each, so memory stays flat however long it runs."""
+    marks = [] if engine.hosted else quiet_marks(envelope, duration, piece)
+    words: list[Word] = []
+    edges = [0.0, *marks, duration]
+    for start, end in zip(edges, edges[1:], strict=False):
+        piece = ffmpeg.extract_wav(wav, wav.with_name("piece.wav"), rate=RATE, start=start, end=end) if marks else wav
+        heard = engine.transcribe(piece, language=language, prompt=prompt)
+        words += [dataclasses.replace(word, start=word.start + start, end=word.end + start) for word in heard]
+        release_memory()
+    return words
+
+
+def check_room(engine: Transcriber, seconds: float) -> None:
+    """Refuse before anything loads, because running out halfway can take the whole machine down."""
+    needs = float(getattr(engine, "needs_gb", 0.0))
+    free = free_memory_gb() if needs and not engine.hosted else 0.0
+    if free is None:
+        print("Could not read free memory here, so this runs without that check.")
+    elif needs and not engine.hosted and free < needs:
+        raise AltocueError(
+            f"Only {free:.1f} GB of memory is free, and {engine.name} needs about {needs:g} GB.",
+            fix="Close other apps, or wait for other jobs to finish, then run this again.",
+        )
+    disk = shutil.disk_usage(tempfile.gettempdir()).free / 2**30
+    wanted = MIN_FREE_DISK_GB + seconds * WAV_BYTES_PER_SECOND / 2**30
+    if disk < wanted:
+        raise AltocueError(
+            f"Only {disk:.1f} GB of disk is free, and this needs about {wanted:.1f} GB, part of it held back for swap.",
+            fix="Free some disk space, then run this again.",
+        )
+
+
+def transcribe_clip(clip: Clip, engine: Transcriber, *, language: str, prompt: str, cues: list[str], piece: float | None = None) -> list[Word]:
+    check_room(engine, clip.duration)
     with tempfile.TemporaryDirectory() as folder:
         wav = ffmpeg.extract_wav(clip.path, Path(folder) / "audio.wav", rate=RATE)
-        raw = engine.transcribe(wav, language=language, prompt=prompt)
         envelope = Envelope.from_wav(wav)
+        raw = in_pieces(engine, wav, envelope, clip.duration, language=language, prompt=prompt, piece=piece)
     return classify(clean(raw, duration=clip.duration, envelope=envelope), cues=cues)
 
 
-def transcribe_file(path: str | Path, engine: str | None = None, language: str = "en") -> list[Word]:
-    """Read any media file back to words, for checks on a finished render."""
-    with heavy("reading the render back"):
-        return transcribe_clip(ffmpeg.probe_clip(path), select(engine), language=language, prompt="", cues=[])
+@contextmanager
+def reading_back() -> Iterator[None]:
+    """Mark a transcription as a finished render read back for its checks. Engines that can skip non-speech then do.
+
+    A raw take is never read this way: speech detection drops the fillers the cut has to find.
+    """
+    token = READING_BACK.set(True)
+    try:
+        yield
+    finally:
+        READING_BACK.reset(token)
+
+
+def transcribe_file(path: str | Path, engine: str | None = None, language: str = "en", spans: list[tuple[float, float]] | None = None) -> list[Word]:
+    """Read any media file back to words, for checks on a finished render. A render has music under it, so it goes in shorter pieces.
+
+    `spans` are the stretches, in seconds, where the render has a voice. Each is read on its own, so a line on one side of a
+    stretch of music is never run together with a line on the other, and music alone is never heard as words.
+    """
+    with heavy("reading the render back"), reading_back():
+        clip, chosen = ffmpeg.probe_clip(path), select(engine)
+        if not spans:
+            return transcribe_clip(clip, chosen, language=language, prompt="", cues=[], piece=READBACK_PIECE)
+        check_room(chosen, clip.duration)
+        with tempfile.TemporaryDirectory() as folder:
+            wav = ffmpeg.extract_wav(clip.path, Path(folder) / "audio.wav", rate=RATE)
+            envelope = Envelope.from_wav(wav)
+            raw: list[Word] = []
+            for start, end in spans:
+                piece = ffmpeg.extract_wav(wav, Path(folder) / "span.wav", rate=RATE, start=start, end=end)
+                raw += [dataclasses.replace(word, start=word.start + start, end=word.end + start) for word in chosen.transcribe(piece, language=language, prompt="")]
+                release_memory()
+        return classify(clean(raw, duration=clip.duration, envelope=envelope), cues=[])
 
 
 def transcribe_project(project: Project, engine: str | Transcriber | None = None, force: bool = False) -> dict[str, int]:
@@ -569,13 +717,18 @@ def transcribe_project(project: Project, engine: str | Transcriber | None = None
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
-    parser.add_argument(
-        "--engine", default=None, help=f"auto or one of {', '.join(ENGINES)}. Hosted engines run only when named here or in altocue.toml"
-    )
+    parser.add_argument("--engine", default=None, help=f"auto or one of {', '.join(ENGINES)}. Hosted engines run only when named here or in altocue.toml")
     parser.add_argument("--force", action="store_true", help="Transcribe clips that already have a word file")
+    parser.add_argument("--speakers", nargs="?", type=int, const=0, default=None, metavar="N", help="Also work out who said each word. Give N if you know how many spoke")
 
 
 def run(args: argparse.Namespace) -> int:
-    counts = transcribe_project(Project.open(args.project), engine=args.engine, force=args.force)
+    project = Project.open(args.project)
+    counts = transcribe_project(project, engine=args.engine, force=args.force)
     print(f"Transcribed {len(counts)} clips, {sum(counts.values())} words")
+    if getattr(args, "speakers", None) is not None:
+        from . import speakers
+
+        for clip, seconds in speakers.label_project(project, count=args.speakers).items():
+            print(f"{clip}: " + ", ".join(f"{name} {value:.0f} s" for name, value in seconds.items()))
     return 0

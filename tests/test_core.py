@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import tomllib
+from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import make_clip
 
-from altocue import ffmpeg
+from altocue import cli, doctor, ffmpeg, ingest, transcribe
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import Edl, Removed, Segment
@@ -72,6 +75,19 @@ def test_filters_list_has_what_we_rely_on():
         assert ffmpeg.has_filter(name), name
 
 
+def options(stage: str) -> set[str]:
+    """Every option the stage's own command line defines."""
+    return set(vars(cli.stage_args(stage)))
+
+
+def test_stage_args_carry_every_default_and_refuse_an_unknown_option():
+    """The demo built deliver's options by hand and crashed once deliver grew --stems."""
+    args = cli.stage_args("deliver", project="video", override="why")
+    assert args.stems is False and args.renderer == "auto" and args.project == "video" and args.override == "why"
+    with pytest.raises(TypeError, match="no option colour"):
+        cli.stage_args("deliver", colour="red")
+
+
 def test_run_can_reach_the_review_stage(tmp_path, monkeypatch):
     from altocue import review, run
 
@@ -79,7 +95,18 @@ def test_run_can_reach_the_review_stage(tmp_path, monkeypatch):
     seen = {}
     monkeypatch.setattr(review, "run", lambda args: seen.update(vars(args)) or 0)
     run.stages(project, argparse.Namespace())["review"]()
-    assert {"project", "file", "reviewer", "ingest", "upload", "paid_key", "editor_vendor", "reset_rounds"} <= set(seen)
+    assert options("review") <= set(seen)
+    assert seen["reviewer"] is None and seen["upload"] is False and seen["page"] is False
+
+
+def test_run_hands_master_every_option_it_has(tmp_path, monkeypatch):
+    from altocue import master, run
+
+    project = Project.create(tmp_path / "video")
+    seen = {}
+    monkeypatch.setattr(master, "run", lambda args: seen.update(vars(args)) or 0)
+    run.stages(project, argparse.Namespace())["master"]()
+    assert options("master") <= set(seen)
 
 
 def test_run_stops_at_a_stage_that_fails(tmp_path, monkeypatch):
@@ -113,6 +140,42 @@ def test_a_fresh_cut_saves_the_old_one(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cut, "refuse", lambda project, edl: None)
     monkeypatch.setattr(cut, "write_report", lambda project, edl: "r")
     monkeypatch.setattr(cut, "write_review", lambda project, edl: "v")
+    monkeypatch.setattr(cut, "write_script", lambda project, edl: "s")
     assert cut.run(argparse.Namespace(project=str(project.root), remove=None, apply_review=None, reason="")) == 0
     assert (project.work / "edl-previous.json").exists()
     assert "earlier cut" in capsys.readouterr().out
+
+
+def test_clips_keep_the_order_given(tmp_path):
+    later = make_clip(tmp_path / "b.mp4", seconds=0.5)
+    earlier = make_clip(tmp_path / "a.mp4", seconds=0.5)
+    assert main(["new", str(tmp_path / "video"), "--input", str(later), str(earlier)]) == 0
+    assert [c.id for c in Project.open(tmp_path / "video").clips()] == ["b", "a"]
+
+
+def test_a_second_ingest_keeps_that_order_and_adds_new_clips_last(tmp_path):
+    later = make_clip(tmp_path / "b.mp4", seconds=0.5)
+    earlier = make_clip(tmp_path / "a.mp4", seconds=0.5)
+    main(["new", str(tmp_path / "video"), "--input", str(later), str(earlier)])
+    project = Project.open(tmp_path / "video")
+    (project.sources / "0-extra.mp4").symlink_to(make_clip(tmp_path / "extra.mp4", seconds=0.5))
+    assert [c.id for c in ingest.ingest(project)] == ["b", "a", "0-extra"]
+
+
+def test_every_engine_fix_names_a_real_extra():
+    extras = tomllib.loads(Path("pyproject.toml").read_text())["project"]["optional-dependencies"]
+    named = {engine.extra for engine in transcribe.ENGINES.values() if isinstance(engine, transcribe.LocalEngine)}
+    assert named and named <= set(extras)
+
+
+def test_doctor_checks_the_filters_the_required_stages_use():
+    needed = {"highpass", "bandreject", "equalizer", "deesser", "afftdn", "asendcmd", "aresample", "apad", "atrim", "silencedetect", "astats"}
+    assert needed <= set(doctor.REQUIRED_FILTERS)
+
+
+def test_no_command_takes_an_abbreviated_option(capsys):
+    """On Ubuntu's Python 3.12.3, `learn pair --a` read as an abbreviation of learn's own --age or --as-of."""
+    with pytest.raises(SystemExit) as stopped:
+        main(["status", "--proj", "."])
+    assert stopped.value.code == 2
+    assert "unrecognized arguments: --proj" in capsys.readouterr().err

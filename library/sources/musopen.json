@@ -1,0 +1,45 @@
+{
+  "id": "musopen",
+  "name": "Musopen",
+  "url": "https://musopen.org/",
+  "classes": [
+    "music"
+  ],
+  "holds": "Recordings of classical music.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://musopen.org/",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://musopen.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": "unknown",
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its FAQ turned away every read, so its terms could not be verified."
+}

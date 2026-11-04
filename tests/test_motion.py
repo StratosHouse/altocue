@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -28,6 +29,18 @@ def page():
     return {"start": 0.5, "end": 1.5, "segment": "a", "words": [{"text": "two", "start": 0.5, "end": 0.9}, {"text": "words", "start": 0.9, "end": 1.4}]}
 
 
+def test_adjacent_tagged_words_share_one_label_per_caption_frame():
+    from altocue.motion.html import caption_html
+
+    tagged = page()
+    for word in tagged["words"]:
+        word["tag"] = "stutter"
+    frames = caption_html(tagged, "boxed", 1).splitlines()
+    assert len(frames) == 2
+    assert all(frame.count("<i>stutter</i>") == 1 for frame in frames)
+    assert frames[-1].count('class="tg') == 2
+
+
 def test_time_can_follow_a_word():
     assert resolve_time({"word": "hello"}, WORDS) == 1.0
     assert resolve_time({"word": "runway", "occurrence": 2, "offset": 0.1}, WORDS) == pytest.approx(5.1)
@@ -43,6 +56,12 @@ def test_unknown_graphic_is_an_error():
         resolve_items([{"type": "sparkle"}], WORDS, 8.0)
 
 
+def test_the_page_says_css_animates_it(brand):
+    """Without this HyperFrames lint reports a missing timeline, and a producer that trusts it waits for one."""
+    html = compose(timeline(items=resolve_items([{"type": "chip", "text": "One", "start": 1.0}], WORDS, 8.0)[0]), brand)
+    assert re.search(r'<div id="root" data-composition-id="root" data-no-timeline[ >]', html)
+
+
 def test_end_card_extends_the_film():
     items, tail = resolve_items([{"type": "endcard", "headline": "Bye", "duration": 2.5}], WORDS, 8.0)
     assert tail == 2.5 and items[0]["start"] == 8.0 and items[0]["end"] == 10.5
@@ -52,6 +71,25 @@ def test_compose_highlights_one_word_per_clip(brand):
     html = compose(timeline(captions=[page()]), brand)
     assert html.count('class="on"') == 2
     assert 'data-composition-id="root"' in html and "gsap" not in html.lower()
+
+
+def test_a_word_that_pops_keeps_the_space_beside_it(brand):
+    """The spoken word grows by a transform, which never moves its neighbours, so a long word swelled into the gap.
+
+    The old take B caption read "ACOMPLETELY" while "completely" was lit. Every word now holds the room its popped
+    size needs: an unseen copy at that size sets its width, and only the visible word inside it grows.
+    """
+    said = [("A", 4.3, 4.45), ("completely", 4.45, 4.95), ("separate", 4.95, 5.4)]
+    words = [{"text": text, "start": start, "end": end} for text, start, end in said]
+    html = compose(timeline(captions=[{"start": 4.3, "end": 5.6, "segment": "a", "words": words}]), brand)
+    shown = re.findall(r'<b(?: class="on")? data-room="([^"]*)"><span>([^<]*)</span></b>', html)
+    assert len(shown) == 9 and all(room == text for room, text in shown)
+    assert html.count('<b class="on" data-room="completely">') == 1
+    pop = re.search(r"\.cap\{[^}]*--pop:([\d.]+)", html)
+    assert pop and float(pop.group(1)) > 1
+    assert re.search(r"\.cap b::after\{content:attr\(data-room\);[^}]*font-size:calc\(var\(--pop\) \* 1em\)", html)
+    assert re.search(r"\.cap b\.on>span\{[^}]*transform:scale\(var\(--pop\)\)", html)
+    assert not re.search(r"\.cap b\.on\{[^}]*transform", html)  # the word's own box never grows past its room
 
 
 def test_compose_escapes_copy(brand):

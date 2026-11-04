@@ -21,6 +21,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from altocue import ffmpeg
+from altocue import frame as _frame  # noqa: F401  QA reaches the face model through frame, which imports cut.hand. Load it before `fakes` stands in for cut.
+from altocue.generate import import_asset
 from altocue.models import Clip, Edl, GateResult, Segment, Word
 from altocue.project import Project, write_json
 
@@ -30,12 +32,35 @@ SECONDS = 6.0
 RATE = 48000
 SAFE_Y = 0.68
 FACE_Y = 0.34
-SCRIPT = (
-    "the first thing you need is a plan and the second thing you need is a reason "
-    "to keep going when the plan stops working and nobody is watching you do it"
-).split()
+SCRIPT = "the first thing you need is a plan and the second thing you need is a reason to keep going".split()
+RUSHED = SCRIPT + "when the plan stops working and nobody is watching you do it".split()  # 320 words a minute, past reading
 PHRASE_AT = 12
 PHRASE = ["you", "need", "is"]
+CLAIMING = "i tried this serum for a month and it changed my life so i bought two more and my results keep getting better every day".split()
+HOST_PROMPT = "A woman holds the bottle up to the window, handheld, ending on the label."
+LABEL = "AI-generated actor"
+LABEL_ITEM = {"type": "chip", "text": LABEL, "start": 0.0, "end": SECONDS}
+LABEL_BURN = (LABEL, 0.12, 0.0, SECONDS)
+MUST_SAY = "## Must say\n\n"
+
+
+OWED = {
+    "file": "music/track.mp3",
+    "title": "Night Tide",
+    "kind": "audio",
+    "licence": "CC-BY-4.0",
+    "credit": "Night Tide by Ana, CC BY 4.0, https://example.test/night-tide",
+}
+
+
+def fill(first: int, last: int, color: str = "0x2a6f97") -> str:
+    """A plain coloured shot over those frames. An insert with its own picture, as far as any gate can tell."""
+    return f"drawbox=color={color}:t=fill:enable='between(n,{first},{last})'"
+
+
+def strobe(every: int, color: str = "white", box: str = "") -> str:
+    """Half of each `every` frames painted over, so two opposing changes every `every` frames."""
+    return f"drawbox={box}color={color}:t=fill:enable='lt(mod(n,{every}),{every // 2})'"
 
 
 def freeze(first: int, last: int) -> str:
@@ -72,6 +97,12 @@ class Recipe:
     burn_text: list[tuple[str, float, float, float]] = field(default_factory=list)
     face: bool = True
     plate: bool = False
+    assets: list[dict[str, Any]] = field(default_factory=list)
+    credits_txt: bool = False
+    performer: str = ""
+    exempt: str = ""
+    brief: str = ""
+    inserts: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -85,6 +116,8 @@ class Case:
     def clean(self) -> bool:
         return not self.gate
 
+
+INSERT = {"file": "broll.mp4", "start": 2.0, "end": 4.0}  # frames 60 to 119 at 30 fps
 
 CANARIES = [
     Case("black flash, two frames", "black_frames", Recipe(vf="drawbox=color=black:t=fill:enable='between(n,90,91)'")),
@@ -101,8 +134,16 @@ CANARIES = [
     Case("short render", "duration", Recipe(keep_seconds=5.0), also=("silence",)),
     Case("wrong frame rate", "format", Recipe(rate=25), also=("duration",)),
     Case("no colour tags", "format", Recipe(tags=False)),
-    Case("words lost in the render", "words", Recipe(heard=SCRIPT[:20]), also=("doubled_phrase",)),
+    Case("words lost in the render", "words", Recipe(heard=SCRIPT[:12]), also=("doubled_phrase",)),
     Case("caption text invented", "captions_match", Recipe(caption_words=["free", "money", "for", "everyone"] + SCRIPT[4:])),
+    Case("captions too quick to read", "caption_speed", Recipe(expected=RUSHED, heard=RUSHED)),
+    Case("a line the brief requires is never said", "brief_coverage", Recipe(brief=f"# Brief\n\n{MUST_SAY}- the free plan never expires\n")),
+    Case("five flashes a second across the picture", "flash_rate", Recipe(vf=strobe(6))),
+    Case("five saturated red flashes a second", "flash_rate", Recipe(vf=strobe(6, "0xff0000"))),
+    Case("the next shot a frame early at the end of an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(60, 118))),
+    Case("the last shot a frame late into an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(61, 119))),
+    Case("a frame of something else at an insert edge", "stray_frames", Recipe(inserts=[INSERT], vf=f"{fill(60, 119)},{fill(59, 59, '0xff3322')}")),
+    Case("CC BY music with no credits file", "credits", Recipe(assets=[OWED])),
     Case(
         "banned word in a graphic",
         "rules_strings",
@@ -122,9 +163,42 @@ CANARIES = [
     Case(
         "graphic outside the safe zone",
         "safe_zone",
+        Recipe(items=[{"type": "chip", "text": "Follow this plan", "start": 1.0, "end": 3.0}], burn_text=[("Follow this plan", 0.94, 1.0, 3.0)]),
+    ),
+    Case(
+        "labelled synthetic host claims experience in speech and captions",
+        "claims",
+        Recipe(performer=HOST_PROMPT, expected=CLAIMING, heard=CLAIMING, items=[LABEL_ITEM], burn_text=[LABEL_BURN]),
+    ),
+    Case(
+        "synthetic host told to claim experience in the prompt",
+        "claims",
         Recipe(
-            items=[{"type": "chip", "text": "Follow this plan", "start": 1.0, "end": 3.0}], burn_text=[("Follow this plan", 0.94, 1.0, 3.0)]
+            performer='She looks at the lens and says: "I bought this and it worked for me." Handheld, ending on her face.',
+            items=[LABEL_ITEM],
+            burn_text=[LABEL_BURN],
         ),
+    ),
+    Case(
+        "synthetic host captioned as a buyer",
+        "claims",
+        Recipe(
+            performer=HOST_PROMPT,
+            items=[LABEL_ITEM, {"type": "chip", "text": "Verified buyer", "start": 2.0, "end": 4.0}],
+            burn_text=[LABEL_BURN, ("Verified buyer", 0.2, 2.0, 4.0)],
+        ),
+    ),
+    Case("synthetic performer with no disclosure", "disclosure", Recipe(performer=HOST_PROMPT)),
+    Case(
+        "disclosure that flashes past",
+        "disclosure",
+        Recipe(performer=HOST_PROMPT, items=[{**LABEL_ITEM, "end": 0.5}], burn_text=[(LABEL, 0.12, 0.0, 0.5)]),
+        also=("text_readable",),
+    ),
+    Case(
+        "graphic gone before it can be read",
+        "text_readable",
+        Recipe(items=[{"type": "quote", "text": "Twelve whole words sit in this quote and it leaves after one second", "start": 1.0, "end": 2.0}]),
     ),
 ]
 
@@ -133,6 +207,7 @@ CONTROLS = [
     Case("clean, dark end card", "", Recipe(tail=1.5)),
     Case("clean, planned silent b-roll", "", Recipe(gaps=[(2.0, 4.0)], labels=["", "broll", ""])),
     Case("clean, planned hold", "", Recipe(vf=freeze(62, 118), labels=["", "hold", ""])),
+    Case("clean, credited music", "", Recipe(assets=[OWED], credits_txt=True)),
     Case(
         "clean, rules met",
         "",
@@ -145,6 +220,20 @@ CONTROLS = [
             items=[{"type": "chip", "text": "Altocue free plan", "start": 0.0, "end": 6.0}],
             burn_text=[("Altocue free plan", 0.12, 0.0, 6.0)],
         ),
+    ),
+    Case("clean, labelled synthetic host", "", Recipe(performer=HOST_PROMPT, items=[LABEL_ITEM], burn_text=[LABEL_BURN])),
+    Case("clean, recorded exemption", "", Recipe(performer=HOST_PROMPT, exempt="Audio-only ad, the picture is a placeholder.")),
+    Case("clean, a real speaker may say what they tried", "", Recipe(expected=CLAIMING, heard=CLAIMING)),
+    Case("clean, three flashes a second", "", Recipe(vf=strobe(10))),
+    Case("clean, a small corner blinking fast", "", Recipe(vf=strobe(6, box="x=0:y=0:w=150:h=150:"))),
+    Case("clean, an insert with hard edges", "", Recipe(inserts=[INSERT], vf=fill(60, 119))),
+    Case("clean, an insert that matches its neighbours", "", Recipe(inserts=[INSERT])),
+    Case("clean, an insert that arrives by a dissolve", "", Recipe(inserts=[{**INSERT, "in": {"type": "dissolve", "duration": 0.2}}], vf=fill(61, 119))),
+    Case("clean, the brief's lines are all said", "", Recipe(brief=f"# Brief\n\n{MUST_SAY}- you need a plan\n- a reason to keep going\n")),
+    Case(
+        "clean, graphic held long enough to read",
+        "",
+        Recipe(items=[{"type": "quote", "text": "Twelve whole words sit in this quote and it stays for five seconds", "start": 0.5, "end": 5.5}]),
     ),
 ]
 
@@ -242,8 +331,7 @@ def render(path: Path, recipe: Recipe, work: Path, pages: list[dict[str, Any]]) 
         "-f",
         "lavfi",
         "-i",
-        f"color=c=0x7f8c99:s={WIDTH // 4}x{HEIGHT // 4}:r={recipe.rate}:d={total},"
-        f"noise=alls=9:allf=t+u,scale={WIDTH}:{HEIGHT}:flags=neighbor",
+        f"color=c=0x7f8c99:s={WIDTH // 4}x{HEIGHT // 4}:r={recipe.rate}:d={total},noise=alls=9:allf=t+u,scale={WIDTH}:{HEIGHT}:flags=neighbor",
         "-i",
         str(audio),
         "-loop",
@@ -313,25 +401,35 @@ def build(case: Case, root: Path) -> Built:
     if recipe.plate:
         render(project.work / "plate.mp4", replace(recipe, burn_captions=False, burn_text=[]), work, pages)
 
+    source = file
+    if recipe.performer:
+        source = import_asset(project, file=file, shot="host", prompt=recipe.performer, model="seedance_2_5", cost=0, synthetic=["person"], out=lambda _: None)
+    if recipe.exempt:
+        config = project.root / "altocue.toml"
+        config.write_text(config.read_text().replace('exempt = ""', f'exempt = "{recipe.exempt}"'))
+        project = Project.open(project.root)
+
     third = recipe.seconds / 3
     labels = recipe.labels or ["", "", ""]
-    edl = Edl(
-        fps=FPS, segments=[Segment(id=f"s{i + 1}", clip="take", start=i * third, end=(i + 1) * third, label=labels[i]) for i in range(3)]
-    )
+    edl = Edl(fps=FPS, segments=[Segment(id=f"s{i + 1}", clip="take", start=i * third, end=(i + 1) * third, label=labels[i]) for i in range(3)])
     project.save_edl(edl)
-    project.save_clips([Clip(id="take", path=str(file), duration=recipe.seconds, fps=FPS, width=WIDTH, height=HEIGHT)])
+    project.save_clips([Clip(id="take", path=str(source), duration=recipe.seconds, fps=FPS, width=WIDTH, height=HEIGHT)])
     write_json(
         project.timeline_path,
         {"width": WIDTH, "height": HEIGHT, "fps": FPS, "duration": recipe.seconds, "tail": recipe.tail,
          "total": recipe.seconds + recipe.tail,
-         "captions": pages, "items": recipe.items, "inserts": []},
+         "captions": pages, "items": recipe.items, "inserts": recipe.inserts,
+         "music": {"path": recipe.assets[0]["file"]} if recipe.assets else None},
     )  # fmt: skip
+    if recipe.assets:
+        write_json(project.root / "credits.json", {"assets": recipe.assets})
+    if recipe.credits_txt:
+        (project.out / "credits.txt").write_text("\n".join(row["credit"] for row in recipe.assets) + "\n")
     if recipe.rules is not None:
         (project.root / "rules.json").write_text(json.dumps(recipe.rules))
-    mapped = [
-        {"text": w, "start": a, "end": b, "segment": f"s{min(2, int(a // third)) + 1}", "kind": "word"}
-        for w, a, b in timed(expected, recipe.seconds)
-    ]
+    if recipe.brief:
+        (project.root / "brief.md").write_text(recipe.brief)
+    mapped = [{"text": w, "start": a, "end": b, "segment": f"s{min(2, int(a // third)) + 1}", "kind": "word"} for w, a, b in timed(expected, recipe.seconds)]
     return Built(case, project, file, expected, mapped, [Word(text=w, start=a, end=b) for w, a, b in timed(heard, recipe.seconds)])
 
 

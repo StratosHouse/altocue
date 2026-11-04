@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .. import qa
+from .. import facts, qa
 from ..models import GateResult
 from ..project import Project, write_json
 from ..qa.gates import NOT_APPLICABLE, grab
@@ -28,11 +28,24 @@ GATE_ACTIONS = {
     "words": "Compare the render with the expected words, then fix the cut.",
     "doubled_phrase": "Remove the repeat, or allow it under `allow_repeats` in rules.json.",
     "captions_match": "Rebuild captions from the transcript. Never caption what was not said.",
+    "caption_speed": "Give those pages longer on screen: fewer cuts, a slower read, or a tighter line in the cut. Never drop spoken words from a caption.",
+    "brief_coverage": "Say the line, or reword it in brief.md to the words the film uses. A `|` offers other wordings.",
     "safe_zone": "Move the text inside the safe zone.",
     "face_clear": "Move the text off the face.",
+    "text_readable": "Hold the text longer, or cut words.",
     "format": "Re-render with the project's output settings.",
+    "flash_rate": "Slow the run of cuts or effects to three flashes a second or fewer, or take the swing out of them. See altocue-transitions.",
+    "stray_frames": "Trim the insert to whole frames of one shot. Check the source for a cut near its end.",
     "rules_strings": "Change the on-screen text. A human decides how.",
     "rules_ocr": "Look at the frames named. A human decides how to fix them.",
+    "claims": "Rewrite the line so the host shows what can be seen, or film a real customer who consents. A label does not cure this.",
+    "frame_zero": "Put the subject in the first frame. A thumbnail and muted autoplay show this frame.",
+    "dead_air": "Keep something moving across that range, or mark the hold in the storyboard.",
+    "pops": "Look at the frames named. Keep the hits you meant, and smooth the rest.",
+    "planned_silence": "Clear the sound from that range, or move the silence in the storyboard.",
+    "cuts_to_plan": "Check the scene lengths against the storyboard, then render again.",
+    "loop_seam": "Match the last frame to the first, in position and in speed.",
+    "disclosure": "Add an on-screen label in motion.json, such as AI-generated actor, and flip the platform's AI toggle. See altocue-ugc.",
 }
 
 
@@ -43,23 +56,16 @@ def limits(result: dict[str, Any], gates: list[GateResult]) -> list[str]:
     found: list[str] = []
     if sees == "video":
         fps = reviewer.get("sampled_fps") or 1
-        found.append(
-            f"The reviewer sampled the picture at {fps} frames a second, so a fault shorter than {1 / fps:.2f}s can fall between frames."
-        )
-        found.append(
-            reviewer.get("audio_note", "The reviewer's hearing is limited.")
-            + " Hiss, clipping and harshness come from the gates or not at all."
-        )
+        found.append(f"The reviewer sampled the picture at {fps} frames a second, so a fault shorter than {1 / fps:.2f}s can fall between frames.")
+        found.append(reviewer.get("audio_note", "The reviewer's hearing is limited.") + " Hiss, clipping and harshness come from the gates or not at all.")
     elif sees == "stills":
         found.append(
-            "The reviewer saw still frames: contact sheets every 2 seconds, frames around cuts and the first 3 seconds. "
+            "The reviewer saw still frames: contact sheets every 2 seconds, frames around cuts, the first 3 seconds and timeline sheets. "
             "Motion, lip sync and anything between samples were not seen."
         )
-        found.append("The reviewer heard nothing. It read a transcript and measurements.")
+        found.append("The reviewer heard nothing. It read a transcript and measurements, and saw level and silence drawn on the timeline sheets.")
         if reviewer.get("images", 0) < reviewer.get("images_in_pack", 0):
-            found.append(
-                f"Only {reviewer['images']} of the pack's {reviewer['images_in_pack']} images were sent, so not every cut was shown."
-            )
+            found.append(f"Only {reviewer['images']} of the pack's {reviewer['images_in_pack']} images were sent, so not every cut was shown.")
     else:
         found.append("No reviewer looked at or listened to this. Judgement did not run because a fact gate failed.")
     found += [f"Gate `{g.id}` did not run: {g.detail}" for g in gates if g.skipped and g.value != NOT_APPLICABLE]
@@ -121,12 +127,29 @@ def note_frames(project: Project, file: Path, notes: list[dict[str, Any]]) -> di
     return found
 
 
-def write(project: Project, file: Path, result: dict[str, Any], gates: list[GateResult], log: dict[str, Any]) -> Path:
+def spend_lines(project: Project) -> list[str]:
+    """Stated in the report, because a film can pass every gate and still have spent money the cap never saw."""
+    from ..generate import spend_report, store
+
+    paid = store.ledger_path(project).exists() or store.reservations_path(project).exists()
+    return spend_report(project) if paid else []
+
+
+def facts_section(measured: dict[str, Any] | None) -> list[str]:
+    """Below the verdict and the scores, because the reviewer must never have seen these numbers."""
+    if not measured:
+        return []
+    if "error" in measured:
+        return ["", "## Measured facts", "", f"Could not be measured: {measured['error']}"]
+    return ["", "## Measured facts", "", facts.AFTER_SCORING, "", *facts.rows(measured)]
+
+
+def write(project: Project, file: Path, result: dict[str, Any], gates: list[GateResult], log: dict[str, Any], *, measured: dict[str, Any] | None = None) -> Path:
     result["notes"].sort(key=lambda n: (SEVERITY_ORDER[n["severity"]], n["start_seconds"]))
     frames = note_frames(project, file, result["notes"])
     reviewer = result["reviewer"]
     result["limits"] = limits(result, gates)
-    write_json(project.review_dir / "report.json", {**result, "gates": [g.to_dict() for g in gates], "rounds": log})
+    write_json(project.review_dir / "report.json", {**result, "gates": [g.to_dict() for g in gates], "rounds": log, "facts": measured})
 
     lines = [f"# Verdict: {result['verdict']}", ""]
     lines.append(f"- **File:** {file.name}, sha256 {result['file_sha256'][:12]}")
@@ -143,8 +166,7 @@ def write(project: Project, file: Path, result: dict[str, Any], gates: list[Gate
     if log["handed_off"]:
         lines += [
             "",
-            "**Handed to a human.** Both fix rounds are used. The list below is open, "
-            "and no further automated review runs on a new render until `--reset-rounds`.",
+            "**Handed to a human.** Both fix rounds are used. The list below is open, and no further automated review runs on a new render until `--reset-rounds`.",
         ]
     if result["reasons"]:
         lines += ["", "## Why", "", *[f"- {reason}" for reason in result["reasons"]]]
@@ -163,6 +185,10 @@ def write(project: Project, file: Path, result: dict[str, Any], gates: list[Gate
             lines.append(f"- {said} ({item['why']})")
     if result["warnings"]:
         lines += ["", "## Warnings", "", *[f"- {w}" for w in result["warnings"]]]
+    spend = spend_lines(project)
+    if spend:
+        lines += ["", "## Spend", "", *[f"- {line}" for line in spend]]
+    lines += facts_section(measured)
     lines += ["", "## What this review could not see or hear", "", *[f"- {item}" for item in result["limits"]], ""]
     path = project.review_dir / "REPORT.md"
     path.write_text("\n".join(lines))

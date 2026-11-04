@@ -1,0 +1,44 @@
+{
+  "id": "free-music-archive",
+  "name": "Free Music Archive",
+  "url": "https://freemusicarchive.org/",
+  "classes": [
+    "music"
+  ],
+  "holds": "Curated music with a licence on every track.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://freemusicarchive.org/faq/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://freemusicarchive.org/faq/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Anything marked FMA-Limited is personal listening only. Downloads appear to need a sign-in."
+}

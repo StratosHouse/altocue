@@ -11,9 +11,10 @@ from PIL import Image, ImageFont
 
 from .. import ffmpeg, frame
 from ..brand import Brand
-from .html import geometry
+from . import formats
+from .html import ZONE_INSET, geometry, layout
 
-FULL_SCREEN = {"title", "endcard"}
+FULL_SCREEN = {"title", "endcard", "composition"}
 FACE_MARGIN = 0.16  # share of a face kept clear on every side
 SAMPLE_WIDTH = 540
 TALL_TOPS = (None, 0.095, 0.30, 0.38, 0.46, 0.50, 0.54)
@@ -35,11 +36,14 @@ def line_count(text: str, size: float, width: float, brand: Brand) -> int:
     return total
 
 
-def estimated_height(item: dict[str, Any], width: int, height: int, brand: Brand) -> float:
+def estimated_height(item: dict[str, Any], width: int, height: int, brand: Brand, zone: dict[str, float] | None = None) -> float:
     """A close guess at the graphic's height, in canvas pixels."""
-    geo = geometry(width, height)
+    geo = layout(width, height, brand, zone)
     scale, area = geo["scale"], width - 2 * geo["gutter"] - geo["rail"]
     kind = item["type"]
+    fmt = formats.find(kind)
+    if fmt:
+        return fmt.tall * scale
     if kind == "hook":
         eyebrow = 78 * scale if item.get("eyebrow") else 0
         return eyebrow + line_count(item["text"], 104 * scale, area, brand) * 102 * scale
@@ -89,34 +93,46 @@ def overlap_area(top: float, bottom: float, left: float, right: float, faces: li
     return total
 
 
-def best_top(item: dict[str, Any], tall: float, faces: list[Box], size: tuple[int, int], caption_y: float) -> float | None:
+def best_top(
+    item: dict[str, Any],
+    tall: float,
+    faces: list[Box],
+    size: tuple[int, int],
+    caption_y: float,
+    *,
+    geo: dict[str, float] | None = None,
+    zone: dict[str, float] | None = None,
+) -> float | None:
     """The first position clear of every face. None keeps the graphic's normal place."""
     width, height = size
-    geo = geometry(width, height)
+    geo = geo or geometry(width, height)
     home = geo["lt_y"] if item["type"] == "lower_third" else geo["top"]
     left, right = float(geo["gutter"]), float(width - geo["gutter"] - geo["rail"])
     tops = TALL_TOPS if height > width else WIDE_TOPS
+    highest = zone["top"] * height if zone else 0.0
+    if zone:
+        tops = (tops[0], (highest + ZONE_INSET) / height, *tops[1:])
     scored = []
     for order, share in enumerate(tops):
         top = float(home) if share is None else height * share
-        if top + tall > caption_y - 12:
+        if top + tall > caption_y - 12 or top < highest:
             continue
         scored.append((overlap_area(top, top + tall, left, right, faces), order, None if share is None else top))
     return min(scored)[2] if scored else None
 
 
-def place(items: list[dict[str, Any]], picture: Path | None, size: tuple[int, int], brand: Brand) -> list[dict[str, Any]]:
+def place(items: list[dict[str, Any]], picture: Path | None, size: tuple[int, int], brand: Brand, zone: dict[str, float] | None = None) -> list[dict[str, Any]]:
     """Add `y` to any graphic that would land on a face. A hand-set `y` is left alone."""
     if picture is None or not picture.exists():
         return items
-    geo = geometry(*size)
+    geo = layout(*size, brand, zone)
     placed = []
     for item in items:
-        if item["type"] in FULL_SCREEN or "y" in item:
+        if item["type"] in FULL_SCREEN or formats.full_screen(item["type"]) or "y" in item:
             placed.append(item)
             continue
         faces = faces_during(picture, item["start"], item["end"], size)
-        tall = estimated_height(item, size[0], size[1], brand)
-        top = best_top(item, tall, faces, size, geo["cap_y"]) if faces else None
+        tall = estimated_height(item, size[0], size[1], brand, zone)
+        top = best_top(item, tall, faces, size, geo["cap_y"], geo=geo, zone=zone) if faces else None
         placed.append({**item, "y": round(top)} if top is not None else item)
     return placed

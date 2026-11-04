@@ -1,0 +1,48 @@
+{
+  "id": "21st-dev",
+  "name": "21st.dev",
+  "url": "https://21st.dev/",
+  "classes": [
+    "motion"
+  ],
+  "holds": "A community catalog of interface and video blocks, and a rival video tool.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "21st-terms",
+    "url": "https://21st.dev/terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://21st.dev/terms",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution",
+    "no_ai",
+    "no_automation"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Link only. Its terms bar reusing even titles, descriptions and tags, so this one record is in our own words and nothing from it is indexed. Take any MIT library from its own upstream repo."
+}

@@ -1,0 +1,68 @@
+[
+  {
+    "name": "jingle-sax",
+    "use": "A short sax sting",
+    "tags": [
+      "sting",
+      "jingle",
+      "sax",
+      "jazz"
+    ],
+    "seconds": 1.74,
+    "source_file": "jingles_SAX07.ogg",
+    "pack": "Music Jingles",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/music-jingles",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "jingle-steel",
+    "use": "A short steel drum sting",
+    "tags": [
+      "sting",
+      "jingle",
+      "steel",
+      "tropical"
+    ],
+    "seconds": 1.56,
+    "source_file": "jingles_STEEL07.ogg",
+    "pack": "Music Jingles",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/music-jingles",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "jingle-pizzicato",
+    "use": "A short plucked strings sting",
+    "tags": [
+      "sting",
+      "jingle",
+      "strings",
+      "pizzicato",
+      "playful"
+    ],
+    "seconds": 1.33,
+    "source_file": "jingles_PIZZI07.ogg",
+    "pack": "Music Jingles",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/music-jingles",
+    "licence": "CC0-1.0"
+  },
+  {
+    "name": "jingle-chiptune",
+    "use": "A short 8-bit sting",
+    "tags": [
+      "sting",
+      "jingle",
+      "8-bit",
+      "chiptune",
+      "retro"
+    ],
+    "seconds": 1.76,
+    "source_file": "jingles_NES00.ogg",
+    "pack": "Music Jingles",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/music-jingles",
+    "licence": "CC0-1.0"
+  }
+]

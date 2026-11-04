@@ -1,0 +1,263 @@
+{
+  "id": "gauge",
+  "name": "Gauge Story",
+  "promise": "A mechanism explained by one on-screen gauge that carries the plot.",
+  "cost": "$0.",
+  "generation": "optional",
+  "aspect": "9:16",
+  "fps": 30,
+  "default": "main",
+  "beats": [
+    "setup",
+    "change",
+    "peak",
+    "summary"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "state_table",
+    "gauge_note"
+  ],
+  "formats": [
+    "state_gauge",
+    "chapter_card",
+    "receipt_print",
+    "recap_check",
+    "marker"
+  ],
+  "notes": [
+    "Write the table of states first, then the lines. If a gauge number is exaggerated for reading speed, say so in gauge_note and on screen."
+  ],
+  "brief": {
+    "example": true,
+    "company": "A short film about where a phone's battery goes in a day.",
+    "audience": "Anyone who runs out by four",
+    "goal": "Finish the film",
+    "message": "Screen brightness costs more than any app.",
+    "must_show": [
+      "the battery falling"
+    ],
+    "terms": [
+      "battery"
+    ],
+    "tone": "Dry and exact",
+    "state_table": [
+      {
+        "time": "09:00",
+        "battery": "100%"
+      },
+      {
+        "time": "13:00",
+        "battery": "61%"
+      },
+      {
+        "time": "17:00",
+        "battery": "18%"
+      }
+    ],
+    "gauge_note": "Invented figures for illustration, not measured on any phone.",
+    "brand": {
+      "colors": {
+        "accent": "#8ef0a8",
+        "panel": "#0b120e",
+        "surface": "#152018"
+      }
+    },
+    "deliverables": [
+      "9:16",
+      "16:9"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Battery day",
+        "route": "continuous",
+        "clock": "reads",
+        "hero": {
+          "scene": "peak",
+          "offset": 1.0
+        },
+        "music": {
+          "style": "paper"
+        },
+        "backdrop": [
+          {
+            "type": "soft_gradient",
+            "seed": 6,
+            "tones": "#2f9e62,#1c3f6e,#8ef0a8"
+          },
+          {
+            "type": "dot_grid",
+            "size": 50
+          }
+        ],
+        "scenes": [
+          {
+            "id": "setup",
+            "beat": "setup",
+            "seconds": 7,
+            "verb": "start",
+            "energy": 3,
+            "carry": "the gauge stays on screen",
+            "link": {
+              "type": "dissolve",
+              "why": "Only the words change. The gauge carries the story."
+            },
+            "items": [
+              {
+                "type": "state_gauge",
+                "title": "Battery",
+                "zone": "bottom",
+                "start": 0,
+                "end": {
+                  "scene": "summary",
+                  "offset": 0.0
+                },
+                "carry": true,
+                "important": false,
+                "note": "Invented figures for illustration",
+                "rows": [
+                  {
+                    "text": "Charge",
+                    "states": [
+                      {
+                        "value": "100%",
+                        "level": 1.0,
+                        "at": 0
+                      },
+                      {
+                        "value": "61%",
+                        "level": 0.61,
+                        "at": {
+                          "scene": "change",
+                          "offset": 0.5
+                        },
+                        "hot": true
+                      },
+                      {
+                        "value": "18%",
+                        "level": 0.18,
+                        "at": {
+                          "scene": "peak",
+                          "offset": 0.5
+                        },
+                        "hot": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "word_slam",
+                "text": "Nine o'clock. *Full.*",
+                "start": 0,
+                "zone": "top",
+                "role": "hook",
+                "important": true
+              }
+            ],
+            "sound": [
+              {
+                "name": "tick",
+                "at": 0.1
+              }
+            ]
+          },
+          {
+            "id": "change",
+            "beat": "change",
+            "seconds": 7,
+            "verb": "fall",
+            "energy": 5,
+            "carry": "the same gauge, lower",
+            "link": {
+              "type": "dissolve",
+              "why": "Time passes. The gauge holds still in frame."
+            },
+            "shows": [
+              "the battery falling"
+            ],
+            "items": [
+              {
+                "type": "marker",
+                "text": "Lunch. The *screen* took most of it.",
+                "start": 0.4,
+                "zone": "top"
+              }
+            ],
+            "sound": [
+              {
+                "name": "tick",
+                "at": 0.5
+              }
+            ]
+          },
+          {
+            "id": "peak",
+            "beat": "peak",
+            "seconds": 7,
+            "verb": "warn",
+            "energy": 8,
+            "carry": "the warning",
+            "silences": [
+              {
+                "from": 0.3,
+                "to": 0.8
+              }
+            ],
+            "link": {
+              "type": "through",
+              "why": "We push out to the lesson."
+            },
+            "items": [
+              {
+                "type": "marker",
+                "text": "Five o'clock. *Eighteen percent.*",
+                "start": 0.4,
+                "zone": "top"
+              }
+            ],
+            "sound": [
+              {
+                "name": "thud",
+                "at": 1.0
+              }
+            ]
+          },
+          {
+            "id": "summary",
+            "beat": "summary",
+            "seconds": 7,
+            "verb": "sum up",
+            "energy": 6,
+            "items": [
+              {
+                "type": "recap_check",
+                "title": "What to *change*",
+                "points": [
+                  "Turn the brightness down",
+                  "Leave the apps alone"
+                ],
+                "start": 0.1,
+                "zone": "center"
+              }
+            ],
+            "sound": [
+              {
+                "name": "ding",
+                "at": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

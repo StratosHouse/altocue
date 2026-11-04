@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
@@ -17,45 +15,23 @@ from typing import Any
 
 from PIL import Image
 
-from .. import ffmpeg
+from .. import ffmpeg, swift
 
 SWIFT = Path(__file__).with_name("ocr.swift")
 BATCH = 80
 TESSERACT_MODE = "6"
 TESSERACT_FLOOR = 30
 BRIGHT_TEXT = 200
-TILES = {  # ffmpeg crop per tile, each 60 percent of the frame, so small print reaches the reader
-    "tl": "iw*0.6:ih*0.6:0:0",
-    "tr": "iw*0.6:ih*0.6:iw*0.4:0",
-    "bl": "iw*0.6:ih*0.6:0:ih*0.4",
-    "br": "iw*0.6:ih*0.6:iw*0.4:ih*0.4",
-}
+TILE_SIDE = 0.6  # each tile is 60 percent of the frame, so small print reaches the reader
+TILE_ORIGIN = {"tl": (0.0, 0.0), "tr": (0.4, 0.0), "bl": (0.0, 0.4), "br": (0.4, 0.4)}
+TILES = {name: f"iw*{TILE_SIDE}:ih*{TILE_SIDE}:iw*{x}:ih*{y}" for name, (x, y) in TILE_ORIGIN.items()}  # ffmpeg crop per tile
 NO_READER = "No text reader on this machine. Install tesseract (brew install tesseract, or sudo apt install tesseract-ocr)."
-
-
-def _cache() -> Path:
-    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "altocue"
 
 
 @lru_cache(maxsize=1)
 def vision_binary() -> Path | None:
-    """Compile the Vision reader once per version of its source."""
-    if sys.platform != "darwin" or not shutil.which("swiftc"):
-        return None
-    source = SWIFT.read_bytes()
-    target = _cache() / f"ocr-{hashlib.sha256(source).hexdigest()[:12]}"
-    if target.exists():
-        return target
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temp = target.with_suffix(f".{os.getpid()}")
-    try:
-        done = subprocess.run(["swiftc", "-O", str(SWIFT), "-o", str(temp)], capture_output=True, text=True, timeout=300)
-    except subprocess.TimeoutExpired:
-        return None
-    if done.returncode != 0 or not temp.exists():
-        return None
-    temp.replace(target)
-    return target
+    """The Vision reader, on a Mac with a Swift compiler."""
+    return swift.compiled(SWIFT, "ocr")
 
 
 def reader() -> tuple[str | None, str]:
@@ -71,9 +47,7 @@ def _vision(images: list[Path]) -> list[dict[str, Any]]:
     binary = vision_binary()
     found: list[dict[str, Any]] = []
     for start in range(0, len(images), BATCH):
-        done = subprocess.run(
-            [str(binary), *[str(p) for p in images[start : start + BATCH]]], capture_output=True, text=True, errors="replace"
-        )
+        done = subprocess.run([str(binary), *[str(p) for p in images[start : start + BATCH]]], capture_output=True, text=True, errors="replace")
         for line in done.stdout.splitlines():
             try:
                 record = json.loads(line)
@@ -110,6 +84,9 @@ def _tesseract_lines(image: Path, source: Path, size: tuple[int, int]) -> list[d
                 "text": " ".join(c[11] for c in cells),
                 "confidence": sum(float(c[10]) for c in cells) / len(cells) / 100,
                 "box": [left / width, top / height, (right - left) / width, (bottom - top) / height],
+                "words": [
+                    {"text": c[11], "box": [int(c[6]) / width, int(c[7]) / height, int(c[8]) / width, int(c[9]) / height]} for c in cells
+                ],  # a line can run on into junk read beside it, so a string is placed by its own words
                 "reader": "tesseract",
             }
         )
@@ -150,15 +127,22 @@ def sample(file: Path, fps: float, cuts: list[float], folder: Path) -> dict[str,
     """Write whole frames, tiles and every cut's first frame. Returns image name to time."""
     ffmpeg.run(["-i", str(file), "-vf", f"fps={fps}", "-q:v", "2", str(folder / "full_%05d.jpg")])
     for name, crop in TILES.items():
-        ffmpeg.run(
-            ["-i", str(file), "-vf", f"fps={fps},crop={crop},scale=iw*2:ih*2:flags=lanczos", "-q:v", "2", str(folder / f"{name}_%05d.jpg")]
-        )
+        ffmpeg.run(["-i", str(file), "-vf", f"fps={fps},crop={crop},scale=iw*2:ih*2:flags=lanczos", "-q:v", "2", str(folder / f"{name}_%05d.jpg")])
     times = {p.name: (int(re.search(r"_(\d+)\.jpg$", p.name).group(1)) - 1) / fps for p in folder.glob("*.jpg")}  # type: ignore[union-attr]
     for index, at in enumerate(cuts):
         name = f"cut_{index:05d}.jpg"
         ffmpeg.frame(file, max(at, 0.0), folder / name)
         times[name] = at
     return times
+
+
+def frame_box(record: dict[str, Any]) -> list[float]:
+    """A record's box on the whole frame. A tile's box is scaled and moved back from its crop."""
+    x, y, w, h = record["box"]
+    origin = TILE_ORIGIN.get(Path(record["file"]).name.split("_")[0])
+    if origin is None:
+        return [x, y, w, h]
+    return [origin[0] + x * TILE_SIDE, origin[1] + y * TILE_SIDE, w * TILE_SIDE, h * TILE_SIDE]
 
 
 def read_video(file: Path, fps: float, cuts: list[float], folder: Path) -> list[dict[str, Any]]:

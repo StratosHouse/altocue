@@ -6,7 +6,7 @@
     {
       "name": "altocue",
       "source": "./",
-      "description": "Edit raw footage into finished video from your coding agent.",
+      "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out.",
       "category": "media"
     }
   ]

@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from altocue.errors import AltocueError
+from altocue.generate import http
 from altocue.project import Project
 from altocue.review import gemini, rubric
 
@@ -97,7 +98,7 @@ def file(tmp_path):
 @pytest.fixture
 def server(monkeypatch):
     fake = Server()
-    monkeypatch.setattr(gemini.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(http, "open_keyed", fake)
     monkeypatch.setattr(gemini.time, "sleep", lambda s: None)
     monkeypatch.setenv("GEMINI_API_KEY", KEY)
     return fake
@@ -172,7 +173,7 @@ def test_waits_for_active_then_asks(project, file, server):
 
 def test_failed_processing_stops(project, file, monkeypatch):
     fake = Server(states=("FAILED",))
-    monkeypatch.setattr(gemini.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(http, "open_keyed", fake)
     monkeypatch.setenv("GEMINI_API_KEY", KEY)
     with pytest.raises(AltocueError):
         run(project, file)
@@ -228,7 +229,7 @@ def test_blocked_response_is_an_error_not_a_pass(project, file, server, monkeypa
             return Reply(json.dumps({"status": "failed", "steps": []}).encode())
         return server(request, timeout)
 
-    monkeypatch.setattr(gemini.urllib.request, "urlopen", empty)
+    monkeypatch.setattr(http, "open_keyed", empty)
     with pytest.raises(AltocueError):
         run(project, file)
 

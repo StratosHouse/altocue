@@ -17,13 +17,17 @@ CONFIG = "altocue.toml"
 
 SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080), "4:5": (1080, 1350)}
 OUTPUT_RATES = (24, 25, 30, 50, 60)
+LONG_SIDE, SHORT_SIDE = 1920, 1080
+WIDEST = 4.0  # Past 4:1 each way there is no room for a face, a caption or a safe zone.
+ASPECT = re.compile(r"(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)")
 
 DEFAULT_CONFIG = """\
 # Altocue project settings. Every value here can be changed and re-run.
 
 [output]
-aspect = "{aspect}"     # 9:16, 16:9, 1:1 or 4:5
+aspect = "{aspect}"     # any W:H, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9
 fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
+# platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
 
 [brand]
 name = "default"        # a preset name or a path to a brand.json
@@ -35,18 +39,29 @@ language = "en"
 [transcribe.fix]        # names the transcript gets wrong, heard = written
 # "Altoque" = "Altocue"
 
+[speakers]              # needs `altocue transcribe --speakers`
+show = ""               # on captions: colour, name or both. Empty shows nothing
+# S1 = "Ada"            # the name to show
+
 [cut]
 max_pause = 0.4         # seconds of silence kept between words at most
 remove_fillers = true
 
 [audio]
 denoise = true
-loudness = -14.0        # integrated LUFS
+denoiser = "auto"       # auto, apple, deep-filter or afftdn
+level_phrases = true    # level phrase by phrase, so a quiet aside and a loud line sit together
+deess = "light"         # off, light, normal or strong
+breaths = 0             # dB to turn breaths down. They are never cut
+room_tone = true        # fill what cuts leave with the clip's own room, so nothing drops to digital silence
+loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast
 true_peak = -1.5        # dBTP
 
 [grade]
 enabled = true          # off still converts HDR, so nothing goes out washed out
-look = "natural"        # natural, warm, cool, punchy or filmic
+look = "natural"        # natural, warm, cool, punchy, filmic, or a film look: `altocue grade --compare`
+look_strength = 1.0     # how much of the look or LUT, from 0 to 1
+lut = ""                # your own .cube file, in place of a look
 
 [frame]
 enabled = true
@@ -59,12 +74,33 @@ library = []            # folders of your own clips, searched first
 
 [generate]
 provider = ""           # fal or higgsfield. Empty means nothing generates
-spend_cap_usd = 0.0     # the most one run may spend. 0 blocks all paid calls
+spend_cap_usd = 0.0     # the most this project may spend, on every route. 0 blocks all paid calls
 usd_per_credit = 0.08   # Higgsfield only: your plan's dollars per credit
+
+[disclosure]            # for a film with a generated person. A check, not legal advice
+label = "AI-generated actor"   # the words that must stay on screen. Put them in motion.json
+exempt = ""             # why no label is needed, in your words. Recorded, never judged
+
+[ugc]
+label_text = []         # words printed on the real product, so `qa --check ugc` does not call them baked in
+[qa]
+reading_wps = 3.0       # words a second for the text_readable gate. Slower for children or second-language viewers
 
 [review]
 reviewer = "auto"       # auto, gemini, codex or pack
 """
+
+
+def size_for(aspect: str) -> tuple[int, int]:
+    """The four house sizes, or any `W:H` fitted inside them: 1920 on the long side, 1080 on the short, on even numbers."""
+    if aspect in SIZES:
+        return SIZES[aspect]
+    found = ASPECT.fullmatch(str(aspect).strip())
+    wide, tall = (float(found.group(1)), float(found.group(2))) if found else (0.0, 0.0)
+    if not wide or not tall or not 1 / WIDEST <= wide / tall <= WIDEST:
+        raise AltocueError(f"Unknown aspect {aspect}.", fix=f"Use W:H between 1:{WIDEST:g} and {WIDEST:g}:1, such as {', '.join(SIZES)}, 4:3 or 21:9.")
+    scale = min(LONG_SIDE / max(wide, tall), SHORT_SIDE / min(wide, tall))
+    return (round(wide * scale / 2) * 2, round(tall * scale / 2) * 2)
 
 
 def nearest_rate(fps: float) -> int:
@@ -86,8 +122,7 @@ class Project:
 
     @classmethod
     def create(cls, path: str | Path, *, aspect: str = "9:16") -> Project:
-        if aspect not in SIZES:
-            raise AltocueError(f"Unknown aspect {aspect}.", fix=f"Use one of {', '.join(SIZES)}.")
+        size_for(aspect)
         root = Path(path).resolve()
         if (root / CONFIG).exists():
             raise AltocueError(f"{root} is already an Altocue project.")
@@ -135,6 +170,10 @@ class Project:
         return self.root / "edl.json"
 
     @property
+    def script_path(self) -> Path:
+        return self.root / "script.md"
+
+    @property
     def timeline_path(self) -> Path:
         return self.root / "timeline.json"
 
@@ -144,7 +183,7 @@ class Project:
 
     @property
     def size(self) -> tuple[int, int]:
-        return SIZES[self.config["output"]["aspect"]]
+        return size_for(self.config["output"]["aspect"])
 
     def setting(self, section: str, key: str, default: Any = None) -> Any:
         return self.config.get(section, {}).get(key, default)
@@ -176,7 +215,7 @@ class Project:
         path = self.words_dir / f"{clip_id}.json"
         if not path.exists():
             raise AltocueError(f"No transcript for {clip_id}.", fix="Run `altocue transcribe`.")
-        return [self.corrected(Word.from_dict(w)) for w in json.loads(path.read_text())["words"]]
+        return self.corrected_all([Word.from_dict(w) for w in json.loads(path.read_text())["words"]])
 
     def fix_text(self, text: str) -> str:
         """Apply `[transcribe.fix]`, keeping any punctuation around the word."""
@@ -190,6 +229,29 @@ class Project:
     def corrected(self, word: Word) -> Word:
         fixed = self.fix_text(word.text)
         return word if fixed == word.text else replace(word, text=fixed)
+
+    def corrected_all(self, words: list[Word]) -> list[Word]:
+        """`[transcribe.fix]` over a run of words. A key of two or three words joins them, because a made-up name often comes back split."""
+        fixes = {str(k).lower(): str(v) for k, v in self.config.get("transcribe", {}).get("fix", {}).items()}
+        joined = {key: value for key, value in fixes.items() if " " in key}
+        fixed: list[Word] = []
+        index = 0
+        while index < len(words):
+            for size in (3, 2):
+                run = words[index : index + size]
+                parts = [re.fullmatch(r"(\W*)(.*?)(\W*)", word.text, re.DOTALL) for word in run]
+                said = " ".join(part.group(2).lower() for part in parts if part)
+                if len(run) == size and said in joined:
+                    fixed.append(replace(run[0], text=f"{parts[0].group(1)}{joined[said]}{parts[-1].group(3)}", end=run[-1].end))  # type: ignore[union-attr]
+                    index += size
+                    break
+            else:
+                fixed.append(self.corrected(words[index]))
+                index += 1
+        return fixed
+
+    def engine_of(self, clip_id: str) -> str:
+        return json.loads((self.words_dir / f"{clip_id}.json").read_text()).get("engine", "")
 
     def save_words(self, clip_id: str, words: list[Word], engine: str) -> None:
         write_json(self.words_dir / f"{clip_id}.json", {"engine": engine, "words": [w.to_dict() for w in words]})

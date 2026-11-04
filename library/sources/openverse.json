@@ -1,0 +1,52 @@
+{
+  "id": "openverse",
+  "name": "Openverse",
+  "url": "https://openverse.org/",
+  "classes": [
+    "photo",
+    "music"
+  ],
+  "holds": "A search index over openly licensed images and audio. It has no video.",
+  "size": {
+    "count": 900000000,
+    "unit": "images",
+    "as_of": "2026-11-02",
+    "method": "stats"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://docs.openverse.org/terms_of_service.html",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://api.openverse.org/v1/schema/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "Not read"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "search_unreliable"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Search hung on 21 of 21 tries, while its status pages answered. Treat it as a fallback until it answers, with an 8 second timeout."
+}

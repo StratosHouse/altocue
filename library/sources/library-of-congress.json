@@ -1,0 +1,45 @@
+{
+  "id": "library-of-congress",
+  "name": "Library of Congress",
+  "url": "https://www.loc.gov/film-and-videos/",
+  "classes": [
+    "video",
+    "photo"
+  ],
+  "holds": "Historic film, video and photographs from the US national library.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://www.loc.gov/legal/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.loc.gov/apis/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "20 per minute, with a one hour block"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The library says it generally does not own the rights. The API answered 403 from a bot check, so nothing here was tested."
+}

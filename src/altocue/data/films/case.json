@@ -1,0 +1,201 @@
+{
+  "id": "case",
+  "name": "Case File",
+  "promise": "An event told like an evidence log, with timestamps, maps and a level voice.",
+  "cost": "$0 with your own material.",
+  "generation": "optional",
+  "aspect": "16:9",
+  "fps": 30,
+  "default": "main",
+  "beats": [
+    "routine",
+    "incident",
+    "aftermath"
+  ],
+  "brief_fields": [
+    "company",
+    "audience",
+    "goal",
+    "message",
+    "must_show",
+    "tone",
+    "deliverables",
+    "timeline",
+    "reconstruction"
+  ],
+  "formats": [
+    "corner_stamp",
+    "typewriter",
+    "doc_highlight",
+    "timeline_scroll",
+    "pin_drop",
+    "chapter_card"
+  ],
+  "notes": [
+    "Anything reconstructed needs a label on screen. Never fake a real death, disaster or person."
+  ],
+  "brief": {
+    "example": true,
+    "company": "An invented case about a parcel that went missing.",
+    "audience": "Readers of a small local newsletter",
+    "goal": "Finish the film",
+    "message": "The parcel was never lost. It was filed.",
+    "must_show": [
+      "the wrong shelf"
+    ],
+    "terms": [
+      "parcel"
+    ],
+    "tone": "Flat, dated, log-like",
+    "timeline": [
+      {
+        "when": "Mon 08:14",
+        "what": "Parcel scanned in"
+      },
+      {
+        "when": "Mon 08:16",
+        "what": "Scan stops"
+      }
+    ],
+    "reconstruction": "The whole story is invented for this example.",
+    "brand": {
+      "colors": {
+        "accent": "#ffd166",
+        "panel": "#0d0f12",
+        "surface": "#191d22"
+      }
+    },
+    "deliverables": [
+      "16:9"
+    ]
+  },
+  "variants": {
+    "main": {
+      "storyboard": {
+        "title": "Case 014",
+        "route": "montage",
+        "clock": "reads",
+        "hero": {
+          "scene": "incident",
+          "offset": 3.0
+        },
+        "music": {
+          "style": "night"
+        },
+        "backdrop": [
+          {
+            "type": "ascii_field",
+            "seed": 14
+          },
+          {
+            "type": "grain_field",
+            "strength": 0.07,
+            "over": true
+          }
+        ],
+        "scenes": [
+          {
+            "id": "routine",
+            "beat": "routine",
+            "seconds": 8,
+            "verb": "log",
+            "energy": 3,
+            "carry": "the last clean scan",
+            "link": {
+              "type": "iris",
+              "why": "The trail closes down to one point."
+            },
+            "camera": {
+              "move": "push",
+              "amount": 0.04
+            },
+            "items": [
+              {
+                "type": "corner_stamp",
+                "text": "MON 08:14:02",
+                "label": "Invented, for illustration",
+                "corner": "tl",
+                "start": 0
+              },
+              {
+                "type": "typewriter",
+                "text": "Case 014. The parcel was *scanned in.*",
+                "start": 0.3,
+                "zone": "center",
+                "role": "hook",
+                "important": true
+              }
+            ]
+          },
+          {
+            "id": "incident",
+            "beat": "incident",
+            "seconds": 9,
+            "verb": "lose",
+            "energy": 7,
+            "carry": "the shelf number",
+            "shows": [
+              "the wrong shelf"
+            ],
+            "silences": [
+              {
+                "from": 2.3,
+                "to": 2.9
+              }
+            ],
+            "link": {
+              "type": "iris",
+              "why": "The trail opens onto what was found."
+            },
+            "camera": {
+              "move": "drift"
+            },
+            "items": [
+              {
+                "type": "corner_stamp",
+                "text": "MON 08:16:40",
+                "label": "Reconstruction",
+                "corner": "tl",
+                "start": 0
+              },
+              {
+                "type": "doc_highlight",
+                "heading": "Depot log",
+                "text": "08:16. Parcel moved to *shelf 41*, which does not exist on the plan.",
+                "source": "Invented log, page 3",
+                "start": 0.3,
+                "zone": "center",
+                "scale": 0.8
+              }
+            ]
+          },
+          {
+            "id": "aftermath",
+            "beat": "aftermath",
+            "seconds": 8,
+            "verb": "close",
+            "energy": 4,
+            "camera": {
+              "move": "pull",
+              "amount": 0.05
+            },
+            "items": [
+              {
+                "type": "corner_stamp",
+                "text": "FRI 17:02:11",
+                "corner": "tl",
+                "start": 0
+              },
+              {
+                "type": "typewriter",
+                "text": "It was never lost. It was *filed.*",
+                "start": 0.3,
+                "zone": "center"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

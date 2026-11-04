@@ -1,0 +1,50 @@
+{
+  "id": "cleveland-museum",
+  "name": "Cleveland Museum of Art",
+  "url": "https://openaccess-api.clevelandart.org/",
+  "classes": [
+    "photo"
+  ],
+  "holds": "Open access artworks from the Cleveland Museum of Art.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": "CC0-1.0",
+    "url": "https://openaccess-api.clevelandart.org/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://openaccess-api.clevelandart.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": "Not stated"
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "ocean, CC0 with image",
+    "results": 56,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "Only items whose share_license_status says CC0 are clear."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "art-institute-chicago",
+  "name": "Art Institute of Chicago",
+  "url": "https://www.artic.edu/open-access",
+  "classes": [
+    "photo"
+  ],
+  "holds": "Public domain artworks whose image host blocks tools.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.artic.edu/open-access",
+    "checked_on": "2026-11-02",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://api.artic.edu/docs/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": "unknown",
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "The JSON answers, but its image host challenges every tool and its docs could not be read."
+}

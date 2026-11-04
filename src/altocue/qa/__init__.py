@@ -9,9 +9,9 @@ from pathlib import Path
 from ..errors import AltocueError
 from ..models import GateResult
 from ..project import Project, write_json
-from . import faces, gates, ocr, rules
+from . import faces, gates, ocr, proof, rules
 
-__all__ = ["add_arguments", "faces", "failed", "gates", "not_run", "ocr", "print_table", "rules", "run", "run_gates", "sha256"]
+__all__ = ["add_arguments", "faces", "failed", "gates", "not_run", "ocr", "print_table", "proof", "rules", "run", "run_gates", "run_proof", "run_ugc", "sha256"]
 
 
 def sha256(path: str | Path) -> str:
@@ -31,9 +31,7 @@ def not_run(results: list[GateResult]) -> list[GateResult]:
     return [g for g in results if g.skipped and g.value != gates.NOT_APPLICABLE]
 
 
-def run_gates(
-    project: Project, file: str | Path, stage: str = "final", *, rules_path: str | Path | None = None, ocr_fps: float = gates.OCR_FPS
-) -> list[GateResult]:
+def run_gates(project: Project, file: str | Path, stage: str = "final", *, rules_path: str | Path | None = None, ocr_fps: float = gates.OCR_FPS) -> list[GateResult]:
     """Run every gate, save `review/qa.json`, and return the results."""
     context = gates.Context.open(project, file, stage, rules_path=rules_path)
     context.ocr_fps = ocr_fps
@@ -54,6 +52,24 @@ def run_gates(
     return results
 
 
+def run_ugc(project: Project, file: str | Path, stage: str = "final") -> list[GateResult]:
+    """Run the UGC craft checks, save `review/qa-ugc.json`, and return the results."""
+    results = gates.run_ugc(gates.Context.open(project, file, stage))
+    report = {"file": str(file), "sha256": sha256(file), "stage": stage, "passed": not failed(results) and not not_run(results)}
+    write_json(project.review_dir / "qa-ugc.json", {**report, "gates": [g.to_dict() for g in results]})
+    return results
+
+
+def run_proof(project: Project, file: str | Path, stage: str = "final", *, ocr_fps: float = gates.OCR_FPS) -> list[GateResult]:
+    """Run Product Proof Spot's own checks against product.json, save `review/qa-proof.json`, and return the results."""
+    context = gates.Context.open(project, file, stage)
+    context.ocr_fps = ocr_fps
+    results = proof.run(context)
+    report = {"file": str(file), "sha256": sha256(file), "stage": stage, "passed": not failed(results) and not not_run(results)}
+    write_json(project.review_dir / "qa-proof.json", {**report, "gates": [g.to_dict() for g in results]})
+    return results
+
+
 def _cell(value: object) -> str:
     if isinstance(value, float):
         return f"{value:g}"
@@ -67,6 +83,8 @@ def print_table(results: list[GateResult]) -> None:
         result = "n/a" if gate.value == gates.NOT_APPLICABLE else "SKIP" if gate.skipped else "PASS" if gate.passed else "FAIL"
         value = "" if isinstance(gate.value, dict) else _cell(gate.value)
         print(f"{gate.id:<{width}}  {result:<6}  {value[:9]:<9}  {gate.detail}")
+    if any(gates.quotes_the_film(g) for g in results):
+        print(f"\n{gates.DATA_NOTE}")
     passed = sum(1 for g in results if g.passed)
     missing = not_run(results)
     print(f"\n{passed} passed, {len(failed(results))} failed, {len(missing)} skipped, {sum(g.value == gates.NOT_APPLICABLE for g in results)} not applicable.")
@@ -93,12 +111,25 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--stage", choices=["final", "draft"], default="final", help="Drafts skip the mastering gates")
     parser.add_argument("--rules", help="Rules file. Defaults to rules.json in the project")
     parser.add_argument("--ocr-fps", type=float, default=gates.OCR_FPS, help="Frames read per second when checking rules")
+    parser.add_argument(
+        "--check",
+        choices=["ugc", "proof"],
+        help="Run one extra set of checks instead: ugc is speech rate, cold open, baked text and lip closure; proof is a product's label, framing and clear hands",
+    )
 
 
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     file = resolve(project, args.file, args.stage)
-    results = run_gates(project, file, args.stage, rules_path=args.rules, ocr_fps=args.ocr_fps)
+    if args.check == "ugc":
+        results = run_ugc(project, file, args.stage)
+        saved = "qa-ugc.json"
+    elif args.check == "proof":
+        results = run_proof(project, file, args.stage, ocr_fps=args.ocr_fps)
+        saved = "qa-proof.json"
+    else:
+        results = run_gates(project, file, args.stage, rules_path=args.rules, ocr_fps=args.ocr_fps)
+        saved = "qa.json"
     print_table(results)
-    print(f"Saved {project.review_dir / 'qa.json'}")
+    print(f"Saved {project.review_dir / saved}")
     return 1 if failed(results) else 0

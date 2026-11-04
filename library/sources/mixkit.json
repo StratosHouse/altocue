@@ -1,0 +1,50 @@
+{
+  "id": "mixkit",
+  "name": "Mixkit",
+  "url": "https://mixkit.co/terms/",
+  "classes": [
+    "music",
+    "sfx",
+    "video"
+  ],
+  "holds": "Free music, sound effects and clips from Envato.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "mixkit",
+    "url": "https://mixkit.co/terms/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://mixkit.co/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_tools",
+    "no_automation"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its terms bar aggregating items, building a competitive product and using bots for download."
+}

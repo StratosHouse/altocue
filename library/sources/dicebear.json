@@ -1,0 +1,55 @@
+{
+  "id": "dicebear",
+  "name": "DiceBear",
+  "url": "https://www.dicebear.com/",
+  "classes": [
+    "character"
+  ],
+  "holds": "Generated SVG avatars in dozens of styles.",
+  "size": {
+    "count": 61,
+    "unit": "styles",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "per_set",
+    "id": null,
+    "url": "https://www.dicebear.com/licenses/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.dicebear.com/how-to-use/http-api/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": {
+    "ran_on": "2026-11-02",
+    "query": "lorelei",
+    "results": 1,
+    "direct_file": true,
+    "status": "pass"
+  },
+  "notes": "Of 61 styles, 42 are CC0. Use only those by default. The code is MIT."
+}

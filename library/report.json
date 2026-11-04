@@ -1,0 +1,749 @@
+{
+  "generated": "2026-11-04T00:49:40Z",
+  "pins": {
+    "hyperframes": "0.9.8",
+    "gl-transitions": "2.2.0"
+  },
+  "entries": 776,
+  "named_by_a_built_in": [
+    "flowchart",
+    "typewriter",
+    "waveform"
+  ],
+  "refused_by_rule": {
+    "brand": 30,
+    "brand-description": 7,
+    "real-people-media": 25,
+    "transitions-dev-port": 16
+  },
+  "refused": [
+    {
+      "id": "apple-money-count",
+      "source": "hyperframes",
+      "title": "Apple Money Count",
+      "rule": "brand",
+      "reason": "Its name references Apple, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "avatar-group-hover",
+      "source": "hyperframes",
+      "title": "Avatar Group Hover",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "badge-pop",
+      "source": "hyperframes",
+      "title": "Badge Pop",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "blue-sweater-intro-video",
+      "source": "hyperframes",
+      "title": "Blue Sweater Intro Video",
+      "rule": "brand-description",
+      "reason": "Its own description names a real person's account."
+    },
+    {
+      "id": "card-resize",
+      "source": "hyperframes",
+      "title": "Card Resize",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "carousel-circle-1",
+      "source": "hyperframes",
+      "title": "Circle Carousel 1",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-circle-2",
+      "source": "hyperframes",
+      "title": "Circle Carousel 2",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-circle-3",
+      "source": "hyperframes",
+      "title": "Circle Carousel 3",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-circle-4",
+      "source": "hyperframes",
+      "title": "Circle Carousel 4",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-circle-5",
+      "source": "hyperframes",
+      "title": "Circle Carousel 5",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-orbit-1",
+      "source": "hyperframes",
+      "title": "Orbit Carousel 1",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-orbit-2",
+      "source": "hyperframes",
+      "title": "Orbit Carousel 2",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-orbit-3",
+      "source": "hyperframes",
+      "title": "Orbit Carousel 3",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-orbit-4",
+      "source": "hyperframes",
+      "title": "Orbit Carousel 4",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-orbit-5",
+      "source": "hyperframes",
+      "title": "Orbit Carousel 5",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-path-1",
+      "source": "hyperframes",
+      "title": "Path Carousel 1",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-path-2",
+      "source": "hyperframes",
+      "title": "Path Carousel 2",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-path-3",
+      "source": "hyperframes",
+      "title": "Path Carousel 3",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-path-4",
+      "source": "hyperframes",
+      "title": "Path Carousel 4",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-path-5",
+      "source": "hyperframes",
+      "title": "Path Carousel 5",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-text-circle-1",
+      "source": "hyperframes",
+      "title": "Text + Circle Carousel 1",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-text-circle-2",
+      "source": "hyperframes",
+      "title": "Text + Circle Carousel 2",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-text-circle-3",
+      "source": "hyperframes",
+      "title": "Text + Circle Carousel 3",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-text-circle-4",
+      "source": "hyperframes",
+      "title": "Text + Circle Carousel 4",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-text-circle-5",
+      "source": "hyperframes",
+      "title": "Text + Circle Carousel 5",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-vision-1",
+      "source": "hyperframes",
+      "title": "Vision Carousel 1",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-vision-2",
+      "source": "hyperframes",
+      "title": "Vision Carousel 2",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-vision-3",
+      "source": "hyperframes",
+      "title": "Vision Carousel 3",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-vision-4",
+      "source": "hyperframes",
+      "title": "Vision Carousel 4",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "carousel-vision-5",
+      "source": "hyperframes",
+      "title": "Vision Carousel 5",
+      "rule": "real-people-media",
+      "reason": "Its default images are real musicians and album art, which the registry's licence cannot clear."
+    },
+    {
+      "id": "chat-thread",
+      "source": "hyperframes",
+      "title": "Chat Thread",
+      "rule": "brand-description",
+      "reason": "Its own description says it shows iMessage, a real brand or product."
+    },
+    {
+      "id": "chatgpt-exchange",
+      "source": "hyperframes",
+      "title": "ChatGPT Exchange",
+      "rule": "brand",
+      "reason": "Its name references ChatGPT, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "claude-exchange",
+      "source": "hyperframes",
+      "title": "Claude Exchange",
+      "rule": "brand",
+      "reason": "Its name references Claude, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "code-snippet-apple-terminal-pro",
+      "source": "hyperframes",
+      "title": "Code Snippet - Apple Terminal Pro",
+      "rule": "brand",
+      "reason": "Its name references Apple, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "code-snippet-dark-2026",
+      "source": "hyperframes",
+      "title": "Code Snippet - Dark 2026",
+      "rule": "brand-description",
+      "reason": "Its own description says it shows VS Code, a real brand or product."
+    },
+    {
+      "id": "code-snippet-dark-modern",
+      "source": "hyperframes",
+      "title": "Code Snippet - Dark Modern",
+      "rule": "brand-description",
+      "reason": "Its own description says it shows VS Code, a real brand or product."
+    },
+    {
+      "id": "heygen-avatar-promo-card",
+      "source": "hyperframes",
+      "title": "HeyGen Avatar Promo Card",
+      "rule": "brand",
+      "reason": "Its name references HeyGen, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "icon-swap",
+      "source": "hyperframes",
+      "title": "Icon Swap",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "input-feedback",
+      "source": "hyperframes",
+      "title": "Input Feedback",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "instagram-follow",
+      "source": "hyperframes",
+      "title": "Instagram Follow",
+      "rule": "brand",
+      "reason": "Its name references Instagram, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "ios26-liquid-glass",
+      "source": "hyperframes",
+      "title": "iOS 26 Liquid Glass Home Screen",
+      "rule": "brand",
+      "reason": "Its name references iOS, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "lower-third-bild",
+      "source": "hyperframes",
+      "title": "Lower Third, BILD Style",
+      "rule": "brand",
+      "reason": "Its name references BILD, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "macos-notification",
+      "source": "hyperframes",
+      "title": "macOS Notification",
+      "rule": "brand",
+      "reason": "Its name references macOS, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "macos-tahoe-liquid-glass",
+      "source": "hyperframes",
+      "title": "macOS Tahoe Liquid Glass Desktop",
+      "rule": "brand",
+      "reason": "Its name references macOS, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "menu-morph",
+      "source": "hyperframes",
+      "title": "Menu Morph",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "micro-transitions",
+      "source": "hyperframes",
+      "title": "Micro Transitions",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "native-notification-pop",
+      "source": "hyperframes",
+      "title": "Native Notification Pop",
+      "rule": "brand-description",
+      "reason": "Its own description says it shows iOS, a real brand or product."
+    },
+    {
+      "id": "north-korea-locked-down",
+      "source": "hyperframes",
+      "title": "North Korea Locked Down",
+      "rule": "brand",
+      "reason": "Its name references North Korea, a real country in a political frame."
+    },
+    {
+      "id": "number-pop-in",
+      "source": "hyperframes",
+      "title": "Number Pop In",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "oversized-cursor",
+      "source": "hyperframes",
+      "title": "Oversized Cursor",
+      "rule": "brand-description",
+      "reason": "Its own description says it shows macOS, a real brand or product."
+    },
+    {
+      "id": "page-slide",
+      "source": "hyperframes",
+      "title": "Page Slide",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "panel-reveal",
+      "source": "hyperframes",
+      "title": "Panel Reveal",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "reddit-post",
+      "source": "hyperframes",
+      "title": "Reddit Post Card",
+      "rule": "brand",
+      "reason": "Its name references Reddit, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "skeleton-reveal",
+      "source": "hyperframes",
+      "title": "Skeleton Reveal",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "slack-notification-ad",
+      "source": "hyperframes",
+      "title": "Slack Notification Ad",
+      "rule": "brand",
+      "reason": "Its name references Slack, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "spotify-card",
+      "source": "hyperframes",
+      "title": "Spotify Now Playing",
+      "rule": "brand",
+      "reason": "Its name references Spotify, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "store-badge-lockup",
+      "source": "hyperframes",
+      "title": "Store Badge Lockup",
+      "rule": "brand-description",
+      "reason": "Its own description says it shows App Store, a real brand or product."
+    },
+    {
+      "id": "success-check",
+      "source": "hyperframes",
+      "title": "Success Check",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "tabs-slide-indicator",
+      "source": "hyperframes",
+      "title": "Tabs Slide Indicator",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "text-stagger",
+      "source": "hyperframes",
+      "title": "Text Stagger",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "text-state-swap",
+      "source": "hyperframes",
+      "title": "Text State Swap",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "tiktok-follow",
+      "source": "hyperframes",
+      "title": "TikTok Follow",
+      "rule": "brand",
+      "reason": "Its name references TikTok, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "tilt-card",
+      "source": "hyperframes",
+      "title": "Tilt Card",
+      "rule": "transitions-dev-port",
+      "reason": "It is a port from transitions.dev, whose licence bars a competing motion pack."
+    },
+    {
+      "id": "vfx-iphone-device",
+      "source": "hyperframes",
+      "title": "iPhone & MacBook 3D Showcase",
+      "rule": "brand",
+      "reason": "Its name references iPhone, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "vox-annotate",
+      "source": "hyperframes",
+      "title": "Vox Annotate",
+      "rule": "brand",
+      "reason": "Its name references Vox, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "vpn-youtube-spot",
+      "source": "hyperframes",
+      "title": "VPN YouTube Spot",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "x-follow-card",
+      "source": "hyperframes",
+      "title": "X Follow Card",
+      "rule": "brand",
+      "reason": "Its name references X, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "x-post",
+      "source": "hyperframes",
+      "title": "X Post Card",
+      "rule": "brand",
+      "reason": "Its name references X, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-camera-move",
+      "source": "hyperframes",
+      "title": "Camera Punch-In",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-circle-pointer",
+      "source": "hyperframes",
+      "title": "Pointer Circle + Countdown",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-comment-card",
+      "source": "hyperframes",
+      "title": "Comment Cards",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-feather-highlight",
+      "source": "hyperframes",
+      "title": "Feathered Spotlight",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-lcd-background",
+      "source": "hyperframes",
+      "title": "Scanline Board Background",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-logo-intro",
+      "source": "hyperframes",
+      "title": "Logo Intro Sequence",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-lower-third",
+      "source": "hyperframes",
+      "title": "YouTube Lower Third",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-prism-title",
+      "source": "hyperframes",
+      "title": "Chromatic Fringe Title",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-screen-warp",
+      "source": "hyperframes",
+      "title": "On-Screen Display Effect",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    },
+    {
+      "id": "yt-vertical-fill",
+      "source": "hyperframes",
+      "title": "Vertical Media Filler",
+      "rule": "brand",
+      "reason": "Its name references YouTube, a real brand or product. Apache-2.0 grants no trademark rights."
+    }
+  ],
+  "excluded_sources": [
+    {
+      "id": "agx",
+      "reason": "No licence was detected on either of its repos."
+    },
+    {
+      "id": "animate-css",
+      "reason": "GitHub says Hippocratic 2.1, which is not an open licence, while npm says MIT."
+    },
+    {
+      "id": "animate-ui",
+      "reason": "MIT with Commons Clause, and no redistribution in original form."
+    },
+    {
+      "id": "art-institute-chicago",
+      "reason": "The JSON answers, but its image host challenges every tool and its docs could not be read."
+    },
+    {
+      "id": "bbc-sound-effects",
+      "reason": "Its RemArc licence covers personal, research and education use only. Commercial use is sold elsewhere."
+    },
+    {
+      "id": "blush",
+      "reason": "Its licence bars compiling its art into a competing service."
+    },
+    {
+      "id": "coverr",
+      "reason": "Its terms bar video editing services by name, and Altocue is one."
+    },
+    {
+      "id": "esa",
+      "reason": "Commercial use needs written permission. Only some items carry CC BY-SA."
+    },
+    {
+      "id": "exolyt",
+      "reason": "Its terms ban systematic extraction, including by script."
+    },
+    {
+      "id": "freepd",
+      "reason": "The site says it closed permanently in 2025."
+    },
+    {
+      "id": "hald-clut-cedeber",
+      "reason": "Tagged GPL-3.0, which is doubtful for sets derived from commercial products."
+    },
+    {
+      "id": "hover-css",
+      "reason": "Commercial use needs a paid licence."
+    },
+    {
+      "id": "iconscout",
+      "reason": "Its licence page turned away every read, so nothing could be verified."
+    },
+    {
+      "id": "iwltbap",
+      "reason": "No licence text was found on its pages."
+    },
+    {
+      "id": "jamendo",
+      "reason": "Its API is free only for non-commercial use and bars offline caching."
+    },
+    {
+      "id": "lordicon",
+      "reason": "Its free tier forbids derivatives, and a graphic in a video edit is one."
+    },
+    {
+      "id": "lottiefiles",
+      "reason": "Its licence allows commercial use while its terms call the free plan strictly non-commercial, and robots are barred."
+    },
+    {
+      "id": "lygia",
+      "reason": "Prosperity licence, with only a 30-day commercial trial for a whole company."
+    },
+    {
+      "id": "mapbox-gl",
+      "reason": "Proprietary since version 2, and it needs a key."
+    },
+    {
+      "id": "mazwai",
+      "reason": "It now redirects to Freepik, whose terms bar robots and machine learning."
+    },
+    {
+      "id": "mixamo",
+      "reason": "It needs an Adobe sign-in, bars raw file distribution and bars machine learning."
+    },
+    {
+      "id": "mixkit",
+      "reason": "Its terms bar aggregating items, building a competitive product and using bots for download."
+    },
+    {
+      "id": "motionsites",
+      "reason": "Its terms bar republishing or scraping the library, and the grant covers websites and apps, not video."
+    },
+    {
+      "id": "musicgen",
+      "reason": "The weights are CC BY-NC 4.0, so nothing made with them can be used commercially."
+    },
+    {
+      "id": "musopen",
+      "reason": "Its FAQ turned away every read, so its terms could not be verified."
+    },
+    {
+      "id": "pond5",
+      "reason": "Its licence page turned away every read, so nothing about it could be verified."
+    },
+    {
+      "id": "rawtherapee-haldclut",
+      "reason": "The page returned 404, so its licence could not be verified."
+    },
+    {
+      "id": "react-bits",
+      "reason": "MIT with Commons Clause. It bars redistribution alone, in a bundle or as a port."
+    },
+    {
+      "id": "ready-player-me",
+      "reason": "Reported shut down on 31 January 2026, by secondary sources."
+    },
+    {
+      "id": "remotion",
+      "reason": "Source-available, with a company licence above its free tier, so Altocue takes no dependency on it."
+    },
+    {
+      "id": "shadertoy",
+      "reason": "Shaders default to a non-commercial, share-alike licence, and its terms page could not be read."
+    },
+    {
+      "id": "spline",
+      "reason": "GUI first, export is paid, and its runtime package has no licence field or LICENSE file."
+    },
+    {
+      "id": "stable-audio-open",
+      "reason": "It sits behind a community licence whose revenue threshold was not read."
+    },
+    {
+      "id": "storyset",
+      "reason": "It needs credit or payment, and bars collections and robots."
+    },
+    {
+      "id": "suno",
+      "reason": "It has no public API, and its free plan is non-commercial."
+    },
+    {
+      "id": "transitions-dev",
+      "reason": "Its licence bars publishing a substantial part as a competing motion pack, which is why 16 HyperFrames ports are refused too."
+    },
+    {
+      "id": "transparent-textures",
+      "reason": "No licence is stated anywhere on the site."
+    },
+    {
+      "id": "undraw",
+      "reason": "Its licence bars packs, adding its art to an app, integrations, scraping and AI."
+    },
+    {
+      "id": "unsplash",
+      "reason": "Its API guidelines call for non-automated use and hotlinking, which an agent tool cannot honour."
+    },
+    {
+      "id": "uppbeat",
+      "reason": "Its terms page refused every read, so nothing could be verified."
+    },
+    {
+      "id": "videvo",
+      "reason": "It now redirects to Freepik, whose terms bar robots and machine learning."
+    },
+    {
+      "id": "viewstats",
+      "reason": "Its terms ban data mining and robots."
+    },
+    {
+      "id": "youtube-audio-library",
+      "reason": "It lives inside YouTube Studio, with no guidance for use off the platform."
+    },
+    {
+      "id": "yue",
+      "reason": "Company commercial use needs a direct contact, while the repo header still reads Apache-2.0."
+    },
+    {
+      "id": "zapsplat",
+      "reason": "Its licence page turned away every read. One search snippet says it bars AI training."
+    }
+  ]
+}

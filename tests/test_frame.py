@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -28,7 +29,7 @@ from altocue.frame import (
     settle_crop,
 )
 from altocue.models import Edl, Segment
-from altocue.project import Project
+from altocue.project import Project, size_for
 
 
 def draw_face(image: np.ndarray, cx: int, cy: int, s: int, skin: tuple[int, int, int] = (205, 150, 120)) -> None:
@@ -50,9 +51,7 @@ def draw_face(image: np.ndarray, cx: int, cy: int, s: int, skin: tuple[int, int,
         cv2.ellipse(image, (ex, ey - int(s * 0.13)), (int(s * 0.2), int(s * 0.05)), 0, 180, 360, hair, max(2, int(s * 0.04)), cv2.LINE_AA)
     nose = (int(skin[0] * 0.75), int(skin[1] * 0.72), int(skin[2] * 0.75))
     cv2.line(image, (cx, cy - int(s * 0.05)), (cx - int(s * 0.06), cy + int(s * 0.22)), nose, max(1, int(s * 0.03)), cv2.LINE_AA)
-    cv2.line(
-        image, (cx - int(s * 0.06), cy + int(s * 0.22)), (cx + int(s * 0.06), cy + int(s * 0.24)), nose, max(1, int(s * 0.03)), cv2.LINE_AA
-    )
+    cv2.line(image, (cx - int(s * 0.06), cy + int(s * 0.22)), (cx + int(s * 0.06), cy + int(s * 0.24)), nose, max(1, int(s * 0.03)), cv2.LINE_AA)
     cv2.ellipse(image, (cx, cy + int(s * 0.5)), (int(s * 0.28), int(s * 0.1)), 0, 0, 180, lip, max(2, int(s * 0.06)), cv2.LINE_AA)
 
 
@@ -94,9 +93,7 @@ def write_clip(path: Path, frames: list[np.ndarray], *, fps: int = 30, rotation:
     ]
     subprocess.run(args, input=b"".join(f.tobytes() for f in frames), check=True)
     if rotation is not None:
-        subprocess.run(
-            ["ffmpeg", "-v", "error", "-y", "-display_rotation", str(rotation), "-i", str(target), "-c", "copy", str(path)], check=True
-        )
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-display_rotation", str(rotation), "-i", str(target), "-c", "copy", str(path)], check=True)
     return path
 
 
@@ -294,6 +291,16 @@ def test_no_face_clip_is_centred(tmp_path, clip):
     assert (w, h) == (320, 320) and x == 0 and abs(y - (568 - 320) * 0.42) <= 2
 
 
+def test_a_rerun_that_changes_nothing_leaves_the_cut_file_alone(tmp_path):
+    """Every render frames first, and a rewritten edl.json made a finished film look older than its cut."""
+    clip = write_clip(tmp_path / "tall.mp4", [face_image(720, 1280, ((360, 500, 170),))] * 45)
+    project = make_project(tmp_path, [clip], [Segment(id="s1", clip="tall", start=0, end=1)])
+    frame_project(project)
+    os.utime(project.edl_path, (1_000_000, 1_000_000))
+    frame_project(project)
+    assert project.edl_path.stat().st_mtime == 1_000_000
+
+
 def test_rerun_keeps_a_manual_crop_until_forced(tmp_path, landscape):
     project = make_project(tmp_path, [landscape], [Segment(id="s1", clip="wide", start=0, end=1)])
     edl = frame_project(project)
@@ -330,3 +337,25 @@ def test_a_fresh_cut_of_the_same_ranges_gets_its_framing_back(tmp_path, landscap
     assert framed
     project.save_edl(Edl(fps=30, segments=[Segment(id="s1", clip="wide", start=0, end=1)]))
     assert frame_project(project).segments[0].crop == framed
+
+
+@pytest.mark.parametrize(
+    ("aspect", "size"),
+    [("9:16", (1080, 1920)), ("16:9", (1920, 1080)), ("1:1", (1080, 1080)), ("4:5", (1080, 1350)), ("4:3", (1440, 1080)), ("3:4", (1080, 1440)), ("2:3", (1080, 1620)),
+     ("21:9", (1920, 822)), ("2.39:1", (1920, 804)), ("32:18", (1920, 1080)), ("4:1", (1920, 480))],
+)  # fmt: skip
+def test_any_aspect_gets_a_size_on_even_numbers(aspect, size):
+    assert size_for(aspect) == size and size[0] % 2 == 0 and size[1] % 2 == 0
+
+
+@pytest.mark.parametrize("aspect", ["wide", "0:9", "16:0", "5:1", "1:5", "16x9", ""])
+def test_an_aspect_that_cannot_be_framed_is_refused(aspect):
+    with pytest.raises(AltocueError) as caught:
+        size_for(aspect)
+    assert "W:H" in caught.value.fix
+
+
+def test_a_new_aspect_works_for_a_project_and_centres_a_crop(tmp_path):
+    project = Project.create(tmp_path / "video", aspect="21:9")
+    assert project.size == (1920, 822)
+    assert 'aspect = "21:9"' in (project.root / "altocue.toml").read_text()

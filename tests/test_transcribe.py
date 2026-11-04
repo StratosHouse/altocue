@@ -12,9 +12,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from altocue import ffmpeg, transcribe
+from altocue import ffmpeg, locks, transcribe
 from altocue.cli import main
 from altocue.errors import AltocueError
+from altocue.generate import http
 from altocue.models import Clip, Word
 from altocue.project import Project
 from altocue.transcribe import (
@@ -104,9 +105,7 @@ def test_cue_with_softener_marks_the_whole_phrase():
     assert [w.kind for w in classify(words)] == ["word"] + ["cue"] * 5 + ["word"]
 
 
-@pytest.mark.parametrize(
-    "line", ["We had to redo the whole kitchen", "We cut that out of the budget", "The engine would not start again today"]
-)
+@pytest.mark.parametrize("line", ["We had to redo the whole kitchen", "We cut that out of the budget", "The engine would not start again today"])
 def test_cue_words_inside_a_sentence_stay_words(line):
     assert all(w.kind == "word" for w in classify(timed(line, step=0.25)))
 
@@ -252,6 +251,13 @@ def test_a_drawn_out_word_with_no_silence_keeps_its_length(tmp_path):
     assert clean([Word("sooo", 1.0, 3.0)], duration=8.0, envelope=envelope)[0].end == 3.0
 
 
+def test_sound_that_ends_long_before_the_picture_still_splits():
+    """The marks are placed by the clip's length, and the envelope stops where the sound does."""
+    envelope = Envelope.of_levels(np.full(int(100 / transcribe.HOP), -40.0))
+    marks = transcribe.quiet_marks(envelope, 400.0)
+    assert marks and all(mark < 100 for mark in marks)
+
+
 def test_scribe_response_keeps_only_words():
     data = {
         "words": [
@@ -389,7 +395,7 @@ def test_hosted_run_says_where_audio_goes_and_what_it_costs(tmp_path, monkeypatc
         body = {"words": [{"text": "hello", "start": 0.3, "end": 0.7, "type": "word", "logprob": 0.0}]}
         return io.BytesIO(json.dumps(body).encode())
 
-    monkeypatch.setattr(transcribe.urllib.request, "urlopen", fake_open)
+    monkeypatch.setattr(http, "open_keyed", fake_open)
     assert transcribe_project(project, engine="elevenlabs") == {"a": 1}
     output = capsys.readouterr().out
     assert "api.elevenlabs.io" in output and "$" in output
@@ -404,7 +410,7 @@ def test_hosted_failure_has_a_fix(tmp_path, monkeypatch):
     def refuse(request, timeout):
         raise transcribe.urllib.error.HTTPError(request.full_url, 401, "no", {}, io.BytesIO())
 
-    monkeypatch.setattr(transcribe.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(http, "open_keyed", refuse)
     with pytest.raises(AltocueError) as caught:
         transcribe_project(project, engine="elevenlabs")
     assert caught.value.fix
@@ -461,3 +467,313 @@ def test_a_cue_after_an_apology_counts_mid_sentence():
     words = [transcribe.Word(*item) for item in times]
     kinds = [w.kind for w in transcribe.classify(words)]
     assert kinds == ["word", "word", "cue", "cue", "word"]
+
+
+# Long recordings
+
+
+def steady_wav(path: Path, seconds: float, quiet: list[tuple[float, float]]) -> Path:
+    rate = transcribe.RATE
+    samples = 0.2 * np.sin(2 * np.pi * 200 * np.arange(int(seconds * rate)) / rate).astype(np.float32)
+    for start, end in quiet:
+        samples[int(start * rate) : int(end * rate)] = 0.0
+    return ffmpeg.write_wav(path, samples, rate)
+
+
+def test_the_envelope_reads_a_file_in_blocks_and_measures_the_same(tmp_path, monkeypatch):
+    wav = steady_wav(tmp_path / "a.wav", 61.03, [(3.0, 5.0), (40.0, 41.0)])
+    expected = Envelope.measure(*ffmpeg.read_wav(wav))
+    monkeypatch.setattr(ffmpeg, "read_wav", lambda *a: pytest.fail("the whole file went into memory"))
+    found = Envelope.from_wav(wav)
+    assert np.allclose(found.db, expected.db)
+    assert (found.floor, found.loud, found.threshold) == pytest.approx((expected.floor, expected.loud, expected.threshold))
+
+
+def test_an_empty_wav_still_gives_an_envelope(tmp_path):
+    wav = ffmpeg.write_wav(tmp_path / "a.wav", np.zeros(0, dtype=np.float32), transcribe.RATE)
+    assert len(Envelope.from_wav(wav).db) == 0
+
+
+class Pieces:
+    """Hears one word per second, and says how much it was handed each time."""
+
+    name, hosted = "pieces", False
+
+    def __init__(self) -> None:
+        self.lengths: list[float] = []
+
+    def transcribe(self, wav: Path, *, language: str, prompt: str) -> list[Word]:
+        seconds = len(ffmpeg.read_wav(wav)[0]) / transcribe.RATE
+        self.lengths.append(seconds)
+        return [Word(text=f"w{at}", start=at + 0.2, end=at + 0.6) for at in range(int(seconds))]
+
+
+def test_a_long_recording_goes_in_pieces_split_where_it_is_quiet(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 10.0)
+    monkeypatch.setattr(transcribe, "REACH", 3.0)
+    wav = steady_wav(tmp_path / "a.wav", 32.0, [(8.5, 9.0), (20.5, 21.0)])
+    engine = Pieces()
+    words = transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 32.0, language="en", prompt="")
+    assert engine.lengths == pytest.approx([8.75, 12.0, 11.25], abs=0.1)
+    assert [word.start for word in words] == sorted(word.start for word in words)
+    assert words[8].start == pytest.approx(8.95, abs=0.1)
+
+
+def test_a_short_recording_stays_whole(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 100.0)
+    wav = steady_wav(tmp_path / "a.wav", 12.0, [(5.0, 6.0)])
+    engine = Pieces()
+    transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 12.0, language="en", prompt="")
+    assert engine.lengths == pytest.approx([12.0], abs=0.05)
+
+
+def test_a_hosted_engine_gets_the_whole_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 10.0)
+    monkeypatch.setattr(transcribe, "REACH", 3.0)
+    wav = steady_wav(tmp_path / "a.wav", 32.0, [(8.5, 9.0), (20.5, 21.0)])
+    engine = Pieces()
+    engine.hosted = True
+    transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 32.0, language="en", prompt="")
+    assert len(engine.lengths) == 1
+
+
+def test_memory_goes_back_after_every_piece(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe, "PIECE", 10.0)
+    monkeypatch.setattr(transcribe, "REACH", 3.0)
+    wav = steady_wav(tmp_path / "a.wav", 32.0, [(8.5, 9.0), (20.5, 21.0)])
+    freed: list[int] = []
+    engine = Pieces()
+    monkeypatch.setattr(transcribe, "release_memory", lambda: freed.append(len(engine.lengths)))
+    transcribe.in_pieces(engine, wav, Envelope.from_wav(wav), 32.0, language="en", prompt="")
+    assert freed == [1, 2, 3]
+
+
+def test_a_render_is_read_back_in_shorter_pieces(tmp_path, monkeypatch):
+    """Under a score, parakeet drops whole lines from a long stretch that it hears in a short one."""
+    wav = steady_wav(tmp_path / "a.wav", 70.0, [(29.5, 30.5)])
+    assert transcribe.quiet_marks(Envelope.from_wav(wav), 70.0) == []
+    assert transcribe.quiet_marks(Envelope.from_wav(wav), 70.0, piece=transcribe.READBACK_PIECE) == pytest.approx([30.0], abs=0.6)
+    seen: dict = {}
+    monkeypatch.setattr(transcribe, "transcribe_clip", lambda clip, engine, **kwargs: seen.update(kwargs) or [])
+    monkeypatch.setattr(transcribe, "select", lambda engine=None: object())
+    monkeypatch.setattr(transcribe.ffmpeg, "probe_clip", lambda path: object())
+    transcribe.transcribe_file(tmp_path / "film.mp4")
+    assert seen["piece"] == transcribe.READBACK_PIECE
+
+
+def test_a_film_is_read_back_only_where_it_has_a_voice(tmp_path, monkeypatch):
+    """A line either side of a stretch of music is read on its own, in film seconds, so the two never run together."""
+    wav = steady_wav(tmp_path / "film.wav", 10.0, [])
+    seen: list[float] = []
+
+    class Spans:
+        hosted = False
+        needs_gb = 0.0
+        name = "fake"
+
+        def transcribe(self, piece, *, language, prompt):
+            samples, rate = ffmpeg.read_wav(piece)
+            seen.append(len(samples) / rate)
+            return [Word(text="said", start=0.2, end=0.6)]
+
+    monkeypatch.setattr(transcribe, "select", lambda engine=None: Spans())
+    monkeypatch.setattr(transcribe.ffmpeg, "probe_clip", lambda path: SimpleNamespace(path=wav, duration=10.0))
+    words = transcribe.transcribe_file(tmp_path / "film.mp4", spans=[(0.3, 1.8), (5.8, 7.2)])
+    assert seen == pytest.approx([1.5, 1.4], abs=0.02)
+    assert [w.start for w in words] == pytest.approx([0.5, 6.0])
+    assert [w.end for w in words] == pytest.approx([0.9, 6.4])
+
+
+def test_a_piece_fits_inside_the_engines_own_chunk():
+    assert transcribe.PIECE + transcribe.REACH <= transcribe.Parakeet.chunk
+    assert transcribe.PIECE * 1.5 <= transcribe.Parakeet.chunk
+
+
+def fake_mlx(monkeypatch) -> SimpleNamespace:
+    calls = SimpleNamespace(cache=None, memory=None, cleared=0)
+
+    def clear() -> None:
+        calls.cleared += 1
+
+    core = SimpleNamespace(set_cache_limit=lambda v: setattr(calls, "cache", v), set_memory_limit=lambda v: setattr(calls, "memory", v), clear_cache=clear)
+    monkeypatch.setitem(sys.modules, "mlx", SimpleNamespace(core=core))
+    monkeypatch.setitem(sys.modules, "mlx.core", core)
+    return calls
+
+
+def test_mlx_gets_a_ceiling_and_a_small_cache(monkeypatch):
+    calls = fake_mlx(monkeypatch)
+    transcribe.limit_mlx()
+    assert calls.cache == transcribe.MLX_CACHE_BYTES and calls.memory == transcribe.MLX_LIMIT_BYTES
+    assert calls.cache < 2**30 < calls.memory < 8 * 2**30
+
+
+def test_releasing_memory_clears_the_mlx_cache(monkeypatch):
+    calls = fake_mlx(monkeypatch)
+    transcribe.release_memory()
+    assert calls.cleared == 1
+
+
+def test_releasing_memory_needs_no_mlx(monkeypatch):
+    monkeypatch.delitem(sys.modules, "mlx.core", raising=False)
+    transcribe.release_memory()
+
+
+def test_running_out_of_mlx_memory_reads_plainly(monkeypatch, tmp_path):
+    def fail(name):
+        raise AssertionError("no model in this test")
+
+    class Model:
+        def transcribe(self, *args, **kwargs):
+            raise RuntimeError("[metal::malloc] Attempting to allocate 9000000000 bytes")
+
+    monkeypatch.setattr(transcribe, "load_parakeet", lambda name: Model())
+    with pytest.raises(AltocueError, match="ran out of memory") as error:
+        transcribe.ENGINES["parakeet"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert error.value.fix
+
+
+def room(monkeypatch, *, memory: float | None = 40.0, disk: float = 400.0) -> None:
+    monkeypatch.setattr(transcribe, "free_memory_gb", lambda: memory)
+    monkeypatch.setattr(transcribe.shutil, "disk_usage", lambda path: SimpleNamespace(free=int(disk * 2**30)))
+
+
+def test_a_transcribe_will_not_start_short_of_memory(monkeypatch):
+    room(monkeypatch, memory=3.2)
+    with pytest.raises(AltocueError, match=r"3\.2 GB of memory") as error:
+        transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    assert "Close" in str(error.value.fix)
+
+
+def test_a_transcribe_will_not_start_short_of_disk(monkeypatch):
+    room(monkeypatch, disk=2.0)
+    with pytest.raises(AltocueError, match=r"2\.0 GB of disk") as error:
+        transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    assert "swap" in str(error.value)
+
+
+def test_the_disk_check_counts_the_sound_it_will_write(monkeypatch):
+    room(monkeypatch, disk=transcribe.MIN_FREE_DISK_GB + 0.1)
+    transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    with pytest.raises(AltocueError):
+        transcribe.check_room(transcribe.ENGINES["parakeet"], 3600.0 * 3)
+
+
+def test_enough_room_passes(monkeypatch):
+    room(monkeypatch)
+    transcribe.check_room(transcribe.ENGINES["parakeet"], 3600.0)
+
+
+def test_a_hosted_engine_needs_no_memory_of_its_own(monkeypatch):
+    room(monkeypatch, memory=0.5)
+    transcribe.check_room(transcribe.ENGINES["elevenlabs"], 60.0)
+
+
+def test_memory_that_cannot_be_read_does_not_stop_the_job(monkeypatch, capsys):
+    room(monkeypatch, memory=None)
+    transcribe.check_room(transcribe.ENGINES["parakeet"], 60.0)
+    assert "free memory" in capsys.readouterr().out
+
+
+def test_nothing_loads_when_the_guard_refuses(tmp_path, monkeypatch):
+    clip = tmp_path / "take.mp4"
+    args = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=64x64:rate=10:duration=1", "-f", "lavfi", "-i", "sine=duration=1"]
+    subprocess.run([*args, "-shortest", str(clip)], check=True)
+    assert main(["new", str(tmp_path / "video"), "--input", str(clip)]) == 0
+    project = Project.open(tmp_path / "video")
+    room(monkeypatch, memory=1.0)
+
+    class Refused(Pieces):
+        needs_gb = 6.0
+
+        def notice(self, seconds: float) -> str:
+            return ""
+
+        def transcribe(self, *args, **kwargs):
+            pytest.fail("the engine ran after the guard refused")
+
+    with pytest.raises(AltocueError, match="memory"):
+        transcribe_project(project, engine=Refused())
+
+
+def test_free_memory_reads_something_here():
+    found = locks.free_memory_gb()
+    assert found is None or 0 < found < locks.memory_gb() * 1.05
+
+
+seen: list[dict] = []  # the options each fake transcription was given
+
+
+def fake_whisper(monkeypatch, gpus: int, cuda_fails: bool = False) -> list[tuple[str, str, str]]:
+    """faster-whisper and ctranslate2 stand-ins: record each model made, and fail on CUDA when its libraries are missing."""
+    made: list[tuple[str, str, str]] = []
+    seen.clear()
+
+    class Model:
+        def __init__(self, name, device, compute_type):
+            made.append((name, device, compute_type))
+            self.device = device
+
+        def transcribe(self, samples, **options):
+            seen.append(options)
+
+            def segments():
+                if self.device == "cuda" and cuda_fails:
+                    raise RuntimeError("Library libcublas.so.12 is not found or cannot be loaded")
+                yield SimpleNamespace(words=[SimpleNamespace(word=" Hello", start=0.0, end=0.4, probability=0.9)])
+
+            return segments(), None
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=Model))
+    monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: gpus))
+    monkeypatch.setattr(ffmpeg, "read_wav", lambda *_: (np.zeros(16000, dtype=np.float32), 16000))
+    monkeypatch.delenv("ALTOCUE_WHISPER_DEVICE", raising=False)
+    return made
+
+
+def test_faster_whisper_uses_an_nvidia_card_and_a_larger_model(monkeypatch, tmp_path):
+    made = fake_whisper(monkeypatch, gpus=1)
+    words = transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("large-v3-turbo", "cuda", "float16")]
+    assert [w.text for w in words] == ["Hello"]
+
+
+def test_faster_whisper_falls_back_to_the_cpu_when_cuda_libraries_are_missing(monkeypatch, tmp_path, capsys):
+    made = fake_whisper(monkeypatch, gpus=1, cuda_fails=True)
+    words = transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("large-v3-turbo", "cuda", "float16"), ("small.en", "cpu", "int8")]
+    assert [w.text for w in words] == ["Hello"]
+    assert "libcublas" in capsys.readouterr().err
+
+
+def test_faster_whisper_stays_on_the_cpu_without_a_card_or_when_told(monkeypatch, tmp_path):
+    made = fake_whisper(monkeypatch, gpus=0)
+    transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: 1))
+    monkeypatch.setenv("ALTOCUE_WHISPER_DEVICE", "cpu")
+    transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("small.en", "cpu", "int8"), ("small.en", "cpu", "int8")]
+
+
+def test_a_finished_render_is_read_back_with_speech_detection(monkeypatch, tmp_path):
+    """On the render PC, large-v3-turbo heard "We'll be right back." in a film whose only sound was music."""
+    fake_whisper(monkeypatch, gpus=1)
+    with transcribe.reading_back():
+        transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert seen[-1]["vad_filter"] is True
+
+
+def test_a_raw_take_keeps_every_filler_without_speech_detection(monkeypatch, tmp_path):
+    """Speech detection dropped the "Um" in the guy's raw take, and the cut needs every filler."""
+    fake_whisper(monkeypatch, gpus=1)
+    transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert seen[-1]["vad_filter"] is False
+
+
+def test_transcribe_file_reads_back(monkeypatch, tmp_path):
+    flags = []
+    monkeypatch.setattr(transcribe, "transcribe_clip", lambda *a, **k: flags.append(transcribe.READING_BACK.get()) or [])
+    monkeypatch.setattr(transcribe.ffmpeg, "probe_clip", lambda path: object())
+    monkeypatch.setattr(transcribe, "select", lambda engine=None: object())
+    transcribe.transcribe_file(tmp_path / "film.mp4")
+    assert flags == [True] and transcribe.READING_BACK.get() is False

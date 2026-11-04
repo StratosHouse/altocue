@@ -1,0 +1,49 @@
+{
+  "id": "shadertoy",
+  "name": "Shadertoy",
+  "url": "https://www.shadertoy.com/terms",
+  "classes": [
+    "transition",
+    "overlay"
+  ],
+  "holds": "A vast community of shaders.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-NC-SA-3.0",
+    "url": "https://www.shadertoy.com/terms",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.shadertoy.com/howto",
+    "key": "free",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": false,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "noncommercial",
+    "share_alike"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Shaders default to a non-commercial, share-alike licence, and its terms page could not be read."
+}

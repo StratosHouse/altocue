@@ -21,6 +21,7 @@ from statistics import median
 import cv2
 import numpy as np
 
+from .cut.hand import hand_set
 from .errors import AltocueError
 from .ffmpeg import require
 from .models import Clip, Edl, Segment
@@ -57,6 +58,7 @@ class Face:
     h: float
     score: float = 1.0
     eye_y: float = 0.0
+    eyes: tuple[tuple[float, float], ...] = ()
 
     @property
     def area(self) -> float:
@@ -67,7 +69,8 @@ class Face:
         return (self.x + self.w / 2, self.y + self.h / 2)
 
     def scaled(self, factor: float) -> Face:
-        return Face(self.x * factor, self.y * factor, self.w * factor, self.h * factor, self.score, self.eye_y * factor)
+        eyes = tuple((x * factor, y * factor) for x, y in self.eyes)
+        return Face(self.x * factor, self.y * factor, self.w * factor, self.h * factor, self.score, self.eye_y * factor, eyes)
 
 
 @dataclass(frozen=True)
@@ -139,7 +142,8 @@ def _detect_at(image: np.ndarray, side: int) -> list[Face]:
     for row in rows:
         x, y, w, h = (float(v) for v in row[:4])
         eye_y = float(row[5] + row[7]) / 2
-        found.append(Face(x, y, w, h, float(row[14]), eye_y).scaled(width / size[0]))
+        eyes = ((float(row[4]), float(row[5])), (float(row[6]), float(row[7])))
+        found.append(Face(x, y, w, h, float(row[14]), eye_y, eyes).scaled(width / size[0]))
     return found
 
 
@@ -183,9 +187,7 @@ def read_rgb(clip: Clip, at: float, side: int = DETECT_SIDE) -> np.ndarray | Non
     try:
         done = subprocess.run(cmd, capture_output=True, timeout=READ_TIMEOUT)
     except subprocess.TimeoutExpired as error:
-        raise AltocueError(
-            f"Reading {clip.path} stalled.", fix="If the file lives in iCloud, download it first, then run this again."
-        ) from error
+        raise AltocueError(f"Reading {clip.path} stalled.", fix="If the file lives in iCloud, download it first, then run this again.") from error
     expected = width * height * 3 * 2
     if done.returncode != 0 or len(done.stdout) < expected:
         return None
@@ -402,11 +404,26 @@ def _report_path(project: Project) -> Path:
     return project.work / "frame.json"
 
 
+def up_to_date(project: Project) -> bool:
+    """True when the saved framing was solved for this cut, aspect and these settings."""
+    path = _report_path(project)
+    return path.exists() and json.loads(path.read_text()).get("fingerprint") == _fingerprint(project, project.edl(), project.size)
+
+
+def fits_shape(crop: list[float] | None, target: tuple[int, int]) -> bool:
+    """A crop chosen for another shape would stretch, so that one is solved again."""
+    return crop is None or abs(crop[2] / crop[3] - target[0] / target[1]) < 0.02
+
+
 def frame_project(project: Project, force: bool = False) -> Edl:
-    """Write crops and zooms into the EDL. A re-run with the same cut keeps hand edits."""
+    """Write crops and zooms into the EDL. Hand edits stay, through a re-cut too, until `force` clears them.
+
+    The report keeps what was solved, not what was held, because the difference is how a hand edit is known.
+    """
     edl = project.edl()
     if not project.setting("frame", "enabled", True):
         return edl
+    before = edl.to_dict()
     target = project.size
     stamp = _fingerprint(project, edl, target)
     path = _report_path(project)
@@ -416,18 +433,14 @@ def frame_project(project: Project, force: bool = False) -> Edl:
     clips = {clip.id: clip for clip in project.clips()}
     missing = sorted({s.clip for s in edl.segments} - set(clips))
     if missing:
-        raise AltocueError(
-            f"The cut names clips that are not in this project: {', '.join(missing)}.", fix="Run `altocue ingest`, then `altocue cut`."
-        )
+        raise AltocueError(f"The cut names clips that are not in this project: {', '.join(missing)}.", fix="Run `altocue ingest`, then `altocue cut`.")
 
+    edits = {} if force else hand_set(project, edl)
     punch = float(project.setting("frame", "punch_in", PUNCH_ZOOM))
     push = float(project.setting("frame", "push_in", 0.0))
     zooms = plan_zooms(edl.segments, edl.fps)
     samples = _sample_faces(clips, edl.segments)
-    found = [
-        choose_subject(find_tracks(faces), *crop_size(clips[s.clip].display_size, target))
-        for s, faces in zip(edl.segments, samples, strict=True)
-    ]
+    found = [choose_subject(find_tracks(faces), *crop_size(clips[s.clip].display_size, target)) for s, faces in zip(edl.segments, samples, strict=True)]
     subjects = hold_through_gaps(edl.segments, found)
     last_crop: dict[str, list[float]] = {}
     rows = []
@@ -442,22 +455,29 @@ def frame_project(project: Project, force: bool = False) -> Edl:
             last_crop[segment.clip] = frame_box
             crop = frame_box
         level = safe_zoom(frame_box, subject, punch) if zoom > 1 else 1.0
-        segment.crop = crop
-        segment.zoom_from = round(level, 4)
-        segment.zoom_to = round(level + push, 4)
+        solved_from, solved_to = round(level, 4), round(level + push, 4)
+        hand = edits.get(segment.id, {})
+        if "crop" in hand and not fits_shape(hand["crop"], target):
+            hand = {name: value for name, value in hand.items() if name != "crop"}
+        segment.crop = hand.get("crop", crop)
+        segment.zoom_from, segment.zoom_to = hand.get("zoom", (solved_from, solved_to))
+        segment.held = sorted(hand)
         moved = bool(subject and subject.spread > DEAD_ZONE * frame_box[2])
         rows.append(
             {
                 "id": segment.id,
                 "clip": segment.clip,
+                "start": segment.start,
+                "end": segment.end,
                 "crop": crop,
-                "zoom_from": segment.zoom_from,
-                "zoom_to": segment.zoom_to,
+                "zoom_from": solved_from,
+                "zoom_to": solved_to,
                 "faces": direct.faces if direct else 0,
                 "moved": moved,
             }
         )
-    project.save_edl(edl)
+    if edl.to_dict() != before:  # every render frames first, and a rewrite with nothing new made a finished film look older than its cut
+        project.save_edl(edl)
     write_json(path, {"fingerprint": stamp, "target": list(target), "segments": rows})
     return edl
 

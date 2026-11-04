@@ -1,0 +1,44 @@
+{
+  "id": "altocue-looks",
+  "name": "Looks generated in code",
+  "url": "https://github.com/StratosHouse/altocue",
+  "classes": [
+    "lut"
+  ],
+  "holds": "Film looks Altocue builds on first use from small recipes.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/StratosHouse/altocue/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "code",
+    "docs": "https://ffmpeg.org/ffmpeg-filters.html#lut3d",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": true
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "No clean film-look LUT pack exists, so code writes them. Never name a look after a film stock, which is a trademark."
+}

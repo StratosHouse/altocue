@@ -1,0 +1,49 @@
+{
+  "id": "phosphor-icons",
+  "name": "Phosphor Icons",
+  "url": "https://github.com/phosphor-icons/core",
+  "classes": [
+    "icon"
+  ],
+  "holds": "A flexible open icon family.",
+  "size": {
+    "count": 9072,
+    "unit": "icons",
+    "as_of": "2026-11-02",
+    "method": "api"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/phosphor-icons/core",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": ""
+}

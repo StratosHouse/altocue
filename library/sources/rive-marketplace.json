@@ -1,0 +1,46 @@
+{
+  "id": "rive-marketplace",
+  "name": "Rive Marketplace",
+  "url": "https://rive.app/docs/community/marketplace-overview.md",
+  "classes": [
+    "animation"
+  ],
+  "holds": "Community animation files under CC BY.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://rive.app/docs/community/marketplace-overview.md",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://rive.app/docs/community/marketplace-overview.md",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "HyperFrames has no Rive adapter, so these do not reach a render today."
+}

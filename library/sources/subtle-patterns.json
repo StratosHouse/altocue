@@ -1,0 +1,47 @@
+{
+  "id": "subtle-patterns",
+  "name": "Subtle Patterns",
+  "url": "https://www.toptal.com/designers/subtlepatterns/",
+  "classes": [
+    "overlay"
+  ],
+  "holds": "Background tiles under an unnamed Creative Commons version.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.toptal.com/designers/subtlepatterns/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.toptal.com/designers/subtlepatterns/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "metadata_unreliable",
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The Creative Commons version is not named."
+}

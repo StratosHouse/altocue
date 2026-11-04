@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import math
 from html import escape
 from typing import Any
 
 from ..brand import Brand
+from . import compositions, formats
+from .formats import kit
+
+CAPTION_LINES = 2  # four words rarely wrap further, and a third line shows in the safe zone gate
+LINE_HEIGHT = 1.14
+ZONE_INSET = 12  # pixels. Text moved for a zone stops short of its edge, not on it
 
 CSS = """
 @font-face{font-family:"Brand";src:url("%(font)s");font-weight:100 900}
@@ -14,25 +21,36 @@ CSS = """
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:transparent}
 #root{position:relative;width:%(width)spx;height:%(height)spx;overflow:hidden;background:transparent;
-font-family:"Brand",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+font-family:"Brand",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
 .clip{position:absolute}
 em{font-style:normal;color:var(--accent)}
 
 /* Captions */
-.cap{left:var(--gutter);right:calc(var(--gutter) + var(--rail,0px));top:var(--cap-y);display:flex;flex-wrap:wrap;justify-content:center;
+.cap{--pop:1.07;left:var(--gutter);right:calc(var(--gutter) + var(--rail,0px));top:var(--cap-y);display:flex;flex-wrap:wrap;justify-content:center;
 align-items:baseline;gap:.08em .26em;font-size:calc(var(--cap-size) * 1px);font-weight:700;line-height:1.12;letter-spacing:-.018em;text-align:center;
 text-wrap:balance;text-shadow:0 0 3px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.62),0 4px 22px rgba(0,0,0,.62),0 0 44px rgba(0,0,0,.34)}
 .cap.enter{animation:capin .13s var(--ease) both}
-.cap b{font-weight:inherit;display:inline-block}
-.cap b.on{color:var(--accent);transform:scale(1.07)}
+/* A transform never moves the words beside it, so each word holds the room its popped size needs */
+.cap b{font-weight:inherit;display:inline-grid;justify-items:center}
+.cap b>span,.cap b::after{grid-area:1/1}
+.cap b>span{display:block}
+.cap b::after{content:attr(data-room);font-size:calc(var(--pop) * 1em);height:0;overflow:hidden;visibility:hidden}
+.cap b.on{color:var(--accent)}
+.cap b.on>span{transform:scale(var(--pop))}
+.cap .who{flex:0 0 100%%;font-style:normal;font-size:.5em;font-weight:600;letter-spacing:0;line-height:1.3}
 .cap.bold{text-transform:uppercase;font-weight:800;letter-spacing:-.01em;line-height:1.04;
 text-shadow:0 0 2px #000,0 4px 0 rgba(0,0,0,.65),0 8px 30px rgba(0,0,0,.5)}
 .cap.boxed{text-shadow:none;left:auto;right:auto;width:100%%;padding:0 var(--gutter)}
 .cap.boxed .plate{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:.08em .24em;padding:.32em .6em .36em;border-radius:.42em;
 background:color-mix(in srgb,var(--panel) 84%%,transparent);box-shadow:0 0 0 1px rgba(255,255,255,.1) inset,0 18px 48px rgba(0,0,0,.34);max-width:100%%}
 .cap.rail{font-weight:600;font-size:calc(var(--cap-size) * .76px);letter-spacing:-.008em}
-.cap.rail b.on{transform:none}
+.cap.rail{--pop:1}
 @keyframes capin{from{transform:scale(.94)}to{transform:none}}
+.cap b.tg{position:relative;color:#fff;background:#c42b35;border-radius:.18em;padding:0 .12em}
+.cap b.tg i{position:absolute;left:50%%;bottom:100%%;margin-bottom:.14em;transform:translateX(-50%%);padding:.14em .44em .16em;border-radius:.34em;font-size:.36em;font-style:normal;
+font-weight:700;letter-spacing:.06em;line-height:1.1;text-transform:uppercase;white-space:nowrap;color:#fff;background:#c42b35}
+.cap b.tg.new{animation:tagin .3s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes tagin{from{transform:scale(.55)}to{transform:none}}
 
 /* Shared surfaces */
 .glass{background:color-mix(in srgb,var(--surface) 78%%,transparent);box-shadow:0 0 0 1px rgba(211,238,252,.13) inset,0 1px 0 rgba(255,255,255,.07) inset,0 24px 64px rgba(0,0,0,.34);
@@ -62,7 +80,7 @@ padding:0 calc(30px * var(--scale)) 0 calc(24px * var(--scale));border-radius:99
 .lt{left:var(--gutter);top:var(--lt-y);display:flex;flex-direction:column;gap:calc(5px * var(--scale));padding:calc(24px * var(--scale)) calc(38px * var(--scale)) calc(26px * var(--scale));border-radius:calc(26px * var(--scale));max-width:calc(100%% - var(--gutter) * 2 - var(--rail,0px))}
 .lt strong{font-size:calc(42px * var(--scale));font-weight:600;letter-spacing:-.022em;line-height:1.1}
 .lt span{font-size:calc(31px * var(--scale));font-weight:400;color:var(--soft);letter-spacing:-.005em}
-.lt::before{content:"";position:absolute;left:calc(14px * var(--scale));top:26%%;bottom:26%%;width:calc(3px * var(--scale));border-radius:9px;background:var(--accent);animation:growy .5s .12s var(--ease) both;transform-origin:50%% 50%%}
+.lt i{position:absolute;left:calc(14px * var(--scale));top:26%%;bottom:26%%;width:calc(3px * var(--scale));border-radius:9px;background:var(--accent);animation:growy .5s .12s var(--ease) both;transform-origin:50%% 50%%}
 @keyframes growy{from{transform:scaleY(0)}to{transform:none}}
 
 /* Stat */
@@ -100,7 +118,7 @@ background:radial-gradient(90%% 60%% at 50%% 42%%,color-mix(in srgb,var(--surfac
 def geometry(width: int, height: int) -> dict[str, float]:
     """Layout per canvas. Tall video keeps clear of the app's own buttons."""
     tall = height > width
-    scale = 1.0 if tall else 0.9 if width > height else 0.86
+    scale = (1.0 if tall else 0.9 if width > height else 0.86) * min(1.0, min(width, height) / 1080)
     return {
         "scale": scale,
         "gutter": 72 if tall else 96,
@@ -111,22 +129,48 @@ def geometry(width: int, height: int) -> dict[str, float]:
     }
 
 
+def caption_size(width: int, height: int, brand: Brand) -> float:
+    return int(brand.caption["size"]) * (geometry(width, height)["scale"] if width > height else 1)
+
+
+def layout(width: int, height: int, brand: Brand, zone: dict[str, float] | None = None) -> dict[str, float]:
+    """`geometry`, moved only as far as a platform's safe zone needs. Text never leaves the zone for the sake of the layout."""
+    geo = geometry(width, height)
+    if not zone:
+        return geo
+    plain_area = width - 2 * geo["gutter"] - geo["rail"]
+    left, right = math.ceil(round(zone["left"] * width, 6)), math.ceil(round((1 - zone["right"]) * width, 6))
+    if geo["gutter"] < left:
+        geo["gutter"] = left + ZONE_INSET
+    if geo["gutter"] + geo["rail"] < right:
+        geo["rail"] = right + ZONE_INSET - geo["gutter"]
+    geo["scale"] = round(geo["scale"] * min((width - 2 * geo["gutter"] - geo["rail"]) / plain_area, 1.0), 3)  # a title keeps its line breaks
+    geo["top"] = max(geo["top"], math.ceil(round(zone["top"] * height, 6)))
+    rise = max(geo["cap_y"] - math.floor(zone["bottom"] * height - CAPTION_LINES * caption_size(width, height, brand) * LINE_HEIGHT), 0)
+    geo["cap_y"] -= rise
+    geo["lt_y"] -= rise
+    return geo
+
+
 def _attrs(start: float, end: float, track: int) -> str:
     return f'data-start="{start:.3f}" data-duration="{max(end - start, 0.04):.3f}" data-track-index="{track}"'
 
 
 def _style(item: dict[str, Any], *, leave: bool = False) -> str:
-    """Inline settings for one graphic: where it sits, and when it starts to leave."""
+    """Inline settings for one graphic: where it sits, how long it runs, and when it starts to leave."""
     parts = []
     if "y" in item:
         parts.append(f"top:{float(item['y']):g}px")
-    if leave:
-        parts.append(f"--leave:{max(item['end'] - item['start'] - 0.2, 0):.3f}s")
+    if item.get("place"):
+        parts.append(str(item["place"]))  # a film fits the graphic to a zone of the frame
+    if leave:  # a graphic held to a hard cut starts to leave on the cut itself, so its last frame is whole
+        seconds = max(item["end"] - item["start"], 0.04)
+        parts.append(f"--dur:{seconds:.3f}s;--leave:{seconds if item.get('held') else max(seconds - 0.2, 0):.3f}s")
     return f'style="{";".join(parts)}"' if parts else ""
 
 
-def caption_html(page: dict[str, Any], style: str, track: int) -> str:
-    """One clip per spoken word. Only the first one plays the entrance."""
+def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") -> str:
+    """One clip per spoken word. Only the first one plays the entrance. `place` sets the page somewhere other than the caption line."""
     out = []
     words = page["words"]
     for index, word in enumerate(words):
@@ -134,11 +178,30 @@ def caption_html(page: dict[str, Any], style: str, track: int) -> str:
         end = page["end"] if index == len(words) - 1 else words[index + 1]["start"]
         if end - start < 0.02:
             continue
-        spans = "".join(f'<b class="on">{escape(w["text"])}</b>' if i == index else f"<b>{escape(w['text'])}</b>" for i, w in enumerate(words))
-        body = f'<span class="plate">{spans}</span>' if style == "boxed" else spans
+        spans = "".join(
+            _caption_word(w, i, index, show_label=i == 0 or w.get("tag") != words[i - 1].get("tag"))
+            for i, w in enumerate(words)
+        )
+        who = f'<i class="who">{escape(page["name"])}</i>' if page.get("name") else ""
+        body = f'<span class="plate">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
         enter = " enter" if index == 0 and style != "rail" else ""
-        out.append(f'<div class="clip cap {style}{enter}" {_attrs(start, end, track)}>{body}</div>')
+        css = ";".join(part for part in (place, f"color:{escape(page['colour'], quote=True)}" if page.get("colour") else "") if part)
+        tint = f' style="{css}"' if css else ""
+        out.append(f'<div class="clip cap {style}{enter}"{tint} {_attrs(start, end, track)}>{body}</div>')
     return "\n".join(out)
+
+
+def _caption_word(word: dict[str, Any], place: int, now: int, *, show_label: bool = True) -> str:
+    """One word of a page, with an unseen copy of itself that holds the room the word needs when it pops.
+
+    A word a cut removed shows its tag once it has been said, and the tag pops as it is said.
+    """
+    text = escape(word["text"])
+    if word.get("tag") and place <= now:
+        label = f'<i>{escape(str(word["tag"]))}</i>' if show_label else ""
+        return f'<b class="tg{" on new" if place == now else ""}">{text}{label}</b>'
+    lit = ' class="on"' if place == now else ""
+    return f'<b{lit} data-room="{escape(word["text"], quote=True)}"><span>{text}</span></b>'
 
 
 def _hook_lines(text: str) -> str:
@@ -146,14 +209,15 @@ def _hook_lines(text: str) -> str:
     return "".join(f'<span class="line"><span style="animation-delay:{i * 0.07:.2f}s">{_emphasis(line)}</span></span>' for i, line in enumerate(lines))
 
 
-def _emphasis(text: str) -> str:
-    """`*word*` in copy becomes the accent colour."""
-    parts = escape(text).split("*")
-    return "".join(f"<em>{part}</em>" if i % 2 else part for i, part in enumerate(parts))
+_emphasis = kit.emphasis
 
 
 def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
     kind, attrs = item["type"], _attrs(item["start"], item["end"], track)
+    if formats.find(kind):
+        return formats.render(item, attrs, _style(item, leave=True))
+    if kind == "composition":
+        return compositions.mount(item, attrs)
     if kind == "hook":
         eyebrow = f'<div class="eyebrow rise"><i></i>{escape(item["eyebrow"])}</div>' if item.get("eyebrow") else ""
         return f'<div class="clip hook leave" {attrs} {_style(item, leave=True)}>{eyebrow}<h1>{_hook_lines(item["text"])}</h1></div>'
@@ -161,7 +225,7 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
         return f'<div class="clip chip glass rise" {attrs} {_style(item)}><i></i>{escape(item["text"])}</div>'
     if kind == "lower_third":
         sub = f"<span>{escape(item['subtitle'])}</span>" if item.get("subtitle") else ""
-        return f'<div class="clip lt glass rise" {attrs} {_style(item)}><strong>{escape(item["title"])}</strong>{sub}</div>'
+        return f'<div class="clip lt glass rise" {attrs} {_style(item)}><i></i><strong>{escape(item["title"])}</strong>{sub}</div>'
     if kind == "stat":
         return f'<div class="clip stat glass rise" {attrs} {_style(item)}><span class="num">{escape(str(item["value"]))}</span><span class="lab">{escape(item.get("label", ""))}</span></div>'
     if kind == "quote":
@@ -183,9 +247,37 @@ def item_html(item: dict[str, Any], brand: Brand, track: int) -> str:
     raise ValueError(kind)
 
 
-def compose(timeline: dict[str, Any], brand: Brand) -> str:
+def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
+    """The graphics page. `under` is more clips, painted beneath them, for a stage that also shows the film.
+
+    CSS animates it, so the root says it has no timeline. HyperFrames lint counts a root without one as an error.
+    """
     width, height = timeline["width"], timeline["height"]
-    geo = geometry(width, height)
+    css, geo = base_css(timeline, brand)
+    items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
+    tokens = root_tokens(timeline, brand, geo)
+    style = brand.caption["style"]
+    upper = brand.caption.get("uppercase")
+    captions = "\n".join(
+        caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"]
+    )
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
+<style>{css}{formats.stylesheet(timeline["items"])}</style></head>
+<body>
+<div id="root" data-composition-id="root" data-no-timeline data-start="0" data-duration="{timeline["total"]:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
+{under + chr(10) if under else ""}{captions}
+{items_html}
+</div>
+</body></html>
+"""
+
+
+def base_css(timeline: dict[str, Any], brand: Brand) -> tuple[str, dict[str, float]]:
+    """The shared stylesheet and the layout it was filled in for."""
+    width, height = timeline["width"], timeline["height"]
+    geo = layout(width, height, brand, timeline.get("zone"))
     colors = brand.colors
     css = CSS % {
         "font": brand.font_file.name,
@@ -199,20 +291,9 @@ def compose(timeline: dict[str, Any], brand: Brand) -> str:
         "width": width,
         "height": height,
     }
-    size = int(brand.caption["size"]) * (geo["scale"] if width > height else 1)
-    tokens = f'--cap-y:{geo["cap_y"]}px;--cap-size:{size};--top:{geo["top"]}px;--lt-y:{geo["lt_y"]}px;--rail:{geo["rail"]}px'
-    style = brand.caption["style"]
-    upper = brand.caption.get("uppercase")
-    captions = "\n".join(caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"])
-    items = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
-    return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
-<style>{css}</style></head>
-<body>
-<div id="root" data-composition-id="root" data-start="0" data-duration="{timeline['total']:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
-{captions}
-{items}
-</div>
-</body></html>
-"""
+    return css, geo
+
+
+def root_tokens(timeline: dict[str, Any], brand: Brand, geo: dict[str, float]) -> str:
+    size = caption_size(timeline["width"], timeline["height"], brand)
+    return f"--cap-y:{geo['cap_y']}px;--cap-size:{size};--top:{geo['top']}px;--lt-y:{geo['lt_y']}px;--rail:{geo['rail']}px"

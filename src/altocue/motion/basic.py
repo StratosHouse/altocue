@@ -8,7 +8,9 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..brand import Brand
-from .html import geometry
+from ..errors import AltocueError
+from . import formats
+from .html import layout
 from .layer import Layer
 
 ENTRY = 0.12
@@ -48,9 +50,9 @@ def _shadowed(canvas: Image.Image, paint: Image.Image, radius: int, alpha: float
     canvas.alpha_composite(paint)
 
 
-def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, brand: Brand) -> Image.Image:
+def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, brand: Brand, zone: dict[str, float] | None = None) -> Image.Image:
     width, height = size
-    geo = geometry(width, height)
+    geo = layout(width, height, brand, zone)
     style = brand.caption
     px = int(int(style["size"]) * (geo["scale"] if width > height else 1) * (0.76 if style["style"] == "rail" else 1))
     font = _font(brand, px, 800 if style["style"] == "bold" else 700)
@@ -68,11 +70,15 @@ def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, bran
         box = (left, geo["cap_y"] - pad_y, left + longest + 2 * pad_x, geo["cap_y"] + line_height * len(lines) + pad_y)
         draw.rounded_rectangle(box, radius=px * 0.42, fill=_rgba(brand.colors["panel"], 214), outline=(255, 255, 255, 26), width=2)
     y = float(geo["cap_y"])
+    plain = page.get("colour") or brand.colors["ink"]
+    if page.get("name"):
+        small = _font(brand, px // 2, 600)
+        draw.text((geo["gutter"] + (area - draw.textlength(page["name"], font=small)) / 2, y - px * 0.66), page["name"], font=small, fill=plain)
     for line in lines:
         used = sum(draw.textlength(texts[i], font=font) for i in line) + space * (len(line) - 1)
         x = geo["gutter"] + (area - used) / 2
         for index in line:
-            color = brand.colors["accent"] if index == active else brand.colors["ink"]
+            color = brand.colors["accent"] if index == active else plain
             draw.text((x, y), texts[index], font=font, fill=color)
             x += draw.textlength(texts[index], font=font) + space
         y += line_height
@@ -84,18 +90,19 @@ def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, bran
     return canvas
 
 
-def card_frame(size: tuple[int, int], item: dict[str, Any], brand: Brand) -> Image.Image:
+def card_frame(size: tuple[int, int], item: dict[str, Any], brand: Brand, zone: dict[str, float] | None = None) -> Image.Image:
     """Every graphic reduced to one clean panel, for machines with no browser."""
     width, height = size
-    geo = geometry(width, height)
+    geo = layout(width, height, brand, zone)
     scale = geo["scale"]
     colors = brand.colors
     canvas = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
     kind = item["type"]
-    if kind in {"title", "endcard"}:
+    extra = formats.strings(item)
+    if kind in {"title", "endcard"} or formats.full_screen(kind):
         draw.rectangle((0, 0, width, height), fill=_rgba(colors["panel"]))
-        text = (item.get("text") or item.get("headline") or "").replace("*", "")
+        text = (item.get("text") or item.get("headline") or (extra[0] if extra else "")).replace("*", "")
         font = _font(brand, int(100 * scale), 600)
         lines = _wrap(draw, text.split(), font, width - 2 * geo["gutter"], 100 * scale * 0.26)
         words = text.split()
@@ -109,8 +116,8 @@ def card_frame(size: tuple[int, int], item: dict[str, Any], brand: Brand) -> Ima
             small = _font(brand, int(36 * scale), 500)
             draw.text(((width - draw.textlength(cta, font=small)) / 2, y + 34 * scale), cta, font=small, fill=colors["accent"])
         return canvas
-    primary = str(item.get("title") or item.get("text") or item.get("value") or "").replace("*", "").replace("\n", " ")
-    secondary = str(item.get("subtitle") or item.get("label") or item.get("by") or item.get("eyebrow") or "")
+    primary = str(item.get("title") or item.get("text") or item.get("value") or (extra[0] if extra else "")).replace("*", "").replace("\n", " ")
+    secondary = str(item.get("subtitle") or item.get("label") or item.get("by") or item.get("eyebrow") or (extra[1] if len(extra) > 1 else ""))
     if kind == "steps":
         secondary = "  ·  ".join(step["text"] for step in item.get("items", []))
     large = _font(brand, int((64 if kind in {"hook", "stat"} else 42) * scale), 600)
@@ -142,6 +149,8 @@ class BasicRenderer:
         return True, ""
 
     def render(self, timeline: dict[str, Any], brand: Brand, dest: Path, *, draft: bool = False) -> Layer:
+        if any(item["type"] == "composition" for item in timeline["items"]):
+            raise AltocueError("Compositions need the full renderer, and the basic one cannot draw them.", fix="Run `altocue setup`.")
         stage = dest / "basic"
         stage.mkdir(parents=True, exist_ok=True)
         for old in stage.glob("*.png"):
@@ -154,8 +163,8 @@ class BasicRenderer:
                 start = page["start"] if index == 0 else word["start"]
                 end = page["end"] if index == len(words) - 1 else words[index + 1]["start"]
                 if end > start:
-                    states.append((start, end, caption_frame(size, page, index, brand)))
-        cards = [(item["start"], item["end"], card_frame(size, item, brand)) for item in timeline["items"]]
+                    states.append((start, end, caption_frame(size, page, index, brand, timeline.get("zone"))))
+        cards = [(item["start"], item["end"], card_frame(size, item, brand, timeline.get("zone"))) for item in timeline["items"]]
         return Layer(path=self._write(states, cards, timeline["total"], stage), renderer=self.id, concat=True)
 
     @staticmethod

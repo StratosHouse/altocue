@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -20,14 +21,16 @@ REQUIRED = ("provider", "tier", "capability", "kind", "model", "aspects", "as_of
 def capability_of(req: GenRequest) -> str:
     if req.kind == "image":
         return "reference_to_image" if req.refs else "text_to_image"
-    if req.first_frame and req.refs:
+    referenced = bool(req.refs or req.motion)  # a motion video is a reference, so it needs a route that takes references
+    if req.first_frame and referenced:
         return "frame_and_refs_to_video"
     if req.first_frame:
         return "image_to_video"
-    return "reference_to_video" if req.refs else "text_to_video"
+    return "reference_to_video" if referenced else "text_to_video"
 
 
 PRICED_FIELDS = {"duration", "seconds", "num_frames", "num_images", "num_outputs", "n", "resolution", "quality"}
+MOST_MOTION_SECONDS = 15.0  # priced at this when the motion video could not be read, the longest any route here takes
 
 
 @dataclass(frozen=True)
@@ -49,8 +52,13 @@ class ModelEntry:
     usd_per_second: float | None = None
     usd_per_second_audio: float | None = None
     usd_per_image: float | None = None
+    credits_per_second: float | None = None
+    usd_per_second_video_ref: float | None = None  # billed on the motion video's seconds and the output's together
+    motion_seconds: tuple[float, ...] = ()  # the shortest and longest motion video the route takes
+    most_track_seconds: float = 0.0  # the longest music track the route takes. 0 when its docs state none
     price: str = ""
     note: str = ""
+    surface: str = ""
 
     def without_field(self, name: str) -> ModelEntry:
         return replace(self, fields={k: v for k, v in self.fields.items() if k != name})
@@ -61,6 +69,9 @@ class ModelEntry:
     def cost(self, req: GenRequest) -> float | None:
         if self.kind == "image":
             return self.usd_per_image
+        if req.motion and self.usd_per_second_video_ref is not None:
+            fed = MOST_MOTION_SECONDS if req.motion_seconds is None else req.motion_seconds
+            return self.usd_per_second_video_ref * (req.duration_s + fed)
         rate = self.usd_per_second_audio if req.audio and self.usd_per_second_audio else self.usd_per_second
         return None if rate is None else rate * req.duration_s
 
@@ -79,6 +90,10 @@ class ModelEntry:
             body[names["last_frame"]] = media(req.last_frame)
         if req.refs:
             body[names["refs"]] = [media(path) for path in req.refs]
+        if req.motion:
+            body[names["motion"]] = [media(req.motion)]
+        if req.track:
+            body[names["track"]] = [media(req.track)]
         if req.seed is not None and "seed" in names:
             body[names["seed"]] = req.seed
         return {**body, **req.extra}
@@ -97,6 +112,17 @@ class ModelEntry:
             problems.append("a last frame")
         if req.audio and "audio" not in self.fields:
             problems.append("generated audio")
+        if req.track and not (req.refs or req.motion or req.first_frame or req.last_frame):
+            problems.append("a music track with no image or video beside it (it times a reference, so it needs one)")
+        elif req.track and "track" not in self.fields:
+            problems.append("a music track")
+        elif req.track and self.most_track_seconds and req.track_seconds is not None and req.track_seconds > self.most_track_seconds:
+            problems.append(f"a music track of {req.track_seconds:g}s (it takes up to {self.most_track_seconds:g}s, so send the section the shot covers)")
+        if req.motion and "motion" not in self.fields:
+            problems.append("a motion video")
+        elif req.motion and self.motion_seconds and req.motion_seconds is not None and not self.motion_seconds[0] <= req.motion_seconds <= self.motion_seconds[-1]:
+            low, high = self.motion_seconds[0], self.motion_seconds[-1]
+            problems.append(f"a motion video of {req.motion_seconds:g}s (it takes {low:g} to {high:g}s)")
         fixed = (set(self.fields.values()) | set(self.params) | PRICED_FIELDS) & set(req.extra)
         if fixed:
             problems.append(f"extra fields that would change the request or its price: {', '.join(sorted(fixed))}")
@@ -114,8 +140,9 @@ class Catalog:
             raise AltocueError(f"Unknown provider {name}.", fix=f"Use one of {', '.join(sorted(self.providers))}.")
         return self.providers[name]
 
-    def find(self, provider: str, tier: str, capability: str) -> ModelEntry | None:
-        return next((e for e in self.entries if (e.provider, e.tier, e.capability) == (provider, tier, capability)), None)
+    def find(self, provider: str, tier: str, capability: str, *, surface: str = "") -> ModelEntry | None:
+        """Runs use the empty surface. A route marked `mcp` is for an agent, and Altocue only quotes and imports it."""
+        return next((e for e in self.entries if (e.provider, e.surface, e.tier, e.capability) == (provider, surface, tier, capability)), None)
 
     def resolve(self, provider: str, req: GenRequest) -> ModelEntry:
         """The one route for this request, or an error that says what would work."""
@@ -130,7 +157,7 @@ class Catalog:
         return entry
 
     def _suggest(self, provider: str, req: GenRequest, capability: str) -> str:
-        options = [e for e in self.entries if e.capability == capability and not e.limits(req)]
+        options = [e for e in self.entries if e.capability == capability and not e.surface and not e.limits(req)]
         others = [e for e in options if e.provider != provider]
         tiers = [e for e in options if e.provider == provider]
         if tiers:
@@ -139,6 +166,29 @@ class Catalog:
             names = ", ".join(sorted({f"{e.provider} ({e.tier})" for e in others}))
             return f"Use {names}: set provider under [generate] in altocue.toml. Altocue will not swap models for you."
         return f"Nothing in models.toml does this. Change the shot, or add a route to {self.path}."
+
+
+def credit_rate(catalog: Catalog, provider: str, project: Any = None) -> float | None:
+    """Dollars per credit: the project's own figure, else the catalog's. None for a provider that bills dollars.
+
+    A rate of 0 or less would price every job as free or as a refund, and NaN passes every comparison, so both are errors.
+    """
+    config = catalog.provider(provider)
+    if "usd_per_credit" not in config:
+        return None
+    chosen = project.setting("generate", "usd_per_credit", None) if project else None
+    value = chosen if chosen is not None else config["usd_per_credit"]
+    try:
+        rate = float(value)
+    except (TypeError, ValueError):
+        rate = math.nan
+    if not math.isfinite(rate) or rate <= 0:
+        where = "under [generate] in altocue.toml" if chosen is not None else f"for {provider} in {catalog.path}"
+        raise AltocueError(
+            f"usd_per_credit {where} is {value}, and a credit price must be a number above zero.",
+            fix="Set it to your plan's dollars per credit, such as 0.08.",
+        )
+    return rate
 
 
 def priced(catalog: Catalog, provider: str, shot: str, req: GenRequest) -> Cost:
@@ -163,7 +213,7 @@ def _entry(raw: dict[str, Any], path: Path) -> ModelEntry:
     except ValueError as error:
         raise AltocueError(f"{raw['model']} has a bad as_of date.", fix=fix) from error
     known = {key: value for key, value in raw.items() if key in ModelEntry.__dataclass_fields__}
-    return ModelEntry(**{**known, "aspects": tuple(raw["aspects"])})
+    return ModelEntry(**{**known, "aspects": tuple(raw["aspects"]), "motion_seconds": tuple(raw.get("motion_seconds", ()))})
 
 
 def load_catalog(path: str | Path | None = None) -> Catalog:
@@ -175,10 +225,15 @@ def load_catalog(path: str | Path | None = None) -> Catalog:
     except tomllib.TOMLDecodeError as error:
         raise AltocueError(f"Cannot read {source}: {error}", fix="Fix the TOML syntax.") from error
     entries = [_entry(raw, source) for raw in data.get("model", [])]
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, str]] = set()
     for entry in entries:
-        route = (entry.provider, entry.tier, entry.capability)
+        route = (entry.provider, entry.surface, entry.tier, entry.capability)
         if route in seen:
-            raise AltocueError(f"{' '.join(route)} is routed twice in {source}.", fix="Keep one model per provider, tier and capability.")
+            raise AltocueError(f"{' '.join(filter(None, route))} is routed twice in {source}.", fix="Keep one model per provider, surface, tier and capability.")
         seen.add(route)
     return Catalog(entries=entries, providers=data.get("providers", {}), path=source)
+
+
+def catalog_for(project: Any) -> Catalog:
+    chosen = project.setting("generate", "models", "")
+    return load_catalog(project.root / chosen if chosen else None)

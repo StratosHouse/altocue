@@ -1,0 +1,45 @@
+{
+  "id": "hyper3d-rodin",
+  "name": "Hyper3D Rodin",
+  "url": "https://hyper3d.ai/pricing?lang=en",
+  "classes": [
+    "generate",
+    "3d"
+  ],
+  "holds": "Hosted 3D generation with an API on its Business plan.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "rodin-terms",
+    "url": "https://hyper3d.ai/pricing?lang=en",
+    "checked_on": "2026-11-02",
+    "checked_from": "secondary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://hyper3d.ai/pricing?lang=en",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Its terms were not read, only its pricing page."
+}

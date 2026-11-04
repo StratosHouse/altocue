@@ -9,10 +9,10 @@ import pytest
 from canaries import Case, Recipe, build, planted
 from PIL import Image
 
-from altocue import qa
+from altocue import ffmpeg, qa
 from altocue.models import Removed
 from altocue.project import write_json
-from altocue.review import pack, rubric
+from altocue.review import codex, pack, report, rubric, sheets
 
 SECRET = "SECRETREASONXYZ"
 
@@ -175,3 +175,209 @@ def test_no_edl_falls_back_to_a_pack_without_cuts(tmp_path):
 
 def test_pack_never_uses_drawtext():
     assert "drawtext" not in open(pack.__file__).read()
+    assert "drawtext" not in open(sheets.__file__).read()
+
+
+# Timeline sheets: a reviewer who cannot hear gets the sound as a picture
+
+
+def sheet_of(item):
+    return next((folder(item) / "timeline").glob("*.jpg"))
+
+
+def grey(path):
+    return np.asarray(Image.open(path).convert("L")).astype(float)
+
+
+def lanes_of(item):
+    return sheets.lanes(Image.open(sheet_of(item)).size[1])
+
+
+def x_of(seconds):
+    return sheets.x_at(seconds, 0)
+
+
+def test_one_sheet_for_each_twenty_seconds():
+    assert sheets.pages(6.0) == [(0.0, 20.0)]
+    assert sheets.pages(20.0) == [(0.0, 20.0)]
+    assert sheets.pages(47.5) == [(0.0, 20.0), (20.0, 40.0), (40.0, 60.0)]
+
+
+def test_time_maps_to_the_same_place_on_every_sheet():
+    assert sheets.x_at(5.0, 0) == sheets.x_at(25.0, 1)
+    assert sheets.x_at(0.0, 0) == sheets.LEFT
+    assert sheets.x_at(20.0, 0) == sheets.WIDTH - sheets.RIGHT
+
+
+def test_the_pack_holds_a_timeline_sheet_and_lists_it(built):
+    assert (folder(built) / "timeline" / "timeline_001.jpg").exists()
+    manifest = json.loads((folder(built) / "manifest.json").read_text())
+    assert manifest["timeline"] == [{"file": "timeline/timeline_001.jpg", "start": 0.0, "end": 20.0}]
+    assert "timeline/timeline_001.jpg" in pack.load(built.project)["images"]
+
+
+def test_the_prompt_says_what_a_sheet_shows_and_what_it_cannot(built):
+    pack.write_prompt(built.project, pack.load(built.project))
+    text = (built.project.review_dir / "PACK.md").read_text()
+    assert "timeline/" in text and "waveform" in text and "loudness" in text
+    assert "do not hear the film" in text
+
+
+def test_the_sheet_never_shows_a_reason(built):
+    if qa.ocr.reader()[0]:
+        assert SECRET not in " ".join(record["text"] for record in qa.ocr.read_images([sheet_of(built)]))
+
+
+def test_a_label_changes_nothing_on_the_sheet(tmp_path):
+    """Labels and evidence are the editor's reasons, so changing them must leave the picture identical."""
+    item = build(Case("t", "", Recipe(labels=["first", "", ""], seconds=3.0, burn_captions=False)), tmp_path)
+    with planted(item):
+        pack.build(item.project, item.file, [])
+        before = sheet_of(item).read_bytes()
+        edl = item.project.edl()
+        edl.segments[0].label = SECRET
+        item.project.save_edl(edl)
+        pack.build(item.project, item.file, [])
+    assert sheet_of(item).read_bytes() == before
+
+
+def test_codex_gets_the_timeline_sheets_first(built):
+    assert codex.pick_images(folder(built))[0].parent.name == "timeline"
+
+
+def test_cuts_are_drawn_where_they_fall(built):
+    lane = lanes_of(built)["sound"]
+    image = np.asarray(Image.open(sheet_of(built)).convert("RGB")).astype(float)
+    column = image[lane[0] : lane[1], x_of(2.0) - 1 : x_of(2.0) + 2].mean(axis=(0, 1))
+    assert column[0] > column[2] + 40, "the cut line should be amber through the sound lane"
+
+
+def test_loudness_track_shows_a_quiet_stretch(tmp_path):
+    item = build(Case("t", "", Recipe(steps=[(2.0, 4.0, -18.0)], burn_captions=False)), tmp_path)
+    track = sheets.loudness(item.file)
+    level = {round(t * 2) / 2: m for t, m in track}
+    assert level[1.5] - level[3.5] > 12
+
+
+def test_a_quiet_stretch_can_be_seen_on_the_sheet(tmp_path):
+    item = build(Case("t", "", Recipe(steps=[(2.0, 4.0, -18.0)], burn_captions=False)), tmp_path)
+    with planted(item):
+        pack.build(item.project, item.file, [])
+    top, bottom = lanes_of(item)["sound"]
+    picture = grey(sheet_of(item))[top:bottom]
+    loud = picture[:, x_of(1.0) : x_of(1.8)].mean()
+    quiet = picture[:, x_of(2.8) : x_of(3.6)].mean()
+    assert loud > quiet + 5
+
+
+def test_a_gap_can_be_seen_on_the_sheet(tmp_path):
+    item = build(Case("t", "", Recipe(gaps=[(3.0, 4.0)], burn_captions=False)), tmp_path)
+    with planted(item):
+        pack.build(item.project, item.file, [])
+    top, bottom = lanes_of(item)["sound"]
+    middle = (top + bottom) // 2
+    picture = grey(sheet_of(item))[middle - 12 : middle + 12]
+    assert picture[:, x_of(1.0) : x_of(1.8)].mean() > picture[:, x_of(3.2) : x_of(3.8)].mean() + 40
+
+
+def test_captions_and_speech_each_have_a_lane(built):
+    picture = grey(sheet_of(built))
+    lanes = lanes_of(built)
+    for name in ("captions", "speech"):
+        top, bottom = lanes[name]
+        assert picture[top:bottom, x_of(0.1) : x_of(5.5)].std() > 5, name
+
+
+def test_a_film_with_no_sound_still_gets_a_sheet(tmp_path):
+    item = build(Case("t", "", Recipe(burn_captions=False, seconds=3.0)), tmp_path)
+    silent = item.project.out / "silent.mp4"
+    ffmpeg.run(["-i", str(item.file), "-an", "-c:v", "copy", str(silent)])
+    with planted(item):
+        info = pack.build(item.project, silent, [])
+    assert "timeline/timeline_001.jpg" in info["images"]
+
+
+def test_pacing_numbers_reach_the_reviewer(built):
+    pacing = json.loads((folder(built) / "numbers.json").read_text())["pacing"]
+    assert pacing["shots"] == 3 and pacing["longest_shot"] == 2.0 and pacing["shot_lengths"] == [2.0, 2.0, 2.0]
+    assert pacing["cuts_per_minute"] == 20.0
+    assert 150 < pacing["words_per_minute"] < 250
+
+
+def test_pacing_finds_the_longest_pause():
+    words = [{"start": 0.0, "end": 0.5}, {"start": 0.6, "end": 1.0}, {"start": 3.5, "end": 4.0}]
+    assert sheets.pacing([], words, 4.0)["longest_pause"] == 2.5
+
+
+def test_the_report_says_the_reviewer_saw_the_sound_but_never_heard_it():
+    result = {"reviewer": {"sees": "stills"}}
+    said = " ".join(report.limits(result, []))
+    assert "timeline sheets" in said and "heard nothing" in said
+
+
+def test_a_reviewer_never_gets_facts_notes_or_results(tmp_path):
+    """Numbers would anchor the hook and pacing scores, and outcomes would end the blind review."""
+    item = build(Case("t", "", Recipe(burn_captions=False, seconds=3.0)), tmp_path)
+    root = item.project.root
+    write_json(item.project.review_dir / "facts.json", {"facts": {"first_word_s": {"value": SECRET}}})
+    (item.project.review_dir / "facts.md").write_text(SECRET)
+    (root / "director-notes.md").write_text(SECRET)
+    write_json(root / "results" / "ledger.json", {"note": SECRET})
+    write_json(root / "bench" / "data.json", {"note": SECRET})
+    with planted(item):
+        gates = qa.run_gates(item.project, item.file)
+        info = pack.build(item.project, item.file, gates)
+    assert not (item.project.review_dir / "facts.json").exists() and not (item.project.review_dir / "facts.md").exists()
+    path = pack.write_prompt(item.project, info)
+    shown = path.read_text() + pack.prompt_text(info)
+    shown += "".join(f.read_text() for f in folder(item).rglob("*") if f.suffix in {".json", ".txt"})
+    assert SECRET not in shown
+    assert "first_word_s" not in shown and "caption_coverage" not in shown
+
+
+def test_the_pack_forbids_facts_notes_and_results_by_name():
+    for path in ("review/facts.json", "review/facts.md", "director-notes.md", "results/", "bench/"):
+        assert path in pack.FORBIDDEN
+
+
+def test_a_film_from_a_storyboard_shows_its_brief_to_the_reviewer(tmp_path):
+    """A film keeps its brief in brief.json. Without it the reviewer judged a deliberate raw take as a mistake."""
+    from altocue.project import Project
+
+    project = Project.create(tmp_path / "film", aspect="16:9")
+    assert pack.read_brief(project) == "No brief was written for this video."
+    brief = {
+        "message": "Raw footage in, finished video out.",
+        "audience": "Anyone who makes video with a coding agent",
+        "goal": "Get it on GitHub",
+        "must_show": ["cutting", "captions"],
+        "notes": ["The first two seconds are the raw take on purpose."],
+        "brand": {"colors": {"accent": "#b5f4d9"}},
+    }
+    write_json(project.root / "brief.json", brief)
+    text = pack.read_brief(project)
+    assert "Raw footage in, finished video out." in text and "- The first two seconds are the raw take on purpose." in text
+    assert "cutting" in text and "#b5f4d9" not in text
+    (project.root / "brief.md").write_text("Written by hand.")
+    assert pack.read_brief(project) == "Written by hand."
+
+
+def test_a_film_with_no_voice_is_never_transcribed(monkeypatch, tmp_path):
+    """Over music alone a speech model invents stock lines ("We'll be right back"), and the reviewer reads them as said."""
+    from types import SimpleNamespace
+
+    from altocue.qa import gates as qa_gates
+
+    def deaf(*_a, **_k):
+        raise AssertionError("a voiceless film must not be transcribed")
+
+    monkeypatch.setattr(qa_gates, "transcribe", deaf)
+    silent = SimpleNamespace(timeline={"scenes": [{"id": "in"}, {"id": "out"}]}, edl=None, _heard=None)
+    spoken = SimpleNamespace(timeline={"scenes": [{"id": "in", "voice": "v.wav"}]}, edl=None, _heard=None)
+    assert qa_gates.voiceless(silent) and not qa_gates.voiceless(spoken)
+    assert qa_gates.Context.heard(silent) == ([], qa_gates.NO_VOICE_HEARD)
+    project = SimpleNamespace(review_dir=tmp_path)
+    record = pack.transcript(project, tmp_path / "final.mp4", "abc", silent)
+    assert record["words"] == [] and record["available"] and record["reason"] == qa_gates.NO_VOICE_HEARD
+    prompt_line = pack.prompt_text({"transcript": [], "transcript_available": True, "transcript_reason": qa_gates.NO_VOICE_HEARD, "numbers": {}})
+    assert "This film has no voice" in prompt_line

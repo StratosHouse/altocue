@@ -1,0 +1,46 @@
+{
+  "id": "hero-patterns",
+  "name": "Hero Patterns",
+  "url": "https://heropatterns.com/",
+  "classes": [
+    "overlay"
+  ],
+  "holds": "Repeating SVG background patterns.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://heropatterns.com/",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://heropatterns.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": ""
+}

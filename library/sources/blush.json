@@ -1,0 +1,47 @@
+{
+  "id": "blush",
+  "name": "Blush",
+  "url": "https://blush.design/license",
+  "classes": [
+    "illustration"
+  ],
+  "holds": "An illustration maker behind an account.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "blush",
+    "url": "https://blush.design/license",
+    "checked_on": "2026-11-02",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://blush.design/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_tools"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its licence bars compiling its art into a competing service."
+}

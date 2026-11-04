@@ -14,8 +14,7 @@ from altocue.models import Word
 from altocue.project import Project
 
 GOOD_PROMPT = (
-    "She lifts the lantern and walks to the door, the coat swinging with each stride. "
-    "Slow dolly in from medium to close-up, ending on her hands. Dust stirs in the beam."
+    "She lifts the lantern and walks to the door, the coat swinging with each stride. Slow dolly in from medium to close-up, ending on her hands. Dust stirs in the beam."
 )
 
 
@@ -269,6 +268,97 @@ def test_multi_shot_block_is_checked_as_a_block():
     assert "block-length" in lint(prompt="SHOT 1 - 0.0s to 4.0s - WIDE: she enters.\nHARD CUT.\nSHOT 2 - 4.0s to 5.0s - CLOSE: she turns.")
 
 
+def test_a_motion_video_is_a_video_file_for_a_video_shot(tmp_path):
+    """c001, c013, c280: a blockout sets camera and timing, and the prompt carries only the look."""
+    assert "motion" in rules(validate({"shots": [shot(motion="blockout.png")]}), "error")
+    assert "motion" in rules(validate({"shots": [shot(motion="@s00")]}), "error")
+    assert "motion" in rules(validate({"shots": [shot(kind="image", check="still", motion="blockout.mp4")]}), "error")
+    assert "missing-file" in rules(validate({"shots": [shot(motion="blockout.mp4")]}, root=tmp_path), "error")
+    assert "outside-project" in rules(validate({"shots": [shot(motion="../blockout.mp4")]}, root=tmp_path), "error")
+    (tmp_path / "blockout.mp4").write_bytes(b"0")
+    assert validate({"shots": [shot(motion="blockout.mp4")]}, root=tmp_path).ok
+
+
+def test_a_prompt_that_restates_the_motion_videos_camera_warns():
+    found = lint(motion="blockout.mp4")
+    assert "motion-restated" in found and not found & {"no-move", "endpoint"}
+    assert not lint(motion="blockout.mp4", prompt="Wet asphalt under sodium light, a red wool coat, 35mm film grain, steam from a grate.") & {
+        "motion-restated",
+        "no-move",
+        "endpoint",
+    }
+
+
+def test_a_written_timeline_must_cover_the_shot_with_no_gaps():
+    """c004, c013: windows run from 0 to the duration, with no gap or overlap."""
+    assert "timeline" not in lint(prompt=f"{GOOD_PROMPT} 0-1.5 s she lifts it. 1.5-3.0 s she turns. 3.0-5.0 s she walks out.")
+    found = lint_prompt(direct.Shot.from_dict(shot(prompt=f"{GOOD_PROMPT} 0-1.5 s she lifts it. 2.0-4.0 s she turns.")))
+    message = next(f.message for f in found if f.rule == "timeline")
+    assert "a gap from 1.5s to 2s" in message and "ends at 4s" in message
+    overlap = lint_prompt(direct.Shot.from_dict(shot(prompt="[SHOT 1] 0-2s wide. [SHOT 2] 1.5-5s close.")))
+    assert "an overlap from 1.5s to 2s" in next(f.message for f in overlap if f.rule == "timeline")
+
+
+def test_settings_written_in_a_prompt_must_match_the_shot():
+    """c010 disagreed with its own settings on 7 of 12 durations and every aspect it stated."""
+    assert "settings" in lint(prompt=f"{GOOD_PROMPT} Framed 16:9.")
+    assert "settings" in lint(prompt=f"{GOOD_PROMPT} A 10-second shot.")
+    assert "settings" not in lint(prompt=f"{GOOD_PROMPT} A 5-second shot, framed 9:16.")
+
+
+LEDGER = {"maya": [{"from": "s01", "state": "unhurt"}, {"from": "s02", "state": "wounded"}]}
+
+
+def maya(shot_id: str, **changes) -> dict:
+    return shot(id=shot_id, characters=["maya"], synthetic=["person"], **changes)
+
+
+def test_a_reference_in_the_wrong_state_for_the_ledger_warns():
+    """c380: one character can be unhurt, then wounded. Those references are not interchangeable because the face matches."""
+    first, later = maya("s01", first_frame="refs/maya-unhurt.png"), maya("s02", first_frame="refs/maya-unhurt.png", refs=["refs/coat.png"])
+    found = [f for f in validate({"shots": [first, later], "ledger": LEDGER}).findings if f.rule == "ledger-state"]
+    assert [f.shot for f in found] == ["s02"] and "the ledger has maya wounded from s02" in found[0].message
+    later["first_frame"] = "refs/maya-wounded.png"
+    assert "ledger-state" not in rules(validate({"shots": [first, later], "ledger": LEDGER}))
+
+
+def test_a_still_made_before_the_change_carries_its_own_state():
+    still = maya("s01", kind="image", check="still", prompt="Maya at the door in a red wool coat, morning light.")
+    assert "ledger-state" in rules(validate({"shots": [still, maya("s02", first_frame="@s01")], "ledger": LEDGER}))
+
+
+def test_a_ledger_must_name_real_shots_and_states():
+    assert "ledger" in rules(validate({"shots": [maya("s01")], "ledger": {"maya": [{"from": "s09", "state": "wounded"}]}}), "error")
+    assert "ledger" in rules(validate({"shots": [maya("s01")], "ledger": ["maya"]}), "error")
+
+
+def test_the_block_length_warning_reads_higgsfields_own_prompt_formats():
+    """b022 writes "[SHOT n] a-bs" and "a-b SECONDS", which the house pattern never parsed, so the 2.5 s warning never fired."""
+    bracketed = "[SHOT 1] 0-3.5s WIDE: she enters.\nHARD CUT.\n[SHOT 2] 3.5-5s CLOSE: she turns."
+    spelled = "SHOT 1: 0.0-1.5 SECONDS wide, she enters.\nHARD CUT.\nSHOT 2: 1.5-5.0 SECONDS close, she turns."
+    for prompt, length in ((bracketed, "3.5s"), (spelled, "3.5s")):
+        found = lint_prompt(direct.Shot.from_dict(shot(prompt=prompt)))
+        assert any(f.rule == "block-length" and length in f.message for f in found), prompt
+    assert "block-length" not in lint(prompt="[SHOT 1] 0-2s WIDE: she enters.\nHARD CUT.\n[SHOT 2] 2-4.5s CLOSE: she turns.")
+
+
+def test_audio_can_carry_a_music_track_as_a_timing_input(tmp_path):
+    """b025: the track goes in so movement lands on its beats, and the master goes in during the edit."""
+    track = {"track": "assets/music/bed.wav"}
+    assert "audio" in rules(validate({"shots": [shot(audio={"track": "bed.png"})]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(audio={**track, "sound": "yes"})]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(audio={**track, "volume": 1})]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(kind="image", check="still", audio=track)]}), "error")
+    assert "audio" in rules(validate({"shots": [shot(audio="loud")]}), "error")
+    assert "missing-file" in rules(validate({"shots": [shot(audio=track)]}, root=tmp_path), "error")
+    (tmp_path / "assets" / "music").mkdir(parents=True)
+    (tmp_path / "assets" / "music" / "bed.wav").write_bytes(b"0")
+    review = validate({"shots": [shot(audio=track)]}, root=tmp_path)
+    assert review.ok and review.shots[0].track == "assets/music/bed.wav" and not review.shots[0].sound
+    assert not lint(audio=track) & {"no-music", "track-sound"}
+    assert "track-sound" in lint(audio={**track, "sound": True})
+
+
 def test_image_prompts_skip_camera_rules():
     found = lint(kind="image", check="still", prompt="A brass lantern on a wet stone step, warm practical light from the left.")
     assert not found & {"no-move", "endpoint", "one-move"}
@@ -305,9 +395,7 @@ def test_long_character_clip_warns():
 def moving(path: Path, seconds: float = 2.0) -> Path:
     """Film grain changes every frame, so it clears the motion gate on purpose."""
     source = f"color=c=gray:size=320x568:rate=30:duration={seconds},noise=alls=40:allf=t"
-    subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True
-    )
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
     return path
 
 
@@ -458,3 +546,35 @@ def test_direct_json_output_is_machine_readable(project, capsys):
     report = json.loads(capsys.readouterr().out)
     assert report["ok"] is True
     assert report["cost"]["usd"] == pytest.approx(0.7735)
+
+
+# Generated people
+
+
+def test_a_generated_person_may_not_claim_experience():
+    review = validate({"shots": [shot(synthetic=["person"], script="I tried this and it changed my life.")]})
+    assert "claims" in rules(review, "error")
+    assert not review.ok
+
+
+def test_a_claim_in_the_prompt_counts_too():
+    prompt = GOOD_PROMPT + ' She says: "I bought two of these."'
+    assert "claims" in rules(validate({"shots": [shot(synthetic=["person"], prompt=prompt)]}), "error")
+
+
+def test_a_host_who_describes_what_can_be_seen_is_fine():
+    assert "claims" not in rules(validate({"shots": [shot(synthetic=["person", "voice"], script="This bottle holds half a litre.")]}))
+
+
+def test_a_real_person_may_say_what_they_tried():
+    assert "claims" not in rules(validate({"shots": [shot(script="I tried this for a month.")]}))
+
+
+def test_a_synthetic_flag_outside_the_list_is_an_error():
+    assert "synthetic" in rules(validate({"shots": [shot(synthetic=["ghost"])]}), "error")
+    assert "synthetic" in rules(validate({"shots": [shot(synthetic="person")]}), "error")
+
+
+def test_a_character_with_no_flag_is_asked_about():
+    assert "synthetic-flag" in rules(validate({"shots": [shot(characters=["maya"])]}), "warning")
+    assert "synthetic-flag" not in rules(validate({"shots": [shot(characters=["maya"], synthetic=["person"])]}))

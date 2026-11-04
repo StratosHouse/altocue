@@ -15,9 +15,11 @@ Altocue is a command line tool plus agent skills that edit raw footage into fini
 - **ffmpeg must stay enough.** Never require `drawtext`, `subtitles`, `libass` or `zscale`.
 - **Every required dependency stays under an open licence.** No paid fonts, sounds or LUTs. No AGPL or GPL code linked into the package. Check `LICENSES.md` before adding anything.
 - **No media in git.** Tests generate what they need.
-- **No model ids in code.** They live in `src/altocue/generate/models.toml` and `src/altocue/review/models.toml`.
+- **No generation or review model ids in code.** They live in `src/altocue/generate/models.toml` and `src/altocue/review/models.toml`. The one exception is `transcribe.py`, which names each speech engine's default model beside the code that loads it.
 - **No hosted call without explicit opt-in.** Name the destination before sending anything.
 - **A skipped check is never a pass.**
+- **Never open an application window, editor or browser.** Altocue writes files and prints paths. The one exception is the HyperFrames studio that `altocue timeline` starts. Background command-line tools with no window, such as ffmpeg, headless Chrome in a render, npm in setup and the codex and higgsfield CLIs, are fine.
+- **Numbers in the README come from the code.** `tests/test_readme.py` fails when a count moves. Change the README, never the count in the test.
 - **Errors tell the user what to do.** Raise `AltocueError` with `fix`.
 
 ## Go easy on the machine
@@ -28,7 +30,7 @@ Altocue is a command line tool plus agent skills that edit raw footage into fini
 ## Before a commit
 
 ```bash
-uv run ruff check src tests
+uv run ruff check src tests scripts
 uv run pytest tests/test_<what you changed>.py
 uv run python scripts/check_repo.py
 ```
