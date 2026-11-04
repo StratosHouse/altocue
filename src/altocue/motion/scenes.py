@@ -575,7 +575,9 @@ def caption_pages(
     font = round(font * scale, 1)
     style = f"left:{left_px:.0f}px;width:{across:.0f}px;right:auto;top:auto;bottom:{under:.0f}px;padding:0 {inset:.0f}px;font-size:{font}px"
     pages = caption.build_pages(inside, max_words=CAPTION_WORDS, combine_ms=700)
-    steady = {"steady": True} if place == "frame" else {}
+    # A fixed picture sits above the scene camera. Its captions must share that
+    # layer or the opaque footage hides them and camera drift separates them.
+    steady = {"steady": True} if place == "frame" or item.get("fixed") else {}
     return [{**page, "end": min(page["end"], item["end"]), "scene": item["scene"], "place": style, "size": font, **steady, **named} for page in pages]
 
 

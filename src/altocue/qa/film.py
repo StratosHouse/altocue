@@ -233,7 +233,9 @@ def analyse(stats: dict[str, Any]) -> dict[str, Any]:
     return {
         "median_step": round(median, 3),
         "frame_zero": {"mean": round(float(stats["mean"][0]), 1), "contrast": round(float(stats["spread"][0]), 1)} if count else None,
-        "cuts": [round(index / fps, 3) for index in cuts],
+        # Keep frame precision for compare_cuts: rounding to milliseconds can
+        # turn a valid one-frame difference at 30 fps into 1.01 frames.
+        "cuts": [index / fps for index in cuts],
         "pops": [round(index / fps, 3) for index in pops],
         "frozen": [{"from": round((a - 1) / fps, 2), "to": round(b / fps, 2), "seconds": round((b - a + 1) / fps, 2), "to_end": b >= count} for a, b in frozen],
         "motion_curve": curve,
