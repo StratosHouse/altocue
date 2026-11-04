@@ -357,8 +357,8 @@ def test_the_demo_hands_deliver_every_option_deliver_has(tmp_path, monkeypatch):
 @pytest.mark.slow
 def test_the_real_thing(tmp_path, capsys):
     assert demo.run(args(keep=str(tmp_path / "kept"), renderer="basic")) == 0
-    assert (tmp_path / "kept" / "film" / "out" / "final.mp4").exists()
-    assert (tmp_path / "kept" / "film" / "review" / "page.html").exists()
+    assert (tmp_path / "kept" / "altocue-demo" / "out" / "final.mp4").exists()
+    assert (tmp_path / "kept" / "altocue-demo" / "review" / "page.html").exists()
 
 
 def test_a_made_up_name_split_into_three_words_is_joined_back(tmp_path):
