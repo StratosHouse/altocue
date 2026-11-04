@@ -360,3 +360,24 @@ def test_a_film_from_a_storyboard_shows_its_brief_to_the_reviewer(tmp_path):
     assert "cutting" in text and "#b5f4d9" not in text
     (project.root / "brief.md").write_text("Written by hand.")
     assert pack.read_brief(project) == "Written by hand."
+
+
+def test_a_film_with_no_voice_is_never_transcribed(monkeypatch, tmp_path):
+    """Over music alone a speech model invents stock lines ("We'll be right back"), and the reviewer reads them as said."""
+    from types import SimpleNamespace
+
+    from altocue.qa import gates as qa_gates
+
+    def deaf(*_a, **_k):
+        raise AssertionError("a voiceless film must not be transcribed")
+
+    monkeypatch.setattr(qa_gates, "transcribe", deaf)
+    silent = SimpleNamespace(timeline={"scenes": [{"id": "in"}, {"id": "out"}]}, edl=None, _heard=None)
+    spoken = SimpleNamespace(timeline={"scenes": [{"id": "in", "voice": "v.wav"}]}, edl=None, _heard=None)
+    assert qa_gates.voiceless(silent) and not qa_gates.voiceless(spoken)
+    assert qa_gates.Context.heard(silent) == ([], qa_gates.NO_VOICE_HEARD)
+    project = SimpleNamespace(review_dir=tmp_path)
+    record = pack.transcript(project, tmp_path / "final.mp4", "abc", silent)
+    assert record["words"] == [] and record["available"] and record["reason"] == qa_gates.NO_VOICE_HEARD
+    prompt_line = pack.prompt_text({"transcript": [], "transcript_available": True, "transcript_reason": qa_gates.NO_VOICE_HEARD, "numbers": {}})
+    assert "This film has no voice" in prompt_line

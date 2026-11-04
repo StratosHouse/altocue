@@ -125,8 +125,11 @@ def astats(file: Path) -> dict[str, float]:
     return found
 
 
-def transcript(project: Project, file: Path, digest: str) -> dict[str, Any]:
-    """Reuse what QA heard from this exact file. Otherwise transcribe it now."""
+def transcript(project: Project, file: Path, digest: str, context: qa_gates.Context | None = None) -> dict[str, Any]:
+    """Reuse what QA heard from this exact file. Otherwise transcribe it now. A film with no voice is not transcribed:
+    over music alone a speech model hears stock phrases such as "We'll be right back", and a reviewer reads them as said."""
+    if context is not None and qa_gates.voiceless(context):
+        return qa_gates.transcript_record(digest, [], qa_gates.NO_VOICE_HEARD)
     saved = project.review_dir / "transcript.json"
     if saved.exists():
         data = json.loads(saved.read_text())
@@ -248,7 +251,7 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
     digest = qa.sha256(file)
     fps = context.clip.fps or 30.0
     cuts = [round(shot.start, 3) for shot in context.shots[1:]]
-    heard = transcript(project, file, digest)
+    heard = transcript(project, file, digest, context)
     with tempfile.TemporaryDirectory(prefix="altocue-pack-") as temp:
         work = Path(temp)
         sheet_times = contact_sheets(file, fps, folder / "sheets", work)
@@ -311,7 +314,8 @@ def planned_text(info: dict[str, Any]) -> str:
 def prompt_text(info: dict[str, Any]) -> str:
     """What every reviewer is told, whichever way it receives the film."""
     if info.get("transcript_available", True):
-        heard = transcript_text(info.get("transcript", [])) or "(No speech was heard.)"
+        reason = str(info.get("transcript_reason", "") or "")
+        heard = transcript_text(info.get("transcript", [])) or f"(No speech was heard.{' ' + reason if reason else ''})"
     else:
         heard = f"(No transcript. {info.get('transcript_reason', '')})"
     return f"""# Editor in Chief review

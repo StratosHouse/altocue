@@ -225,6 +225,8 @@ class Context:
         return self._samples
 
     def heard(self) -> tuple[list[Word] | None, str]:
+        if self._heard is None and voiceless(self):
+            self._heard = ([], NO_VOICE_HEARD)
         if self._heard is None:
             language = str(self.project.setting("transcribe", "language", "en"))
             words, reason = transcribe(self.file, language, voiced_spans(self.timeline))
@@ -426,6 +428,14 @@ def is_film(c: Context) -> bool:
     return bool(c.timeline and c.timeline.get("scenes"))
 
 
+NO_VOICE_HEARD = "This film has no voice, so nothing was transcribed. Speech-to-text run over music alone invents words."
+
+
+def voiceless(c: Context) -> bool:
+    """A storyboard film with no cut and no scene voice. Transcribing its music only finds what the model makes up."""
+    return is_film(c) and not c.edl and not any(i.get("voice") for i in c.timeline["scenes"])  # type: ignore[index]
+
+
 def gate_film_length(c: Context) -> GateResult:
     want, got = round(float(c.timeline["total"]) * c.fps), count_frames(c.file)  # type: ignore[index]
     return GateResult(id="duration", passed=abs(got - want) <= 1, value=got, threshold=f"{want} +/- 1 frames", detail=f"{got} frames, the storyboard implies {want}")
@@ -544,7 +554,7 @@ def doubled_phrases(words: list[str], allow: list[str] | None = None, shown: lis
 
 
 def word_gates(c: Context) -> list[GateResult]:
-    if is_film(c) and not c.edl and not any(i.get("voice") for i in c.timeline["scenes"]):  # type: ignore[index]
+    if voiceless(c):
         why = "This film has no voice."
         return [not_applicable(name, why) for name in ("words", "doubled_phrase", "captions_match")]
     expected, why_not = (None, "No edl.json, so the expected words are unknown.")

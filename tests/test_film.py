@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -1629,6 +1630,23 @@ def test_words_are_read_once_and_kept_until_the_clip_changes(tmp_path, monkeypat
     clip.write_bytes(b"another clip")
     film.words_of(project, clip)
     assert len(calls) == 2
+
+
+def test_existing_film_keeps_filtered_captions_and_can_still_request_verbatim(tmp_path, monkeypatch):
+    from altocue import transcribe
+    from altocue.models import Word
+
+    project = small_film(tmp_path / "film")
+    clip = project.root / "assets" / "take.mp4"
+    clip.write_bytes(b"original take")
+    digest = hashlib.sha256(clip.read_bytes()).hexdigest()[:16]
+    cached = project.work / "film" / f"words-{digest}.json"
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    cached.write_text(json.dumps({"words": SAID}))
+    monkeypatch.setattr(transcribe, "transcribe_file", lambda path: [Word(text="um", start=0.1, end=0.2, kind="filler")])
+    assert film.words_of(project, clip) == SAID
+    assert film.words_of(project, clip, every=True)[0]["kind"] == "filler"
+    assert film.words_of(project, clip) == SAID
 
 
 def test_phone_read_measures_the_captions_as_well(tmp_path, monkeypatch):
