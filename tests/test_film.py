@@ -1230,6 +1230,18 @@ def test_cuts_compare_against_the_plan_in_frames():
     assert film_qa.compare_cuts([1.0, 3.0], [1.0], 30)["unplanned"] == [3.0]
 
 
+def test_a_detected_cut_keeps_frame_precision_at_the_one_frame_limit():
+    step = np.full(90, 0.5)
+    step[31] = 100
+    stats = {"step": step, "count": len(step), "fps": 30, "mean": np.full(90, 100), "spread": np.full(90, 50)}
+    detected = film_qa.analyse(stats)["cuts"]
+    assert film_qa.compare_cuts(detected, [1.0], 30)["max_error_frames"] == 1.0
+    step[31] = 0.5
+    step[32] = 100
+    detected = film_qa.analyse(stats)["cuts"]
+    assert film_qa.compare_cuts(detected, [1.0], 30)["max_error_frames"] == 2.0
+
+
 def test_text_size_and_contrast_are_measured_from_pixels():
     canvas = Image.new("RGB", (1080, 400), (10, 10, 20))
     ImageDraw.Draw(canvas).text((60, 60), "Hook", fill=(250, 250, 250), font=ImageFont.truetype(str(brands.data_path("fonts", "Geist-Variable.ttf")), 120))
@@ -1596,6 +1608,19 @@ def test_captions_are_drawn_on_the_footage_and_move_with_its_camera():
     page = scenes.compose(line, default_brand())
     camera = page.split('id="cam-problem"')[1].split('<div class="cam"')[0]
     assert "clip cap boxed" in camera and ">fixes<" in camera
+
+
+def test_fixed_footage_captions_are_drawn_above_the_picture_outside_the_camera():
+    made = board()
+    made["scenes"][1]["items"].append({"type": "footage", "file": "assets/cut.mp4", "zone": "phone_b", "start": 0, "captions": True, "fixed": True})
+    line = timeline_for(made)
+    item = next(i for i in line["items"] if i["type"] == "footage")
+    line["captions"] = scenes.caption_pages(item, SAID, (1920, 1080))
+    assert all(page["steady"] for page in line["captions"])
+    page = scenes.compose(line, default_brand())
+    camera = page.split('id="cam-problem"')[1].split('<div class="cam"')[0].split('class="ahead"')[0]
+    assert 'clip cap boxed' not in camera
+    assert page.index('class="clip cap boxed') > page.index('class="clip footage')
 
 
 def test_a_footage_item_that_asks_for_captions_gets_them_from_its_own_words(tmp_path, monkeypatch):
