@@ -154,7 +154,8 @@ def run(args: argparse.Namespace) -> int:
     write_txt(project)  # the file beside the film follows what it owes now, with no new render
     licensed = [row for row in rows if row.get("licensed")]
     for row in licensed:
-        print(f"Licensed to you, keep private: {base.plain(row.get('title') or row['file'])} ({base.plain(row.get('licence', ''), 120)}). Never share the file.", file=sys.stderr)
+        name, licence = base.plain(row.get("title") or row["file"]), base.plain(row.get("licence", ""), 120)
+        print(f"Licensed to you, keep private: {name} ({licence}). Never share the file.", file=sys.stderr)
     free = [row for row in rows if not owes(row) and not row.get("licensed")]
     if free:
         print(f"{len(free)} more need no credit: {', '.join(base.plain(row.get('title') or row['file']) for row in free)}.", file=sys.stderr)
