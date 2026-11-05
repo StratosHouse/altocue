@@ -90,6 +90,7 @@ When the user supplies presenter footage and wants product demonstrations above 
 | Subtitles, chapters, thumbnails, versions for each app, a dub | `altocue-deliver` |
 | To see the edit on a timeline | `altocue timeline`, in the HyperFrames studio |
 | A series, a generated host, or a film on someone else's footage | [the platform rules](references/platform-rules.md) |
+| How to film, cut, sound and review a talking-head Reel end to end | [the Studio recipe](../../docs/STUDIO-RECIPE.md) |
 
 ## Project files
 

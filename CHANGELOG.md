@@ -17,6 +17,8 @@
 - Check visible composite faces under opaque graphics, and distinguish explicitly planned full-frame graphic holds from unintended freezes. Visible-face overlap and unplanned holds still fail.
 - Promote native motion recipes in place of the B-roll feature tile. Existing CLI compatibility remains available.
 - Public previews remain silent. No paid sound pack, private film or customer footage ships in the package.
+- Use a sound pack you hold a licence for: `altocue sfx pack` registers its folder, `altocue sfx search` finds its sounds, and `altocue sfx get pack:sound` copies one into the project's git-ignored `sfx/private/` with its licence recorded, ready as a cue or a studio typing tap. Altocue never uploads or bundles a pack.
+- Add the Studio recipe, the house process for filming, cutting, sound and review, linked from the README and the main skill.
 
 ## 0.2.0
 

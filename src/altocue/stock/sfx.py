@@ -1,4 +1,4 @@
-"""`altocue sfx`: sound effects you are allowed to use. The bundled set first, then Freesound with your own key."""
+"""`altocue sfx`: sound effects you are allowed to use. The bundled set first, your own packs, then Freesound with your own key."""
 
 from __future__ import annotations
 
@@ -7,13 +7,14 @@ import json
 import os
 import re
 import shutil
+from pathlib import Path
 from typing import Any
 
 from ..errors import AltocueError
 from ..generate import http
 from ..mix import SFX_DIR
 from ..project import Project
-from . import base, credits, freesound
+from . import base, credits, freesound, packs
 from .base import Result
 
 
@@ -24,8 +25,15 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     find.add_argument("words", nargs="+", help="What you want, such as transition")
     find.add_argument("--limit", type=int, default=6, help="Most results from Freesound")
     get = actions.add_parser("get", help="Copy one sound into this project")
-    get.add_argument("id", help="A name from `altocue sfx list`, or an id such as freesound:1234")
+    get.add_argument("id", help="A name from `altocue sfx list`, a pack sound such as vector:keyboard-01, or an id such as freesound:1234")
     get.add_argument("--project", "-p", default=".", help="Project folder")
+    pack = actions.add_parser("pack", help="Register a sound pack you hold a licence for. It stays on this machine")
+    pack.add_argument("name", help="A short name, such as vector")
+    pack.add_argument("folder", help="The folder that holds the pack's sound files")
+    pack.add_argument("--licence", required=True, help='Your licence in your own words, such as "Bought from the maker, single user"')
+    actions.add_parser("packs", help="Every registered pack")
+    forget = actions.add_parser("forget", help="Forget a pack. No file is deleted")
+    forget.add_argument("name", help="A name from `altocue sfx packs`")
 
 
 def bundled() -> list[dict[str, Any]]:
@@ -64,6 +72,8 @@ def resolve(item: str) -> tuple[Result | None, dict[str, Any] | None]:
 
 
 def fetch(project: Project, item: str) -> str:
+    if packs.find(item) is not None:
+        return packs.fetch(project, item)
     found, row = resolve(item)
     (project.root / "sfx").mkdir(exist_ok=True)
     if row is not None:
@@ -85,11 +95,35 @@ def fetch(project: Project, item: str) -> str:
     return relative
 
 
+def pack_run(args: argparse.Namespace) -> int:
+    if args.action == "pack":
+        added = packs.add(args.name, args.folder, args.licence)
+        print(f"Pack {added['name']}: {added['sounds']} sounds in {added['folder']}. They stay on this machine.")
+        print(f"Copy one into a project with `altocue sfx get {added['name']}:<sound> -p .`. It lands in {packs.PRIVATE}/, which git ignores.")
+        return 0
+    if args.action == "forget":
+        packs.remove(args.name)
+        print(f"Forgot pack {packs.slug(args.name)}. Its files are untouched.")
+        return 0
+    known = packs.packs()
+    if not known:
+        print('No packs. Add one with `altocue sfx pack <name> <folder> --licence "..."`.')
+    for name, pack in known.items():
+        there = Path(pack["folder"]).is_dir()
+        count = len(packs.sounds(Path(pack["folder"]))) if there else 0
+        print(f"{name:<12} {count:>4} sounds  {pack['licence']}  {pack['folder']}{'' if there else '  (folder missing)'}")
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
+    if args.action in {"pack", "packs", "forget"}:
+        return pack_run(args)
     if args.action == "list":
         print("Bundled sounds. Nobody has listened to these: they were chosen by name and measured length, so hear them before you ship.")
         for row in bundled():
             print(line(row))
+        if packs.packs():
+            print("Your own packs are listed by `altocue sfx packs`, and searched by `altocue sfx search`.")
         return 0
     if args.action == "search":
         query = " ".join(args.words)
@@ -97,6 +131,11 @@ def run(args: argparse.Namespace) -> int:
         print(f"{len(rows)} bundled.")
         for row in rows:
             print(line(row))
+        own = packs.matches(query)
+        if own:
+            print(f"{len(own)} in your packs. Licensed to you, so they stay private.")
+            for name, sound, _ in own:
+                print(f"{name}:{sound}")
         if not os.environ.get(freesound.KEY):
             print(f"Freesound was not searched, because {freesound.KEY} is not set. It is a free key, from https://freesound.org/apiv2/apply.")
             return 0

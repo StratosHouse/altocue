@@ -105,6 +105,7 @@ altocue run
 - **See the edit on a timeline.** `altocue timeline -p .` shows the cut, captions, every graphic, the inserts and the voice, music and effects in the HyperFrames studio, at a local address it prints. Nothing else opens. The studio is a view: change `edl.json` or `motion.json`, then run it again. Stop it with `altocue timeline --stop`.
 - **Check it anywhere.** `altocue review --page` writes one file you open yourself, with no server: the film beside every gate, note and caption. A click on a note jumps there. It prints the path and opens nothing.
 - **Know where you are.** `altocue status` shows what is done, what is stale and what comes next.
+- **Follow the house process.** The [Studio recipe](docs/STUDIO-RECIPE.md) is how Stratos House films, cuts, sounds and reviews its own Reels with Altocue, written so you can run it on yours.
 
 ## The tools
 
@@ -140,7 +141,7 @@ altocue run
 
 `altocue library search` finds formats, motion, stock, music, sound, fonts, looks and more, with the licence and what may ship. It works offline. `altocue library add` fetches an open item into your project, and `altocue library update` gets the latest catalog. Excluded sources stay listed with their reason.
 
-[Preview the full library and copy its prompts](https://www.stratosagency.ai/altocue/library/). Every built-in has a real native example and an agent recipe. The [Studio graphics guide](docs/STUDIO-GRAPHICS.md) covers the new collection, timing and optional sound cues. No purchased sound pack is required or included.
+[Preview the full library and copy its prompts](https://www.stratosagency.ai/altocue/library/). Every built-in has a real native example and an agent recipe. The [Studio graphics guide](docs/STUDIO-GRAPHICS.md) covers the new collection, timing and optional sound cues. No purchased sound pack is required or included. If you hold a licence for one, `altocue sfx pack` points Altocue at it, and its sounds stay on your machine.
 
 The catalog that ships holds 801 entries: 159 built in, 461 to fetch, 47 live searches and 134 links. It judges 171 sources and refuses 78 items, each with its reason.
 
@@ -166,7 +167,7 @@ Those are the counts from `altocue library stats`. Most entries are sources and 
 
 **Stock needs no key to start.** `altocue broll --search auto` finds video and photos from NASA, Wikimedia Commons, The Met and Cleveland, and uses Pixabay first if you have its free key. No-key sources are strong on nature, space, science, history and art, and weak on modern people and business, so Pixabay stays the route for generic footage.
 
-**Music and effects come with their terms.** `altocue music` and `altocue sfx` find sound you are allowed to use, and show the licence and credit before anything downloads. Every download is recorded. Render writes `out/credits.txt`, `altocue credits` prints the block for a video description, and QA fails a film that owes a credit without it.
+**Music and effects come with their terms.** `altocue music` and `altocue sfx` find sound you are allowed to use, and show the licence and credit before anything downloads. Your own licensed packs work too: a sound copies into the project's private folder, which git ignores. Every download is recorded. Render writes `out/credits.txt`, `altocue credits` prints the block for a video description, and QA fails a film that owes a credit without it.
 
 **Transitions and texture.** 58 built-in transitions, 12 shader transitions bundled, and more shaders fetched with `altocue library add`. Picture only, so no word moves. Freeze on any word while the sound carries on. Film grain, light leaks, dust, vignette and paper are made in code and sit under the captions.
 
