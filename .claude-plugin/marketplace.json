@@ -1,13 +1,16 @@
 {
   "name": "altocue",
-  "description": "Altocue, the AI edit suite for coding agents.",
-  "owner": { "name": "Stratos House AI", "url": "https://www.stratosagency.ai" },
+  "description": "Altocue, the AI edit suite for coding agents, by Stratos House.",
+  "owner": { "name": "Stratos House", "url": "https://www.stratosagency.ai" },
   "plugins": [
     {
       "name": "altocue",
+      "displayName": "Altocue",
       "source": "./",
       "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out.",
-      "category": "media"
+      "category": "media",
+      "tags": ["video", "editing", "captions", "motion-graphics", "launch-video"],
+      "homepage": "https://www.stratosagency.ai/altocue"
     }
   ]
 }

@@ -1,11 +1,15 @@
 {
   "name": "altocue",
   "displayName": "Altocue",
-  "version": "0.2.0",
-  "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out.",
-  "author": { "name": "Stratos House AI", "url": "https://www.stratosagency.ai" },
-  "homepage": "https://github.com/StratosHouse/altocue",
+  "version": "0.4.0",
+  "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out. Cuts, cleans, grades, captions, animates and delivers on your own machine, then a separate Editor in Chief signs off.",
+  "author": { "name": "Stratos House", "url": "https://www.stratosagency.ai" },
+  "homepage": "https://www.stratosagency.ai/altocue",
   "repository": "https://github.com/StratosHouse/altocue",
   "license": "MIT",
-  "keywords": ["video", "video-editing", "ffmpeg", "captions", "color-correction", "audio", "motion-graphics", "launch-video", "b-roll", "subtitles", "agent-skills"]
+  "keywords": ["video", "video-editing", "ffmpeg", "captions", "color-correction", "audio", "motion-graphics", "launch-video", "subtitles", "reels", "agent-skills", "mcp"],
+  "icon": "./assets/icon.png",
+  "documentationUrl": "https://github.com/StratosHouse/altocue#readme",
+  "supportUrl": "https://github.com/StratosHouse/altocue/issues",
+  "privacyPolicyUrl": "https://github.com/StratosHouse/altocue/blob/main/PRIVACY.md"
 }

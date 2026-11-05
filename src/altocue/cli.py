@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
 import sys
 
@@ -46,6 +47,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "clips": ("altocue.clips", "Find and cut short clips from a long video"),
     "status": ("altocue.status", "Show what is done, stale and next"),
     "demo": ("altocue.demo", "Prove this machine works on a sample clip"),
+    "mcp": ("altocue.mcp", "Serve Altocue to any MCP client over stdio"),
 }
 
 
@@ -101,7 +103,9 @@ def forget_expired_data(args: argparse.Namespace) -> None:
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     args = build_parser(argv).parse_args(argv)
-    forget_expired_data(args)
+    # `altocue mcp` speaks its protocol on stdout, so a note about deleted data goes to stderr there.
+    with contextlib.redirect_stdout(sys.stderr) if args.module == "altocue.mcp" else contextlib.nullcontext():
+        forget_expired_data(args)
     try:
         return importlib.import_module(args.module).run(args) or 0
     except AltocueError as error:

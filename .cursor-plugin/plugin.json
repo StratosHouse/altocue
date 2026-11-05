@@ -1,0 +1,15 @@
+{
+  "name": "altocue",
+  "version": "0.4.0",
+  "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out.",
+  "author": { "name": "Stratos House", "url": "https://www.stratosagency.ai" },
+  "homepage": "https://www.stratosagency.ai/altocue",
+  "repository": "https://github.com/StratosHouse/altocue",
+  "license": "MIT",
+  "keywords": ["video", "video-editing", "captions", "motion-graphics", "launch-video", "agent-skills", "mcp"],
+  "logo": "assets/icon.png",
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "commands": "./commands/",
+  "mcpServers": "./.mcp.json"
+}

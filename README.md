@@ -8,7 +8,9 @@
 
   <p>
     <a href="#install"><img src="https://img.shields.io/badge/Claude_Code-Plugin-b5f4d9?style=flat-square&labelColor=080d13" alt="Claude Code plugin"></a>
-    <a href="#install"><img src="https://img.shields.io/badge/Codex-Skills-a5e7d1?style=flat-square&labelColor=080d13" alt="Codex skills"></a>
+    <a href="#install"><img src="https://img.shields.io/badge/Codex-Plugin-a5e7d1?style=flat-square&labelColor=080d13" alt="Codex plugin"></a>
+    <a href="#install"><img src="https://img.shields.io/badge/Gemini_CLI-Extension-a5e7d1?style=flat-square&labelColor=080d13" alt="Gemini CLI extension"></a>
+    <a href="#install"><img src="https://img.shields.io/badge/MCP-Server-b8cbfb?style=flat-square&labelColor=080d13" alt="MCP server"></a>
     <a href="https://pypi.org/project/altocue/"><img src="https://img.shields.io/pypi/v/altocue?style=flat-square&labelColor=080d13&color=b8cbfb&label=PyPI" alt="Altocue on PyPI"></a>
     <a href="https://github.com/StratosHouse/altocue/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-f3f7fa?style=flat-square&labelColor=080d13" alt="MIT licence"></a>
     <a href="https://github.com/StratosHouse/altocue/blob/main/LICENSES.md"><img src="https://img.shields.io/badge/Team_licence_fees-None-f3f7fa?style=flat-square&labelColor=080d13" alt="No team licence fees"></a>
@@ -48,6 +50,59 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 
 ## Install
 
+Add Altocue to your agent as a plugin, then ask the agent to set it up. It checks the machine, asks before it installs anything, and proves the install on a sample clip with no keys and no spending.
+
+### In your agent
+
+**Claude Code.** In any session:
+
+```text
+/plugin marketplace add StratosHouse/altocue
+/plugin install altocue@altocue
+/altocue:setup
+```
+
+Or from a terminal, in one line:
+
+```bash
+claude plugin install altocue --marketplace StratosHouse/altocue
+```
+
+**Claude Desktop and Cowork.** Open Customize, then Plugins, and add the marketplace `StratosHouse/altocue`. Install Altocue, then ask Claude to set it up. Cowork runs Altocue on your own computer. A plain chat loads the guides only, because it cannot reach your files.
+
+**Codex.**
+
+```bash
+codex plugin marketplace add StratosHouse/altocue
+codex plugin add altocue@altocue
+```
+
+**Gemini CLI.**
+
+```bash
+gemini extensions install https://github.com/StratosHouse/altocue
+```
+
+**Cursor, or any app that speaks MCP.** Add this server to the app's MCP settings. It needs [uv](https://docs.astral.sh/uv/). The first start downloads Altocue, which can take a minute.
+
+```json
+{
+  "mcpServers": {
+    "altocue": { "command": "uvx", "args": ["altocue", "mcp"] }
+  }
+}
+```
+
+**Any other agent.** Paste this to it:
+
+```text
+Install Altocue by following https://github.com/StratosHouse/altocue/blob/main/INSTALL.md
+```
+
+The plugin brings the skills, the Editor in Chief reviewer, a setup command and an MCP server. The server lets an agent that cannot run a terminal still check the machine, install Altocue with your yes, run any stage and follow long renders. It runs the same `altocue` command you would, under the same rules: nothing spends, uploads or installs without your yes.
+
+### From the terminal
+
 You need [uv](https://docs.astral.sh/uv/) and ffmpeg. Stock Homebrew or apt ffmpeg is fine. On a Mac, install the Xcode command line tools, as below: QA reads text in the picture through them, and Apple voice isolation needs them. On Linux, or on a Mac without them, add tesseract so QA can read text in the picture. Motion graphics and films need Node 22 or later. 16 GB of memory is comfortable. Keep 5 GB of disk free: 2.5 GB goes to the speech model, about 0.3 GB to the renderer, and each render needs room. `altocue doctor` warns under that, and transcription will not start.
 
 ```bash
@@ -69,17 +124,6 @@ altocue demo
 `altocue demo` downloads our 730 KB demo take, a generated presenter, and edits it through every free stage on this machine, with no keys and no spending. That one file is the only download, unless the speech model is not on disk yet. If the take cannot be fetched, the demo stops and says so.
 
 **To tell speakers apart,** install the extra with `uv tool install --force "altocue[speakers]"`, then run `altocue setup --speakers`. It fetches about 35 MB of models, once.
-
-**In Claude Code:**
-
-```text
-/plugin marketplace add StratosHouse/altocue
-/plugin install altocue@altocue
-```
-
-**In Codex:** clone this repo and ask Codex to follow [INSTALL.md](https://github.com/StratosHouse/altocue/blob/main/INSTALL.md). It reads the skills in `.agents/skills`.
-
-**Any other agent:** point it at [INSTALL.md](https://github.com/StratosHouse/altocue/blob/main/INSTALL.md) and `skills/altocue/SKILL.md`.
 
 ## Use it
 

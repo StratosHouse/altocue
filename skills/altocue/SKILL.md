@@ -11,7 +11,7 @@ You are the editor. Use the media tools actually available: original takes, word
 
 ## Before anything else
 
-Run `altocue doctor --json`.
+Run `altocue doctor --json`. With no shell, use the Altocue MCP tools instead: `altocue_doctor` first, then `altocue_install` after the user agrees, and `altocue_run` with the same arguments as each command.
 
 - If `altocue` is not found, ask the user, then run `uv tool install altocue`, then `altocue setup`.
 - If `uv` is not found, show `curl -LsSf https://astral.sh/uv/install.sh | sh` and ask first.
