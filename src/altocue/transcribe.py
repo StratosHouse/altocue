@@ -32,7 +32,7 @@ from . import ffmpeg
 from .errors import AltocueError
 from .locks import free_memory_gb, heavy
 from .models import Clip, Word
-from .project import Project
+from .project import Project, write_json
 
 RATE = 16000
 HOP = 0.02  # envelope frame, seconds
@@ -596,7 +596,21 @@ def separate(words: list[Word], duration: float) -> list[Word]:
 
 def done(project: Project, clip_id: str) -> bool:
     path = project.words_dir / f"{clip_id}.json"
-    return path.exists() and path.stat().st_size > 10
+    if not path.exists():
+        return False
+    try:
+        record = json.loads(path.read_text())
+    except (ValueError, OSError) as error:
+        raise AltocueError(f"Cannot read the cached transcript for {clip_id}.", fix=ffmpeg.SOURCE_CLOCK_FIX) from error
+    if record.get("source_clock") != ffmpeg.SOURCE_CLOCK:
+        raise AltocueError(f"The cached transcript for {clip_id} has an unverified source clock.", fix=ffmpeg.SOURCE_CLOCK_FIX)
+    return True
+
+
+def _save_words(project: Project, clip_id: str, words: list[Word], engine: str) -> None:
+    """Record the clock used to obtain word times, without changing the word schema."""
+    record = {"engine": engine, "source_clock": ffmpeg.SOURCE_CLOCK, "words": [word.to_dict() for word in words]}
+    write_json(project.words_dir / f"{clip_id}.json", record)
 
 
 def prompt_for(project: Project, *, engine: str) -> str:
@@ -724,12 +738,12 @@ def transcribe_project(project: Project, engine: str | Transcriber | None = None
     with heavy("transcribing"):
         for clip in pending:
             if not clip.has_audio:
-                project.save_words(clip.id, [], chosen.name)
+                _save_words(project, clip.id, [], chosen.name)
                 counts[clip.id] = 0
                 print(f"{clip.id}: no audio")
                 continue
             words = transcribe_clip(clip, chosen, language=language, prompt=prompt, cues=cues)
-            project.save_words(clip.id, words, chosen.name)
+            _save_words(project, clip.id, words, chosen.name)
             counts[clip.id] = len(words)
             fillers, spoken_cues = sum(w.kind == "filler" for w in words), sum(w.kind == "cue" for w in words)
             print(f"{clip.id}: {len(words)} words, {fillers} fillers, {spoken_cues} cue words ({chosen.name})")
