@@ -56,7 +56,7 @@ def record(
     """One record per file. Fetching the same file again replaces it, so a re-run never doubles a credit.
 
     `licensed` is a sound pack the user holds their own licence for. It needs no open licence, owes a credit
-    only if one is given, and is marked private so it never ships as a file.
+    only if one is given, and `altocue credits` names it as licensed to the user, to keep private.
     """
     if not licensed and not base.clear(licence):
         raise AltocueError(f"{title or file} has no clear licence, so it cannot join a project.", fix="Pick another result.")
@@ -72,7 +72,7 @@ def record(
         "date": datetime.date.today().isoformat(),
         "sha256": digest(project.root / file),
         "warnings": [base.credit_field(line, 300) for line in warnings],
-        **({"licensed": True, "private": True} if licensed else {}),
+        **({"licensed": True} if licensed else {}),
     }
     rows = [saved for saved in records(project) if saved["file"] != file]
     write_json(project.root / FILE, {"assets": [*rows, row]})
@@ -152,7 +152,10 @@ def run(args: argparse.Namespace) -> int:
     text = block(rows)
     print(text or "Nothing in this film owes a credit.")
     write_txt(project)  # the file beside the film follows what it owes now, with no new render
-    free = [row for row in rows if not owes(row)]
+    licensed = [row for row in rows if row.get("licensed")]
+    for row in licensed:
+        print(f"Licensed to you, keep private: {base.plain(row.get('title') or row['file'])} ({base.plain(row.get('licence', ''), 120)}). Never share the file.", file=sys.stderr)
+    free = [row for row in rows if not owes(row) and not row.get("licensed")]
     if free:
         print(f"{len(free)} more need no credit: {', '.join(base.plain(row.get('title') or row['file']) for row in free)}.", file=sys.stderr)
     spare = unused(project)

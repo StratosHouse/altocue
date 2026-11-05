@@ -1,15 +1,13 @@
-"""Your own licensed sound packs: registered once, copied into one project privately, never shipped, and typed one key at a time."""
+"""Your own licensed sound packs: registered once, copied into one project privately, and never shipped."""
 
 from __future__ import annotations
 
-import json
-import wave
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from altocue import cli, ffmpeg, mix
+from altocue import cli, ffmpeg
 from altocue.errors import AltocueError
 from altocue.project import Project
 from altocue.stock import credits, packs, sfx
@@ -74,7 +72,7 @@ def test_get_copies_into_a_private_ignored_folder_and_records_the_licence(pack, 
     assert copied.read_bytes() == (pack / "Keyboard 01.wav").read_bytes()
     assert "*" in (project.root / "sfx" / "private" / ".gitignore").read_text().splitlines()
     row = credits.records(project)[0]
-    assert row["licensed"] and row["private"] and row["source"] == "pack:vector" and row["sha256"]
+    assert row["licensed"] and row["source"] == "pack:vector" and row["sha256"]
     assert not credits.owes(row)
 
 
@@ -96,30 +94,11 @@ def test_a_freesound_id_is_not_mistaken_for_a_pack(pack):
     assert packs.find("freesound:2") is None and packs.find("whoosh3") is None
 
 
-def test_typing_expands_to_one_short_key_per_character():
-    hits = mix.keystrokes({"file": "k.wav", "at": 2.0, "keys": {"count": 4, "every": 0.07}, "under_db": 9})
-    assert [round(hit["at"], 2) for hit in hits] == [2.0, 2.07, 2.14, 2.21]
-    assert all(hit["max_ms"] == mix.KEY_MS and hit["min_gap_ms"] == 0 and "keys" not in hit for hit in hits)
-    exact = mix.keystrokes({"file": "k.wav", "at": 1.0, "keys": {"at": [0.3, 0, 0.1]}, "max_ms": 60})
-    assert [hit["at"] for hit in exact] == [1.0, 1.1, 1.3] and exact[0]["max_ms"] == 60
-
-
-@pytest.mark.parametrize("keys", [{"count": 3, "every": 0.005}, {"count": 0, "every": 0.1}, {"at": [-0.1]}, [1, 2]])
-def test_typing_that_cannot_be_heard_as_keys_is_refused(keys):
-    with pytest.raises(AltocueError):
-        mix.keystrokes({"file": "k.wav", "at": 1.0, "keys": keys})
-
-
-def test_each_key_is_heard_where_it_lands_and_stops_short(tmp_path):
-    voice = ffmpeg.write_wav(tmp_path / "voice.wav", np.r_[0.1 * np.sin(np.arange(RATE) * 0.05), np.zeros(3 * RATE)], RATE)
-    typing = sound(tmp_path / "typing.wav", seconds=1.5, level=0.5)
-    keys = [0.0, 0.25, 0.5]
-    out = mix.mix_bed(voice, tmp_path / "mix.wav", sfx=[{"file": str(typing), "at": 1.5, "keys": {"at": keys}}])
-    with wave.open(str(out), "rb") as handle:
-        left = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2").reshape(-1, 2)[:, 0]
-    for offset in keys:
-        at = round((1.5 + offset) * RATE)
-        assert np.abs(left[at : at + 2400]).max() > 300
-        assert np.abs(left[at + round(0.12 * RATE) : at + round(0.2 * RATE)]).max() == 0  # the key ended, so the long sound did not ring on
-    report = json.loads(out.with_suffix(".json").read_text())
-    assert len(report["sfx"]) == 3 and not report["skipped"]
+def test_credits_name_a_licensed_sound_as_private(pack, tmp_path, capsys):
+    project = Project.create(tmp_path / "video")
+    packs.add("vector", pack, "Bought from the maker, single user")
+    relative = sfx.fetch(project, "vector:keyboard-01")
+    (project.root / "motion.json").write_text(f'{{"sfx": [{{"file": "{relative}", "at": 1.0}}]}}')
+    assert cli.main(["credits", "-p", str(project.root)]) == 0
+    err = capsys.readouterr().err
+    assert "Licensed to you, keep private: keyboard-01" in err and "Bought from the maker" in err

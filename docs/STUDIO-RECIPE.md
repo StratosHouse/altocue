@@ -1,6 +1,6 @@
 # The Studio recipe
 
-This is how Stratos House films and edits its own Reels with Altocue. It is written so you or your agent can run the same process on your own footage, with your own sounds and your own machines. Nothing here needs a paid service.
+This is how Stratos House films and edits its own Reels with Altocue. It is written so you or your agent can run the same process on your own footage, with your own sounds and your own machines. Nothing here needs a paid service. For the scenes themselves, the [Directed Studio workflow](DIRECTED-STUDIO.md) has the commands and JSON.
 
 ## Film
 
@@ -26,7 +26,7 @@ This is how Stratos House films and edits its own Reels with Altocue. It is writ
 
 - **Every effect marks something the viewer sees.** An arrival, a contact, a file moving, a selection, a key pressed. If nothing happened on screen, there is no sound.
 - **Sit under the voice.** Effects are levelled against the voice, 8 to 12 dB under it, and never cover a word.
-- **Type one key at a time.** When text types on screen, give each character its own key with a `keys` cue, so the sound stops when the typing stops. See the sound skill for the syntax.
+- **Type one key at a time.** When text types on screen, use the `typing` scene from the [Directed Studio workflow](DIRECTED-STUDIO.md). It gives each character its own key tap, so the sound stops when the typing stops.
 - **Use your own pack if you have one.** `altocue sfx pack` registers a folder of sounds you hold a licence for. `altocue sfx get` copies one into the project's private folder, which git ignores. Altocue never uploads or bundles a pack. Whether a pack's sounds may appear in a published video depends on its licence, so read it.
 - **Silence is a choice.** Many Reels need no music at all. Voice plus a few precise effects is often the cleanest mix.
 

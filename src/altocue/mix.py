@@ -60,10 +60,6 @@ DIP_RANGE = (6.0, 12.0)
 DIP_SECONDS = 0.4
 DIP_BACK = 0.02
 ALIGNS = ("start", "peak")
-KEY_MS = 90  # one key of a typing sound: the attack and a little of its ring
-KEY_FADE_MS = 8
-KEYS_MOST = 400
-KEY_EVERY_LEAST = 0.02  # faster than this is a buzz, not typing
 SILENT_VOICE = 1e-4
 ROOM_SECONDS = 8  # long enough that no ear catches the repeat
 ROOM_FRAME = 2048
@@ -472,30 +468,6 @@ def _placing(cue: dict[str, Any]) -> dict[str, Any]:
     return {**found, "over_db": float(cue.get("over_db", row.get("bed_db", BED_OVER_DB)))}
 
 
-def keystrokes(cue: dict[str, Any]) -> list[dict[str, Any]]:
-    """A cue with `keys` becomes one short hit per key, so each character typed on screen gets its own sound.
-
-    `keys` is `{"count": 14, "every": 0.06}` for evenly typed text, or `{"at": [0, 0.07, 0.15]}` for the
-    seconds after the cue's own time that each character lands. Each hit is the first `max_ms` of the
-    sound, `KEY_MS` unless the cue says otherwise, so a long recording of typing gives one key at a time.
-    """
-    if "keys" not in cue:
-        return [cue]
-    keys, rest = cue["keys"], {key: value for key, value in cue.items() if key != "keys"}
-    if not isinstance(keys, dict):
-        raise AltocueError(f"Cannot read keys {keys!r}.", fix='Use {"count": 14, "every": 0.06}, or {"at": [0, 0.07, 0.15]}.')
-    if "at" in keys:
-        offsets = [float(at) for at in keys["at"]]
-    else:
-        count, every = int(keys.get("count", 0)), float(keys.get("every", 0))
-        if every < KEY_EVERY_LEAST:
-            raise AltocueError(f"Keys every {every:g} s is too fast to hear as typing.", fix=f"Use {KEY_EVERY_LEAST:g} s or more.")
-        offsets = [index * every for index in range(count)]
-    if not 0 < len(offsets) <= KEYS_MOST or min(offsets) < 0:
-        raise AltocueError(f"A typing cue needs 1 to {KEYS_MOST} keys at or after its own time.", fix="Check count, or the at list.")
-    return [{**rest, "at": float(cue["at"]) + offset, "min_gap_ms": 0, "max_ms": rest.get("max_ms", KEY_MS)} for offset in sorted(offsets)]
-
-
 def _spaced(cues: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Cues in time order, less any sound repeated sooner than it should be."""
     kept, skipped = [], []
@@ -521,13 +493,7 @@ def _loaded(cue: dict[str, Any], index: int, total: int, folder: Path) -> tuple[
             fix="Move it inside the film, or remove it.",
         )
     wav = ffmpeg.extract_wav(path, folder / f"effect{index}.wav")
-    samples = ffmpeg.read_wav(wav)[0].astype(np.float64)
-    if "max_ms" in cue:
-        keep = max(round(float(cue["max_ms"]) / 1000 * RATE), 1)
-        samples = samples[:keep].copy()
-        fade = min(round(KEY_FADE_MS / 1000 * RATE), len(samples))
-        samples[-fade:] *= _curve(fade, False)[::-1]
-    return samples, wav, path
+    return ffmpeg.read_wav(wav)[0].astype(np.float64), wav, path
 
 
 def _placed(samples: np.ndarray, cue: dict[str, Any], place: dict[str, Any]) -> tuple[np.ndarray, int, int]:
@@ -685,7 +651,6 @@ def mix_bed(
     Each entry in `sfx` is `{"name": "pop", "at": 1.2}` or `{"file": path, "at": 1.2}`, plus
     `align` ("start" or "peak"), `offset_ms` and `min_gap_ms`, which default to the sound's row in
     `sounds.json`. With a voice a cue can set `under_db`. With none it can set `over_db` and `dip_db`.
-    `max_ms` keeps only the start of the sound, and `keys` makes one hit per typed character: see `keystrokes`.
     `room` is the loop from `mix_voice`, which fills the tail. `music_end` is "land", which
     backtimes the track so its own end falls on the film's last sample, "fade", which starts at the
     top of the track and fades out, or "own", for a score that ends itself. The numbers land in a
@@ -706,7 +671,7 @@ def mix_bed(
         loaded, _ = ffmpeg.read_wav(voice)
         samples, length = loaded.astype(np.float64), len(loaded)
     total = length + round(tail * RATE)
-    cues, skipped = _spaced([hit for cue in sfx for hit in keystrokes(cue)])
+    cues, skipped = _spaced(sfx)
     layers: dict[str, np.ndarray] | None = {} if stems else None
     with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
         folder = Path(scratch)

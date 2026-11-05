@@ -167,7 +167,7 @@ Those are the counts from `altocue library stats`. Most entries are sources and 
 
 **Stock needs no key to start.** `altocue broll --search auto` finds video and photos from NASA, Wikimedia Commons, The Met and Cleveland, and uses Pixabay first if you have its free key. No-key sources are strong on nature, space, science, history and art, and weak on modern people and business, so Pixabay stays the route for generic footage.
 
-**Music and effects come with their terms.** `altocue music` and `altocue sfx` find sound you are allowed to use, and show the licence and credit before anything downloads. Your own licensed packs work too: a sound copies into the project's private folder, which git ignores, and a `keys` cue gives typing on screen one key per character. Every download is recorded. Render writes `out/credits.txt`, `altocue credits` prints the block for a video description, and QA fails a film that owes a credit without it.
+**Music and effects come with their terms.** `altocue music` and `altocue sfx` find sound you are allowed to use, and show the licence and credit before anything downloads. Your own licensed packs work too: a sound copies into the project's private folder, which git ignores. Every download is recorded. Render writes `out/credits.txt`, `altocue credits` prints the block for a video description, and QA fails a film that owes a credit without it.
 
 **Transitions and texture.** 58 built-in transitions, 12 shader transitions bundled, and more shaders fetched with `altocue library add`. Picture only, so no word moves. Freeze on any word while the sound carries on. Film grain, light leaks, dust, vignette and paper are made in code and sit under the captions.
 

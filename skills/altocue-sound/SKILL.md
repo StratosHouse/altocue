@@ -1,6 +1,6 @@
 ---
 name: altocue-sound
-description: Finds music and sound effects a film is allowed to use, puts them in the project, and writes the credits a film owes. Sources are ccMixter, Incompetech, bundled CC0 stings and effects, the user's own licensed sound packs, and Freesound with the user's own key. Use when the user wants background music, a sting, a sound effect, typing sounds, to use a sound pack they bought, or a credit line for a video description.
+description: Finds music and sound effects a film is allowed to use, puts them in the project, and writes the credits a film owes. Sources are ccMixter, Incompetech, bundled CC0 stings and effects, the user's own licensed sound packs, and Freesound with the user's own key. Use when the user wants background music, a sting, a sound effect, to use a sound pack they bought, or a credit line for a video description.
 license: MIT
 compatibility: Requires the altocue CLI. Music needs no key. FREESOUND_API_KEY is optional, and free, for sounds beyond the bundled set.
 ---
@@ -67,7 +67,7 @@ altocue sfx get vector:keyboard-01 -p .
 - **Ask for the licence in their words.** `--licence` is required and lands in `credits.json` beside the file.
 - **The copy is private.** It goes to `sfx/private/<pack>/`, with a `.gitignore` that keeps it out of git. Never commit, upload, share or bundle it, and never put it in a public preview.
 - **The licence decides publishing.** Whether the sound may appear in a published video depends on the pack's terms. If you do not know, ask the user before anything ships.
-- **It owes no credit line** unless the user gives one. QA's credit gate passes it.
+- **It owes no credit line** unless the user gives one. QA's credit gate passes it, and `altocue credits` lists it as licensed to the user, to keep private.
 - **`altocue sfx packs`** shows each pack and whether its folder is still there. `altocue sfx forget vector` forgets one and deletes nothing.
 
 ## Sound follows an event
@@ -83,15 +83,7 @@ Place an effect only where something happens on screen: an arrival, a contact, a
 
 ## Typing sounds
 
-When text types on screen, give each character its own key, so the sound starts and stops with the typing:
-
-```json
-{"sfx": [{"file": "sfx/private/vector/keyboard-01.wav", "at": 2.4, "keys": {"count": 14, "every": 0.06}, "under_db": 9}]}
-```
-
-- **`keys`** is `{"count": n, "every": seconds}` for even typing, or `{"at": [0, 0.07, 0.15]}` for the second after `at` that each character lands. Match the graphic's own reveal timing.
-- **Each key is short.** It keeps the first `max_ms` of the sound, 90 by default, so a long typing recording gives one key per character. Set `max_ms` on the cue to change it.
-- **Tell the user to listen.** You cannot hear whether the keys sit right under the consonants.
+Use the `typing` scene in `altocue studio` (see `altocue-motion`). It reveals one character per frame and trims one key tap to each of those frames, so the keys stop with the last character. To use a pack sound as the tap, `altocue sfx get` it first, then name its project path in studio.json `assets`, such as `"key": "sfx/private/vector/keyboard-01.wav"`. Never lay a long typing recording under typed text.
 
 ## Credits
 
