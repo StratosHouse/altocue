@@ -1,0 +1,270 @@
+{
+  "schema": 1,
+  "fps": 60,
+  "entries": [
+    {
+      "id": "logo-roster",
+      "title": "Marks in spoken order",
+      "description": "Introduce several tools and direct the eye to each named one.",
+      "prompt": "Use the genuine supplied logos. Keep them in spoken order. Land each focus pulse on its word, keep the presenter visible below, and hold each until the next name.",
+      "scene": {
+        "recipe": "logo-roster",
+        "start": 0,
+        "end": 150,
+        "title": "Meet the team.",
+        "items": [
+          {
+            "name": "Plan",
+            "asset": "tool-a",
+            "at": 12
+          },
+          {
+            "name": "Build",
+            "asset": "tool-b",
+            "at": 51
+          },
+          {
+            "name": "Render",
+            "asset": "tool-c",
+            "at": 94
+          }
+        ]
+      }
+    },
+    {
+      "id": "typing",
+      "title": "One glyph, one tap",
+      "description": "Make the keyboard sound stop with the last visible character.",
+      "prompt": "Use one reveal frame per character, including spaces. Trim a single local key transient to each of those same frames; the keyboard track must be silent after the final key. Do not add a continuous keyboard recording.",
+      "scene": {
+        "recipe": "typing",
+        "start": 0,
+        "end": 150,
+        "title": "Tell it what’s wrong.",
+        "text": "Check this.",
+        "keys": [
+          8,
+          13,
+          18,
+          24,
+          30,
+          36,
+          43,
+          49,
+          56,
+          63,
+          70
+        ],
+        "sound": "key"
+      }
+    },
+    {
+      "id": "file-restore",
+      "title": "A reversible file move",
+      "description": "Show a single document travelling out and returning home.",
+      "prompt": "Move one visible document on a smoothly eased arc between two destinations. Hold the arrival before reversing. Use real product terminology. Do not invent measured results.",
+      "scene": {
+        "recipe": "file-restore",
+        "start": 0,
+        "end": 150,
+        "title": "A reversible file move",
+        "labels": [
+          "Files",
+          "Trash"
+        ],
+        "travel": [
+          12,
+          58,
+          84,
+          137
+        ]
+      }
+    },
+    {
+      "id": "before-after",
+      "title": "An uninterrupted comparison",
+      "description": "Carry a joined sentence over a visual that explains the change.",
+      "prompt": "Keep one continuous comparison on screen across the source-camera cut. Maintain original voice and room tone. Move the same object from before to after; do not replace it with two unrelated screenshots.",
+      "scene": {
+        "recipe": "before-after",
+        "start": 0,
+        "end": 150,
+        "title": "An uninterrupted comparison",
+        "items": [
+          {
+            "name": "Before",
+            "detail": "In Trash"
+          },
+          {
+            "name": "After",
+            "detail": "Restored"
+          }
+        ]
+      }
+    },
+    {
+      "id": "repo-tour",
+      "title": "A real repository tour",
+      "description": "Travel from project masthead to diagram, hold to read and continue.",
+      "prompt": "Use a current, clean capture from the actual repository README. Start at its masthead. Scroll to the diagram, hold at least two seconds, enlarge one useful part of that diagram, continue the scroll, then resolve to the spoken offer.",
+      "scene": {
+        "recipe": "repo-tour",
+        "start": 0,
+        "end": 240,
+        "title": "A real repository tour",
+        "asset": "repo",
+        "source_label": "github.com / owner / project",
+        "scroll_frames": [
+          62,
+          190,
+          226
+        ],
+        "scroll_y": [
+          0,
+          0.78,
+          0.95
+        ],
+        "detail": "diagram",
+        "detail_box": [
+          0,
+          0.4,
+          0.5,
+          1
+        ],
+        "detail_label": "Closer look"
+      }
+    },
+    {
+      "id": "file-handoff",
+      "title": "A linked handoff",
+      "description": "Show the actual file travelling between responsible agents.",
+      "prompt": "Use the two authentic supplied marks. Carry one file with a readable public-safe name from owner to reviewer. Change the file's state on the spoken handoff, and leave the resulting state readable.",
+      "scene": {
+        "recipe": "file-handoff",
+        "start": 0,
+        "end": 150,
+        "title": "A linked handoff",
+        "items": [
+          {
+            "name": "Editor",
+            "asset": "tool-a"
+          },
+          {
+            "name": "Reviewer",
+            "asset": "tool-b"
+          }
+        ],
+        "file_label": "Master.mp4",
+        "subtitle": "Ready for review"
+      }
+    },
+    {
+      "id": "parallel-jobs",
+      "title": "Working at the same time",
+      "description": "Three roles act visibly on the same clock.",
+      "prompt": "Give each lane a genuine mark and a short job. Animate the three activity indicators together, on the phrase describing simultaneous work. Preserve the actual spoken qualifier in the final transcript.",
+      "scene": {
+        "recipe": "parallel-jobs",
+        "start": 0,
+        "end": 150,
+        "title": "One team.",
+        "subtitle": "Working at once.",
+        "items": [
+          {
+            "name": "Planner",
+            "asset": "tool-a",
+            "detail": "Plan"
+          },
+          {
+            "name": "Builder",
+            "asset": "tool-b",
+            "detail": "Build"
+          },
+          {
+            "name": "Editor",
+            "asset": "tool-c",
+            "detail": "Render"
+          }
+        ]
+      }
+    },
+    {
+      "id": "asset-reveal",
+      "title": "The real object",
+      "description": "Introduce a genuine transparent product mark or character.",
+      "prompt": "Introduce the provided asset as the speaker names it. Give it a short eased arrival; let the viewer read the silhouette without unrelated stock footage. A custom character rig can be supplied as a separate authored insert.",
+      "scene": {
+        "recipe": "asset-reveal",
+        "start": 0,
+        "end": 150,
+        "title": "The real object",
+        "asset": "tool-a"
+      }
+    },
+    {
+      "id": "brand-open",
+      "title": "An opening mark and one keyword",
+      "description": "Close with the actual house art and an unambiguous call to action.",
+      "prompt": "Open the genuine house mark in three hinged sections, reassemble the exact artwork, then hold one large keyword inside the phone-safe area. Use the actual recorded CTA once. Add no music or web-fetched sound.",
+      "scene": {
+        "recipe": "brand-open",
+        "start": 0,
+        "end": 150,
+        "title": "An opening mark and one keyword",
+        "keyword": "GUIDE",
+        "verb": "Comment",
+        "subtitle": "Get the setup guide"
+      }
+    },
+    {
+      "id": "voice-sculpture",
+      "title": "Voice into form",
+      "description": "The original metal-surface study reacts to real PCM.",
+      "prompt": "Use the actual recorded voice to drive a lit metal sculpture and waveform. Use this when the speaker names motion graphics, not a second copy of the product logo.",
+      "scene": {
+        "recipe": "voice-sculpture",
+        "start": 0,
+        "end": 180,
+        "title": "Sound into form.",
+        "voice": "voice",
+        "voice_start": 0
+      }
+    },
+    {
+      "id": "character-sweep",
+      "title": "The product character",
+      "description": "A short acted beat using the real project art.",
+      "prompt": "Breathe life into the actual product character for about two seconds at its spoken name: eyes, lean, broom contact and a few moving dust points. Preserve its silhouette.",
+      "scene": {
+        "recipe": "character-sweep",
+        "start": 0,
+        "end": 120,
+        "title": "Meet the tool.",
+        "asset": "character"
+      }
+    },
+    {
+      "id": "logo-dock",
+      "title": "Mark into the live page",
+      "description": "Animate real mark components into a registered page target.",
+      "prompt": "Supply the actual mark components exported from the 3D source, plus the real page with a clean logo target. Introduce the independent object. Close its pieces as it settles into the corresponding place, then reopen. Use a real screen recording for any subsequent page scroll.",
+      "scene": {
+        "recipe": "logo-dock",
+        "start": 0,
+        "end": 160,
+        "title": "Meet the product.",
+        "page": "landing",
+        "parts": [
+          "part-a",
+          "part-b",
+          "part-c"
+        ],
+        "target": [
+          0.54,
+          0.5,
+          0.31
+        ]
+      }
+    }
+  ]
+}

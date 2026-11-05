@@ -50,6 +50,11 @@ def all_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
 
 def mix_film(project: Project, timeline: dict[str, Any], voice: Path, dest: Path, stems: Path | None = None) -> Path:
     """The film's sound, made one way, so the render, the stems and the timeline all hear the same mix."""
+    if (project.root / "studio.json").is_file() and "studio_layer" not in timeline:
+        from .studio import key_audio, load
+
+        plan = load(project.root, total=round(timeline["total"] * project.fps), fps=project.fps)
+        timeline = {**timeline, "cues": [*timeline.get("cues", []), *key_audio(plan, project.work / "studio" / "keys")]}
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
     room = voice.with_name(f"{voice.stem}-room.wav")
     music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
@@ -104,7 +109,15 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
         inputs += ["-i", str(layer.path)]
     matrix = ":out_color_matrix=bt709:out_range=tv" if layer.concat else ""  # the basic layer is RGB, and the plate is BT.709
     graph.append(f"[{next_input}:v]scale={c.width}:{c.height}:flags=lanczos{matrix},format=yuva444p[gfx]")
-    graph.append(f"[{base}][gfx]overlay=format=auto:eof_action=pass,format=yuv420p[video]")
+    if timeline.get("studio_layer"):
+        # The ordinary caption/graphics layer remains below the deliberately authored areas.
+        # A transparent lower half preserves the presenter and captions outside of full-screen proof shots.
+        graph.append(f"[{base}][gfx]overlay=format=auto:eof_action=pass[standard]")
+        inputs += ["-i", timeline["studio_layer"]]
+        graph.append(f"[{next_input+1}:v]scale={c.width}:{c.height}:flags=lanczos,format=yuva444p[studio]")
+        graph.append("[standard][studio]overlay=format=auto:eof_action=pass,format=yuv420p[video]")
+    else:
+        graph.append(f"[{base}][gfx]overlay=format=auto:eof_action=pass,format=yuv420p[video]")
     return [
         *inputs,
         "-filter_complex",
@@ -191,14 +204,18 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         timeline = timelines.build(project, draft=draft)
         credits.write_txt(project)
         layer = motion.render_layers(project, renderer=renderer, draft=draft)
+        c = plate.canvas(project, draft=draft)
+        if (project.root / "studio.json").is_file():
+            from .studio import attach
+
+            timeline = attach(project, timeline, c, draft=draft)
         audio = mix_film(project, timeline, voice, project.work / "mix.wav")
         dest = project.out / ("draft.mp4" if draft else "render.mp4")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        c = plate.canvas(project, draft=draft)
         timeline = bake_edges(project, timeline, picture, c, draft=draft)
         ffmpeg.run(compose_args(project, picture, audio, layer, timeline, c, dest))
     if not draft:
-        write_json(project.work / "render.json", {"cut": project.cut_mark()})
+        write_json(project.work / "render.json", {"cut": project.cut_mark(), "studio": (project.root / "studio.json").is_file()})
     return dest
 
 

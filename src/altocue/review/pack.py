@@ -105,6 +105,19 @@ def hook_frames(file: Path, fps: float, dest: Path, work: Path) -> list[float]:
     return times
 
 
+def ending_frames(file: Path, duration: float, fps: float, dest: Path, work: Path, tail: float = 0) -> list[float]:
+    """Always show a settled ending, even when the regular sheet hits its arrival."""
+    dest.mkdir(parents=True, exist_ok=True)
+    work.mkdir(parents=True, exist_ok=True)
+    hold = min(tail / 2, 1.0) if tail else min(duration / 3, 0.75)
+    times = sorted({max(duration - hold, 0.0), max(duration - 1 / fps - 0.002, 0.0)})
+    for index, at in enumerate(times, 1):
+        frame = qa_gates.grab(file, at, work / f"end_{index:02d}.jpg", width=CUT_WIDTH)
+        if frame:
+            stamped(Image.open(frame).convert("RGB"), timecode(at, precise=True)).save(dest / f"end_{index:02d}.jpg", quality=88)
+    return times
+
+
 def astats(file: Path) -> dict[str, float]:
     log = ffmpeg.run(["-i", str(file), "-af", "astats=measure_perchannel=none", "-vn", "-f", "null", "-"]).stderr
     names = {
@@ -257,6 +270,7 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
         sheet_times = contact_sheets(file, fps, folder / "sheets", work)
         cut_frames(file, cuts, fps, folder / "cuts", work / "cuts")
         hook_times = hook_frames(file, fps, folder / "hook", work)
+        end_times = ending_frames(file, context.clip.duration, fps, folder / "ending", work / "ending", context.tail)
         facts = numbers(context, digest, gates, cuts, heard["words"])
         timeline = timeline_sheets(context, heard["words"], cuts, facts["silence"], sorted((work / "sheet").glob("f_*.jpg")), folder / "timeline")
     write_json(folder / "numbers.json", facts)
@@ -270,7 +284,7 @@ def build(project: Project, file: Path, gates: list[GateResult]) -> dict[str, An
         },
     )
     (folder / "transcript.txt").write_text(transcript_text(heard["words"]) + "\n")
-    write_json(folder / "manifest.json", {"sheet_times": sheet_times, "cuts": cuts, "hook_times": hook_times, "timeline": timeline})
+    write_json(folder / "manifest.json", {"sheet_times": sheet_times, "cuts": cuts, "hook_times": hook_times, "end_times": end_times, "timeline": timeline})
     return load(project)
 
 
@@ -404,6 +418,7 @@ Read this whole file, then the images it lists. Nothing else.
 ## What the images are
 
 - `sheets/`: contact sheets, one frame every 2 seconds, timecode under each frame. Use these for shot variety, framing and consistency.
+- `ending/`: the settled ending and near-final frame, so a short end card cannot fall between regular samples.
 - `cuts/`: the last frame before and the first frame after every cut, side by side, with the cut's time.
   Use these for jump cuts and mismatches.
 - `hook/`: 4 frames a second for the first 3 seconds, at full width. Use these for the hook and caption legibility.

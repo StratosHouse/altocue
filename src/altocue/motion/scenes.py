@@ -134,6 +134,10 @@ def _place(item: dict[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     named = item.get("zone")
     if item["type"] == "composition":
         return {**item, "width": size[0], "height": size[1]}
+    if re.search(r"(?:^|;)\s*(?:left|right|top|bottom|width|height)\s*:", str(item.get("place") or "")):
+        # An explicit box is already directed. Replacing it with a named zone
+        # can put a heading behind the footage it was meant to sit above.
+        return item
     if area == "edge" or (area == "full" and not named):
         return item
     zone = str(named or "center")

@@ -41,7 +41,7 @@ FONT_LICENCES = ("OFL.txt", "OFL-InstrumentSerif.txt", "OFL-Caveat.txt")
 PLAYER = """<script>
 (() => {
   const LOOP = %(loop)s, STILL = %(still)s;
-  let root = document.getElementById("root"), timer = 0, playing = false;
+  let root = document.getElementById("root"), timer = 0, playing = false, wanted = true;
   const width = +root.dataset.width, height = +root.dataset.height;
   const calm = matchMedia("(prefers-reduced-motion: reduce)");
   const fit = () => {
@@ -62,11 +62,12 @@ PLAYER = """<script>
   addEventListener("resize", fit);
   addEventListener("message", (event) => {
     const asked = event.data && event.data.altocue;
-    if (asked === "pause" && (playing || timer)) stop();
-    if (asked === "play" && !playing) play();
+    if (asked === "pause") { wanted = false; stop(); }
+    if (asked === "play") { wanted = true; if (!document.hidden && !playing) play(); }
   });
-  calm.addEventListener("change", play);
-  play();
+  calm.addEventListener("change", () => { if (wanted && !document.hidden) play(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); else if (wanted) play(); });
+  if (!document.hidden) play(); else stop();
 })();
 </script>"""
 

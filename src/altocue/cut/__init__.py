@@ -339,7 +339,7 @@ def segment_ends(edl: Edl) -> dict[str, float]:
     frame = 0
     for segment in edl.segments:
         frame += frame_count(segment.start, segment.end, edl.fps)
-        ends[segment.id] = round(frame / edl.fps, 3)
+        ends[segment.id] = frame / edl.fps
     return ends
 
 

@@ -373,6 +373,41 @@ def phone_times(total: float, *, fps: float) -> list[float]:
     return [min(at + 0.5, last) for at in sheet_times(total, step=max(total / 24, 1.0))]
 
 
+def reading_holds(line: dict[str, Any], *, speechless: bool = False) -> list[tuple[float, float]]:
+    """Explicit reading holds in code/still scenes, never a frozen video under text."""
+    static = {".jpg", ".jpeg", ".png", ".webp", ".svg"}
+    holds = []
+    for scene in line.get("scenes", []):
+        if scene.get("reading_hold") is not True or (speechless and (scene.get("voice") or scene.get("says"))):
+            continue
+        foreground = [i for i in line.get("items", []) if i.get("scene") == scene["id"]]
+        backgrounds = [
+            i for i in line.get("backdrops", [])
+            if i.get("scene") in (None, scene["id"])
+            and float(i.get("start", scene["start"])) < scene["end"]
+            and float(i.get("end", scene["end"])) > scene["start"]
+        ]
+        if not foreground or any(i.get("type") == "footage" and Path(str(i.get("file", ""))).suffix.lower() not in static for i in [*foreground, *backgrounds]):
+            continue
+        holds.append((float(scene["start"]), float(scene["end"])))
+    # A quiet reading stretch can cross a hard cut between two graphic scenes.
+    # Merge only overlapping/touching eligible holds. A video, missing speech
+    # or even a real gap still keeps separate intervals.
+    joined: list[tuple[float, float]] = []
+    for start, end in sorted(holds):
+        if joined and start <= joined[-1][1]:
+            joined[-1] = (joined[-1][0], max(joined[-1][1], end))
+        else:
+            joined.append((start, end))
+    return joined
+
+
+def unplanned_stops(found: dict[str, Any], line: dict[str, Any], fps: float) -> list[dict[str, Any]]:
+    planned = reading_holds(line)
+    slack = 1 / max(fps, 1)
+    return [row for row in found["frozen"] if not row["to_end"] and not any(row["from"] >= a - slack and row["to"] <= b + slack for a, b in planned)]
+
+
 def report_rows(path: Path, line: dict[str, Any], *, loop: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Every picture and sound check for one finished file."""
     stats = frame_stats(path)
@@ -389,10 +424,11 @@ def report_rows(path: Path, line: dict[str, Any], *, loop: bool = False) -> tupl
         f"mean {zero['mean']}, contrast {zero['contrast']}. Thumbnails and muted autoplay show this frame.",
     )
     add("WARN" if found["pops"] else "PASS", "pops", f"small spikes at {found['pops']}: intended hits, or glitches?" if found["pops"] else "none")
-    for stretch in found["frozen"]:
-        add("PASS" if stretch["to_end"] else "FAIL", "dead air", f"{stretch['from']} to {stretch['to']} s has no motion")
-    if not found["frozen"]:
-        add("PASS", "dead air", "nothing stops for a second or more")
+    stopped = unplanned_stops(found, line, stats["fps"])
+    for stretch in stopped:
+        add("FAIL", "dead air", f"{stretch['from']} to {stretch['to']} s has no motion")
+    if not stopped:
+        add("PASS", "dead air", f"no unplanned stop; {len(reading_holds(line))} declared graphic reading holds")
     flat = found["flat_seconds"]
     add(
         "WARN" if flat else "PASS",
@@ -453,8 +489,9 @@ def gate_rows(path: Path, line: dict[str, Any]) -> list[dict[str, Any]]:
         FRAME_ZERO_CONTRAST,
         f"mean {zero['mean']}, contrast {zero['contrast']}",
     )
-    stuck = [row for row in found["frozen"] if not row["to_end"]]
-    gate("dead_air", not stuck, len(stuck), 0, "; ".join(f"{row['from']} to {row['to']} s has no motion" for row in stuck) or "nothing stops for a second or more")
+    stuck = unplanned_stops(found, line, stats["fps"])
+    detail = "; ".join(f"{row['from']} to {row['to']} s has no motion" for row in stuck)
+    gate("dead_air", not stuck, len(stuck), 0, detail or f"no unplanned stop; {len(reading_holds(line))} declared graphic reading holds")
     gate("pops", True, len(found["pops"]), None, f"spikes at {found['pops']}" if found["pops"] else "none")
     quiet = planned_silences(path, line.get("silences") or [])
     if quiet:

@@ -153,7 +153,13 @@ def layout(width: int, height: int, brand: Brand, zone: dict[str, float] | None 
 
 
 def _attrs(start: float, end: float, track: int) -> str:
-    return f'data-start="{start:.3f}" data-duration="{max(end - start, 0.04):.3f}" data-track-index="{track}"'
+    # Independently rounding a start and its duration to milliseconds can put
+    # the previous title past a shared frame boundary. Treat clips as half-open
+    # intervals on one microsecond grid, including short caption-word states.
+    first = math.floor(start * 1_000_000 + 1e-6)
+    last = math.floor(end * 1_000_000 + 1e-6)
+    duration = max(last - first - 1, 1)
+    return f'data-start="{first / 1_000_000:.6f}" data-duration="{duration / 1_000_000:.6f}" data-track-index="{track}"'
 
 
 def _style(item: dict[str, Any], *, leave: bool = False) -> str:

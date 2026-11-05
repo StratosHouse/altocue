@@ -25,12 +25,14 @@ def available() -> bool:
 
 
 def pick_images(pack_dir: Path) -> list[Path]:
-    """Sheets and the hook first, because they cover the whole film. Cuts fill what is left."""
+    """Reserve the ending, then whole-film sheets and hook. Cuts fill what is left."""
+    ending = sorted((pack_dir / "ending").glob("*.jpg"))
     timeline = sorted((pack_dir / "timeline").glob("*.jpg"))
     sheets = sorted((pack_dir / "sheets").glob("*.jpg"))
     hook = sorted((pack_dir / "hook").glob("*.jpg"))[::2]
     cuts = sorted((pack_dir / "cuts").glob("*.jpg"))
-    chosen = [*timeline, *sheets, *hook][:MAX_IMAGES]
+    reserved = ending[:MAX_IMAGES]
+    chosen = [*timeline, *sheets, *hook][:MAX_IMAGES - len(reserved)] + reserved
     room = MAX_IMAGES - len(chosen)
     if room and cuts:
         step = max(1, len(cuts) // room)

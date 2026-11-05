@@ -44,6 +44,8 @@ EXAMPLE_FILES = {
     "desk.mp4",
     "decisions.json",
     "door.wav",
+    "keyboard-01.wav",
+    "soft-hit-02.wav",
     "export.csv",
     "Inter-Variable.ttf",
     "logo.png",

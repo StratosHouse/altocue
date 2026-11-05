@@ -7,7 +7,7 @@ compatibility: Requires the altocue CLI and ffmpeg. Node 22 or later for full mo
 
 # Altocue
 
-You are the editor. You cannot watch video, so you work from word-timed transcripts, measurements and frames. Every decision goes into a file the user can read.
+You are the editor. Use the media tools actually available: original takes, word-timed transcripts, frames, decoded audio and playback evidence. State the limits of any visual or audible review. Every edit decision goes into a file the user can read.
 
 ## Before anything else
 
@@ -33,7 +33,11 @@ Run `altocue doctor --json`.
 
 ## A launch video goes to `altocue-launch` first
 
-If anyone mentions a launch video, a product launch, a SaaS launch, a product video or a launch film, stop here and use the `altocue-launch` skill. It is the dedicated feature for this, needs no footage, and runs through to the finished film. Any other film with no footage goes to `altocue-film`.
+For a product launch or launch film without a supplied presenter take, use the `altocue-launch` skill. It is the dedicated feature for this, needs no footage, and runs through to the finished film. Any other film with no footage goes to `altocue-film`.
+
+## A filmed product explanation uses the directed Studio workflow
+
+When the user supplies presenter footage and wants product demonstrations above the speaker, use [Directed Studio](../../docs/DIRECTED-STUDIO.md) with `altocue studio catalog`. Select actual source lines first; map each spoken claim to an authentic mark, actual capture or explanatory scene. Author studio.json, validate it, then render through the normal project pipeline. Use one reveal frame per typed character and its tap. Keep important labels away from phone UI. Check the final transcript for the complete promised qualifier and a single CTA keyword; preserve source audio in any repair. The original 3D model, logos and page capture remain inputs, not guessed replacements.
 
 ## The workflow
 
@@ -86,6 +90,7 @@ If anyone mentions a launch video, a product launch, a SaaS launch, a product vi
 | Subtitles, chapters, thumbnails, versions for each app, a dub | `altocue-deliver` |
 | To see the edit on a timeline | `altocue timeline`, in the HyperFrames studio |
 | A series, a generated host, or a film on someone else's footage | [the platform rules](references/platform-rules.md) |
+| How to film, cut, sound and review a talking-head Reel end to end | [the Studio recipe](../../docs/STUDIO-RECIPE.md) |
 
 ## Project files
 
@@ -93,6 +98,7 @@ If anyone mentions a launch video, a product launch, a SaaS launch, a product vi
 - `edl.json`: the cut. You may edit it by hand, and gain, crops and zooms stay through a re-cut.
 - `script.md`: every sentence. Edit it, then `altocue cut --from-script`.
 - `motion.json`: the graphics. You write this.
+- `studio.json`: optional directed presenter scenes, local artwork, per-character sound cues and final speech checks.
 - `broll.json`: the B-roll you picked. `altocue broll` writes this.
 - `work/`: everything derived. Safe to delete.
 - `out/`: `draft.mp4`, `render.mp4`, `final.mp4`.
