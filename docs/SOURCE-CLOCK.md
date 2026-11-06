@@ -18,6 +18,8 @@ Unverified cached word times are refused when transcribing or when cleaning
 would use them. They are not silently overwritten. A changed cleaning policy
 invalidates the cleaned-audio cache. Existing verified word metadata survives
 text or speaker-label changes; manually imported words are not stamped as verified.
+A clip made with `altocue clips cut` keeps its parent's stamp, because the clip is a
+stream copy of the parent's source.
 
 Before migrating a project:
 
