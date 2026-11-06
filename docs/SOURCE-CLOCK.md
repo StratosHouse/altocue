@@ -44,20 +44,7 @@ and cleaned-audio rebuilds. No private media or model download is required.
 
 Implementation reference: [FFmpeg resampler documentation](https://ffmpeg.org/ffmpeg-resampler.html).
 
-## Candidate receipt
+## Release
 
-- Base: `af7909095deccb0d335c050178215151b88499a8` (`origin/main`, 0.3.0).
-- Branch: `codex/digital-brain-source-clock`.
-- Scope: shared audio extraction, cleaning, transcription cache provenance,
-  preservation of provenance during word edits, and focused regressions.
-- Claude's in-progress 0.3.1 branch and the active render runtime are untouched.
-- Validation on the render PC: 12 focused timing/cache regressions passed.
-  Existing cleaning, transcription and core tests: 190 passed, 3 skipped,
-  4 deselected. Skipped model/platform checks are not passes.
-- The first affected-test invocation named a nonexistent test file and ran no
-  tests. The corrected invocation passed 189 tests and found an environment-only
-  failure: a subprocess could not resolve `python`. That one test passed after
-  adding the existing virtual environment's bin directory to the test PATH.
-- `ruff check src tests scripts` and `python scripts/check_repo.py` passed on
-  the render PC. The full suite and real-model tests have not been run.
-- No push, merge, release or version bump is part of this candidate.
+Shipped in 0.4.0. The full suite runs on Linux and macOS in CI. The real-model
+transcription tests still need a machine with the speech models installed.
