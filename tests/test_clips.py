@@ -320,7 +320,7 @@ def media_project(tmp_path: Path, *, gop: int = 30) -> Project:
     source = beeping_clip(tmp_path / "talk.mp4", seconds, [w.start for w in words], gop=gop)
     assert main(["new", str(tmp_path / "talk"), "--input", str(source), "--aspect", "16:9"]) == 0
     project = Project.open(tmp_path / "talk")
-    project.save_words("talk", classify(words), "test")
+    transcribing._save_words(project, "talk", classify(words), "test")
     return project
 
 
@@ -348,6 +348,19 @@ def test_cut_makes_a_normal_project_without_transcribing(tmp_path, monkeypatch):
     saved = json.loads((project.root / "clips" / "candidates.json").read_text())["candidates"][0]
     assert " ".join(cut.expected_words(child, edl)) == saved["transcript"]
     assert transcribing.done(child, child.clips()[0].id)
+
+
+def test_a_clip_keeps_the_parent_clock_only_when_it_was_verified(tmp_path):
+    project = media_project(tmp_path)
+    path = project.words_dir / "talk.json"
+    record = json.loads(path.read_text())
+    assert record["source_clock"] == ffmpeg.SOURCE_CLOCK
+    del record["source_clock"]
+    path.write_text(json.dumps(record))
+    child = cut_one(project)
+    assert "source_clock" not in json.loads((child.words_dir / f"{child.clips()[0].id}.json").read_text())
+    with pytest.raises(AltocueError):
+        transcribing.done(child, child.clips()[0].id)
 
 
 def test_the_words_still_land_on_the_sound(tmp_path):
