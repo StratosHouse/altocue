@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+Altocue installs as a plugin in any agent, not just from a terminal.
+
+- One plugin, branded with the Altocue mark, for Claude Code, Claude Desktop and Cowork, Codex, Cursor and Gemini CLI. In Claude Code: `/plugin marketplace add StratosHouse/altocue`, then `/plugin install altocue@altocue`. In Codex: `codex plugin marketplace add StratosHouse/altocue`, then `codex plugin add altocue@altocue`. In Gemini CLI: `gemini extensions install https://github.com/StratosHouse/altocue`.
+- An MCP server for agents with no shell, such as Cowork. Six tools: `altocue_doctor` checks the machine, `altocue_install` installs Altocue from PyPI only when the call says the user agreed, `altocue_run` runs any stage, `altocue_job` and `altocue_stop` follow and stop long renders, and `altocue_guide` serves the skills. Each skill is also a prompt. It uses only the standard library, so the plugin starts it before Altocue is installed. `altocue mcp` serves it from PyPI for any other MCP client.
+- `/altocue:setup` walks the agent through install, extras and the demo, asking before each step that installs.
+- The README and INSTALL.md lead with the plugin. The terminal steps stay, unchanged.
+- A privacy page, and the support and privacy links a plugin directory asks for.
+
 ## 0.3.0
 
 - Add twelve directed presenter scenes through studio.json and the normal render command: authentic logo rosters, registered logo-to-page docking, voice-reactive sculpture, character motion, repo tours, reversible documents, comparisons, handoffs, parallel work and opening-brand endings.

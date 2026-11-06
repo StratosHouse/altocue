@@ -26,7 +26,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--deep-filter", action="store_true", help="Fetch deep-filter even on a Mac with Apple voice isolation")
     parser.add_argument("--skip-renderer", action="store_true")
     parser.add_argument("--speakers", action="store_true", help="Fetch the models that tell speakers apart, about 35 MB")
-    parser.add_argument("--plugin", action="store_true", help="Also print the Claude Code plugin commands")
+    parser.add_argument("--plugin", action="store_true", help="Also print the commands that add Altocue to Claude Code, Codex, Gemini CLI or any MCP client")
 
 
 def consent(question: str, yes: bool) -> bool:
@@ -141,6 +141,11 @@ def run(args: argparse.Namespace) -> int:
     if getattr(args, "speakers", False):
         install_speakers(args.yes)
     if args.plugin:
-        print("\nIn Claude Code:\n  /plugin marketplace add StratosHouse/altocue\n  /plugin install altocue@altocue")
+        print(
+            "\nIn Claude Code:\n  /plugin marketplace add StratosHouse/altocue\n  /plugin install altocue@altocue\n  /altocue:setup"
+            "\n\nIn Codex:\n  codex plugin marketplace add StratosHouse/altocue\n  codex plugin add altocue@altocue"
+            "\n\nIn Gemini CLI:\n  gemini extensions install https://github.com/StratosHouse/altocue"
+            '\n\nIn any MCP client:\n  {"mcpServers": {"altocue": {"command": "uvx", "args": ["altocue", "mcp"]}}}'
+        )
     print("\nRun `altocue doctor` to confirm.")
     return 0

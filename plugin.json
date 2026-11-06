@@ -1,9 +1,29 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "altocue",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out.",
-  "homepage": "https://github.com/StratosHouse/altocue",
+  "author": { "name": "Stratos House", "url": "https://www.stratosagency.ai" },
+  "homepage": "https://www.stratosagency.ai/altocue",
   "repository": "https://github.com/StratosHouse/altocue",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": ["video", "video-editing", "captions", "motion-graphics", "launch-video", "agent-skills", "mcp"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Altocue",
+        "shortDescription": "Raw footage in. Finished video out.",
+        "longDescription": "Altocue gives your agent a full video edit suite on your own machine. It cuts silence, fillers and retakes from word-timed transcripts, cleans the sound, corrects colour, reframes, captions, adds motion graphics and sound you are allowed to use, and delivers a version for each platform. It also makes launch films and explainers with no footage. A separate Editor in Chief reviews the result, and code decides SHIP or FIX.",
+        "developerName": "Stratos House",
+        "category": "Developer Tools",
+        "capabilities": ["Read", "Write"],
+        "websiteURL": "https://www.stratosagency.ai/altocue",
+        "privacyPolicyURL": "https://github.com/StratosHouse/altocue/blob/main/PRIVACY.md",
+        "defaultPrompt": ["Edit take.mov into a 45 second reel for first-time founders.", "Make a launch video for my product.", "Check whether this machine can run Altocue."],
+        "brandColor": "#B5F4D9",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      }
+    }
+  }
 }

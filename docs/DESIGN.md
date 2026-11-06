@@ -257,9 +257,10 @@ A reviewer that did not make the edit.
 
 ## Agent packaging
 
-- **One repo, plugin at the root.** `.claude-plugin/`, `plugin.json`, `gemini-extension.json`, `skills/`, `agents/`.
-- **Skills use the portable frontmatter fields.** The agent calls `altocue` on PATH.
-- **No hooks, no `bin/`, no MCP server.** Each one narrows where the plugin can be used.
+- **One repo, plugin at the root.** `.claude-plugin/` for Claude Code, Claude Desktop and Cowork, `plugin.json`, `mcp.json` and `.agents/plugins/` for Codex, `.cursor-plugin/` for Cursor, `gemini-extension.json` for Gemini CLI. They share `skills/`, `agents/`, `commands/` and `assets/icon.png`, and every manifest carries the package version.
+- **Skills use the portable frontmatter fields.** With a shell, the agent calls `altocue` on PATH.
+- **One small MCP server, for agents with no shell.** `src/altocue/mcp.py` uses only the standard library and runs on Python 3.8 or later, so the plugin starts it from its own folder before Altocue is installed. It wraps the `altocue` command and adds no power of its own: every edit still goes through the command and its consent rules, it installs only when the call says the user agreed, and heavy jobs run one at a time. From PyPI the same server is `altocue mcp`, and the wheel carries the skills so its guides match.
+- **No hooks and no `bin/`.** A hook runs on every session, and a top-level `bin/` keeps a plugin out of claude.ai and Cowork. A client that cannot start a local server ignores it, so the server never blocks a plugin from loading.
 
 ## Safety rails for a public repo
 

@@ -2,6 +2,8 @@
 
 Altocue is a command line tool plus agent skills that edit raw footage into finished video. Read `docs/DESIGN.md` first.
 
+**Installing or using Altocue, not changing it?** Follow `INSTALL.md`, then `skills/altocue/SKILL.md`.
+
 ## Layout
 
 - `src/altocue/`: the CLI. One module per stage.
