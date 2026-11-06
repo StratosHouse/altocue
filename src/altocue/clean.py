@@ -275,7 +275,7 @@ def _extract(clip: Clip, dest: Path) -> int:
     if not Path(clip.path).exists():
         raise AltocueError(f"Clip {clip.id}: no file at {clip.path}.", fix="Put the source back, then run `altocue ingest`.")
     count = round(clip.duration * RATE)
-    fit = f"aresample={RATE}:first_pts=0,apad=whole_len={count},atrim=end_sample={count}"
+    fit = ffmpeg.source_clock_filter(RATE, samples=count)
     ffmpeg.run(["-i", clip.path, "-vn", "-map", "0:a:0", "-af", fit, "-ac", "1", "-c:a", "pcm_s16le", str(dest)])
     return count
 
@@ -506,9 +506,13 @@ def clean_clip(
 
 def _words(project: Project, clip: Clip) -> list[tuple[float, float]] | None:
     try:
-        return [(word.start, word.end) for word in project.words(clip.id)]
+        words = project.words(clip.id)
     except AltocueError:
         return None
+    record = json.loads((project.words_dir / f"{clip.id}.json").read_text())
+    if words and record.get("source_clock") != ffmpeg.SOURCE_CLOCK:
+        raise AltocueError(f"The transcript for {clip.id} has an unverified source clock.", fix=ffmpeg.SOURCE_CLOCK_FIX)
+    return [(word.start, word.end) for word in words]
 
 
 def clean_project(project: Project, force: bool = False, denoiser: str | None = None, deess: str | None = None, breaths: float | None = None) -> dict[str, Any]:
@@ -519,6 +523,7 @@ def clean_project(project: Project, force: bool = False, denoiser: str | None = 
     isolate = binary if denoiser == "apple" else None
     deep_filter = binary if denoiser == "deep-filter" else usable_deep_filter()[0] if isolate else None  # the spare, if isolation fails
     settings = {
+        "source_clock": ffmpeg.SOURCE_CLOCK,
         "denoiser": denoiser,
         "denoise": bool(project.setting("audio", "denoise", True)),
         "level_phrases": bool(project.setting("audio", "level_phrases", True)),

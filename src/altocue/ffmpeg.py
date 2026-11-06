@@ -18,6 +18,11 @@ from .errors import AltocueError
 from .models import Clip
 
 INSTALL_FIX = "macOS: brew install ffmpeg. Ubuntu or Debian: sudo apt install ffmpeg."
+SOURCE_CLOCK = "source-pts-v1"
+SOURCE_CLOCK_FIX = (
+    "Back up the project, then run `altocue transcribe --force` and `altocue clean --force`. "
+    "Review the existing cut against the original before rendering. Existing words and cuts have not been changed."
+)
 
 
 def require(tool: str = "ffmpeg") -> str:
@@ -139,14 +144,27 @@ def has_filter(name: str) -> bool:
     return name in filters()
 
 
+def source_clock_filter(rate: int, *, samples: int | None = None) -> str:
+    """Follow packet timestamps, filling gaps and trimming overlaps without changing playback speed.
+
+    A decoder can return more samples than the source clock allows, even when the
+    container reports the right duration. Trimming only the tail cannot repair
+    that drift. Keep the incoming PTS until aresample has conformed the samples.
+    """
+    chain = f"aresample={rate}:async=1:min_hard_comp=0.001:first_pts=0"
+    if samples is not None:
+        chain += f",apad=whole_len={samples},atrim=end_sample={samples}"
+    return chain
+
+
 def extract_wav(source: str | Path, dest: str | Path, *, rate: int = 48000, start: float | None = None, end: float | None = None) -> Path:
-    """Write mono 16-bit PCM. The one audio format every stage reads."""
+    """Write source-clock mono 16-bit PCM; a requested range starts at WAV zero."""
     args: list[str] = []
     if start is not None:
         args += ["-ss", f"{start:.3f}"]
     if end is not None:
         args += ["-to", f"{end:.3f}"]
-    run([*args, "-i", str(source), "-vn", "-ac", "1", "-ar", str(rate), "-c:a", "pcm_s16le", str(dest)])
+    run([*args, "-i", str(source), "-vn", "-map", "0:a:0", "-af", source_clock_filter(rate), "-ac", "1", "-ar", str(rate), "-c:a", "pcm_s16le", str(dest)])
     return Path(dest)
 
 
