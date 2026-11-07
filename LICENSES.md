@@ -59,6 +59,7 @@ Altocue's own code is MIT. Nothing it needs charges a licence fee, so a team of 
 
 | Dependency | Licence | Use |
 |---|---|---|
+| Stageshow, by Benji Taylor | MIT. Its app icons and brand marks stay with their owners, as its `NOTICE.md` says | Faux product UI for `altocue stageshow record`. Altocue bundles none of it: its recorder reads Stageshow's own virtual clock from your installed copy at run time |
 | sherpa-onnx | Apache-2.0 | Tells speakers apart. Install with `uv tool install --force "altocue[speakers]"` |
 | pyannote segmentation-3.0 model | MIT, copyright CNRS, licence text kept beside the model | Fetched by `altocue setup --speakers` |
 | 3D-Speaker CAM++ model, zh-cn 16k common | Apache-2.0, per its model card. Trained on about 200,000 Chinese speakers, in a set the card does not name | Fetched by `altocue setup --speakers` |

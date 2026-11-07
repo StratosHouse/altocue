@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Product UI inserts with Stageshow.** `altocue stageshow record` films a [Stageshow](https://github.com/benjitaylor/skills) stage (windows, phones, dashboards, cursor walkthroughs) into an MP4 or a poster PNG. It injects Stageshow's own virtual clock before the page loads and steps it one frame at a time, so every render gives the same frames and a beat lands on a known frame of the edit. `--example` serves Stageshow's preview for the run; `--url` films any page that renders a stage. A sidecar marks the file illustrative, and the command prints the `motion.json` insert to place it. `altocue stageshow doctor` checks Node, the install, ffmpeg and a browser. New skill: `altocue-stageshow`.
+- **Higgsfield catalog rechecked on 2026-11-07.** `/shorts` is now a full presenter-reel workflow (script, takes, captions, motion, music and a reviewed render), so the `shorts-studio` recipe describes it, with its synthetic-person truth gate and a per-second planning cost. Its text says to keep going without waiting; the recipe says to reserve first and hand it the reserved credits as its budget. New recipes: `shorts-presets` (the Shorts Studio style gallery), `color-grade` (20 movie looks or reference stills, LUT export, no paid generation) and `microdrama-ads`.
+- **Seedance 2.5 at 1080p costs 16 credits a second, not 12.** Live quotes on 2026-11-07: 18, 42 and 96 credits for 6 s at 480p, 720p and 1080p. The hero routes and the `seedance-insert` recipe now say so.
+
 ## 0.4.0
 
 Altocue installs as a plugin in any agent, not just from a terminal.

@@ -42,6 +42,7 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 - **Motion graphics.** 151 original formats in 12 groups, timed to speech and placed clear of faces. The Studio collection adds smooth typography, depth, linked handoffs, editing diagrams and endings.
 - **Copyable motion recipes.** Every built-in graphic includes an agent prompt, a native example and optional sound notes. Preview the full library and adapt it to your words.
 - **Music and effects.** Sound you are allowed to use, with the licence and credit shown before anything downloads.
+- **Product UI inserts.** Faux product screens built with [Stageshow](https://github.com/benjitaylor/skills), filmed one fixed frame at a time into an insert that lands on the spoken word, and labelled as a mockup.
 - **Films with no footage.** Launch films, explainers, demos, ad cards and more, drawn in code from a storyboard.
 - **Long video to shorts.** It finds complete thoughts in your own recordings and cuts each into its own project.
 - **Deliverables.** Subtitles, chapters, thumbnails, stems, a version with no music for an app's own song library, and a version for each platform, with the master untouched.
@@ -330,7 +331,7 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **Project footage stays off Higgsfield until the project agrees.** Its terms, updated October 23, 2026, allow training on uploads without an Enterprise Agreement. The MCP server itself cannot be gated, so Altocue refuses to reserve or import an uploading recipe, or a shot listed in `shots.json` that sends project files, without that yes. A recipe is checked against Higgsfield whatever provider is named.
 - **A generated person may not claim experience.** The claims and disclosure gates read flags and words. They are checks, not legal advice, and they miss a generated person nobody flagged. An exemption is recorded, not judged.
 - **Lip closure is not measured.** `altocue qa --check ugc` leaves a sheet of frames for a person.
-- **Credit prices are planning figures.** Most known prices date from October 8, 2026, and 18 of the 37 recipes have no known price.
+- **Credit prices are planning figures.** Most known prices date from October 8, 2026, and 18 of the 40 recipes have no known price.
 - **Your own key is our reading of the rules.** Whether a key you hold makes you the API client is an inference. Have counsel or Google confirm it before you rely on it.
 - **The timeline is a view.** Grain and the other overlays are added at render and are not drawn there.
 

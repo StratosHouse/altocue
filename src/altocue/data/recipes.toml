@@ -6,7 +6,9 @@
 # its prompts and scripts never belong in this repo. Command names are facts, and
 # they are recorded so an agent can find them.
 #
-# Read from the Higgsfield MCP server on 2026-11-02, without spending.
+# Read from the Higgsfield MCP server on 2026-11-02, without spending. Rechecked on
+# 2026-11-07 after the account's access grew: /shorts became a full presenter-reel
+# workflow, and /color-grade, /microdrama-ads and the Shorts Studio gallery appeared.
 #
 # Cost fields:
 #   basis          quote     a live quote from the provider's own tool
@@ -532,21 +534,91 @@ fallback = "none"
 
 [[recipe]]
 id = "shorts-studio"
-title = "Longer restyle"
-group = "gallery"
-command = "shorts_studio_create"
-makes = "Restyles a 4 to 120 s clip at 720p."
-when = "A restyle runs past the 30 s limit of the other route."
-inputs = ["a clip of 4 to 120 s", "a style preset"]
+title = "Presenter reel from a brief"
+group = "workflow"
+command = "/shorts"
+makes = "Makes a finished vertical reel of up to about two minutes, carried by one consistent AI presenter: script, takes, captions, motion, sound and a reviewed render."
+when = "A Stratos-owned explainer or channel reel where a generated presenter is acceptable. Never for a client's own face or voice, and never to stand in for a real person."
+inputs = ["a topic, script or brief", "optional presenter photos", "optional style preset from the Shorts Studio gallery"]
+limits = "Its own text says to post a cost line and keep going without waiting, and never to ask a question. Altocue's gate comes first: reserve, get the user's yes, then pass the reserved credits to it as the user's budget, which it treats as a cap. Defaults: 9:16, about a minute, Seedance 2.5 takes at 1080p, captions on."
 enters_at = "source"
-tool = "shorts_studio_create"
-loader = "tool"
-load = "shorts_studio_list_presets"
+tool = "get_preset_instructions, generate_video_batch, sandbox_exec"
+loader = "get_preset_instructions"
+load = "/shorts"
+variants = ["/shorts/<preset slug>", "/shorts-studio", "/ai-reels"]
+uploads_footage = false
+sends = "your script or brief as text, and any presenter photos you give it"
+synthetic = ["person", "voice"]
+truth_gate = true
+basis = "estimate"
+as_of = "2026-11-07"
+per_second = { "720p" = 7, "1080p" = 16 }
+cost_note = "Counted per second of presenter take, from live Seedance 2.5 quotes on 2026-11-07. A one-minute reel is about 60 s of takes, so near 960 credits at 1080p or 420 at 720p, plus a few stills, mattes and music. Recovery may buy one replacement take."
+fallback = "none"
+fallback_note = "Altocue edits real footage. A generated presenter has no native route."
+
+[[recipe]]
+id = "shorts-presets"
+title = "Shorts Studio style presets"
+group = "gallery"
+command = "/shorts"
+makes = "Offers published reel styles to copy, each with a preview video: tutorials, story reels, podcast cuts, tool demos and more."
+when = "Choosing a look for a /shorts reel, or studying a reel structure to rebuild natively in Altocue."
+inputs = ["a preset slug"]
+limits = "27 presets on 2026-11-07. Browsing is free and never authorises a run."
+enters_at = "source"
+tool = "get_presets"
+loader = "get_presets"
+load = "source:shorts_studio"
+uploads_footage = false
+sends = "nothing"
+basis = "stated"
+as_of = "2026-11-07"
+fixed_credits = 0
+cost_note = "Browsing is free. A run is priced as shorts-studio."
+fallback = "none"
+
+[[recipe]]
+id = "color-grade"
+title = "Movie look and reference grade"
+group = "workflow"
+command = "/color-grade"
+makes = "Grades a still or clip to reference frames or one of 20 named movie looks, with previews and an optional .cube LUT."
+when = "A client asks for a named film look, or a reference still to match, and Altocue's own looks do not get there. Export the LUT and apply it locally when the footage must stay home."
+inputs = ["a still or clip", "reference stills or a named look"]
+limits = "Colour only: it cannot move light or make day into night. SDR in. A LUT carries only the per-pixel transform, not the skin or sky masks, glow or grain."
+enters_at = "finish"
+tool = "sandbox_exec"
+loader = "get_preset_instructions"
+load = "/color-grade"
 uploads_footage = true
-sends = "the clip"
+sends = "the clip and the reference stills, to Higgsfield's sandbox"
+basis = "stated"
+as_of = "2026-11-07"
+fixed_credits = 0
+cost_note = "Its own text says no paid generation is needed. The upload still needs the project's yes."
+fallback = "native:altocue grade"
+fallback_note = "Altocue's grade stage corrects and applies its own looks without any upload."
+
+[[recipe]]
+id = "microdrama-ads"
+title = "Micro drama ad"
+group = "workflow"
+command = "/microdrama-ads"
+makes = "Directs a short story ad in which generated characters act and talk on screen, scene by scene, then joins it."
+when = "A brand wants a scripted story ad with actors and no shoot. Never with a real person's likeness."
+inputs = ["a story or a catalog card", "the product"]
+enters_at = "source"
+tool = "get_workflow_instructions, generate_video, sandbox_exec"
+loader = "get_workflow_instructions"
+load = "microdrama-ads"
+uploads_footage = false
+sends = "your story as text, and any product images"
+synthetic = ["person", "voice"]
+truth_gate = true
 basis = "unknown"
-as_of = "2026-11-02"
-cost_note = "The tool has a cost preflight. No figure was recorded."
+as_of = "2026-11-07"
+cost_note = "Several generated scenes. No figure recorded; quote every scene with get_cost."
 fallback = "none"
 
 [[recipe]]
@@ -646,10 +718,10 @@ loader = "tool"
 load = "models_explore, with action get"
 uploads_footage = true
 sends = "the reference stills"
-basis = "estimate"
-as_of = "2026-10-08"
-per_second = { "480p" = 3, "720p" = 7, "1080p" = 12 }
-cost_note = "Planning rates from a price file marked historical. Use get_cost for the real figure. A draft is 3 a second and can be finalised within seven days."
+basis = "quote"
+as_of = "2026-11-07"
+per_second = { "480p" = 3, "720p" = 7, "1080p" = 16 }
+cost_note = "Live get_cost on 2026-11-07 for a 6 s 9:16 omni_reference clip: 18, 42 and 96 credits. 1080p rose from 12 a second. A draft is 3 a second and can be finalised within seven days."
 fallback = "fal:bytedance/seedance-2.0/image-to-video"
 fallback_checked = "2026-10-30"
 

@@ -41,6 +41,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "deliver": ("altocue.deliver", "Subtitles, chapters, thumbnails and platform versions"),
     "timeline": ("altocue.timeline_view", "See the edit on a timeline in the HyperFrames studio"),
     "recipes": ("altocue.generate.recipes", "Browse and cost generation recipes"),
+    "stageshow": ("altocue.stageshow", "Film a Stageshow product UI stage into a frame-exact insert"),
     "facts": ("altocue.facts", "Measure the finished film"),
     "benchmark": ("altocue.benchmark", "Compare against real videos from a CSV or your own key"),
     "learn": ("altocue.learn", "Learn from your own published results"),

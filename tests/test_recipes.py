@@ -289,7 +289,7 @@ def test_higgsfield_terms_are_current():
     assert load_catalog().provider("higgsfield")["terms_as_of"] == "2026-10-23"
 
 
-@pytest.mark.parametrize(("tier", "resolution", "credits"), [("draft", "480p", 3), ("standard", "720p", 7), ("hero", "1080p", 12)])
+@pytest.mark.parametrize(("tier", "resolution", "credits"), [("draft", "480p", 3), ("standard", "720p", 7), ("hero", "1080p", 16)])
 @pytest.mark.parametrize("capability", ["text_to_video", "image_to_video", "reference_to_video", "frame_and_refs_to_video"])
 def test_seedance_2_5_has_an_mcp_route(tier, resolution, credits, capability):
     entry = load_catalog().find("higgsfield", tier, capability, surface="mcp")
