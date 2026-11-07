@@ -34,6 +34,7 @@ This is how Stratos House films and edits its own Reels with Altocue. It is writ
 
 - **Transcription, renders, QA and test suites are heavy.** On a laptop, run one at a time. Altocue's own job lock already waits for room.
 - **A second machine helps.** On a desktop with more memory, set `ALTOCUE_HEAVY_JOBS` to run more jobs at once and `ALTOCUE_RENDER_WORKERS` for more render workers. Edit and review on the laptop, render on the desktop.
+- **A desktop with an NVIDIA GPU encodes there.** Set `ALTOCUE_ENCODER=auto` (or `nvenc` to insist). Encodes run about three times faster than x264 at the same quality level. Transcription already uses the GPU when one is there.
 
 ## Check the file you will actually ship
 

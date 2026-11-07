@@ -103,8 +103,20 @@ def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *,
     return ",".join(parts)
 
 
+FAST_PRESETS = {"ultrafast", "superfast", "veryfast", "faster", "fast"}
+
+
 def encode_args(c: Canvas) -> list[str]:
+    """H.264 at the canvas quality. On a machine with an NVIDIA GPU, `ALTOCUE_ENCODER=nvenc` (or auto) encodes there instead.
+
+    NVENC's constant-quality level stands in for x264's CRF at the same number, with its slowest preset and both kinds of
+    adaptive quantisation, so a delivery encode keeps its detail in the face and the gradients.
+    """
     tags = ["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"]
+    if ffmpeg.video_encoder() == "nvenc":
+        preset = "p4" if c.preset in FAST_PRESETS else "p7"
+        quality = ["-rc", "vbr", "-cq", str(c.crf), "-b:v", "0", "-spatial-aq", "1", "-temporal-aq", "1", "-rc-lookahead", "32"]
+        return ["-c:v", "h264_nvenc", "-preset", preset, "-tune", "hq", *quality, "-bf", "3", "-b_ref_mode", "middle", "-profile:v", "high", "-pix_fmt", "yuv420p", *tags]
     return ["-c:v", "libx264", "-crf", str(c.crf), "-preset", c.preset, "-pix_fmt", "yuv420p", *tags]
 
 
