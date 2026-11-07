@@ -888,13 +888,15 @@ def layer_frame(c: Context, at: float, dest: Path) -> bool:
     folder = c.project.layers_dir
     draft = c.stage == "draft"
     movie, listing = folder / ("overlay-draft.mov" if draft else "overlay.mov"), folder / "basic" / "layer.ffconcat"
+    # Seek before opening, so ffmpeg jumps to the frame. Seeking after decoded the whole layer up to `at` for every sample,
+    # which on a three-minute ProRes 4444 layer turned this gate into most of a QA run.
     if movie.exists():
-        source = ["-i", str(movie)]
+        source = ["-ss", f"{at:.3f}", "-i", str(movie)]
     elif listing.exists():
-        source = ["-f", "concat", "-safe", "0", "-i", str(listing)]
+        source = ["-ss", f"{at:.3f}", "-f", "concat", "-safe", "0", "-i", str(listing)]
     else:
         return False
-    ffmpeg.run([*source, "-ss", f"{at:.3f}", "-frames:v", "1", "-pix_fmt", "rgba", str(dest)])
+    ffmpeg.run([*source, "-frames:v", "1", "-pix_fmt", "rgba", str(dest)])
     return dest.exists()
 
 
