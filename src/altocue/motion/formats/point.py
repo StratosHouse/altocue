@@ -224,6 +224,11 @@ CSS = """
 @keyframes pc-turn{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 """
 
+def _covers(item: dict[str, Any]) -> bool:
+    """A cover fills the frame, so QA treats it like any full-frame graphic: a planned hold, not frozen video."""
+    return item.get("stage") == "cover"
+
+
 SLOTS = (
     Slot("title", limit=30),
     Slot("kicker", limit=14, required=False),
@@ -246,6 +251,7 @@ POINT = Format(
      "items": [{"text": "Keep the schedule", "icon": "clock"}, {"text": "Tell your provider", "icon": "chat"}]},
     partial(_draw, family="icon"), CSS.replace("&", ".f-point_callout"),
     seconds=5, shortest=2.5, longest=14, area="full", tall=520, sound=None, leaves=False, needs_alpha=True, under_captions=True,
+    opaque_when=_covers,
 )
 STAT = Format(
     "point_stat", "Point stat",
@@ -255,5 +261,6 @@ STAT = Format(
     {"title": "Hours of sleep", "value": "3", "unit": "hrs", "fill": 0.25, "ax": 34, "ay": 38, "cx": 50, "cy": 30},
     partial(_draw, family="stat"), CSS.replace("&", ".f-point_stat"),
     seconds=4, shortest=2.5, longest=12, area="full", tall=420, sound=None, leaves=False, needs_alpha=True, under_captions=True,
+    opaque_when=_covers,
 )
 FORMATS = [POINT, STAT]

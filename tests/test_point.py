@@ -12,6 +12,7 @@ from altocue.errors import AltocueError
 from altocue.motion import formats
 from altocue.motion.formats import point
 from altocue.motion.html import compose
+from altocue.qa.gates import opaque_graphic
 from altocue.timeline import resolve_items
 
 WORDS = [{"text": "protect", "start": 1.0, "end": 1.3}, {"text": "sleep", "start": 1.4, "end": 1.8}, {"text": "schedule", "start": 3.1, "end": 3.6}]
@@ -99,3 +100,9 @@ def test_point_graphics_sit_beneath_the_captions():
                     "items": [made(stage="cover")]}, brand)
     body = page[page.index("<body>"):]
     assert body.index("f-point_callout") < body.index('class="clip cap')
+
+
+def test_a_cover_counts_as_a_full_frame_graphic_for_qa():
+    assert opaque_graphic(made(stage="cover"))
+    assert not opaque_graphic(made(ax=30, ay=40))
+    assert not opaque_graphic(made(stage="cover", place="--scale:.9"))

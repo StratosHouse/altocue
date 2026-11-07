@@ -738,7 +738,8 @@ def zone_for(c: Context) -> dict[str, float]:
 def opaque_graphic(item: dict[str, Any]) -> bool:
     """A registered graphic that replaces the whole picture, without a smaller placement."""
     fmt = formats.find(item.get("type", ""))
-    return bool(fmt and fmt.area == "full" and not fmt.needs_alpha and not item.get("place") and "y" not in item and item.get("zone") in (None, "full"))
+    paints = fmt is not None and (not fmt.needs_alpha or bool(fmt.opaque_when and fmt.opaque_when(item)))
+    return bool(fmt and fmt.area == "full" and paints and not item.get("place") and "y" not in item and item.get("zone") in (None, "full"))
 
 
 def opaque_at(c: Context, at: float) -> bool:
