@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import math
+import re
 from html import escape
 from typing import Any
 
 from ..brand import Brand
+from ..errors import AltocueError
 from . import compositions, formats
 from .formats import kit
 
@@ -300,7 +302,24 @@ def base_css(timeline: dict[str, Any], brand: Brand) -> tuple[str, dict[str, flo
         "width": width,
         "height": height,
     }
-    return css, geo
+    return css + graphics_tokens(brand), geo
+
+
+TOKEN_NAME = re.compile(r"^[a-z][a-z0-9-]{0,30}$")
+
+
+def graphics_tokens(brand: Brand) -> str:
+    """A brand's `graphics` table, such as {"card": "...", "card-ink": "#293A4C"}, as `--g-` custom properties.
+
+    Formats read them with a fallback to their own look, so a brand restyles cards without touching a format.
+    """
+    table = brand.data.get("graphics") or {}
+    bad = [key for key, value in table.items() if not TOKEN_NAME.match(str(key)) or not isinstance(value, str) or re.search(r"[;{}<>]", value)]
+    if bad:
+        raise AltocueError(f"The brand's graphics table has unusable entries: {', '.join(map(str, bad))}.", fix='Use lowercase names with dashes and plain CSS values, such as "card-ink": "#293A4C".')
+    if not table:
+        return ""
+    return ":root{" + "".join(f"--g-{key}:{value};" for key, value in table.items()) + "}\n"
 
 
 def root_tokens(timeline: dict[str, Any], brand: Brand, geo: dict[str, float]) -> str:

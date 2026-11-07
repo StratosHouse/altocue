@@ -130,7 +130,7 @@ my-video/
 
 - **`Clip`:** path, duration, fps, size, rotation, HDR transfer, has audio.
 - **`Word`:** text, start, end, confidence, kind (`word`, `filler`, `cue`).
-- **`Edl`:** ordered segments of `clip, start, end, zoom_from, zoom_to, gain, crop, label`, plus `removed` entries with `kind`, `evidence` and `decision`. A segment's `held` list names what was set by hand, so `frame` leaves it and a re-cut carries it.
+- **`Edl`:** ordered segments of `clip, start, end, zoom_from, zoom_to, gain, crop, label, punch`, plus `removed` entries with `kind`, `evidence` and `decision`. A segment's `held` list names what was set by hand, so `frame` leaves it and a re-cut carries it.
 - **`Shot`:** a shot to generate. `synthetic` flags a generated person or place, and `script` holds any words it says, so the honesty gates can read them.
 - **`Timeline`:** the EDL resolved to output frames, with mapped words and inserts.
 - **`OverlaySpec`:** engine-neutral list of `type, start, end, text, style`.

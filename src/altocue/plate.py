@@ -88,8 +88,58 @@ def push_filter(c: Canvas, frames: int, start: float, end: float, first: int = 0
     return f"perspective={x0}:{y0}:{x1}:{y0}:{x0}:{y1}:{x1}:{y1}:interpolation=cubic:eval=frame:sense=source"
 
 
+PUNCH_OVER = 0.45  # seconds a punch-in takes to arrive: quick, but eased at both ends so it reads as a move, not a jump
+
+
+def punch_zoom(segment: Segment, fps: int, first: int = 0) -> str:
+    """The zoom of an emphasis punch-in, as an expression in the frame counter `in`.
+
+    `segment.punch` is {"at": source second, "to": zoom, "over": seconds, "back": source second, "origin": 0 to 1}.
+    The zoom eases from 1 to `to` starting at `at`, holds, and eases back from `back` if one is given. Without
+    `back` it holds to the end of the segment, so the next segment cuts back to the master frame.
+    """
+    p = segment.punch or {}
+    to, over = float(p["to"]), float(p.get("over", PUNCH_OVER))
+    span = max(1, round(over * fps))
+
+    def eased(at: float) -> str:  # cubic ease in and out, 0 before `at` and 1 after `at + over`
+        n0 = round((float(at) - segment.start) * fps)
+        t = f"clip((in+{first}-{n0})/{span}\\,0\\,1)"
+        return f"if(lt({t}\\,0.5)\\,4*pow({t}\\,3)\\,1-pow(2-2*{t}\\,3)/2)"
+
+    amount = eased(p["at"]) + (f"*(1-{eased(p['back'])})" if p.get("back") is not None else "")
+    return f"(1+({to}-1)*{amount})"
+
+
+def punch_filter(c: Canvas, segment: Segment, first: int = 0) -> str:
+    """A quick eased push-in toward `origin` (the height that stays put, default the face line) on a key line."""
+    origin = float((segment.punch or {}).get("origin", ZOOM_ORIGIN_Y))
+    z = punch_zoom(segment, c.fps, first)
+    w, h = f"(W/{z})", f"(H/{z})"
+    x0, y0 = f"((W-{w})/2)", f"((H-{h})*{origin})"
+    x1, y1 = f"({x0}+{w})", f"({y0}+{h})"
+    return f"perspective={x0}:{y0}:{x1}:{y0}:{x0}:{y1}:{x1}:{y1}:interpolation=cubic:eval=frame:sense=source"
+
+
+def check_punch(segment: Segment) -> None:
+    p = segment.punch
+    if not p:
+        return
+    if not isinstance(p, dict) or "at" not in p or "to" not in p:
+        raise AltocueError(f'Segment {segment.id}: a punch needs "at" (a source second) and "to" (a zoom).', fix='Such as "punch": {"at": 12.4, "to": 1.12}.')
+    if not segment.start <= float(p["at"]) < segment.end:
+        raise AltocueError(f"Segment {segment.id}: the punch at {p['at']} s is outside the segment ({segment.start}-{segment.end} s).", fix="Put it on a word the segment plays.")
+    if not 1.0 < float(p["to"]) <= 1.6:
+        raise AltocueError(f"Segment {segment.id}: punch zoom {p['to']} is outside 1 to 1.6.", fix="A punch-in reads best between 1.08 and 1.2.")
+    if segment.zoom_from != segment.zoom_to:
+        raise AltocueError(f"Segment {segment.id} has both a slow push and a punch.", fix="Use one: drop the punch, or set zoom_from equal to zoom_to.")
+    if p.get("back") is not None and not float(p["at"]) < float(p["back"]) < segment.end:
+        raise AltocueError(f"Segment {segment.id}: the punch must ease back after it arrives and before the segment ends.", fix='Move "back", or leave it out to cut back.')
+
+
 def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *, first: int = 0, finish: str = "") -> str:
     """`first` says which frame of the segment the piece starts on. `finish` runs on the finished frames."""
+    check_punch(segment)
     steady = segment.zoom_from if segment.zoom_from == segment.zoom_to else min(segment.zoom_from, segment.zoom_to)
     x, y, width, height = zoomed(fit_crop(clip.display_size, (c.width, c.height), segment.crop), steady)
     geometry = f"crop={_even(width)}:{_even(height)}:{int(x)}:{int(y)},scale={c.width}:{c.height}:flags=lanczos"
@@ -97,6 +147,8 @@ def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *,
     if segment.zoom_from != segment.zoom_to:
         frames = max(1, round((segment.end - segment.start) * c.fps))
         parts.append(push_filter(c, frames, segment.zoom_from / steady, segment.zoom_to / steady, first))
+    elif segment.punch:
+        parts.append(punch_filter(c, segment, first))
     if finish:
         parts.append(finish)
     parts.append("setsar=1")

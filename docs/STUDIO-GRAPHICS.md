@@ -90,6 +90,14 @@ When the presenter points up or reaches toward the space beside their head, put 
 
 Sound follows the same events: a light tap as the spark lands, a soft arrival as the card settles and a click per row. Add them as cues in `motion.json`; the formats carry no sound of their own.
 
+## A client's own colours on the cards
+
+A brand file can carry a `graphics` table. Each entry becomes a `--g-` custom property, and the point callouts read them with their own look as the fallback, so a client restyles the cards without a new format. The keys are `card` (any CSS background), `card-ink`, `card-edge`, `card-shadow`, `sheen`, `hot` (highlighted words), `spark` (the fingertip spark and connector, which must read over the footage), `badge`, `glyph`, `kicker`, `kicker-ink`, `row`, `row-edge`, `mini`, `dial-track`, `alert`, `alert-hot`, `cover` (the full-frame backdrop) and `cover-hot`. A light card over footage needs a dark `card-ink` and a darker `hot`; covers keep white text so the captions over them still read.
+
+```json
+"graphics": {"card": "linear-gradient(162deg, #f7fbf5, #cee9e6)", "card-ink": "#293A4C", "hot": "#2C7F87", "spark": "#3FB7C1", "cover": "linear-gradient(180deg, #2E5360, #46868B)"}
+```
+
 ## Direct the edit
 
 Use one graphic to explain one complete thought, then return to the speaker or real product proof. Do not cover every sentence with a text card. Keep factual demonstrations tied to the actual source, and label illustrative diagrams. Preserve complete first and last words and full closing thoughts.

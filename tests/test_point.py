@@ -106,3 +106,26 @@ def test_a_cover_counts_as_a_full_frame_graphic_for_qa():
     assert opaque_graphic(made(stage="cover"))
     assert not opaque_graphic(made(ax=30, ay=40))
     assert not opaque_graphic(made(stage="cover", place="--scale:.9"))
+
+
+def test_a_brand_restyles_the_cards_through_its_graphics_table():
+    data = json.loads(brands.data_path("brands", "default.json").read_text())
+    data["graphics"] = {"card": "linear-gradient(162deg,#f7fbf5,#cee9e6)", "card-ink": "#293A4C", "hot": "#2C7F87"}
+    brand = brands.Brand(data, brands.data_path("brands"))
+    page = compose({"width": 1080, "height": 1920, "fps": 30, "duration": 6.0, "tail": 0, "total": 6.0, "captions": [], "items": [made()]}, brand)
+    assert ":root{--g-card:linear-gradient(162deg,#f7fbf5,#cee9e6);--g-card-ink:#293A4C;--g-hot:#2C7F87;}" in page
+    assert "var(--g-card-ink,var(--ink))" in point.POINT.css and "var(--g-hot,var(--pc-tone))" in point.POINT.css
+
+
+def test_a_brand_without_a_graphics_table_keeps_the_house_look():
+    brand = brands.Brand(json.loads(brands.data_path("brands", "default.json").read_text()), brands.data_path("brands"))
+    page = compose({"width": 1080, "height": 1920, "fps": 30, "duration": 6.0, "tail": 0, "total": 6.0, "captions": [], "items": [made()]}, brand)
+    assert "--g-" not in page.split("<body>")[0].split("@font-face")[1].split("}")[1]
+
+
+def test_unusable_graphics_tokens_are_refused():
+    data = json.loads(brands.data_path("brands", "default.json").read_text())
+    data["graphics"] = {"Card": "red", "hot": "red;} body{display:none"}
+    brand = brands.Brand(data, brands.data_path("brands"))
+    with pytest.raises(AltocueError, match="Card, hot"):
+        compose({"width": 1080, "height": 1920, "fps": 30, "duration": 6.0, "tail": 0, "total": 6.0, "captions": [], "items": [made()]}, brand)
