@@ -55,6 +55,9 @@ exclude = ["src/altocue/data/renderer/node_modules"]
 [tool.hatch.build.targets.wheel.force-include]
 "skills" = "altocue/data/skills"  # so `altocue mcp` from PyPI can serve the same guides the plugin carries
 
+[tool.hatch.build.targets.sdist.force-include]
+"skills" = "skills"  # .agents/skills links here; without this the source package keeps only the link and the wheel build fails
+
 [tool.ruff]
 line-length = 170
 target-version = "py311"

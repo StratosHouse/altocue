@@ -23,6 +23,10 @@ jobs:
       - name: Install ffmpeg (macOS)
         if: runner.os == 'macOS'
         run: brew install ffmpeg
+      - name: Build the package the way the release does
+        run: |
+          uv build
+          uv run --no-project python -c "import glob, sys, zipfile; names = zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); sys.exit(0 if 'altocue/data/skills/altocue/SKILL.md' in names else 'The wheel is missing the skills.')"
       - run: uv sync
       - run: uv run ruff check src tests scripts
       - run: uv run pytest
