@@ -19,7 +19,8 @@ def test_a_seeked_layer_frame_is_the_frame_at_that_time(tmp_path: Path, monkeypa
     movie = layers / "overlay.mov"
     # four seconds whose colour changes every frame, with transparency, in the codec HyperFrames writes
     source = "nullsrc=s=96x96:r=30:d=4,geq=r='mod(N*7,256)':g='mod(N*13,256)':b='mod(N*29,256)':a='128'"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(movie)], check=True)
+    prores = ["-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, *prores, str(movie)], check=True)
     seen: list[list[str]] = []
     real = ffmpeg.run
     monkeypatch.setattr(ffmpeg, "run", lambda args, **kw: (seen.append(args), real(args, **kw))[1])

@@ -128,13 +128,15 @@ def check_punch(segment: Segment) -> None:
     if not isinstance(p, dict) or "at" not in p or "to" not in p:
         raise AltocueError(f'Segment {segment.id}: a punch needs "at" (a source second) and "to" (a zoom).', fix='Such as "punch": {"at": 12.4, "to": 1.12}.')
     if not segment.start <= float(p["at"]) < segment.end:
-        raise AltocueError(f"Segment {segment.id}: the punch at {p['at']} s is outside the segment ({segment.start}-{segment.end} s).", fix="Put it on a word the segment plays.")
+        where = f"{segment.start}-{segment.end} s"
+        raise AltocueError(f"Segment {segment.id}: the punch at {p['at']} s is outside the segment ({where}).", fix="Put it on a word the segment plays.")
     if not 1.0 < float(p["to"]) <= 1.6:
         raise AltocueError(f"Segment {segment.id}: punch zoom {p['to']} is outside 1 to 1.6.", fix="A punch-in reads best between 1.08 and 1.2.")
     if segment.zoom_from != segment.zoom_to:
         raise AltocueError(f"Segment {segment.id} has both a slow push and a punch.", fix="Use one: drop the punch, or set zoom_from equal to zoom_to.")
     if p.get("back") is not None and not float(p["at"]) < float(p["back"]) < segment.end:
-        raise AltocueError(f"Segment {segment.id}: the punch must ease back after it arrives and before the segment ends.", fix='Move "back", or leave it out to cut back.')
+        fix = 'Move "back", or leave it out to cut back.'
+        raise AltocueError(f"Segment {segment.id}: the punch must ease back after it arrives and before the segment ends.", fix=fix)
 
 
 def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *, first: int = 0, finish: str = "") -> str:

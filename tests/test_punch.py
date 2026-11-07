@@ -16,14 +16,15 @@ CANVAS = plate.Canvas(180, 320, 30, 16, "medium")
 
 
 def take(path: Path) -> Clip:
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30:duration=3", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
+    source = ["-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30:duration=3"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *source, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
     return Clip(id="a", path=str(path), duration=3, fps=30, width=180, height=320)
 
 
 def frames(clip: Clip, segment: Segment) -> np.ndarray:
     chain = plate.segment_filter(clip, segment, CANVAS, None)
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(segment.start), "-i", clip.path, "-vf", chain, "-frames:v", "60", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
-                         capture_output=True, check=True).stdout
+    command = ["ffmpeg", "-v", "error", "-ss", str(segment.start), "-i", clip.path, "-vf", chain, "-frames:v", "60", "-f", "rawvideo", "-pix_fmt", "gray", "-"]
+    raw = subprocess.run(command, capture_output=True, check=True).stdout
     return np.frombuffer(raw, np.uint8).reshape(-1, 320, 180).astype(int)
 
 
@@ -31,7 +32,7 @@ def test_a_punch_holds_still_until_its_word_then_zooms_in_and_holds(tmp_path):
     clip = take(tmp_path / "a.mp4")
     plain = frames(clip, Segment(id="s1", clip="a", start=0.0, end=2.0))
     punched = frames(clip, Segment(id="s1", clip="a", start=0.0, end=2.0, punch={"at": 0.8, "to": 1.25, "over": 0.4}))
-    differ = [np.abs(a - b).mean() for a, b in zip(plain, punched)]
+    differ = [np.abs(a - b).mean() for a, b in zip(plain, punched, strict=True)]
     assert max(differ[:22]) < 1.5  # before the word, the master frame
     assert min(differ[40:]) > 6  # after it, tighter on every frame
     middle = np.abs(punched[30] - plain[30]).mean()
