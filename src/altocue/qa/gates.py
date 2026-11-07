@@ -738,7 +738,8 @@ def zone_for(c: Context) -> dict[str, float]:
 def opaque_graphic(item: dict[str, Any]) -> bool:
     """A registered graphic that replaces the whole picture, without a smaller placement."""
     fmt = formats.find(item.get("type", ""))
-    return bool(fmt and fmt.area == "full" and not fmt.needs_alpha and not item.get("place") and "y" not in item and item.get("zone") in (None, "full"))
+    paints = fmt is not None and (not fmt.needs_alpha or bool(fmt.opaque_when and fmt.opaque_when(item)))
+    return bool(fmt and fmt.area == "full" and paints and not item.get("place") and "y" not in item and item.get("zone") in (None, "full"))
 
 
 def opaque_at(c: Context, at: float) -> bool:
@@ -887,13 +888,15 @@ def layer_frame(c: Context, at: float, dest: Path) -> bool:
     folder = c.project.layers_dir
     draft = c.stage == "draft"
     movie, listing = folder / ("overlay-draft.mov" if draft else "overlay.mov"), folder / "basic" / "layer.ffconcat"
+    # Seek before opening, so ffmpeg jumps to the frame. Seeking after decoded the whole layer up to `at` for every sample,
+    # which on a three-minute ProRes 4444 layer turned this gate into most of a QA run.
     if movie.exists():
-        source = ["-i", str(movie)]
+        source = ["-ss", f"{at:.3f}", "-i", str(movie)]
     elif listing.exists():
-        source = ["-f", "concat", "-safe", "0", "-i", str(listing)]
+        source = ["-ss", f"{at:.3f}", "-f", "concat", "-safe", "0", "-i", str(listing)]
     else:
         return False
-    ffmpeg.run([*source, "-ss", f"{at:.3f}", "-frames:v", "1", "-pix_fmt", "rgba", str(dest)])
+    ffmpeg.run([*source, "-frames:v", "1", "-pix_fmt", "rgba", str(dest)])
     return dest.exists()
 
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Point callouts: `point_callout` and `point_stat` unfold from where the presenter points, with a fingertip spark, a drawn connector, rows timed to words, a cover mode for lists and glances away from the lens, an alert tone and an original icon set. See [docs/STUDIO-GRAPHICS.md](docs/STUDIO-GRAPHICS.md).
+- A point callout's cover counts as a full-frame graphic for QA, so a held cover passes the frozen-picture gate, and point graphics sit under the captions.
+- GPU encoding: `ALTOCUE_ENCODER=nvenc` encodes the plate and the finished film on an NVIDIA GPU, and `auto` uses it where it works and x264 elsewhere. x264 stays the default. On an RTX 3090 Ti, 10 s of 1080x1920 at 60 fps took 4.1 s against x264's 13.2 s, at slightly higher VMAF and SSIM and a larger file. Graphics capture still runs on the CPU.
+- Punch-ins: a segment's `punch` eases a quick zoom in on a key word, holds it, and the next segment cuts back to the master frame. `back` eases out instead, and `origin` sets the height that stays put.
+- A brand's `graphics` table restyles the point callouts (card, text, highlight, spark, badge, pills, covers) with the house look as the fallback. See [docs/STUDIO-GRAPHICS.md](docs/STUDIO-GRAPHICS.md).
+- QA reads each graphics frame by seeking to it. It used to decode the whole layer up to every sample, so on a three-minute reel the faces-under-graphics check took most of a QA run.
+
 ## 0.4.0
 
 Altocue installs as a plugin in any agent, not just from a terminal.

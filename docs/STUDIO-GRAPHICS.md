@@ -58,6 +58,46 @@ The row-based depth, route, task and close formats accept an optional absolute t
 
 `studio_calendar_lift` also accepts an absolute `circle_at` time for a smooth circle around its middle task. Use this for an actual instruction such as choosing an illustrative calendar task, with a cue as the circle closes.
 
+## Graphics that come from a gesture
+
+When the presenter points up or reaches toward the space beside their head, put the graphic there. `point_callout` and `point_stat` start as a spark at the fingertip, draw a connector to their card and unfold from that side, then fold away before the next idea. They paint over the live picture, so the presenter stays on screen.
+
+- **Read the fingertip from the footage.** Grab the frame where the finger is highest and note its position as percentages of the frame: `ax` across, `ay` down. Start the graphic a few frames before that frame, so the spark lands on the gesture.
+- **Place the card clear of the face.** `cx` is the card's centre and `cy` its lower edge, both percentages. Above the head is usually right. `w` is its width. A `place` of `--scale:.9` makes a card with rows a little smaller.
+- **Leave out `ax` and `ay`** for the same card with no pointer, when the idea needs a card but nobody pointed.
+- **`stage: "cover"`** fills the frame behind a centred card. Use it for a list the viewer must read, or to cover a glance away from the lens, then return to the speaker.
+- **Rows land on words.** Up to four rows, each with its own icon and an `at` time, usually `{"word": "..."}`.
+- **`tone: "alert"`** gives warnings their own warm colour. **`act: "walk"`** gives the badge legs and walks it off the card over the last two seconds.
+- **Icons are original line drawings** in the format: moon, clock, brain, plate, heart, gauge, calendar, lock, bottle, pharmacy, chat, sliders, egg, cup, can, bag, apple, lungs, dizzy, pulse, phone, alert, check, share-off, battery, trend-down, shield, list and sparkle.
+
+```json
+{
+  "type": "point_callout",
+  "start": 31.9,
+  "end": 42.6,
+  "kicker": "Tip 01",
+  "title": "Protect your *sleep*",
+  "icon": "moon",
+  "ax": 57.5, "ay": 43.6, "cx": 50, "cy": 29, "w": 78,
+  "items": [
+    {"text": "Follow your schedule", "icon": "clock", "at": {"word": "follow"}},
+    {"text": "Tell your provider", "icon": "chat", "at": {"word": "tell"}}
+  ]
+}
+```
+
+`point_stat` puts one number on a sweeping dial in place of the icon, with `value`, an optional `unit` and `fill` from 0 to 1.
+
+Sound follows the same events: a light tap as the spark lands, a soft arrival as the card settles and a click per row. Add them as cues in `motion.json`; the formats carry no sound of their own.
+
+## A client's own colours on the cards
+
+A brand file can carry a `graphics` table. Each entry becomes a `--g-` custom property, and the point callouts read them with their own look as the fallback, so a client restyles the cards without a new format. The keys are `card` (any CSS background), `card-ink`, `card-edge`, `card-shadow`, `sheen`, `hot` (highlighted words), `spark` (the fingertip spark and connector, which must read over the footage), `badge`, `glyph`, `kicker`, `kicker-ink`, `row`, `row-edge`, `mini`, `dial-track`, `alert`, `alert-hot`, `cover` (the full-frame backdrop) and `cover-hot`. A light card over footage needs a dark `card-ink` and a darker `hot`; covers keep white text so the captions over them still read.
+
+```json
+"graphics": {"card": "linear-gradient(162deg, #f7fbf5, #cee9e6)", "card-ink": "#293A4C", "hot": "#2C7F87", "spark": "#3FB7C1", "cover": "linear-gradient(180deg, #2E5360, #46868B)"}
+```
+
 ## Direct the edit
 
 Use one graphic to explain one complete thought, then return to the speaker or real product proof. Do not cover every sentence with a text card. Keep factual demonstrations tied to the actual source, and label illustrative diagrams. Preserve complete first and last words and full closing thoughts.

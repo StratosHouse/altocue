@@ -23,6 +23,7 @@ compatibility: Requires the altocue CLI.
 ## When to change it
 
 - A slow push-in on a key line: set `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06. It stays through a re-cut.
+- A punch-in on an impactful word: set `"punch": {"at": 12.4, "to": 1.12}` on that segment, with `at` in source seconds. The zoom eases in over 0.45 s (`over`), holds, and the next segment cuts back to the master frame. `back` (a source second) eases out instead, and `origin` (0 to 1) is the height that stays put; 0.3 keeps the top of a head still so it never rises into cards above it. A segment takes a slow push or a punch, not both. Graphics that point at a fingertip must use where the fingertip lands after the zoom.
 - Keep it rare. These are rules of thumb, not findings.
 - A bolder jump: raise `[frame] punch_in`, then run `altocue frame`. That solves again around your hand edits. `altocue frame --force` replaces them too.
 

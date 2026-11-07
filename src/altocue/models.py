@@ -81,6 +81,7 @@ class Segment(Model):
     no_snap_in: bool = False
     no_snap_out: bool = False
     held: list[str] = field(default_factory=list)  # gain, crop or zoom set by hand: `frame` leaves these, and a re-cut carries them
+    punch: dict[str, Any] | None = None  # an emphasis punch-in: {"at": source second, "to": 1.12}, see plate.punch_zoom
 
 
 @dataclass

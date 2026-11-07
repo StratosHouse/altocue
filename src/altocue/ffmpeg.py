@@ -144,6 +144,34 @@ def has_filter(name: str) -> bool:
     return name in filters()
 
 
+ENCODERS = ("x264", "nvenc", "auto")
+
+
+@lru_cache(maxsize=1)
+def nvenc_works() -> bool:
+    """Whether this ffmpeg can encode H.264 on an NVIDIA GPU here. A build can list the encoder with no GPU behind it, so it is tried."""
+    probe = ["-v", "error", "-f", "lavfi", "-i", "color=c=black:s=256x256:r=30:d=0.2", "-c:v", "h264_nvenc", "-f", "null", "-"]
+    try:
+        done = subprocess.run([require("ffmpeg"), "-hide_banner", "-nostdin", *probe], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired, AltocueError):
+        return False
+    return done.returncode == 0
+
+
+def video_encoder() -> str:
+    """How finished pictures are encoded. `ALTOCUE_ENCODER` is x264 (the default), nvenc, or auto (nvenc where it works)."""
+    chosen = os.environ.get("ALTOCUE_ENCODER", "").strip().lower() or "x264"
+    if chosen not in ENCODERS:
+        raise AltocueError(f"ALTOCUE_ENCODER is {chosen!r}.", fix="Set it to x264, nvenc or auto.")
+    if chosen == "x264":
+        return "x264"
+    if nvenc_works():
+        return "nvenc"
+    if chosen == "nvenc":
+        raise AltocueError("ALTOCUE_ENCODER is nvenc, but ffmpeg cannot encode on an NVIDIA GPU here.", fix="Set ALTOCUE_ENCODER=auto to fall back to x264, or unset it.")
+    return "x264"
+
+
 def source_clock_filter(rate: int, *, samples: int | None = None) -> str:
     """Follow packet timestamps, filling gaps and trimming overlaps without changing playback speed.
 
