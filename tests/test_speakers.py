@@ -92,7 +92,7 @@ def voiced(tmp_path: Path) -> Project:
 
     ffmpeg.write_wav(wav, np.zeros(16000 * 3, dtype=np.float32), 16000)
     project.save_clips([Clip(id="talk", path=str(wav), duration=3.0, fps=30, width=1080, height=1920)])
-    project.save_words("talk", said(("one", 0.1, 0.4), ("two", 1.6, 1.9)), "engine-name")
+    transcribing._save_words(project, "talk", said(("one", 0.1, 0.4), ("two", 1.6, 1.9)), "engine-name")
     return project
 
 

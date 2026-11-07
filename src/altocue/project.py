@@ -254,7 +254,14 @@ class Project:
         return json.loads((self.words_dir / f"{clip_id}.json").read_text()).get("engine", "")
 
     def save_words(self, clip_id: str, words: list[Word], engine: str) -> None:
-        write_json(self.words_dir / f"{clip_id}.json", {"engine": engine, "words": [w.to_dict() for w in words]})
+        path = self.words_dir / f"{clip_id}.json"
+        previous = json.loads(path.read_text()) if path.exists() else {}
+        record = {"engine": engine, "words": [w.to_dict() for w in words]}
+        # Text fixes and speaker labels do not change the source clock. New or
+        # imported words have no verified clock, so never manufacture this field.
+        if "source_clock" in previous:
+            record["source_clock"] = previous["source_clock"]
+        write_json(path, record)
 
     def edl(self) -> Edl:
         if not self.edl_path.exists():

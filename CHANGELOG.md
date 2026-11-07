@@ -9,6 +9,8 @@ Altocue installs as a plugin in any agent, not just from a terminal.
 - `/altocue:setup` walks the agent through install, extras and the demo, asking before each step that installs.
 - The README and INSTALL.md lead with the plugin. The terminal steps stay, unchanged.
 - A privacy page, and the support and privacy links a plugin directory asks for.
+- Audio now follows the source clock. Some camera files carry AAC packet times that drift from the picture during a take, so word times and cuts slid away from the face. Extraction, cleaning and transcription now conform the audio to the packet timestamps without changing its speed. See [docs/SOURCE-CLOCK.md](docs/SOURCE-CLOCK.md).
+- **Upgrading a project made before 0.4.0:** Altocue now refuses cached word times it cannot vouch for, instead of using them silently. Back up the project, run `altocue transcribe --force` and `altocue clean --force`, then check the cut against the original before you render. New projects need nothing.
 
 ## 0.3.0
 

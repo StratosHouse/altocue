@@ -473,7 +473,11 @@ def shifted_words(project: Project, clip: Clip, offset: float, duration: float) 
     saved = json.loads((project.words_dir / f"{clip.id}.json").read_text())
     inside = [word for word in saved["words"] if word["start"] >= offset and word["end"] <= offset + duration]
     moved = [{**word, "start": round(word["start"] - offset, 3), "end": round(word["end"] - offset, 3)} for word in inside]
-    return {"engine": saved.get("engine", ""), "words": moved}
+    record = {"engine": saved.get("engine", ""), "words": moved}
+    if "source_clock" in saved:
+        # The clip is a stream copy of the parent, so the parent's verified clock still holds.
+        record["source_clock"] = saved["source_clock"]
+    return record
 
 
 def outside(clip: str, words: list[Word], first: int, last: int) -> list[Removed]:
