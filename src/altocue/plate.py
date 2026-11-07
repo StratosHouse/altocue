@@ -104,6 +104,7 @@ def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *,
 
 
 FAST_PRESETS = {"ultrafast", "superfast", "veryfast", "faster", "fast"}
+NVENC_SMALLEST = 160  # pixels a side. NVENC refuses H.264 frames under 145 wide, so smaller ones stay on x264
 
 
 def encode_args(c: Canvas) -> list[str]:
@@ -113,7 +114,7 @@ def encode_args(c: Canvas) -> list[str]:
     adaptive quantisation, so a delivery encode keeps its detail in the face and the gradients.
     """
     tags = ["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"]
-    if ffmpeg.video_encoder() == "nvenc":
+    if min(c.width, c.height) >= NVENC_SMALLEST and ffmpeg.video_encoder() == "nvenc":
         preset = "p4" if c.preset in FAST_PRESETS else "p7"
         quality = ["-rc", "vbr", "-cq", str(c.crf), "-b:v", "0", "-spatial-aq", "1", "-temporal-aq", "1", "-rc-lookahead", "32"]
         return ["-c:v", "h264_nvenc", "-preset", preset, "-tune", "hq", *quality, "-bf", "3", "-b_ref_mode", "middle", "-profile:v", "high", "-pix_fmt", "yuv420p", *tags]
@@ -145,7 +146,7 @@ def build_segment(project: Project, clip: Clip, segment: Segment, c: Canvas, fol
     lut_hash = hashlib.sha256(lut.read_bytes()).hexdigest() if lut else ""
     source = Path(clip.path).stat()
     recipe = {"clip": clip.path, "size": source.st_size, "modified": source.st_mtime_ns, "start": begin, "frames": frames}
-    recipe |= {"chain": chain, "canvas": asdict(c), "lut": lut_hash}
+    recipe |= {"chain": chain, "canvas": asdict(c), "lut": lut_hash, "encoder": ffmpeg.video_encoder()}  # pieces join by stream copy, so one encoder per plate
     key = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()[:16]
     dest = folder / f"{segment.id}-{key}.mp4"
     if dest.exists():

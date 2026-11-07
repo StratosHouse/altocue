@@ -30,3 +30,9 @@ def no_own_sound_packs(tmp_path_factory: pytest.TempPathFactory, monkeypatch: py
     from altocue.stock import packs
 
     monkeypatch.setattr(packs, "REGISTRY", tmp_path_factory.mktemp("home") / "packs.json")
+
+
+@pytest.fixture(autouse=True)
+def x264_unless_a_test_asks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A render PC sets ALTOCUE_ENCODER for its jobs. The suite encodes the same everywhere."""
+    monkeypatch.delenv("ALTOCUE_ENCODER", raising=False)

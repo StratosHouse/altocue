@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from altocue import ffmpeg, plate
@@ -60,3 +62,35 @@ def test_an_unknown_encoder_is_refused(monkeypatch):
     monkeypatch.setenv("ALTOCUE_ENCODER", "quicksync")
     with pytest.raises(AltocueError, match="x264, nvenc or auto"):
         ffmpeg.video_encoder()
+
+
+def test_switching_encoder_rebuilds_the_plate(monkeypatch, gpu, tmp_path):
+    """Plate pieces are joined by stream copy, so a cached x264 piece is never reused in an NVENC plate."""
+    from altocue import grade
+    from altocue.models import Clip, Segment
+
+    source = tmp_path / "a.mov"
+    source.write_bytes(b"take")
+    take = Clip(id="a", path=str(source), duration=10, fps=30, width=1920, height=1080, rotation=0)
+    cut = Segment(id="s001", clip="a", start=1.0, end=2.0)
+    encoded: list[str] = []
+
+    def fake_run(args, **_):
+        encoded.append(args[args.index("-c:v") + 1])
+        Path(args[-1]).write_bytes(b"frames")
+
+    monkeypatch.setattr(grade, "clip_lut", lambda *_: None)
+    monkeypatch.setattr(ffmpeg, "run", fake_run)
+    gpu(True)
+    monkeypatch.setenv("ALTOCUE_ENCODER", "x264")
+    first = plate.build_segment(None, take, cut, DELIVERY, tmp_path)
+    assert plate.build_segment(None, take, cut, DELIVERY, tmp_path) == first and encoded == ["libx264"]  # cached
+    monkeypatch.setenv("ALTOCUE_ENCODER", "nvenc")
+    second = plate.build_segment(None, take, cut, DELIVERY, tmp_path)
+    assert second != first and encoded == ["libx264", "h264_nvenc"]
+
+
+def test_frames_too_small_for_nvenc_stay_on_x264(monkeypatch, gpu):
+    monkeypatch.setenv("ALTOCUE_ENCODER", "nvenc")
+    gpu(True)
+    assert value(plate.encode_args(plate.Canvas(96, 96, 30, 16, "veryfast")), "-c:v") == "libx264"
