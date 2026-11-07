@@ -260,7 +260,10 @@ def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
     """
     width, height = timeline["width"], timeline["height"]
     css, geo = base_css(timeline, brand)
-    items_html = "\n".join(item_html(item, brand, 2 + index) for index, item in enumerate(timeline["items"]))
+    numbered = [(item, 2 + index) for index, item in enumerate(timeline["items"])]
+    # A graphic that may cover the speaker sits beneath the captions, so the words stay readable with the sound off.
+    beneath = "\n".join(item_html(item, brand, track) for item, track in numbered if formats.under_captions(item["type"]))
+    items_html = "\n".join(item_html(item, brand, track) for item, track in numbered if not formats.under_captions(item["type"]))
     tokens = root_tokens(timeline, brand, geo)
     style = brand.caption["style"]
     upper = brand.caption.get("uppercase")
@@ -273,7 +276,7 @@ def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
 <style>{css}{formats.stylesheet(timeline["items"])}</style></head>
 <body>
 <div id="root" data-composition-id="root" data-no-timeline data-start="0" data-duration="{timeline["total"]:.3f}" data-width="{width}" data-height="{height}" style="{tokens}">
-{under + chr(10) if under else ""}{captions}
+{under + chr(10) if under else ""}{beneath + chr(10) if beneath else ""}{captions}
 {items_html}
 </div>
 </body></html>

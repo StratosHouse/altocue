@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Point callouts: `point_callout` and `point_stat` unfold from where the presenter points, with a fingertip spark, a drawn connector, rows timed to words, a cover mode for lists and glances away from the lens, an alert tone and an original icon set. See [docs/STUDIO-GRAPHICS.md](docs/STUDIO-GRAPHICS.md).
+
 ## 0.4.0
 
 Altocue installs as a plugin in any agent, not just from a terminal.

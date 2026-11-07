@@ -86,6 +86,7 @@ class Format:
     fonts: tuple[str, ...] = ()
     leaves: bool = True  # False when the format plays its own exit
     needs_alpha: bool = True  # False when it paints the whole frame
+    under_captions: bool = False  # True when it may cover the speaker, so the words must stay readable above it
 
 
 _loaded: dict[str, Format] = {}
@@ -106,6 +107,11 @@ def load() -> dict[str, Format]:
 
 def find(kind: str | None) -> Format | None:
     return load().get(kind or "")
+
+
+def under_captions(kind: str | None) -> bool:
+    fmt = find(kind)
+    return bool(fmt and fmt.under_captions)
 
 
 def full_screen(kind: str) -> bool:

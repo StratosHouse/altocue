@@ -39,7 +39,7 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 - **Sound.** Noise and hum out, each phrase levelled, room tone in the holes, mastered to a measured loudness and true peak.
 - **Colour.** HDR to SDR, white balance and exposure read from the face, film looks or your own LUT, with skin protected.
 - **Captions.** Word by word, never across a cut, only words really said. Speakers can be named or coloured.
-- **Motion graphics.** 151 original formats in 12 groups, timed to speech and placed clear of faces. The Studio collection adds smooth typography, depth, linked handoffs, editing diagrams and endings.
+- **Motion graphics.** 153 original formats in 12 groups, timed to speech and placed clear of faces. The Studio collection adds smooth typography, depth, linked handoffs, editing diagrams and endings, and point callouts that unfold from where the presenter points.
 - **Copyable motion recipes.** Every built-in graphic includes an agent prompt, a native example and optional sound notes. Preview the full library and adapt it to your words.
 - **Music and effects.** Sound you are allowed to use, with the licence and credit shown before anything downloads.
 - **Films with no footage.** Launch films, explainers, demos, ad cards and more, drawn in code from a storyboard.
@@ -162,7 +162,7 @@ altocue run
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/frame-tile.svg" width="56" alt=""><br><strong>Frame</strong><br>Any aspect ratio up to 4:1 either way. Face-aware crops per shot, with punch-ins that hide jump cuts.</td>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/caption-tile.svg" width="56" alt=""><br><strong>Caption</strong><br>Word-by-word highlight. Never crosses a cut. Only shows words really said. Can name or colour each speaker.</td>
-    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/motion-tile.svg" width="56" alt=""><br><strong>Motion</strong><br>151 original formats: kinetic type, depth, linked handoffs, editing, maps, paper and more, timed to speech and placed clear of faces.</td>
+    <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/motion-tile.svg" width="56" alt=""><br><strong>Motion</strong><br>153 original formats: kinetic type, depth, linked handoffs, editing, maps, paper and more, timed to speech and placed clear of faces.</td>
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/direct-tile.svg" width="56" alt=""><br><strong>Direct</strong><br>Story shape, beats, keyframes and shot lists, with the craft rules built in.</td>
@@ -187,11 +187,11 @@ altocue run
 
 [Preview the full library and copy its prompts](https://www.stratosagency.ai/altocue/library/). Every built-in has a real native example and an agent recipe. The [Studio graphics guide](docs/STUDIO-GRAPHICS.md) covers the new collection, timing and optional sound cues. No purchased sound pack is required or included. If you hold a licence for one, `altocue sfx pack` points Altocue at it, and its sounds stay on your machine.
 
-The catalog that ships holds 801 entries: 159 built in, 461 to fetch, 47 live searches and 134 links. It judges 171 sources and refuses 78 items, each with its reason.
+The catalog that ships holds 803 entries: 161 built in, 461 to fetch, 47 live searches and 134 links. It judges 171 sources and refuses 78 items, each with its reason.
 
 | Kind | Entries | What they are |
 |---|---:|---|
-| Motion | 456 | Built-in formats, and blocks from the HyperFrames registry |
+| Motion | 458 | Built-in formats, and blocks from the HyperFrames registry |
 | Transitions | 212 | Wipes and shader transitions |
 | 3D | 32 | Isometric and camera formats, scenes and tools |
 | Maps | 22 | Map formats, map blocks and map data |
