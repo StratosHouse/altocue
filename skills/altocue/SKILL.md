@@ -79,6 +79,7 @@ When the user supplies presenter footage and wants product demonstrations above 
 | Cutaways, stock footage, hiding a jump cut | `altocue-broll` |
 | Music, sound effects, credits for stock | `altocue-sound` |
 | Generated shots or images | `altocue-generate` |
+| A product or app shown on screen, as a frame-exact mockup | `altocue-stageshow` |
 | A format, stock, music, a font, a look or anything else to use | `altocue-library` |
 | A UGC-style ad, a generated host, an AI actor | `altocue-ugc` |
 | A hosted effect or command, and what it costs | `altocue recipes` |
