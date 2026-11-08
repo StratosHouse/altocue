@@ -6,7 +6,7 @@ A tracked item in motion.json names what to follow and what to do with it:
       {"type": "blur", "target": "face", "start": 2.0, "end": 6.5},
       {"type": "pixelate", "target": {"box": [0.62, 0.30, 0.20, 0.12], "at": 3.0}},
       {"type": "spotlight", "target": "face", "amount": 0.55},
-      {"type": "label", "text": "Dr Topher", "target": "face", "anchor": "below"},
+      {"type": "label", "text": "Dr Rivera", "target": "face", "anchor": "below"},
       {"type": "sticker", "file": "art/arrow.png", "target": {"box": [...], "at": 4}, "anchor": "above"}
     ]
 
