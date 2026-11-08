@@ -1,0 +1,52 @@
+{
+  "id": "adobe-audition-sfx",
+  "name": "Adobe Audition sound effects",
+  "url": "https://www.adobe.com/products/audition/offers/adobeauditiondlcsfx.html",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Royalty-free sound effects in 26 themed zip archives.",
+  "size": {
+    "count": 26,
+    "unit": "archives",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.adobe.com/products/audition/offers/adobeauditiondlcsfx.html",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.adobe.com/products/audition/offers/adobeauditiondlcsfx.html",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution",
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The page grants use under Adobe's software licence and bars distributing a file on a standalone basis or claiming trademark rights in it. The archives add up to about 11 GB, from 53 MB to 1.4 GB each. No account is needed to read the page."
+}

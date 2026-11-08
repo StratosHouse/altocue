@@ -1,0 +1,44 @@
+{
+  "id": "orange-free-sounds",
+  "name": "Orange Free Sounds",
+  "url": "https://www.orangefreesounds.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Free sound effects, loops and music.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://www.orangefreesounds.com/about/",
+    "checked_on": "2026-11-08",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.orangefreesounds.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The about page says the sounds are for commercial and non-commercial use but names no licence. Read the licence on each sound's own page before using it."
+}

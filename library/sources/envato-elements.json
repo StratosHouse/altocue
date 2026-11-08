@@ -1,0 +1,47 @@
+{
+  "id": "envato-elements",
+  "name": "Envato Elements",
+  "url": "https://elements.envato.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Stock audio, sound effects, footage and templates on a subscription.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://help.elements.envato.com/hc/en-us/articles/360000628966-License-Terms",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://elements.envato.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Each download licenses one project. Work finished during the subscription stays licensed, and nothing new may be made after it ends. The licence does not mention AI. The link is the store's plain address and carries no affiliate or referral code.",
+  "affiliate_url": null
+}

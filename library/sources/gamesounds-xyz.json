@@ -1,0 +1,48 @@
+{
+  "id": "gamesounds-xyz",
+  "name": "GameSounds.xyz",
+  "url": "https://gamesounds.xyz/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "A directory listing that mirrors other publishers' sound bundles.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://gamesounds.xyz/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://gamesounds.xyz/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_redistribution",
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "It re-hosts the Sonniss GDC bundles, whose licence bars redistribution, and states no licence of its own. Get the bundles from Sonniss instead."
+}

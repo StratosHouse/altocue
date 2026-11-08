@@ -1,0 +1,45 @@
+{
+  "id": "splice",
+  "name": "Splice",
+  "url": "https://splice.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Royalty-free samples and sound packs on a subscription, mostly for music.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://splice.com/terms",
+    "checked_on": "2026-11-08",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://splice.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Its terms were not read on 2026-11-08. Its catalogue leans towards music samples rather than video sound design. The link is the store's plain address and carries no affiliate or referral code.",
+  "affiliate_url": null
+}

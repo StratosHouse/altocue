@@ -1,0 +1,45 @@
+{
+  "id": "chiptone",
+  "name": "ChipTone",
+  "url": "https://sfbgames.itch.io/chiptone",
+  "classes": [
+    "sfx",
+    "generate"
+  ],
+  "holds": "A free tool that makes chiptune sound effects.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://sfbgames.itch.io/chiptone",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "code",
+    "docs": "https://sfbgames.itch.io/chiptone",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Its page says every sound made with ChipTone is free for any purpose, commercial or otherwise, under CC0."
+}

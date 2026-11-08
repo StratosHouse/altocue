@@ -1,0 +1,50 @@
+{
+  "id": "epidemic-sound",
+  "name": "Epidemic Sound",
+  "url": "https://www.epidemicsound.com/sfx/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Over 250,000 sound effects on a subscription.",
+  "size": {
+    "count": 250000,
+    "unit": "sounds",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.epidemicsound.com/policy/v2/legal/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.epidemicsound.com/sfx/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "A subscription with a free trial and no free tier. Publishing new work needs an active subscription. The licence text itself was not read. The link is the store's plain address and carries no affiliate or referral code.",
+  "affiliate_url": null
+}

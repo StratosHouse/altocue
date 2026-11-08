@@ -1,10 +1,10 @@
 {
-  "generated": "2026-11-04T11:08:49Z",
+  "generated": "2026-11-08T01:31:18Z",
   "pins": {
     "hyperframes": "0.9.8",
     "gl-transitions": "2.2.0"
   },
-  "entries": 801,
+  "entries": 828,
   "named_by_a_built_in": [
     "flowchart",
     "typewriter",
@@ -604,6 +604,10 @@
     {
       "id": "freepd",
       "reason": "The site says it closed permanently in 2025."
+    },
+    {
+      "id": "gamesounds-xyz",
+      "reason": "It re-hosts the Sonniss GDC bundles, whose licence bars redistribution, and states no licence of its own. Get the bundles from Sonniss instead."
     },
     {
       "id": "hald-clut-cedeber",

@@ -1,0 +1,51 @@
+{
+  "id": "nasa-sounds",
+  "name": "NASA sounds",
+  "url": "https://www.nasa.gov/historical-sounds/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "About 64 historical mission and space sounds.",
+  "size": {
+    "count": 64,
+    "unit": "sounds",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": "public-domain-us",
+    "url": "https://www.nasa.gov/multimedia/guidelines/index.html",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.nasa.gov/historical-sounds/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "NASA media is generally not under copyright in the United States. Commercial use may not suggest NASA endorses anything, and its insignia is not public domain. One recording is credited to the University of Iowa, so check each file's credit."
+}

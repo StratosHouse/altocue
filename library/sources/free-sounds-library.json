@@ -1,0 +1,46 @@
+{
+  "id": "free-sounds-library",
+  "name": "Free Sounds Library",
+  "url": "https://www.freesoundslibrary.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Royalty-free sound effects under CC BY 4.0.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://www.freesoundslibrary.com/about-us",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Downloaded from www.freesoundslibrary.com"
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.freesoundslibrary.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Commercial and non-commercial use is allowed with the credit line it asks for. The page says nothing about redistribution, so treat the files as link only."
+}

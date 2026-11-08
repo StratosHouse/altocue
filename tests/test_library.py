@@ -599,6 +599,63 @@ def test_the_owners_own_links_carry_the_agreed_verdicts():
     assert {key: verdicts[key] for key in expected} == expected
 
 
+PAID_SFX_STORES = {
+    "epidemic-sound", "artlist", "soundly", "splice", "boom-library", "a-sound-effect", "pro-sound-effects", "soundsnap", "envato-elements",
+    "motion-array", "sonniss-shop",
+}  # fmt: skip
+
+
+def paid_store(id: str = "shop", **fields) -> dict:
+    return source(id, **{"access": {"kind": "manual", "docs": "https://shop.example/", "key": "paid"}, "affiliate_url": None, **fields})
+
+
+def test_paid_sound_stores_are_links_with_their_plain_address_and_an_empty_affiliate_slot():
+    records = {path.stem: json.loads(path.read_text()) for path in SOURCES.glob("*.json")}
+    for id in PAID_SFX_STORES:
+        record = records[id]
+        assert record["verdict"] == "DIRECTORY" and record["access"]["key"] == "paid" and "sfx" in record["classes"]
+        assert record["affiliate_url"] is None, "a code goes in only when one is agreed, never invented"
+        assert "carries no affiliate or referral code" in record["notes"] and not library.TRACKING.search(record["url"])
+    assert not [id for id, record in records.items() if "affiliate_url" in record and record["access"]["key"] != "paid"]
+
+
+@pytest.mark.parametrize("url", ["https://shop.example/?ref=abc", "https://shop.example/sfx?utm_source=altocue", "https://shop.example/?aff_id=9", "https://shop.example/#via=me"])
+def test_a_referral_or_tracking_code_in_a_source_url_is_refused(url):
+    with pytest.raises(AltocueError, match="tracking code") as caught:
+        library.validate(catalog(sources=[paid_store(url=url)]))
+    assert "affiliate_url" in caught.value.fix
+
+
+def test_the_affiliate_slot_takes_only_an_https_link_and_only_on_a_paid_store():
+    library.validate(catalog(sources=[paid_store(), paid_store(affiliate_url="https://shop.example/?ref=altocue")]))
+    with pytest.raises(AltocueError, match="not an https"):
+        library.validate(catalog(sources=[paid_store(affiliate_url="http://shop.example/?ref=altocue")]))
+    with pytest.raises(AltocueError, match="only a paid store"):
+        library.validate(catalog(sources=[source("free", affiliate_url="https://free.example/?ref=x")]))
+
+
+def test_an_affiliate_link_reaches_the_catalog_only_when_set_and_show_names_it(bundled, monkeypatch, tmp_path, capsys):
+    plain, coded = paid_store(), paid_store(id="coded", affiliate_url="https://shop.example/?ref=altocue")
+    rows = build.source_entries([plain, coded])
+    assert "affiliate_url" not in rows[0] and "no affiliate code" in rows[0]["ship"] and "paid" in rows[0]["tags"]
+    assert rows[1]["affiliate_url"] == "https://shop.example/?ref=altocue" and rows[1]["url"] == coded["url"]
+    path = tmp_path / "stores.json"
+    path.write_text(json.dumps(catalog(*rows, sources=[plain, coded])))
+    monkeypatch.setattr(library, "bundled_path", lambda: path)
+    assert main(["library", "show", "coded"]) == 0
+    assert "carries an affiliate code" in capsys.readouterr().out
+    assert main(["library", "show", "shop"]) == 0
+    assert "affiliate" not in capsys.readouterr().out.lower().replace("no affiliate code", "")
+
+
+def test_an_offline_build_reuses_the_fetched_rows_and_moves_nothing_else():
+    previous = json.loads(COMMITTED.read_text())
+    fetched, refused, pins, _ = build.reused(previous)
+    assert {row["source"] for row in fetched} == {"hyperframes", "gl-transitions"} and refused == previous["refused"] and pins == previous["pins"]
+    records = {"hyperframes", "gl-transitions"} & {record["id"] for record in previous["sources"]}  # their own source rows are rebuilt, not reused
+    assert len(fetched) == sum(row.get("source") in ("hyperframes", "gl-transitions") for row in previous["entries"]) - len(records)
+
+
 # Fetching an item
 
 

@@ -1,0 +1,51 @@
+{
+  "id": "little-robot-sound-factory",
+  "name": "Little Robot Sound Factory 8-bit library",
+  "url": "https://opengameart.org/content/8-bit-sound-effects-library",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Forty 8-bit game sounds: pickups, jumps, hits, menu moves and jingles.",
+  "size": {
+    "count": 40,
+    "unit": "sounds",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-3.0",
+    "url": "https://opengameart.org/content/8-bit-sound-effects-library",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Sound effects by Little Robot Sound Factory, www.littlerobotsoundfactory.com"
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://opengameart.org/content/8-bit-sound-effects-library",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "unknown",
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "CC BY 3.0, so every use credits Little Robot Sound Factory with a link where possible. CC BY is not on the allow-list for fetching, so it stays a link."
+}

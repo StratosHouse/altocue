@@ -27,6 +27,10 @@ Nobody has listened to these. The newer twelve were chosen by file name and meas
 | `whoosh7.ogg` | A recorded whoosh for a transition | 0.73 s | `1800.ogg` | [BigSoundBank](https://bigsoundbank.com/whoosh-7-s1800.html) |
 | `whoosh8.ogg` | A recorded whoosh for a transition | 0.63 s | `1801.ogg` | [BigSoundBank](https://bigsoundbank.com/whoosh-8-s1801.html) |
 
+## More sounds, without shipping them
+
+These twenty are the only sounds in the package. The rest of the Kenney packs above, and the other open packs in `library/sfx/packs.json`, are indexed one sound at a time by `scripts/index_sfx.py` and fetched on demand: `altocue sfx get <sound> -p .` downloads the pack once into `~/.altocue/sfx/packs/`, checks its sha256 and copies only that file, with its licence notice, into the project's `sfx/`.
+
 ## How each sound is placed
 
 `sounds.json` also says how `altocue.mix` places each sound. A cue in `motion.json` can override any of these.

@@ -24,6 +24,8 @@ SOURCES = ROOT / "library" / "sources"
 CATALOG = ROOT / "library" / "catalog.json"
 BUNDLED = ROOT / "src" / "altocue" / "data" / "library" / "catalog.json"
 REPORT = ROOT / "library" / "report.json"
+SFX_PACKS = ROOT / "library" / "sfx" / "packs.json"
+SFX_INDEX = ROOT / "library" / "sfx" / "index.json"
 
 REGISTRY_PAGE = "https://github.com/heygen-com/hyperframes/tree"
 NPM_SHADERS = "https://registry.npmjs.org/gl-transitions/latest"
@@ -44,6 +46,10 @@ SHIP_VERDICT = {
     "RUNTIME": "Reached at run time with your own account or key where it needs one. Nothing from it ships in Altocue.",
     "DIRECTORY": "Link only. A person opens it and follows its terms. Altocue indexes none of its items.",
 }
+SHIP_PAID = "A paid store, linked by its plain address with no affiliate code. A person buys and follows its terms. Nothing from it ships in Altocue."
+SHIP_PAID_AFFILIATE = "A paid store. Its plain address is the url, and a separate affiliate link is offered beside it and named as one. Nothing from it ships in Altocue."
+SHIP_SOUND = "One CC0 file from an open pack. `altocue library add` downloads the pack once, checks its sha256 and copies only this sound, with its notice."
+SOUND_JOBS = {"whoosh": ["transition"], "swipe": ["transition"], "riser": ["hook"], "impact": ["hook"], "jingle": ["close"]}
 JOB_WORDS = {
     "hook": {"emphasize", "agitate", "ask", "reveal", "title-card", "headline", "impact"},
     "prove": {"prove", "compare", "exhibit", "data", "chart", "social-proof", "proof", "testimonial", "stat", "leaderboard"},
@@ -197,7 +203,40 @@ def source_entries(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "ship": SHIP_VERDICT[record["verdict"]],
             "source": record["id"],
         }
+        if library.paid(record):
+            row["tags"].append("paid")
+            if record["verdict"] == "DIRECTORY":
+                row["ship"] = SHIP_PAID_AFFILIATE if record.get("affiliate_url") else SHIP_PAID
+        if record.get("affiliate_url"):
+            row["affiliate_url"] = record["affiliate_url"]
         rows.append(row)
+    return rows
+
+
+def read_sound_index(packs_path: Path = SFX_PACKS, index_path: Path = SFX_INDEX) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """The sounds scripts/index_sfx.py found, and the packs they sit in. No index yet means no sound rows, never an error."""
+    packs = {pack["id"]: pack for pack in json.loads(packs_path.read_text())["packs"]} if packs_path.exists() else {}
+    index = json.loads(index_path.read_text()) if index_path.exists() else {"rows": []}
+    return index["rows"], packs
+
+
+def sound_entries(sounds: list[dict[str, Any]], packs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """One fetchable row per indexed sound. A pack with no pinned sha256 offers nothing, because a fetch could not be checked."""
+    rows = []
+    for sound in sounds:
+        pack = packs.get(sound["pack"])
+        if not pack or not pack.get("sha256") or not pack.get("download") or not library.licence_allowed(sound["licence"]):
+            continue
+        seconds = f", {sound['seconds']:.2f} s" if sound.get("seconds") else ""
+        rows.append({
+            "id": sound["id"], "kind": "sfx", "tier": "fetch", "title": sound["name"],
+            "summary": f"A {sound['category']} sound{seconds}, from {pack['title']} by {pack['author']}.",
+            "tags": list(dict.fromkeys([sound["category"], *sound["tags"], "cc0" if sound["licence"] == "CC0-1.0" else sound["licence"].lower()])),
+            "jobs": SOUND_JOBS.get(sound["category"], []), "licence": sound["licence"], "url": pack["page"], "ship": SHIP_SOUND,
+            "source": library.SOUND_SOURCE, "category": sound["category"], "seconds": sound.get("seconds"), "pack": pack["id"],
+            "pack_title": pack["title"], "pack_source": pack["source"], "author": pack["author"], "path": sound["path"], "sha256": sound["sha256"],
+            "archive": pack["download"], "archive_sha256": pack["sha256"], "licence_url": pack["licence_url"], "credit": sound.get("credit") or pack.get("credit"),
+        })  # fmt: skip
     return rows
 
 
@@ -293,17 +332,33 @@ def report(catalog: dict[str, Any], shadowed: list[str]) -> dict[str, Any]:
     }
 
 
-def build() -> dict[str, Any]:
-    version = renderer_version()
+def reused(previous: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, str], list[str]]:
+    """Offline, the registry and shader rows come from the last build unchanged, so only the source records and the sound index move."""
+    if not previous:
+        raise AltocueError("An offline build needs the committed catalog to reuse.", fix="Run the build with network once, without --offline.")
+    records = {record["id"] for record in previous["sources"]}
+    fetched = [row for row in previous["entries"] if row.get("source") in ("hyperframes", "gl-transitions") and row["id"] not in records]
+    shadowed = json.loads(REPORT.read_text()).get("named_by_a_built_in", []) if REPORT.exists() else []
+    return fetched, previous["refused"], previous["pins"], shadowed
+
+
+def build(offline: bool = False) -> dict[str, Any]:
     previous = json.loads(CATALOG.read_text()) if CATALOG.exists() else None
     sources = read_sources(SOURCES)
     built_in = format_entries()
-    registry, refused = registry_entries(fetch_registry(version), version)
-    registry, shadowed = unclaimed(registry, built_in)
-    rows, shader_version = fetch_transitions()
-    shaders, shaders_refused = transition_entries(rows, shader_version)
-    pins = {"hyperframes": version, "gl-transitions": shader_version}
-    catalog = assemble(built_in + registry + shaders + source_entries(sources), sources, refused + shaders_refused, pins, previous)
+    sounds = sound_entries(*read_sound_index())
+    if offline:
+        fetched, refused, pins, shadowed = reused(previous)
+        fetched, _ = unclaimed(fetched, built_in)
+        catalog = assemble(built_in + fetched + sounds + source_entries(sources), sources, refused, pins, previous)
+    else:
+        version = renderer_version()
+        registry, refused = registry_entries(fetch_registry(version), version)
+        registry, shadowed = unclaimed(registry, built_in)
+        rows, shader_version = fetch_transitions()
+        shaders, shaders_refused = transition_entries(rows, shader_version)
+        pins = {"hyperframes": version, "gl-transitions": shader_version}
+        catalog = assemble(built_in + registry + shaders + sounds + source_entries(sources), sources, refused + shaders_refused, pins, previous)
     write_catalog(catalog, CATALOG)
     write_catalog(catalog, BUNDLED)
     REPORT.write_text(json.dumps(report(catalog, shadowed), indent=2, ensure_ascii=False) + "\n")
@@ -371,12 +426,13 @@ def registry_drift(version: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-links", action="store_true", help="Report dead source addresses for the run summary. Never fails")
+    parser.add_argument("--offline", action="store_true", help="Reuse the committed registry and shader rows. Rebuilds the sources and the sound index with no network")
     args = parser.parse_args(argv)
     if args.check_links:
         print(check_links(read_sources(SOURCES)))
         print(f"\n{release_drift(renderer_version())} {registry_drift(renderer_version())} {shader_drift(SHADER_VERSION)}")
         return 0
-    catalog = build()
+    catalog = build(offline=args.offline)
     refused = dict(Counter(row["rule"] for row in catalog["refused"]))
     print(json.dumps({"entries": len(catalog["entries"]), "refused": refused, "generated": catalog["generated"]}, indent=2))
     return 0

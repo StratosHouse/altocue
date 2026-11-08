@@ -1,0 +1,51 @@
+{
+  "id": "shapeforms-free",
+  "name": "Shapeforms Audio free sound effects",
+  "url": "https://shapeforms.itch.io/shapeforms-audio-free-sfx",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "144 free sound effects in a 72 MB pack of WAV files.",
+  "size": {
+    "count": 144,
+    "unit": "sounds",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://shapeforms.itch.io/shapeforms-audio-free-sfx",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://shapeforms.itch.io/shapeforms-audio-free-sfx",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Royalty free for commercial and non-commercial projects with no credit required. The maker says sharing the library or its files on their own, a public repository included, counts as redistribution."
+}
