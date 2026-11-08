@@ -1,0 +1,45 @@
+{
+  "id": "jsfxr",
+  "name": "jsfxr",
+  "url": "https://sfxr.me/",
+  "classes": [
+    "sfx",
+    "generate"
+  ],
+  "holds": "A browser tool that makes retro blips, pickups, lasers and hits.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "Unlicense",
+    "url": "https://sfxr.me/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "code",
+    "docs": "https://sfxr.me/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "unknown",
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The code links an UNLICENSE, and the free tier lists unrestricted commercial use of what you make. Good for UI blips and game cues made to measure."
+}

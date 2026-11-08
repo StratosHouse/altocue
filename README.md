@@ -41,7 +41,7 @@ You hand your coding agent a messy recording, a long talk or just a brief. Altoc
 - **Captions.** Word by word, never across a cut, only words really said. Speakers can be named or coloured.
 - **Motion graphics.** 151 original formats in 12 groups, timed to speech and placed clear of faces. The Studio collection adds smooth typography, depth, linked handoffs, editing diagrams and endings.
 - **Copyable motion recipes.** Every built-in graphic includes an agent prompt, a native example and optional sound notes. Preview the full library and adapt it to your words.
-- **Music and effects.** Sound you are allowed to use, with the licence and credit shown before anything downloads.
+- **Music and effects.** Sound you are allowed to use, with the licence and credit shown before anything downloads. Single CC0 sounds are indexed from open packs by category, from clicks and whooshes to glitches and risers, and paid stores are plain links.
 - **Product UI inserts.** Faux product screens built with [Stageshow](https://github.com/benjitaylor/skills), filmed one fixed frame at a time into an insert that lands on the spoken word, and labelled as a mockup.
 - **Films with no footage.** Launch films, explainers, demos, ad cards and more, drawn in code from a storyboard.
 - **Long video to shorts.** It finds complete thoughts in your own recordings and cuts each into its own project.
@@ -188,12 +188,13 @@ altocue run
 
 [Preview the full library and copy its prompts](https://www.stratosagency.ai/altocue/library/). Every built-in has a real native example and an agent recipe. The [Studio graphics guide](docs/STUDIO-GRAPHICS.md) covers the new collection, timing and optional sound cues. No purchased sound pack is required or included. If you hold a licence for one, `altocue sfx pack` points Altocue at it, and its sounds stay on your machine.
 
-The catalog that ships holds 801 entries: 159 built in, 461 to fetch, 47 live searches and 134 links. It judges 171 sources and refuses 78 items, each with its reason.
+The catalog that ships holds 828 entries: 159 built in, 461 to fetch, 47 live searches and 161 links. It judges 199 sources and refuses 78 items, each with its reason.
 
 | Kind | Entries | What they are |
 |---|---:|---|
 | Motion | 456 | Built-in formats, and blocks from the HyperFrames registry |
 | Transitions | 212 | Wipes and shader transitions |
+| Sound effects | 33 | Free sound sources, paid stores linked with no affiliate code, and single sounds from open packs once indexed |
 | 3D | 32 | Isometric and camera formats, scenes and tools |
 | Maps | 22 | Map formats, map blocks and map data |
 | Overlays | 10 | Textures and frame dressing |
@@ -202,7 +203,6 @@ The catalog that ships holds 801 entries: 159 built in, 461 to fetch, 47 live se
 | Data | 9 | Benchmark sources and public data |
 | Illustration | 8 | Drawn people, avatars and doodles |
 | Music | 7 | Music sources |
-| Sound effects | 6 | Sound effect sources |
 | Generation | 6 | Image, video and 3D services |
 | Photos | 5 | Museum and archive collections |
 | Looks | 5 | Colour looks and LUT collections |
@@ -212,7 +212,7 @@ Those are the counts from `altocue library stats`. Most entries are sources and 
 
 **Stock needs no key to start.** `altocue broll --search auto` finds video and photos from NASA, Wikimedia Commons, The Met and Cleveland, and uses Pixabay first if you have its free key. No-key sources are strong on nature, space, science, history and art, and weak on modern people and business, so Pixabay stays the route for generic footage.
 
-**Music and effects come with their terms.** `altocue music` and `altocue sfx` find sound you are allowed to use, and show the licence and credit before anything downloads. Your own licensed packs work too: a sound copies into the project's private folder, which git ignores. Every download is recorded. Render writes `out/credits.txt`, `altocue credits` prints the block for a video description, and QA fails a film that owes a credit without it.
+**Music and effects come with their terms.** `altocue music` and `altocue sfx` find sound you are allowed to use, and show the licence and credit before anything downloads. Your own licensed packs work too: a sound copies into the project's private folder, which git ignores. Open CC0 packs, such as Kenney's, are indexed sound by sound, so `altocue sfx search glitch` or `altocue library search --kind sfx whoosh` finds a single file, and `altocue library add <sound>` downloads the pack once, checks its hash and copies only that sound with its licence notice. Paid stores are listed as plain links that carry no affiliate code. Every download is recorded. Render writes `out/credits.txt`, `altocue credits` prints the block for a video description, and QA fails a film that owes a credit without it.
 
 **Transitions and texture.** 58 built-in transitions, 12 shader transitions bundled, and more shaders fetched with `altocue library add`. Picture only, so no word moves. Freeze on any word while the sound carries on. Film grain, light leaks, dust, vignette and paper are made in code and sit under the captions.
 

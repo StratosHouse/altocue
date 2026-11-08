@@ -1,0 +1,48 @@
+{
+  "id": "a-sound-effect",
+  "name": "A Sound Effect",
+  "url": "https://www.asoundeffect.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "A marketplace of sound effect libraries from independent makers, with a free section.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://asoundeffect.com/license-agreement",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.asoundeffect.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution",
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Paid libraries are perpetual, per workstation, and must sit inside a larger production. AI training is barred. Free libraries use a separate one-user free EULA: https://www.asoundeffect.com/wp-content/uploads/2022/12/free_eula22.pdf The link is the store's plain address and carries no affiliate or referral code.",
+  "affiliate_url": null
+}

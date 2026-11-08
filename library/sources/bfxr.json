@@ -1,0 +1,45 @@
+{
+  "id": "bfxr",
+  "name": "Bfxr",
+  "url": "https://www.bfxr.net/",
+  "classes": [
+    "sfx",
+    "generate"
+  ],
+  "holds": "An open tool that makes game sound effects.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/increpare/bfxr2",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "code",
+    "docs": "https://www.bfxr.net/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "unknown",
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The MIT licence covers its code. Neither page says anything about rights in the sounds it makes."
+}

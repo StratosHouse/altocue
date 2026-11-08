@@ -1,6 +1,6 @@
 ---
 name: altocue-sound
-description: Finds music and sound effects a film is allowed to use, puts them in the project, and writes the credits a film owes. Sources are ccMixter, Incompetech, bundled CC0 stings and effects, the user's own licensed sound packs, and Freesound with the user's own key. Use when the user wants background music, a sting, a sound effect, to use a sound pack they bought, or a credit line for a video description.
+description: Finds music and sound effects a film is allowed to use, puts them in the project, and writes the credits a film owes. Sources are ccMixter, Incompetech, bundled CC0 stings and effects, single CC0 sounds from indexed open packs, the user's own licensed sound packs, and Freesound with the user's own key. Use when the user wants background music, a sting, a sound effect, to use a sound pack they bought, or a credit line for a video description.
 license: MIT
 compatibility: Requires the altocue CLI. Music needs no key. FREESOUND_API_KEY is optional, and free, for sounds beyond the bundled set.
 ---
@@ -50,6 +50,8 @@ altocue sfx get whoosh3 -p .
 ```
 
 - **Bundled comes first.** Twenty effects, chosen by name and length. `altocue sfx list` shows each one's length, pack and use.
+- **Open packs come next.** Once the sound index is built, `altocue sfx search glitch` also lists single CC0 sounds from open packs such as Kenney's, by category (click, pop, whoosh, swipe, riser, impact, glitch, typing, notification, ambience, jingle and more). `altocue sfx get <sound> -p .` or `altocue library add <sound> -p .` downloads the pack once, checks its sha256 and copies only that file into `sfx/`, with a `.LICENSE.txt` beside it. Nothing to credit, but never claim it as your own recording.
+- **Free sites and paid stores are links.** `altocue library sources --kind sfx` lists them with their terms. Never download from one for the user, and say what it bars, such as redistribution or AI use. Store links carry no affiliate code.
 - **Freesound needs the user's own key.** Set `FREESOUND_API_KEY`, then `altocue sfx get freesound:1234 -p .`. Only CC0 and CC BY sounds come back.
 - **Freesound files are previews.** Originals need a sign-in flow, so you get the high-quality MP3 preview.
 - **Say the terms.** Freesound's API terms keep commercial use for negotiation. Tell the user before using one in anything sold.

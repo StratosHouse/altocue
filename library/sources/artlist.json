@@ -1,0 +1,45 @@
+{
+  "id": "artlist",
+  "name": "Artlist",
+  "url": "https://artlist.io/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Music, sound effects and footage on a subscription.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://help-center.artlist.io/privacy-terms/artlist-license",
+    "checked_on": "2026-11-08",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://artlist.io/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Its licence page did not load on 2026-11-08, so read it before buying. The link is the store's plain address and carries no affiliate or referral code.",
+  "affiliate_url": null
+}

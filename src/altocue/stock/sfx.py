@@ -1,4 +1,4 @@
-"""`altocue sfx`: sound effects you are allowed to use. The bundled set first, your own packs, then Freesound with your own key."""
+"""`altocue sfx`: sound effects you are allowed to use. The bundled set first, your own packs, the indexed open packs, then Freesound with your own key."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from ..errors import AltocueError
 from ..generate import http
 from ..mix import SFX_DIR
 from ..project import Project
-from . import base, credits, freesound, packs
+from . import base, credits, freesound, packs, sfxpacks
 from .base import Result
 
 
@@ -25,7 +25,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     find.add_argument("words", nargs="+", help="What you want, such as transition")
     find.add_argument("--limit", type=int, default=6, help="Most results from Freesound")
     get = actions.add_parser("get", help="Copy one sound into this project")
-    get.add_argument("id", help="A name from `altocue sfx list`, a pack sound such as vector:keyboard-01, or an id such as freesound:1234")
+    get.add_argument("id", help="A name from `altocue sfx list` or `altocue sfx search`, a pack sound such as vector:keyboard-01, or freesound:1234")
     get.add_argument("--project", "-p", default=".", help="Project folder")
     pack = actions.add_parser("pack", help="Register a sound pack you hold a licence for. It stays on this machine")
     pack.add_argument("name", help="A short name, such as vector")
@@ -71,9 +71,22 @@ def resolve(item: str) -> tuple[Result | None, dict[str, Any] | None]:
     return None, row
 
 
+def indexed(query: str | None = None, id: str | None = None) -> list[dict[str, Any]]:
+    """Sounds from the open packs in the library catalog, found by category, tag or name. None when there is no index yet."""
+    from .. import library
+
+    catalog = library.current()
+    if id is not None:
+        return [row for row in sfxpacks.indexed(catalog) if row["id"] == id]
+    return [row for row in library.search(catalog, query or "", kind="sfx", tier="fetch") if row.get("source") == library.SOUND_SOURCE]
+
+
 def fetch(project: Project, item: str) -> str:
     if packs.find(item) is not None:
         return packs.fetch(project, item)
+    found_row = indexed(id=item) if not item.startswith("freesound:") else []
+    if found_row:
+        return sfxpacks.fetch(project, found_row[0])
     found, row = resolve(item)
     (project.root / "sfx").mkdir(exist_ok=True)
     if row is not None:
@@ -131,6 +144,11 @@ def run(args: argparse.Namespace) -> int:
         print(f"{len(rows)} bundled.")
         for row in rows:
             print(line(row))
+        open_rows = indexed(query)
+        if open_rows:
+            print(f"{len(open_rows)} in the open packs. CC0, fetched with `altocue sfx get <id>`. The pack downloads once.")
+            for row in open_rows[: max(args.limit, 10)]:
+                print(f"{row['id']:<44} {row['category']:<12} {row.get('seconds') or 0:>5.2f} s  {row['pack_title']}")
         own = packs.matches(query)
         if own:
             print(f"{len(own)} in your packs. Licensed to you, so they stay private.")

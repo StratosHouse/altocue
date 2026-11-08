@@ -67,7 +67,12 @@ FLAGS = {
     "search_unreliable",
     "dead",
 }
-ITEM_SOURCES = {"altocue", "hyperframes", "gl-transitions"}  # the only sources allowed more than one row
+SOUND_SOURCE = "sfx-packs"  # one row per indexed sound from an open pack, fetched by `altocue library add`
+ITEM_SOURCES = {"altocue", "hyperframes", "gl-transitions", SOUND_SOURCE}  # the only sources allowed more than one row
+SOUND_FIELDS = {"pack", "path", "sha256", "archive", "archive_sha256", "licence_url", "category"}
+SHA256 = re.compile(r"[0-9a-f]{64}")
+# Query keys that carry a referral or tracking code. A store's url stays canonical; a code may only ever sit in affiliate_url.
+TRACKING = re.compile(r"[?&#](?:ref|ref_id|referral|referrer|aff|affiliate|aff_id|affid|partner|partner_id|irclickid|clickid|fpr|via|coupon|utm_[a-z]+)=", re.IGNORECASE)
 ALLOWED_LICENCES = {"CC0-1.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "OFL-1.1"}
 NEVER_LISTED = ("worldclaw", "scrapling")
 NEEDED = {"id", "kind", "tier", "title", "summary", "tags", "jobs", "licence", "url", "ship"}
@@ -178,7 +183,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     sources_parser.add_argument("--json", action="store_true")
     stats_parser = actions.add_parser("stats", help="Counts by kind and tier")
     stats_parser.add_argument("--json", action="store_true")
-    add_parser = actions.add_parser("add", help="Fetch one registry item into this project")
+    add_parser = actions.add_parser("add", help="Fetch one registry item, shader or indexed sound into this project")
     add_parser.add_argument("name")
     add_parser.add_argument("--project", "-p", default=".", help="Project folder")
     actions.add_parser("update", help="Download the latest catalog. The bundled one stays as the fallback")
@@ -244,6 +249,7 @@ def validate(catalog: Any) -> None:
             raise AltocueError(f"Source {id} is excluded with no reason given.")
         if record["licence"]["checked_from"] == "not_verified" and record["verdict"] in ("RUNTIME", "BUNDLE"):
             raise AltocueError(f"Source {id} has a licence that was not verified, so it cannot be {record['verdict']}.")
+        check_store_links(record)
     refused = {row["id"] for row in catalog["refused"]}
     seen: Counter[str] = Counter()
     rows_per_source: Counter[str] = Counter()
@@ -273,6 +279,8 @@ def validate(catalog: Any) -> None:
             raise AltocueError(f"Entry {id} comes from the excluded source {origin}.")
         if any(word in json.dumps(row).lower() for word in NEVER_LISTED):
             raise AltocueError(f"Entry {id} names something that must not be listed.")
+        if origin == SOUND_SOURCE:
+            check_sound(row)
         rows_per_source[origin] += 1
     twice = [id for id, count in seen.items() if count > 1]
     if twice:
@@ -280,6 +288,41 @@ def validate(catalog: Any) -> None:
     for origin, count in rows_per_source.items():
         if count > 1 and origin not in ITEM_SOURCES:
             raise AltocueError(f"Source {origin} has more than one row. A source record is one row, never an index of its items.")
+
+
+def paid(record: dict[str, Any]) -> bool:
+    return (record.get("access") or {}).get("key") == "paid"
+
+
+def check_store_links(record: dict[str, Any]) -> None:
+    """A store is linked by its plain address. An affiliate code, if one is ever agreed, goes only in `affiliate_url`, which starts empty."""
+    id = record["id"]
+    if TRACKING.search(str(record["url"])):
+        raise AltocueError(f"Source {id} has a referral or tracking code in its url.", fix="Use the plain canonical address. A code may only go in affiliate_url.")
+    affiliate = record.get("affiliate_url")
+    if affiliate is None:
+        return
+    if not paid(record):
+        raise AltocueError(f"Source {id} has an affiliate_url, and only a paid store may carry one.", fix="Set affiliate_url to null.")
+    if not isinstance(affiliate, str) or not affiliate.startswith("https://"):
+        raise AltocueError(f"Source {id} has an affiliate_url that is not an https address.", fix="Use an https link, or null.")
+
+
+def check_sound(row: dict[str, Any]) -> None:
+    """An indexed sound names the pack it comes from, by address and hash, and one file inside it."""
+    id = row["id"]
+    missing = SOUND_FIELDS - set(row)
+    if missing:
+        raise AltocueError(f"Sound {id} is missing {sorted(missing)}.")
+    if row["kind"] != "sfx" or row["tier"] != "fetch":
+        raise AltocueError(f"Sound {id} must be an sfx to fetch.")
+    if not str(row["archive"]).startswith("https://") or not str(row["licence_url"]).startswith("https://"):
+        raise AltocueError(f"Sound {id} has a pack or licence address that is not https.")
+    if not (SHA256.fullmatch(str(row["sha256"])) and SHA256.fullmatch(str(row["archive_sha256"]))):
+        raise AltocueError(f"Sound {id} has no sha256 for its file or its pack.")
+    path = str(row["path"])
+    if not path or path.startswith("/") or "\\" in path or ".." in Path(path).parts or ":" in path:
+        raise AltocueError(f"Sound {id} has a path that could leave its pack.")
 
 
 def _read(path: Path) -> dict[str, Any] | None:
@@ -473,6 +516,11 @@ def _print_show(args: argparse.Namespace) -> int:
         _print_slots(row)
     if row["tier"] == "fetch" and row.get("source") == "hyperframes":
         print(f"Fetch it first: altocue library add {row['id']} -p .")
+    if row.get("source") == SOUND_SOURCE:
+        print(f"{row['category'].capitalize()}, {row.get('seconds') or '?'} s, file {row['path']} in the pack {row['pack']}. Licence {row['licence_url']}")
+        print(f"Fetch it: altocue library add {row['id']} -p .  The pack downloads once and is checked by its sha256.")
+    if row.get("affiliate_url"):
+        print(f"Buy through: {row['affiliate_url']}  This link carries an affiliate code. The plain address is {row['url']}")
     if row.get("gsap"):
         print(GSAP_NOTE)
     if record and record.get("access"):
@@ -652,6 +700,24 @@ def _add_shader(project: Project, row: dict[str, Any]) -> int:
     return 0
 
 
+def _add_sound(project: Project, row: dict[str, Any]) -> int:
+    """One file from an open pack: the pack comes down once into a cache, and only this sound lands in the project."""
+    from .stock import sfxpacks
+
+    relative = sfxpacks.fetch(project, row)
+    record = {
+        "name": row["id"], "source": row["url"], "licence": row["licence"], "pack": row["pack"], "path": row["path"],
+        "sha256": row["sha256"], "fetched_on": date.today().isoformat(),
+    }  # fmt: skip
+    path = project.root / LOCK_FILE
+    lock = json.loads(path.read_text()) if path.exists() else {"schema": SCHEMA, "items": {}}
+    lock["items"][row["id"]] = record
+    write_json(path, lock)
+    print(f"Saved {relative}, licence {row['licence']}, with its notice beside it. Recorded in {LOCK_FILE} and credits.json.")
+    print(f'Add to "sfx" in motion.json: {json.dumps({"file": relative, "at": 1.0})}')
+    return 0
+
+
 def _add(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     catalog = current()
@@ -666,6 +732,8 @@ def _add(args: argparse.Namespace) -> int:
         raise AltocueError(f"{name} is built in, so there is nothing to fetch.", fix=f"Use it directly. See `altocue library show {name}`.")
     if row["tier"] == "fetch" and row.get("source") == "gl-transitions":
         return _add_shader(project, row)
+    if row.get("source") == SOUND_SOURCE:
+        return _add_sound(project, row)
     if row["tier"] != "fetch" or row.get("source") != "hyperframes":
         raise AltocueError(f"{name} is not a composition this command can fetch.", fix=f"See `altocue library show {name}` for how to use it.")
     found = refusal(name, row["title"], row["summary"], row["tags"])

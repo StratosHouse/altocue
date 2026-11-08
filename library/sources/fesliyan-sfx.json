@@ -1,0 +1,46 @@
+{
+  "id": "fesliyan-sfx",
+  "name": "Fesliyan Studios sound effects",
+  "url": "https://www.fesliyanstudios.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Free sound effects for videos, films, websites and games.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.fesliyanstudios.com/sound-effects-policy",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.fesliyanstudios.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Credit is optional. The policy lists video editing and films as allowed uses but never says commercial in so many words. Reposting the files, or putting them in another sound library, is barred."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "sonniss-shop",
+  "name": "Sonniss",
+  "url": "https://sonniss.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Sound effect libraries for sale, from the makers of the free GDC bundles.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://sonniss.com/",
+    "checked_on": "2026-11-08",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://sonniss.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The shop's licence was not read on 2026-11-08. The free GDC bundles have their own record. The link is the store's plain address and carries no affiliate or referral code.",
+  "affiliate_url": null
+}

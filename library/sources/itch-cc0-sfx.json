@@ -1,0 +1,46 @@
+{
+  "id": "itch-cc0-sfx",
+  "name": "itch.io CC0 sound effects",
+  "url": "https://itch.io/game-assets/newest/assets-cc0/tag-sound-effects",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Game sound packs whose makers chose CC0, listed by itch.io.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://itch.io/game-assets/newest/assets-cc0/tag-sound-effects",
+    "checked_on": "2026-11-08",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://itch.io/game-assets/newest/assets-cc0/tag-sound-effects",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "metadata_unreliable"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "A maker picks the licence tag, so read the licence on the pack's own page before using it."
+}

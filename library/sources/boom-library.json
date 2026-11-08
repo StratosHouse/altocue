@@ -1,0 +1,48 @@
+{
+  "id": "boom-library",
+  "name": "BOOM Library",
+  "url": "https://www.boomlibrary.com/",
+  "classes": [
+    "sfx"
+  ],
+  "holds": "Professional sound effect libraries sold to commercial customers.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.boomlibrary.com/terms-conditions-regular/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.boomlibrary.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": false,
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution",
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "A buyout is a perpetual single-user licence. A subscription runs at least three years, and unused raw files must be deleted 30 days after it ends. Resale, sharing and AI training are barred. The link is the store's plain address and carries no affiliate or referral code.",
+  "affiliate_url": null
+}
