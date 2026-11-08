@@ -146,11 +146,21 @@ def run(only: list[str], cache: Path, repin: bool, packs_path: Path = PACKS, ind
     previous = sfxpacks.read_json(index_path) or {"rows": [], "left_out": {}}
     rows = [row for row in previous["rows"] if only and row["pack"] not in only]
     left_out = {key: value for key, value in previous.get("left_out", {}).items() if only and key not in only}
-    changed = False
+    old_rows = [row for row in previous["rows"] if not only or row["pack"] in only]
+    changed, failed = False, []
     for pack in packs["packs"]:
         if only and pack["id"] not in only:
             continue
-        archive, moved = fetch_pack(pack, cache, repin)
+        try:
+            archive, moved = fetch_pack(pack, cache, repin)
+        except AltocueError as error:
+            # One dead link must not empty the index: say so, keep the pack's last rows, and fail the run at the end.
+            failed.append({"pack": pack["id"], "error": error.args[0], "fix": error.fix})
+            rows += [row for row in old_rows if row["pack"] == pack["id"]]
+            if pack["id"] in previous.get("left_out", {}):
+                left_out[pack["id"]] = previous["left_out"][pack["id"]]
+            print(f"{pack['id']}: NOT INDEXED. {error}", file=sys.stderr)
+            continue
         changed |= moved
         found, dropped = index_pack(pack, archive)
         rows += found
@@ -159,7 +169,8 @@ def run(only: list[str], cache: Path, repin: bool, packs_path: Path = PACKS, ind
         print(f"{pack['id']}: {len(found)} sounds" + (f", {len(dropped)} left out" if dropped else "") + (", pin written" if moved else ""))
     if changed:
         packs_path.write_text(json.dumps(packs, indent=2, ensure_ascii=False) + "\n")
-    return write_index(rows, left_out, index_path)
+    body = write_index(rows, left_out, index_path)
+    return {**body, "failed": failed}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -170,6 +181,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     body = run(args.pack, args.cache, args.repin)
     print(f"Indexed {body['sounds']} sounds: " + ", ".join(f"{name} {count}" for name, count in body["categories"].items()))
+    if body["failed"]:
+        print(f"{len(body['failed'])} pack(s) could not be fetched: " + ", ".join(item["pack"] for item in body["failed"]), file=sys.stderr)
+        print("Their last indexed rows were kept. Fix each one above and run again.", file=sys.stderr)
+        return 1
     print("Now run `uv run python scripts/build_library.py --offline` to put them in the catalog.")
     return 0
 

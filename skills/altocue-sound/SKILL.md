@@ -50,7 +50,7 @@ altocue sfx get whoosh3 -p .
 ```
 
 - **Bundled comes first.** Twenty effects, chosen by name and length. `altocue sfx list` shows each one's length, pack and use.
-- **Open packs come next.** Once the sound index is built, `altocue sfx search glitch` also lists single CC0 sounds from open packs such as Kenney's, by category (click, pop, whoosh, swipe, riser, impact, glitch, typing, notification, ambience, jingle and more). `altocue sfx get <sound> -p .` or `altocue library add <sound> -p .` downloads the pack once, checks its sha256 and copies only that file into `sfx/`, with a `.LICENSE.txt` beside it. Nothing to credit, but never claim it as your own recording.
+- **Open packs come next.** `altocue sfx search glitch` also lists single CC0 sounds from four open packs on OpenGameArt, two by Kenney and two by rubberduck, by category (swipe, impact, ambience, click, notification, laser, foley, glitch, riser, pop and more). `altocue sfx get <sound> -p .` or `altocue library add <sound> -p .` downloads the pack once, checks its sha256 and copies only that file into `sfx/`, with a `.LICENSE.txt` beside it. Nothing to credit, but never claim it as your own recording.
 - **Free sites and paid stores are links.** `altocue library sources --kind sfx` lists them with their terms. Never download from one for the user, and say what it bars, such as redistribution or AI use. Store links carry no affiliate code.
 - **Freesound needs the user's own key.** Set `FREESOUND_API_KEY`, then `altocue sfx get freesound:1234 -p .`. Only CC0 and CC BY sounds come back.
 - **Freesound files are previews.** Originals need a sign-in flow, so you get the high-quality MP3 preview.
