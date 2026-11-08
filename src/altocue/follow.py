@@ -9,6 +9,9 @@ crop fits only one. Here the crop follows instead.
 - **People taking turns.** With speaker labels from `altocue transcribe --speakers`, each voice is
   matched to a face by whose mouth moves while that voice talks. The crop cuts to whoever is
   speaking and holds there, and a turn shorter than `SWITCH_HOLD` does not pull it away.
+- **A camera change inside a segment.** An edited source can cut from a close-up to a wide shot
+  within one segment. Each shot is followed on its own, the crop cuts with the picture, and a
+  shot with no face takes the centre crop instead of keeping the last shot's place.
 
 Nothing here is a new model. Faces come from the YuNet detector `frame` already ships, and voices
 from the diariser `speakers` already runs. A path is a short list of keyframes in source pixels,
@@ -46,6 +49,9 @@ MIN_TRAVEL = 6.0  # source pixels. A path that moves less than this is a still c
 TOLERANCE = 1.5  # source pixels a simplified path may stray from the smooth one
 MAX_KEYS = 40
 PATCH = (24, 12)
+THUMB = (32, 18)  # grey thumbnail compared between samples to find a camera change
+SHOT_CHANGE = 0.5  # histogram correlation below this between two samples is a new shot
+SHOT_JUMP = 60.0  # or a mean thumbnail difference above this, out of 255
 
 
 @dataclass(frozen=True)
@@ -55,6 +61,7 @@ class Look:
     t: float
     faces: tuple[Face, ...]
     mouths: tuple[np.ndarray | None, ...]
+    shot: int = 0  # which camera shot of the segment this sample is in
 
 
 @dataclass
@@ -68,11 +75,15 @@ class Person:
     def size(self) -> float:
         return float(np.median([f.area for f in self.at.values()]))
 
-    def nearest(self, index: int) -> Face:
-        """The face here, or the closest sample's when the detector missed one."""
+    def nearest(self, index: int, within: Sequence[int] | None = None) -> Face:
+        """The face here, or the closest sample's when the detector missed one, from `within` when given."""
         if index in self.at:
             return self.at[index]
-        return self.at[min(self.at, key=lambda i: abs(i - index))]
+        pool = [i for i in self.at if within is None or i in within] or list(self.at)
+        return self.at[min(pool, key=lambda i: abs(i - index))]
+
+    def seen_in(self, indices: Sequence[int]) -> bool:
+        return any(i in self.at for i in indices)
 
 
 def sample_times(segment: Segment, rate: float = RATE) -> list[float]:
@@ -106,18 +117,40 @@ def look_at(clip: Clip, times: Sequence[float]) -> list[Look]:
     def load(at: float) -> np.ndarray | None:
         return frame.read_sdr(clip, at, DETECT_SIDE)
 
-    looks = []
+    looks, thumbs = [], []
     with ThreadPoolExecutor(max_workers=4) as pool:
         for at, pixels in zip(times, pool.map(load, times), strict=True):
             if pixels is None:
                 looks.append(Look(at, (), ()))
+                thumbs.append(None)
                 continue
             image = frame._to_u8(pixels)
             gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
             found = frame.detect_faces(image)
             factor = clip.display_size[0] / image.shape[1]
             looks.append(Look(at, tuple(f.scaled(factor) for f in found), tuple(mouth_patch(gray, f) for f in found)))
-    return looks
+            thumbs.append(cv2.resize(gray, THUMB, interpolation=cv2.INTER_AREA))
+    return [Look(look.t, look.faces, look.mouths, shot) for look, shot in zip(looks, shots(thumbs), strict=True)]
+
+
+def shot_change(before: np.ndarray, after: np.ndarray) -> bool:
+    """A camera change between two grey thumbnails: the tones shift, or most of the picture does."""
+    hist = [cv2.calcHist([t], [0], None, [32], [0, 256]) for t in (before, after)]
+    correlation = cv2.compareHist(hist[0], hist[1], cv2.HISTCMP_CORREL)
+    jump = float(np.abs(before.astype(np.float32) - after.astype(np.float32)).mean())
+    return correlation < SHOT_CHANGE or jump > SHOT_JUMP
+
+
+def shots(thumbs: Sequence[np.ndarray | None]) -> list[int]:
+    """A shot number for every sample. A sample that could not be read stays in the shot before it."""
+    out, shot, last = [], 0, None
+    for thumb in thumbs:
+        if thumb is not None:
+            if last is not None and shot_change(last, thumb):
+                shot += 1
+            last = thumb
+        out.append(shot)
+    return out
 
 
 def link(looks: Sequence[Look]) -> list[Person]:
@@ -296,8 +329,10 @@ def solve(
     The note says what it saw: how many people, which voice went to which face, and how many cuts.
     """
     times = [look.t for look in looks]
+    shot_of = [look.shot for look in looks]
+    members = {shot: [i for i, s in enumerate(shot_of) if s == shot] for shot in set(shot_of)}
     people = link(looks)
-    note: dict[str, object] = {"people": len(people), "voices": {}, "switches": 0}
+    note: dict[str, object] = {"people": len(people), "voices": {}, "switches": 0, "shots": len(members)}
     if not people:
         return None, note
     width, height = size
@@ -312,16 +347,24 @@ def solve(
             current = matched.get(voice, current)
             choice[index] = current
         choice = steady_turns(choice, times)
-    wanted = []
+    wanted, label = [], []
     for index, who in enumerate(choice):
-        if fits:
-            faces = sorted((p.nearest(index) for p in people), key=lambda f: -f.area)
+        same = members[shot_of[index]]
+        here = [number for number, p in enumerate(people) if p.seen_in(same)]
+        if not here:
+            # Nobody's face in this shot: the centre, not wherever the last shot left the crop.
+            subject = None
+            who = -1
+        elif fits or len(members) > 1 and who not in here:
+            faces = sorted((people[n].nearest(index, same) for n in here), key=lambda f: -f.area)
             subject = frame.choose_subject([track_of(f) for f in faces], width, height)
+            who = who if fits else here[0]
         else:
-            subject = frame._subject([track_of(people[who].nearest(index))])
+            subject = frame._subject([track_of(people[who].nearest(index, same))])
         wanted.append(frame.place_crop(source, size, subject))
+        label.append(shot_of[index] * (len(people) + 1) + who + 1)
     room_x, room_y = source[0] - width, source[1] - height
-    runs = _runs(choice)
+    runs = _runs(label)
     note["switches"] = len(runs) - 1
     smooth = []
     for first, last in runs:
@@ -339,7 +382,7 @@ def solve(
         keys: list[tuple[float, float, float]] = []
         for points in smooth:
             if keys:
-                # A new speaker is a cut: hold the old crop to just before the next sample, then jump.
+                # A new speaker or a camera change is a cut: hold the old crop to just before the next sample, then jump.
                 keys.append((max(points[0][0] - 1e-3, keys[-1][0]), keys[-1][1], keys[-1][2]))
             keys += simplify(points, tolerance)
         if len(keys) <= MAX_KEYS:

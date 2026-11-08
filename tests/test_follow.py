@@ -39,6 +39,35 @@ def test_a_walking_head_gets_a_smooth_path_that_stays_in_the_picture():
     assert all(0 <= x <= 1280 - 404 for x in lefts)
 
 
+def test_a_camera_change_is_found_and_a_steady_shot_is_not():
+    rng = np.random.default_rng(5)
+    wide = rng.integers(0, 80, (18, 32), dtype=np.uint8)
+    close = rng.integers(150, 255, (18, 32), dtype=np.uint8)
+    moving = np.roll(wide, 1, axis=1)
+    assert follow.shots([wide, moving, None, wide, close, close]) == [0, 0, 0, 0, 1, 1]
+
+
+def test_a_camera_change_inside_a_segment_does_not_keep_the_old_place():
+    # A close-up on the right, then the cut to a wide shot where nobody's face is found.
+    looks = [Look(i / 5, (face(1500.0),), (None,), 0) for i in range(10)]
+    looks += [Look(2 + i / 5, (), (), 1) for i in range(15)]
+    path, note = follow.solve(looks, [""] * 25, (1920, 1080), (606, 1080), 0.0)
+    assert note["shots"] == 2 and path is not None
+    after = [x for t, x, _ in path if t >= 2.0]
+    assert after and all(abs(x - (1920 - 606) / 2) < 2 for x in after)  # the centre, not the close-up's place
+    assert any(x > 1100 for t, x, _ in path if t < 2.0)
+
+
+def test_each_shot_frames_the_face_it_has():
+    looks = [Look(i / 5, (face(400.0),), (None,), 0) for i in range(10)]
+    looks += [Look(2 + i / 5, (face(1500.0),), (None,), 1) for i in range(10)]
+    path, note = follow.solve(looks, [""] * 20, (1920, 1080), (606, 1080), 0.0)
+    assert note["shots"] == 2 and path is not None
+    before = [x for t, x, _ in path if t < 1.99]
+    after = [x for t, x, _ in path if t >= 2.0]
+    assert max(before) < 300 and min(after) > 1100  # a cut, not a pan across the room
+
+
 def test_turns_shorter_than_the_hold_are_dropped():
     times = [i / 5 for i in range(30)]
     choice = [0] * 10 + [1] * 3 + [0] * 7 + [1] * 10

@@ -19,6 +19,8 @@ compatibility: Requires the altocue CLI.
 - **One still crop per shot, unless it fails.** Editors reframe per shot, and constant drifting reads as AI. With `[frame] follow = "auto"`, only a shot a still crop cannot hold moves: someone walking, or two people who do not fit.
 - **A moving crop trails, then eases.** It waits out a dead zone and never moves faster than a pan.
 - **Turns are cuts.** With speaker labels (`altocue transcribe --speakers`), each voice goes to the face whose mouth moves with it, and the crop cuts to whoever talks. Turns under 1.2 s are ignored.
+- **Check the speaker labels before trusting turn cuts.** If `altocue frame` says a conversation's crop follows the head, not the speaker, the diariser merged or split the voices, and the crop will not cut to whoever talks. Fix the labels, or set the crop by hand.
+- **A camera change inside a segment cuts the crop too,** and a shot with no face takes the centre. Watch segments of an already-edited source.
 - **Faces get headroom,** with a dead zone so small head moves change nothing.
 - **Two people:** both stay in if they fit. Otherwise whoever speaks, or the larger face with no labels.
 - **Jump cuts inside one clip alternate zoom,** 1.0 then about 1.12, so the cut reads as a choice.

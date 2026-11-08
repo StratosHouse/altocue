@@ -42,8 +42,9 @@ ANCHORS = ("centre", "above", "below", "left", "right")
 ANALYSE_WIDTH = 540
 SMOOTH = 0.08  # seconds. Takes the shiver out of a detector without lagging a fast move
 PAD = 0.25  # share of the box added on every side of a blur, so an edge never peeks out
+CHIN = 0.3  # share of a face box added below it for a blur: the detector's box stops above the chin and beard
 MIN_POINTS = 8
-VERSION = 1
+VERSION = 2
 
 
 def parse(raw: Any) -> list[dict[str, Any]]:
@@ -280,6 +281,8 @@ def bake(project: Project, item: dict[str, Any], boxes: list[Any], size: tuple[i
     if kind in {"blur", "pixelate"}:
         pad = float(item.get("pad", PAD))
         empty = np.zeros((height, width), np.uint8)
+        if item.get("target") == "face" or isinstance(item.get("target"), dict) and "face" in item["target"]:
+            boxes = [None if b is None else (b[0], b[1], b[2], b[3] * (1 + CHIN)) for b in boxes]
         masks = (empty if b is None else (soft_ellipse(size, b, pad, 0.15) * 255).astype(np.uint8) for b in boxes)
         return _encode(dest, masks, size, fps, "gray")
     if kind == "spotlight":

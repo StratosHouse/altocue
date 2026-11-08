@@ -316,7 +316,7 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 
 ## Honest limits
 
-- **A moving crop needs a face.** It follows heads, not hands, products or pets. Draw a tracked box for those. With no speaker labels, a wide shot of two keeps the bigger face.
+- **A moving crop needs a face.** It follows heads, not hands, products or pets. Draw a tracked box for those. With no speaker labels, a wide shot of two keeps the bigger face. A camera change inside a segment cuts the crop with it, and a shot with no face takes the centre.
 - **Clean-up cannot rescue every recording.** Clipping stays. Music comes off only with Demucs installed. Echo removal takes only a little off, so a bare room still sounds like one.
 - **Retake detection has a small test set.** Anything uncertain waits for a ruling.
 - **Word match can read low on noisy footage.** Off-mic speech and unusual names bring it down.
@@ -344,8 +344,8 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **Most keyed sources are tested against fake servers only.** Pexels, Freesound, 1of10, Spyglass and the YouTube connector have not run live. Pixabay has, for video and photos.
 - **Export columns are not confirmed.** Column names for YouTube Studio and Meta exports are not checked against real exports, so use `--map` if yours differ.
 - **Fetched library items were test-rendered offline as a sample,** not one by one. WebGPU items were not tried.
-- **Moving crops and tracking are proven on painted faces and synthetic motion.** A real walk-and-talk and a real two-person podcast have not been through them yet.
-- **Music removal is tested with Demucs faked.** The measuring is real; the split itself has not run in the test suite.
+- **Cutting to whoever talks has not worked on real footage yet.** On public clips a walk was followed and a tracked blur held the face, but on two real conversations the diariser merged or split the voices, so the crop never cut. Check speaker labels first.
+- **Music removal is tested with Demucs faked.** The measuring is real, and one real run took a mixed-in bed off a voice and kept the words, but the split itself has not run in the test suite. A busy room with crosstalk or applause can read as music; the words are kept either way.
 - **Nobody has listened to the bundled sounds.** They were chosen by name and measured length.
 - **Sound has been measured, not heard.** Apple voice isolation, phrase levelling, room tone and no-voice effect levels have numbers behind them on demo speech and synthetic noise. Nobody has compared them by ear.
 - **Nobody has heard the film score.** Numbers show it fits the scenes and does not clip. A person must listen before a film ships.
