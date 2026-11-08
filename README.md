@@ -316,7 +316,7 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 
 ## Honest limits
 
-- **A moving crop needs a face.** It follows heads, not hands, products or pets. Draw a tracked box for those. With no speaker labels, a wide shot of two keeps the bigger face. A camera change inside a segment cuts the crop with it, and a shot with no face takes the centre.
+- **A moving crop needs a face.** It follows heads, not hands, products or pets. Draw a tracked box for those. With no speaker labels, a wide shot of two keeps the bigger face. A camera change inside a segment cuts the crop with it, and a shot with no face takes the centre. `altocue frame` names the seconds a moving crop saw no face, but it can miss a wide shot whose faces sit at the edge of the picture, so watch every moving crop once.
 - **Clean-up cannot rescue every recording.** Clipping stays. Music comes off only with Demucs installed. Echo removal takes only a little off, so a bare room still sounds like one.
 - **Retake detection has a small test set.** Anything uncertain waits for a ruling.
 - **Word match can read low on noisy footage.** Off-mic speech and unusual names bring it down.
