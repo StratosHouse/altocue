@@ -1,0 +1,44 @@
+{
+  "id": "premiumbeat",
+  "name": "PremiumBeat",
+  "url": "https://www.premiumbeat.com/",
+  "classes": [
+    "music"
+  ],
+  "holds": "Production music sold one track at a time, licensed for ever.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "premiumbeat",
+    "url": "https://www.premiumbeat.com/license",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.premiumbeat.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Paid per track, in tiers by use. Client work needs Standard or above, and broadcast, film and apps need Premium or above, with territory and budget caps. Read its licence agreement for the rest."
+}

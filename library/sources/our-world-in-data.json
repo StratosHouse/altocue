@@ -1,0 +1,46 @@
+{
+  "id": "our-world-in-data",
+  "name": "Our World in Data",
+  "url": "https://ourworldindata.org/",
+  "classes": [
+    "data"
+  ],
+  "holds": "Charts and data on health, energy, population and more, with sources cited.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": "CC-BY-4.0",
+    "url": "https://ourworldindata.org/faqs",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Our World in Data, CC BY 4.0, with the data provider named"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://docs.owid.io/projects/etl/api/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Its own charts, articles and data are CC BY 4.0. Data from providers such as the WHO, UN and World Bank keeps the provider's terms. Every chart has a CSV and JSON address."
+}

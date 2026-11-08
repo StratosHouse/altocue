@@ -1,0 +1,47 @@
+{
+  "id": "trellis",
+  "name": "TRELLIS",
+  "url": "https://github.com/microsoft/TRELLIS",
+  "classes": [
+    "generate",
+    "3d"
+  ],
+  "holds": "Open image to 3D and text to 3D, exporting textured GLB meshes and Gaussians.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": "MIT",
+    "url": "https://github.com/microsoft/TRELLIS",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/microsoft/TRELLIS",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The models and most of the code are MIT. Two submodules, diffoctreerast and a modified Flexicubes, carry their own licences, which were not read, so check them before commercial use."
+}

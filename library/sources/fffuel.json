@@ -1,0 +1,46 @@
+{
+  "id": "fffuel",
+  "name": "fffuel",
+  "url": "https://www.fffuel.co/",
+  "classes": [
+    "overlay"
+  ],
+  "holds": "Free SVG generators for grain, noise, grainy gradients, patterns and backgrounds.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "fffuel",
+    "url": "https://www.fffuel.co/license/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.fffuel.co/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Use in personal and commercial work, with no credit needed. The images may not be resold or redistributed, so a person makes each one for a project and it stays there."
+}

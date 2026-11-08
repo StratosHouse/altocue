@@ -1,0 +1,49 @@
+{
+  "id": "getty-open-content",
+  "name": "Getty Open Content",
+  "url": "https://getty.edu/projects/open-content-program",
+  "classes": [
+    "photo"
+  ],
+  "holds": "More than 160,000 images of public domain art and archives from the Getty.",
+  "size": {
+    "count": 160000,
+    "unit": "images",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://getty.edu/projects/open-content-program",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://getty.edu/projects/open-content-program",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The page says the images come without restrictions, naming research, teaching and practice, but does not spell out commercial use. Downloads go through the Getty Search Gateway. Not the Getty Images agency, which is a different, paid company."
+}

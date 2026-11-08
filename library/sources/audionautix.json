@@ -1,0 +1,46 @@
+{
+  "id": "audionautix",
+  "name": "Audionautix",
+  "url": "https://audionautix.com/",
+  "classes": [
+    "music"
+  ],
+  "holds": "Jason Shaw's library of production music under CC BY 4.0.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://audionautix.com/creative-commons-music",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Music by audionautix.com"
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://audionautix.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Commercial use is fine with credit, a link to the licence and a note of any changes."
+}

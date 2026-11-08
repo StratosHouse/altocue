@@ -1,0 +1,44 @@
+{
+  "id": "manim",
+  "name": "Manim Community",
+  "url": "https://github.com/ManimCommunity/manim",
+  "classes": [
+    "motion"
+  ],
+  "holds": "The Python engine for mathematical explainer animation, rendered straight to video.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/ManimCommunity/manim",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep both MIT notices, 3blue1brown LLC and the Manim Community Developers"
+  },
+  "access": {
+    "kind": "code",
+    "docs": "https://github.com/ManimCommunity/manim",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Install it from PyPI as manim. Never pass -p, which opens a player window. Its output comes into the edit as a clip."
+}

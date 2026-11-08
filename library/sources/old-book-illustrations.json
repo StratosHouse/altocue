@@ -1,0 +1,46 @@
+{
+  "id": "old-book-illustrations",
+  "name": "Old Book Illustrations",
+  "url": "https://www.oldbookillustrations.com/",
+  "classes": [
+    "illustration"
+  ],
+  "holds": "Engravings and drawings scanned from old books, chosen to be public domain in most countries.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": null,
+    "url": "https://www.oldbookillustrations.com/terms-of-use/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.oldbookillustrations.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "metadata_unreliable"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The site sets no limit on using the illustrations but cannot guarantee their status, and its copyright labels are automated guesses, so a person checks each one. Its own text is CC BY-NC-SA and its structured data CC BY 4.0. It asks for no site downloaders."
+}

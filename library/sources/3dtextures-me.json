@@ -1,0 +1,45 @@
+{
+  "id": "3dtextures-me",
+  "name": "3DTextures.me",
+  "url": "https://3dtextures.me/",
+  "classes": [
+    "texture",
+    "3d"
+  ],
+  "holds": "More than 1,300 PBR textures under CC0.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://3dtextures.me/about",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://3dtextures.me/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Any use, commercial included, and redistribution is allowed. The only stated rule is not to claim authorship. A person picks and downloads."
+}

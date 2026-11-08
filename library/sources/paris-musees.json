@@ -1,0 +1,49 @@
+{
+  "id": "paris-musees",
+  "name": "Paris Musées open content",
+  "url": "https://parismusees.paris.fr/",
+  "classes": [
+    "photo"
+  ],
+  "holds": "About 150,000 CC0 images from the fourteen museums of the City of Paris.",
+  "size": {
+    "count": 150000,
+    "unit": "HD images",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://parismusees.paris.fr/en/actualite/open-content-150000-works-from-the-museum-collections-of-the-city-of-paris-freely",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": "{title}, Paris Musées"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://apicollections.parismusees.paris.fr/",
+    "key": "free",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Whether the API needs an account token was not read on the page, so expect one. Only public domain works come in HD under CC0. Works still in copyright are shown in low definition only, so leave them out. It asks for the source to be cited."
+}

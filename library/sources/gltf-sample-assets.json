@@ -1,0 +1,46 @@
+{
+  "id": "gltf-sample-assets",
+  "name": "glTF Sample Assets",
+  "url": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+  "classes": [
+    "3d"
+  ],
+  "holds": "The Khronos reference models for testing glTF.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Each model's README gives its licence, so read it before use. The one read was CC BY 4.0. Check each model for a brand before it goes in a film."
+}

@@ -1,0 +1,44 @@
+{
+  "id": "national-gallery-of-art",
+  "name": "National Gallery of Art open access",
+  "url": "https://www.nga.gov/open-access-images.html",
+  "classes": [
+    "photo"
+  ],
+  "holds": "CC0 images of public domain works from the US National Gallery of Art.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://nga.gov/imagepolicy",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": "Courtesy National Gallery of Art, Washington"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/NationalGalleryOfArt/opendata",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The opendata repo is a CC0 table of more than 130,000 artworks with image links, not the images themselves. Nothing may imply the Gallery endorses a project."
+}

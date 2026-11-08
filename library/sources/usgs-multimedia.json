@@ -1,0 +1,48 @@
+{
+  "id": "usgs-multimedia",
+  "name": "USGS multimedia",
+  "url": "https://www.usgs.gov/",
+  "classes": [
+    "video",
+    "photo"
+  ],
+  "holds": "Public domain photos and video from the US Geological Survey.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "us-government",
+    "url": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Credit: U.S. Geological Survey"
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.usgs.gov/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required",
+    "people_release"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "USGS-made material is US public domain, and USGS asks for credit, with the photographer's name where known. Some items are used with permission and marked as copyrighted, so skip those. Staff in shot may have publicity rights for commercial use."
+}

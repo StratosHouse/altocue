@@ -1,0 +1,46 @@
+{
+  "id": "xfade-easing",
+  "name": "xfade-easing",
+  "url": "https://github.com/scriptituk/xfade-easing",
+  "classes": [
+    "transition"
+  ],
+  "holds": "Easing curves and ported GL transitions for ffmpeg's xfade filter, as custom expressions.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/scriptituk/xfade-easing",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "code",
+    "docs": "https://github.com/scriptituk/xfade-easing",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The custom expressions run on stock ffmpeg, without CSS easings, reverse or textures. The full set needs a patched ffmpeg, which Altocue never requires. A few ports come from Shadertoy and a forum post with no stated licence, so take only ports of MIT or BSD gl-transitions."
+}

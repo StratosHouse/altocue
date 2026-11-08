@@ -1,0 +1,44 @@
+{
+  "id": "flux-schnell",
+  "name": "FLUX.1 schnell",
+  "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell",
+  "classes": [
+    "generate"
+  ],
+  "holds": "A fast open-weight text to image model.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "Apache-2.0",
+    "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the Apache-2.0 notice"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://huggingface.co/black-forest-labs/FLUX.1-schnell",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Only schnell is Apache-2.0. The other FLUX.1 weights carry their own licences, so check before switching. Its card bars harmful and deceptive uses and fully automated decisions about people."
+}

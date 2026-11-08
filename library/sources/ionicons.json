@@ -1,0 +1,49 @@
+{
+  "id": "ionicons",
+  "name": "Ionicons",
+  "url": "https://github.com/ionic-team/ionicons",
+  "classes": [
+    "icon"
+  ],
+  "holds": "About 1,300 open icons in outline, filled and sharp styles.",
+  "size": {
+    "count": 1300,
+    "unit": "icons",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/ionic-team/ionicons",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/ionic-team/ionicons",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The npm package ionicons holds the SVGs. Some icons are logos of other companies, so leave those out."
+}

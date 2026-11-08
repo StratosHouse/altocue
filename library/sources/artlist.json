@@ -3,14 +3,16 @@
   "name": "Artlist",
   "url": "https://artlist.io/",
   "classes": [
+    "music",
+    "video",
     "sfx"
   ],
-  "holds": "Music, sound effects and footage on a subscription.",
+  "holds": "Subscription music, footage and templates.",
   "size": null,
   "licence": {
     "scope": "source",
     "id": null,
-    "url": "https://help-center.artlist.io/privacy-terms/artlist-license",
+    "url": "https://artlist.io/license",
     "checked_on": "2026-11-08",
     "checked_from": "not_verified",
     "text_sha256": null
@@ -29,10 +31,10 @@
     "rate_limit": null
   },
   "rights": {
-    "commercial": "unknown",
+    "commercial": "per_item",
     "bundle": false,
-    "tool_use": true,
-    "agent_download": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
     "ai_training": "unknown"
   },
   "item_filter": null,
@@ -40,6 +42,6 @@
   "flags": [],
   "adapter": null,
   "test": null,
-  "notes": "Its licence page did not load on 2026-11-08, so read it before buying. The link is the store's plain address and carries no affiliate or referral code.",
+  "notes": "Paid. Its licence page drew no text for our reader, so read it before use. Its sound effects need the same subscription. The link is the store's plain address and carries no affiliate or referral code.",
   "affiliate_url": null
 }

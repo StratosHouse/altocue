@@ -1,0 +1,47 @@
+{
+  "id": "font-awesome-free",
+  "name": "Font Awesome Free",
+  "url": "https://github.com/FortAwesome/Font-Awesome",
+  "classes": [
+    "icon"
+  ],
+  "holds": "The free tier of Font Awesome: interface icons, plus brand icons.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": null,
+    "url": "https://github.com/FortAwesome/Font-Awesome/blob/7.x/LICENSE.txt",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the attribution comments in the files"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/FortAwesome/Font-Awesome",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "credit_required",
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Icons as SVG and JS are CC BY 4.0, the font files are OFL 1.1 with Font Awesome as a Reserved Font Name, and the code is MIT. Brand icons may only stand for the brand they show, so leave them out of graphics."
+}

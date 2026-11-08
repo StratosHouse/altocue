@@ -1,0 +1,49 @@
+{
+  "id": "manypixels",
+  "name": "ManyPixels gallery",
+  "url": "https://www.manypixels.co/gallery",
+  "classes": [
+    "illustration"
+  ],
+  "holds": "A free gallery of vector illustrations.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "manypixels",
+    "url": "https://www.manypixels.co/gallery/license",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.manypixels.co/gallery",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_redistribution",
+    "no_tools",
+    "no_automation"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its licence bars compiling the art into a similar service, packs, and automated linking or embedding, and warns against adding it to an app, which is how unDraw was judged too."
+}

@@ -1,0 +1,46 @@
+{
+  "id": "shutterstock",
+  "name": "Shutterstock",
+  "url": "https://www.shutterstock.com/",
+  "classes": [
+    "video",
+    "photo",
+    "music"
+  ],
+  "holds": "A large paid library of stock footage, photos and music.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": "shutterstock",
+    "url": "https://www.shutterstock.com/explore/license-comparison",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.shutterstock.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Paid. The comparison page read covers images only: the Standard licence limits use in video, and the Enhanced licence allows video production at any budget. Footage and music terms were not read, so read them before use."
+}

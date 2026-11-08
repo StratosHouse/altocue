@@ -188,25 +188,25 @@ altocue run
 
 [Preview the full library and copy its prompts](https://www.stratosagency.ai/altocue/library/). Every built-in has a real native example and an agent recipe. The [Studio graphics guide](docs/STUDIO-GRAPHICS.md) covers the new collection, timing and optional sound cues. No purchased sound pack is required or included. If you hold a licence for one, `altocue sfx pack` points Altocue at it, and its sounds stay on your machine.
 
-The catalog that ships holds 828 entries: 159 built in, 461 to fetch, 47 live searches and 161 links. It judges 199 sources and refuses 78 items, each with its reason.
+The catalog that ships holds 908 entries: 159 built in, 461 to fetch, 68 live searches and 220 links. It judges 283 sources and refuses 78 items, each with its reason.
 
 | Kind | Entries | What they are |
 |---|---:|---|
-| Motion | 456 | Built-in formats, and blocks from the HyperFrames registry |
-| Transitions | 212 | Wipes and shader transitions |
-| Sound effects | 33 | Free sound sources, paid stores linked with no affiliate code, and single sounds from open packs once indexed |
-| 3D | 32 | Isometric and camera formats, scenes and tools |
-| Maps | 22 | Map formats, map blocks and map data |
-| Overlays | 10 | Textures and frame dressing |
-| Stock video | 10 | Stock sources, searched live or linked |
-| Icons | 9 | Icon and emoji sets |
-| Data | 9 | Benchmark sources and public data |
-| Illustration | 8 | Drawn people, avatars and doodles |
-| Music | 7 | Music sources |
-| Generation | 6 | Image, video and 3D services |
-| Photos | 5 | Museum and archive collections |
-| Looks | 5 | Colour looks and LUT collections |
-| Fonts | 4 | Open font sources |
+| Motion | 459 | Built-in formats, blocks from the HyperFrames registry, and code animation engines |
+| Transitions | 213 | Wipes and shader transitions |
+| 3D | 36 | Isometric and camera formats, scenes, models and tools |
+| Sound effects | 30 | Free sound sources, paid stores, and single sounds from open packs once indexed |
+| Maps | 26 | Map formats, map blocks, map data and map layers |
+| Icons | 19 | Open icon and emoji sets |
+| Overlays | 19 | Textures, grain, particles, gradients and frame dressing |
+| Stock video | 18 | Free, public domain and paid stock, searched live or linked |
+| Data | 17 | Charting libraries, benchmark sources and public data |
+| Illustration | 15 | Drawn people, avatars, clip art and old engravings |
+| Music | 14 | Free and paid music libraries |
+| Generation | 12 | Open models and hosted services for image, video, 3D, upscaling and frame interpolation |
+| Photos | 11 | Museum, agency and archive collections |
+| Fonts | 10 | Open font libraries and foundries |
+| Looks | 9 | Looks, LUTs and open colour tools |
 
 Those are the counts from `altocue library stats`. Most entries are sources and blocks, not single clips or tracks. Fetched blocks keep their licence files and are never shipped in this repo.
 

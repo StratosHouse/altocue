@@ -1,0 +1,46 @@
+{
+  "id": "nasa-3d-resources",
+  "name": "NASA 3D Resources",
+  "url": "https://github.com/nasa/NASA-3D-Resources",
+  "classes": [
+    "3d"
+  ],
+  "holds": "NASA's free 3D models, 3D printing files, images and textures.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "nasa-media",
+    "url": "https://github.com/nasa/NASA-3D-Resources",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "{title}, NASA"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/nasa/NASA-3D-Resources",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The repo calls the assets free and without copyright and points to NASA's media guidelines. Never imply endorsement."
+}

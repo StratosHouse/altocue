@@ -1,0 +1,44 @@
+{
+  "id": "react-three-fiber",
+  "name": "React Three Fiber",
+  "url": "https://github.com/pmndrs/react-three-fiber",
+  "classes": [
+    "3d"
+  ],
+  "holds": "A React renderer for three.js, with the drei helpers for models, text and cameras.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/pmndrs/react-three-fiber",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/pmndrs/react-three-fiber",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The npm package is @react-three/fiber, version 8 for React 18 and 9 for React 19. It needs React and three.js beside it, so it suits a composition built as a React page more than a plain HyperFrames block."
+}

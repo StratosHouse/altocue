@@ -1,0 +1,52 @@
+{
+  "id": "openclipart",
+  "name": "Openclipart",
+  "url": "https://openclipart.org/",
+  "classes": [
+    "illustration"
+  ],
+  "holds": "More than 180,000 vector drawings, all released under CC0.",
+  "size": {
+    "count": 180000,
+    "unit": "SVG drawings",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://openclipart.org/share",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://openclipart.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "metadata_unreliable",
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Anyone can upload, so a drawing of a logo or a famous character is still that owner's mark, whatever the tag says. It lists an API, whose terms were not read."
+}

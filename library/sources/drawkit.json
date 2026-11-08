@@ -1,0 +1,47 @@
+{
+  "id": "drawkit",
+  "name": "DrawKit",
+  "url": "https://www.drawkit.com/",
+  "classes": [
+    "illustration"
+  ],
+  "holds": "Free and paid vector illustration packs and icons, editable in colour and layout.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "drawkit",
+    "url": "https://www.drawkit.com/about",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.drawkit.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution",
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Free and pro packs may go in commercial and client work. Re-uploading needs permission, and training or tuning any AI model on them is barred. Its full licence page was not read."
+}

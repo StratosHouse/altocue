@@ -1,0 +1,44 @@
+{
+  "id": "material-symbols",
+  "name": "Material Symbols and Icons",
+  "url": "https://github.com/google/material-design-icons",
+  "classes": [
+    "icon"
+  ],
+  "holds": "Google's Material Symbols and Material Icons, as SVG and variable fonts.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "Apache-2.0",
+    "url": "https://github.com/google/material-design-icons",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the Apache-2.0 notice"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/google/material-design-icons",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Google stopped maintaining its npm package after version 3 in 2016. The current npm packages (material-symbols, @material-design-icons/svg) are hosted by a volunteer and are not vetted by Google, so take files from the repo."
+}

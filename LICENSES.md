@@ -77,6 +77,8 @@ The English CAM++ model is left out on purpose: its training set, VoxCeleb, is f
 
 The library catalog lists names, authors, licences and links. Excluded sources stay listed with their reason, and nothing from them is indexed or fetched.
 
+A BUNDLE verdict on a source means its licence would let an item ship with its notice kept, not that anything from it ships today. The icon sets judged so far are MIT or Apache-2.0, except Font Awesome Free, whose icons are CC BY 4.0, and Lucide and Observable Plot, which are ISC and so are fetched, never shipped. Some listed tools carry licences Altocue never links: Open Display Transform is GPL-3.0 and the Theatre.js studio is AGPL-3.0, so a person runs them in their own tools. Paid libraries such as Epidemic Sound, Artlist, Storyblocks and Envato Elements are links only, under their own subscription terms.
+
 ## Transcribers
 
 | Engine | When | Licence |

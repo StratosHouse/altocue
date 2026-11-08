@@ -1,0 +1,48 @@
+{
+  "id": "public-domain-image-archive",
+  "name": "Public Domain Image Archive",
+  "url": "https://pdimagearchive.org/",
+  "classes": [
+    "illustration",
+    "photo"
+  ],
+  "holds": "The Public Domain Review's curated archive of public domain images from more than 200 institutions.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://pdimagearchive.org/terms-and-conditions",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://pdimagearchive.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": false,
+    "agent_download": false,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_automation",
+    "no_tools"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Most images may be used without restriction, commercial use included, but some need credit or are limited by country, as each image's metadata says. Bots, scraping and systematic downloads are barred, so a person picks by hand. Its metadata is CC BY-NC."
+}
