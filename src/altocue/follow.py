@@ -52,6 +52,7 @@ PATCH = (24, 12)
 THUMB = (32, 18)  # grey thumbnail compared between samples to find a camera change
 SHOT_CHANGE = 0.5  # histogram correlation below this between two samples is a new shot
 SHOT_JUMP = 60.0  # or a mean thumbnail difference above this, out of 255
+FACE_JUMP = 2.5  # or the biggest face grows or shrinks this much in one sample, with no face near the last one
 
 
 @dataclass(frozen=True)
@@ -139,6 +140,28 @@ def shot_change(before: np.ndarray, after: np.ndarray) -> bool:
     correlation = cv2.compareHist(hist[0], hist[1], cv2.HISTCMP_CORREL)
     jump = float(np.abs(before.astype(np.float32) - after.astype(np.float32)).mean())
     return correlation < SHOT_CHANGE or jump > SHOT_JUMP
+
+
+def face_jump(before: Sequence[Face], after: Sequence[Face]) -> bool:
+    """A cut the tones miss, as between two shots of one red wall: the faces jump in size and place."""
+    if not before or not after:
+        return False
+    old, new = max(before, key=lambda f: f.area), max(after, key=lambda f: f.area)
+    ratio = max(old.area, new.area) / max(min(old.area, new.area), 1e-6)
+    near = any(math.dist(f.center, g.center) < LINK_REACH * max(f.w, g.w) for f in before for g in after)
+    return ratio > FACE_JUMP and not near
+
+
+def split_on_faces(looks: Sequence[Look]) -> list[Look]:
+    """Shot numbers again, adding a cut wherever the faces jump between two samples."""
+    out, extra, seen = [], 0, None
+    for look in looks:
+        if seen is not None and look.shot == seen.shot and face_jump(seen.faces, look.faces):
+            extra += 1
+        out.append(Look(look.t, look.faces, look.mouths, look.shot + extra))
+        if look.faces:
+            seen = look
+    return out
 
 
 def shots(thumbs: Sequence[np.ndarray | None]) -> list[int]:
@@ -329,6 +352,7 @@ def solve(
 
     The note says what it saw: how many people, which voice went to which face, and how many cuts.
     """
+    looks = split_on_faces(looks)
     times = [look.t for look in looks]
     shot_of = [look.shot for look in looks]
     members = {shot: [i for i, s in enumerate(shot_of) if s == shot] for shot in set(shot_of)}

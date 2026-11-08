@@ -66,6 +66,15 @@ def test_a_pan_off_the_subject_is_counted_as_seconds_with_no_face():
     assert note["faceless"] == 2.4
 
 
+def test_a_cut_the_tones_miss_is_found_by_the_faces():
+    # Same wall either side of the cut: a mid shot on the right, then a close-up on the left.
+    looks = [Look(i / 5, (face(1500.0, w=120),), (None,)) for i in range(10)]
+    looks += [Look(2 + i / 5, (face(500.0, 540, w=420),), (None,)) for i in range(10)]
+    path, note = follow.solve(looks, [""] * 20, (1920, 1080), (606, 1080), 0.0)
+    assert note["shots"] == 2 and path is not None
+    assert min(x for t, x, _ in path if t >= 2.0) < 400
+
+
 def test_one_stray_detection_is_not_followed():
     looks = [Look(i / 5, (), ()) for i in range(15)]
     looks[7] = Look(7 / 5, (face(1500.0),), (None,))
