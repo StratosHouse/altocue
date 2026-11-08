@@ -323,7 +323,8 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **A gate that could not run blocks SHIP.** On a machine with no transcriber, the verdict stays FIX. Gates that do not apply, such as rules with no rules file, show as n/a.
 - **It is a heavy job.** Transcribing peaks at about 3.2 GB and refuses to start with under about 4 GB free. Renders use every core. Altocue runs one heavy job at a time per machine, and a second one waits its turn.
 - **Clips are checked, not forecast.** Altocue checks that a clip is complete and stands alone. It cannot tell you it is interesting.
-- **Speakers are a best guess.** Give the number of speakers when you know it. Check labels before naming anyone.
+- **Speakers are a best guess.** Give the number of speakers when you know it. Check labels before naming anyone. A long recording is told apart in 5 minute windows, then matched across them.
+- **A screen recording fails the frozen-frame gate.** A shared screen sits still by design. Its vertical crop follows the camera tile, which can sit at the top edge.
 - **Safe zones are estimates.** The published figures are for ads, and apps move their buttons.
 - **A tall take makes a tight wide version.** Captions can land on the face, and the gates will say so. B-roll in a platform version gets a centre crop.
 - **Fetched blocks are not rescaled.** A 16:9 block in a 9:16 film is clipped, audio inside a fetched block is not mixed, and seven kept items carry placeholder HyperFrames logos.
@@ -345,7 +346,7 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **Sound has been measured, not heard.** Apple voice isolation, phrase levelling, room tone and no-voice effect levels have numbers behind them on demo speech and synthetic noise. Nobody has compared them by ear.
 - **Nobody has heard the film score.** Numbers show it fits the scenes and does not clip. A person must listen before a film ships.
 - **Looks and transitions are untried in places:** Linux WebGL, ffmpeg other than 8.1, real HDR with a look, and transitions at 60 fps.
-- **Long recordings are untried.** No real recording over 5 minutes has gone through, memory has not been watched past 4 minutes, and speakers have not been told apart on a long file.
+- **Long recordings have one real run.** A 27 minute call went from transcript to three finished shorts on Linux, with speakers told apart, at 2.6 GB of memory at most. Nothing longer has run, nor anything long on a Mac transcriber, and the speaker labels were not checked by ear. See [docs/LONG-FORM.md](docs/LONG-FORM.md).
 - **Real phones have not opened the review page.** The demo take has not been transcribed on Linux.
 - **The flash and stray-frame gates have only seen test clips.** The flash gate has run on synthetic footage only, and the stray-frame gate has not met real inserts.
 - **The named fixes in the skills have not been run end to end on a real film.**

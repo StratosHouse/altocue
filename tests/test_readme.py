@@ -18,7 +18,7 @@ import pytest
 from canaries import CANARIES, CONTROLS
 from test_skills import OTHER_EDITORS, every_flag, problems_in
 
-from altocue import doctor, film, learn, library, looks, mix, project, transcribe, transitions
+from altocue import doctor, film, learn, library, looks, mix, project, speakers, transcribe, transitions
 from altocue.generate import recipes
 from altocue.motion import formats, shaders
 from altocue.qa import gates
@@ -49,7 +49,8 @@ FIXED = [
     r"October 23, 2026",  # the date Higgsfield's terms changed
     r"ffmpeg other than 8\.1",  # the ffmpeg the looks were proven on
     r"transitions at 60 fps",  # a frame rate nobody has tried transitions at
-    r"over 5 minutes has gone through, memory has not been watched past 4 minutes",  # the longest recordings tried so far
+    r"A 27 minute call went from transcript",  # the long recording run in docs/LONG-FORM.md
+    r"at 2\.6 GB of memory at most",  # its highest memory, measured on that run
 ]
 
 
@@ -102,6 +103,7 @@ CLAIMS: dict[str, tuple[str, Callable[[], list[object]]]] = {
     "controls": (r"no false alarms on (\d+) clean controls", lambda: [len(CONTROLS)]),
     "learn": (r"no pattern under (\d+) posts and suggests nothing under (\d+)", lambda: [learn.PATTERN_FROM, learn.SUGGEST_FROM]),
     "recipe prices": (r"\b(\d+) of the (\d+) recipes have no known price", lambda: [sum(r.basis == "unknown" for r in USABLE), len(USABLE)]),
+    "speaker windows": (r"told apart in (\d+) minute windows", lambda: [round(speakers.WINDOW / 60)]),
     "price date": (r"Most known prices date from (\w+ \d+, \d{4})", lambda: [most_priced_date()]),
 }
 
