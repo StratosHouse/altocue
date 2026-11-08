@@ -55,6 +55,22 @@ Every built-in format goes in `"type"`, with its own slots and copy limits, and 
 - `{ "word": "runway" }` starts on that word. Add `"occurrence": 2` for the second time it is said, `"offset": 0.2` to nudge.
 - A word that was cut is an error, which is what you want.
 
+## Things that move
+
+`"tracked"` in `motion.json` keeps an effect or graphic on something as it moves, worked out on your machine from the finished picture:
+
+```json
+"tracked": [
+  {"type": "blur", "target": "face", "start": 2.0, "end": 6.5},
+  {"type": "label", "text": "Dr Example", "target": {"face": "left"}, "anchor": "below"},
+  {"type": "spotlight", "target": {"box": [0.62, 0.30, 0.20, 0.12], "at": 3.0}, "amount": 0.55}
+]
+```
+
+- Types: `blur` and `pixelate` for privacy, `spotlight`, `label` in the brand's panel and ink, `sticker` for a PNG with `file`.
+- A box is `[left, top, width, height]` in shares of the frame, drawn where it shows at `at`, then followed both ways.
+- A lost target leaves a gap with nothing drawn, rather than a guess. Check every tracked item by eye.
+
 ## Rules of taste
 
 Rules of thumb, not findings, apart from reading time.

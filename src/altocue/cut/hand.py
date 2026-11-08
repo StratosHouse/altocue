@@ -94,6 +94,7 @@ def carry(project: Project, old: Edl, new: Edl) -> None:
     if shots == [(s.id, s.clip, s.start, s.end) for s in old.segments]:
         for before, after in zip(old.segments, new.segments, strict=True):
             after.gain, after.crop, after.zoom_from, after.zoom_to, after.held = before.gain, before.crop, before.zoom_from, before.zoom_to, before.held
+            after.path = before.path
         return
     edits = hand_set(project, old)
     words = {clip: project.words(clip) for clip in {s.clip for s in old.segments if s.id in edits}}

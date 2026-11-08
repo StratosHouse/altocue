@@ -78,6 +78,7 @@ class Segment(Model):
     gain: float = 1.0
     label: str = ""
     crop: list[float] | None = None
+    path: list[list[float]] | None = None  # [seconds into the segment, x, y] keyframes when the crop moves. `crop` holds its size
     no_snap_in: bool = False
     no_snap_out: bool = False
     held: list[str] = field(default_factory=list)  # gain, crop or zoom set by hand: `frame` leaves these, and a re-cut carries them

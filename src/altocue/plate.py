@@ -64,6 +64,14 @@ def fit_crop(source: tuple[int, int], target: tuple[int, int], crop: list[float]
     return (0.0, (src_h - height) * ZOOM_ORIGIN_Y, float(src_w), height)
 
 
+def fits_path(clip: Clip, segment: Segment, c: Canvas) -> bool:
+    """A path is only used with the crop it was solved from, in this canvas's shape. A crop moved by hand wins."""
+    crop, path = segment.crop, segment.path
+    if not (crop and path) or abs(crop[2] / crop[3] - c.width / c.height) >= 0.02:
+        return False
+    return abs(crop[0] - path[0][1]) < 0.5 and abs(crop[1] - path[0][2]) < 0.5
+
+
 def zoomed(crop: tuple[float, float, float, float], zoom: float) -> tuple[float, float, float, float]:
     x, y, width, height = crop
     new_w, new_h = width / zoom, height / zoom
@@ -88,12 +96,59 @@ def push_filter(c: Canvas, frames: int, start: float, end: float, first: int = 0
     return f"perspective={x0}:{y0}:{x1}:{y0}:{x0}:{y1}:{x1}:{y1}:interpolation=cubic:eval=frame:sense=source"
 
 
+def line_through(keys: list[tuple[float, float]], var: str) -> str:
+    """Straight lines through (frame, value) keys, held flat past both ends. Commas come escaped for a filtergraph."""
+    if len(keys) == 1:
+        return f"{keys[0][1]:.3f}"
+    at = f"clip({var},{keys[0][0]:.4f},{keys[-1][0]:.4f})"
+    expr = f"{keys[-1][1]:.3f}"
+    for (f0, v0), (f1, v1) in reversed(list(zip(keys, keys[1:], strict=False))):
+        span = max(f1 - f0, 1e-6)
+        expr = f"if(lt({at},{f1:.4f}),{v0:.3f}+({v1 - v0:.3f})*({at}-{f0:.4f})/{span:.4f},{expr})"
+    return expr.replace(",", "\\,")
+
+
+def follow_geometry(clip: Clip, segment: Segment, c: Canvas, steady: float, first: int) -> tuple[str, str]:
+    """A moving crop in two steps: a still crop round everything the path visits, scaled so the window is
+    exactly canvas size, then a sub-pixel slide of that window to the corner and a crop to the canvas.
+
+    The slide runs after `fps`, so its frame counter is the film's, whatever rate the source has.
+    """
+    width, height = segment.crop[2], segment.crop[3]  # type: ignore[index]
+    src_w, src_h = clip.display_size
+    windows = [(t, zoomed((x, y, width, height), steady)) for t, x, y in segment.path or []]
+    left = max(0, int(min(w[0] for _, w in windows)) // 2 * 2)
+    top = max(0, int(min(w[1] for _, w in windows)) // 2 * 2)
+    right = min(src_w, math.ceil(max(w[0] + w[2] for _, w in windows)))
+    bottom = min(src_h, math.ceil(max(w[1] + w[3] for _, w in windows)))
+    box_w, box_h = _even(right - left), _even(bottom - top)
+    win_w = windows[0][1][2]
+    scale = c.width / win_w
+    out_w, out_h = max(c.width, _even(box_w * scale + 1)), max(c.height, _even(box_h * scale + 1))
+    kx, ky = out_w / box_w, out_h / box_h
+    frames = [(t * c.fps, (w[0] - left) * kx, (w[1] - top) * ky) for t, w in windows]
+    place = f"(in+{first})" if first else "in"
+    x = line_through([(f, x) for f, x, _ in frames], place)
+    y = line_through([(f, y) for f, _, y in frames], place)
+    still = f"crop={box_w}:{box_h}:{left}:{top},scale={out_w}:{out_h}:flags=lanczos"
+    slide = (
+        f"perspective={x}:{y}:{x}+W:{y}:{x}:{y}+H:{x}+W:{y}+H:interpolation=cubic:eval=frame:sense=source,crop={c.width}:{c.height}:0:0"
+    )
+    return still, slide
+
+
 def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *, first: int = 0, finish: str = "") -> str:
     """`first` says which frame of the segment the piece starts on. `finish` runs on the finished frames."""
     steady = segment.zoom_from if segment.zoom_from == segment.zoom_to else min(segment.zoom_from, segment.zoom_to)
-    x, y, width, height = zoomed(fit_crop(clip.display_size, (c.width, c.height), segment.crop), steady)
-    geometry = f"crop={_even(width)}:{_even(height)}:{int(x)}:{int(y)},scale={c.width}:{c.height}:flags=lanczos"
+    slide = ""
+    if segment.path and fits_path(clip, segment, c):
+        geometry, slide = follow_geometry(clip, segment, c, steady, first)
+    else:
+        x, y, width, height = zoomed(fit_crop(clip.display_size, (c.width, c.height), segment.crop), steady)
+        geometry = f"crop={_even(width)}:{_even(height)}:{int(x)}:{int(y)},scale={c.width}:{c.height}:flags=lanczos"
     parts = [grade.video_filter(clip, lut, geometry=geometry), f"fps={c.fps}"]
+    if slide:
+        parts.append(slide)
     if segment.zoom_from != segment.zoom_to:
         frames = max(1, round((segment.end - segment.start) * c.fps))
         parts.append(push_filter(c, frames, segment.zoom_from / steady, segment.zoom_to / steady, first))

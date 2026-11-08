@@ -135,6 +135,14 @@ def check_speakers() -> Check:
     return Check("speakers", True, False, f"sherpa-onnx, models at {model_folder()}")
 
 
+def check_stems() -> Check:
+    from .stems import have_demucs
+
+    if not have_demucs():
+        return Check("music removal", False, False, "Demucs not installed: music under a voice stays", 'Run `uv tool install --force altocue --with "demucs>=4.1,<5"`.')
+    return Check("music removal", True, False, "Demucs, run on this machine when music is measured under the voice")
+
+
 def ocr_reader() -> tuple[str | None, str]:
     from .qa import ocr
 
@@ -187,7 +195,7 @@ def check_clis() -> list[Check]:
 
 
 def core_checks() -> list[Check]:
-    return [check_ffmpeg(), check_node(), check_renderer(), check_transcriber(), check_denoiser(), check_speakers(), check_ocr()]
+    return [check_ffmpeg(), check_node(), check_renderer(), check_transcriber(), check_denoiser(), check_speakers(), check_stems(), check_ocr()]
 
 
 def checks(core: list[Check] | None = None) -> list[Check]:

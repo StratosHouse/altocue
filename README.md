@@ -35,8 +35,10 @@
 
 You hand your coding agent a messy recording, a long talk or just a brief. Altocue gives it the eyes, ears and tools to finish the job.
 
+- **Reframing that follows.** A tall crop that trails someone walking, and cuts to whoever is talking in a wide shot of two, matched by whose mouth moves with each voice. A still crop stays wherever it already works.
+- **Motion tracking.** Blur, pixelate, spotlight, a label or a sticker that stays on a face or on a box you draw, followed through the film on your machine.
 - **Cutting.** Word-timed transcripts with fillers kept, so cuts land on real speech. Each removal has a reason you can overrule. Or edit the script and get a frame-safe cut.
-- **Sound.** Noise and hum out, each phrase levelled, room tone in the holes, mastered to a measured loudness and true peak.
+- **Sound.** Noise and hum out, music under the voice taken off when it is measured and Demucs is installed, each phrase levelled, room tone in the holes, mastered to a measured loudness and true peak.
 - **Colour.** HDR to SDR, white balance and exposure read from the face, film looks or your own LUT, with skin protected.
 - **Captions.** Word by word, never across a cut, only words really said. Speakers can be named or coloured.
 - **Motion graphics.** 151 original formats in 12 groups, timed to speech and placed clear of faces. The Studio collection adds smooth typography, depth, linked handoffs, editing diagrams and endings.
@@ -314,8 +316,8 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 
 ## Honest limits
 
-- **Auto-reframe is per shot.** A static crop cannot follow someone walking across the frame.
-- **Clean-up cannot rescue bad audio.** Clipping, heavy echo and loud music stay.
+- **A moving crop needs a face.** It follows heads, not hands, products or pets. Draw a tracked box for those. With no speaker labels, a wide shot of two keeps the bigger face.
+- **Clean-up cannot rescue every recording.** Clipping stays. Music comes off only with Demucs installed. Echo removal takes only a little off, so a bare room still sounds like one.
 - **Retake detection has a small test set.** Anything uncertain waits for a ruling.
 - **Word match can read low on noisy footage.** Off-mic speech and unusual names bring it down.
 - **Spelling needs you.** The transcript can mishear names. Add them under `[transcribe.fix]`.
@@ -342,6 +344,8 @@ Altocue has no telemetry. Your coding agent reads transcripts and frames, so tho
 - **Most keyed sources are tested against fake servers only.** Pexels, Freesound, 1of10, Spyglass and the YouTube connector have not run live. Pixabay has, for video and photos.
 - **Export columns are not confirmed.** Column names for YouTube Studio and Meta exports are not checked against real exports, so use `--map` if yours differ.
 - **Fetched library items were test-rendered offline as a sample,** not one by one. WebGPU items were not tried.
+- **Moving crops and tracking are proven on painted faces and synthetic motion.** A real walk-and-talk and a real two-person podcast have not been through them yet.
+- **Music removal is tested with Demucs faked.** The measuring is real; the split itself has not run in the test suite.
 - **Nobody has listened to the bundled sounds.** They were chosen by name and measured length.
 - **Sound has been measured, not heard.** Apple voice isolation, phrase levelling, room tone and no-voice effect levels have numbers behind them on demo speech and synthetic noise. Nobody has compared them by ear.
 - **Nobody has heard the film score.** Numbers show it fits the scenes and does not clip. A person must listen before a film ships.

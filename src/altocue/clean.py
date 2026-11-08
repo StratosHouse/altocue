@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ffmpeg, level, swift
+from . import ffmpeg, level, stems, swift
 from .errors import AltocueError
 from .master import limiter_latency
 from .models import Clip
@@ -401,6 +401,8 @@ def clean_clip(
     phrases: bool = True,
     deess: str = "light",
     breath_down_db: float = 0.0,
+    music: str = "off",
+    echo: str = "off",
 ) -> dict[str, Any]:
     """Clean one clip to `dest` and report what was measured and what was done.
 
@@ -437,6 +439,10 @@ def clean_clip(
             report["warnings"].append("The transcript has no words, so this clip keeps its own sound and level.")
             return report
 
+        raw, before, stem = stems.prepare_voice(raw, before, RATE, words, music, echo, report["warnings"])
+        report["stems"] = stem
+        if raw.name != "raw.wav":  # the denoiser plans from what it will be given
+            floor, speech = noise_floor(before, RATE), speech_level(before, RATE)
         hum = detect_hum(before, RATE)
         plan = plan_denoise(speech - floor) if denoise else plan_denoise(float("inf"))
         loud = ffmpeg.loudness(raw)
@@ -529,7 +535,13 @@ def clean_project(project: Project, force: bool = False, denoiser: str | None = 
         "level_phrases": bool(project.setting("audio", "level_phrases", True)),
         "deess": deess or str(project.setting("audio", "deess", "light")),
         "breaths": float(project.setting("audio", "breaths", 0) if breaths is None else breaths),
+        "music": str(project.setting("audio", "music", "auto")),
+        "echo": str(project.setting("audio", "echo", "off")),
     }
+    if settings["music"] not in stems.MODES:
+        raise AltocueError(f"[audio] music is {settings['music']!r}.", fix=f"Use one of {', '.join(stems.MODES)}.")
+    if settings["echo"] not in stems.ECHO:
+        raise AltocueError(f"[audio] echo is {settings['echo']!r}.", fix=f"Use one of {', '.join(stems.ECHO)}.")
     tone_filters(None, settings["deess"])  # refuses a bad strength before any work
     earlier = saved.get("clips", {}) if all(saved.get(key) == value for key, value in settings.items()) else {}  # a changed setting redoes the sound
     entries: dict[str, Any] = {}
@@ -560,6 +572,8 @@ def clean_project(project: Project, force: bool = False, denoiser: str | None = 
                 phrases=settings["level_phrases"],
                 deess=settings["deess"],
                 breath_down_db=settings["breaths"],
+                music=settings["music"],
+                echo=settings["echo"],
             )
     report = {**settings, "target_lufs": VOICE_LUFS, "warnings": notes, "clips": entries}
     write_json(path, report)
@@ -574,6 +588,11 @@ def describe(entry: dict[str, Any]) -> str:
     hum = f"hum {entry['hum_hz']} Hz" if entry["hum_hz"] else "no hum"
     floor = f"noise floor {entry['noise_floor_before']} to {entry['noise_floor_after']} dB"
     line = f"{entry['id']}: {entry['engine']} ({entry['strength']}), {floor}, {hum}, {entry['level_lufs']} LUFS"
+    stem = entry.get("stems") or {}
+    if stem.get("music") == "removed":
+        line += ", music taken off"
+    if stem.get("echo") in stems.DEREVERB:
+        line += f", echo taken off ({stem['echo']}, RT60 {stem.get('rt60')} to {stem.get('rt60_after')} s)"
     if entry.get("phrases"):
         line += f", {entry['phrases']} phrases, range {entry['range_before']} to {entry['range_after']} LU"
     return f"{line} (reused)" if entry["status"] == "reused" else line
