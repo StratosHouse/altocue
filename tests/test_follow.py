@@ -75,6 +75,13 @@ def test_a_cut_the_tones_miss_is_found_by_the_faces():
     assert min(x for t, x, _ in path if t >= 2.0) < 400
 
 
+def test_stray_background_faces_still_count_as_no_face():
+    looks = [Look(i / 5, (face(1500.0),), (None,), 0) for i in range(10)]
+    looks += [Look(2 + i / 5, (face(200.0 + 97 * i, 1000, w=30),), (None,), 1) for i in range(15)]
+    _, note = follow.solve(looks, [""] * 25, (1920, 1080), (606, 1080), 0.0)
+    assert note["faceless"] == 3.0
+
+
 def test_one_stray_detection_is_not_followed():
     looks = [Look(i / 5, (), ()) for i in range(15)]
     looks[7] = Look(7 / 5, (face(1500.0),), (None,))
