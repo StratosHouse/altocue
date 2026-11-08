@@ -203,6 +203,14 @@ def link(looks: Sequence[Look]) -> list[Person]:
     return sorted(kept, key=lambda p: p.size, reverse=True)
 
 
+def link_within(looks: Sequence[Look], indices: Sequence[int]) -> list[Person]:
+    """The people of one shot, linked and kept by how much of that shot they are in, by segment sample index."""
+    return [
+        Person({indices[k]: f for k, f in p.at.items()}, {indices[k]: m for k, m in p.mouths.items()})
+        for p in link([looks[i] for i in indices])
+    ]
+
+
 def mouth_motion(person: Person, count: int) -> np.ndarray:
     """How much the mouth changed since the sample before, for every sample. NaN where it was not seen."""
     motion = np.full(count, np.nan)
@@ -356,7 +364,7 @@ def solve(
     times = [look.t for look in looks]
     shot_of = [look.shot for look in looks]
     members = {shot: [i for i, s in enumerate(shot_of) if s == shot] for shot in set(shot_of)}
-    people = link(looks)
+    people = sorted((p for indices in members.values() for p in link_within(looks, indices)), key=lambda p: p.size, reverse=True)
     note: dict[str, object] = {"people": len(people), "voices": {}, "switches": 0, "shots": len(members)}
     if not people:
         return None, note
@@ -389,7 +397,7 @@ def solve(
         wanted.append(frame.place_crop(source, size, subject))
         label.append(shot_of[index] * (len(people) + 1) + who + 1)
     step = 1 / RATE if len(times) < 2 else (times[-1] - times[0]) / (len(times) - 1)
-    # Every sample where none of the people followed was found: an empty shot, a wide shot with only
+    # Every sample where none of its shot's people was found: an empty shot, a wide shot with only
     # stray background faces, or a handheld camera panning off the subject.
     note["faceless"] = round(step * sum(1 for index in range(len(looks)) if not any(index in p.at for p in people)), 1)
     room_x, room_y = source[0] - width, source[1] - height
