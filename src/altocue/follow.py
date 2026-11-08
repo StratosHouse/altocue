@@ -52,6 +52,7 @@ PATCH = (24, 12)
 THUMB = (32, 18)  # grey thumbnail compared between samples to find a camera change
 SHOT_CHANGE = 0.5  # histogram correlation below this between two samples is a new shot
 SHOT_JUMP = 60.0  # or a mean thumbnail difference above this, out of 255
+MIN_FACE = 0.04  # share of the picture's height a face needs to be a shot's subject; smaller ones are the crowd
 FACE_JUMP = 2.5  # or the biggest face grows or shrinks this much in one sample, with no face near the last one
 
 
@@ -365,6 +366,7 @@ def solve(
     shot_of = [look.shot for look in looks]
     members = {shot: [i for i, s in enumerate(shot_of) if s == shot] for shot in set(shot_of)}
     people = sorted((p for indices in members.values() for p in link_within(looks, indices)), key=lambda p: p.size, reverse=True)
+    people = [p for p in people if np.median([f.h for f in p.at.values()]) >= MIN_FACE * source[1]]
     note: dict[str, object] = {"people": len(people), "voices": {}, "switches": 0, "shots": len(members)}
     if not people:
         return None, note

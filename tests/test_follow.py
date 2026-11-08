@@ -90,6 +90,13 @@ def test_a_short_shot_of_someone_new_is_not_counted_as_faceless():
     assert min(x for t, x, _ in path if t >= 4.0) < 300
 
 
+def test_a_crowd_of_small_faces_is_not_a_shots_subject():
+    looks = [Look(i / 5, (face(1500.0),), (None,), 0) for i in range(10)]
+    looks += [Look(2 + i / 5, (face(960.0, 1040, w=25),), (None,), 1) for i in range(15)]
+    _, note = follow.solve(looks, [""] * 25, (1920, 1080), (606, 1080), 0.0)
+    assert note["faceless"] == 3.0
+
+
 def test_one_stray_detection_is_not_followed():
     looks = [Look(i / 5, (), ()) for i in range(15)]
     looks[7] = Look(7 / 5, (face(1500.0),), (None,))
