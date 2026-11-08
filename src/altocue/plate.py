@@ -133,14 +133,17 @@ def build_segment(project: Project, clip: Clip, segment: Segment, c: Canvas, fol
     lut_hash = hashlib.sha256(lut.read_bytes()).hexdigest() if lut else ""
     source = Path(clip.path).stat()
     recipe = {"clip": clip.path, "size": source.st_size, "modified": source.st_mtime_ns, "start": begin, "frames": frames}
-    recipe |= {"chain": chain, "canvas": asdict(c), "lut": lut_hash}
+    recipe |= {"chain": chain, "canvas": asdict(c), "lut": lut_hash, "streams": "picture"}
     key = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()[:16]
     dest = folder / f"{segment.id}-{key}.mp4"
     if dest.exists():
         return dest
     temp = dest.with_suffix(".part.mp4")
     seek = max(begin - 0.5 / c.fps, 0.0)  # half a frame early: printed to four places, a start on the frame can round past it
-    ffmpeg.run(["-ss", f"{seek:.4f}", "-i", clip.path, "-an", "-vf", chain, "-frames:v", str(frames), *encode_args(c), str(temp)])
+    # Picture only. A source's chapter or data track (Zoom writes one) starts before the picture, so each part would
+    # seem to start a frame early and every join would add a frame of gap: 15 joins put a short 0.6 s behind its sound.
+    picture_only = ["-map", "0:v:0", "-an", "-sn", "-dn", "-map_chapters", "-1", "-map_metadata", "-1"]
+    ffmpeg.run(["-ss", f"{seek:.4f}", "-i", clip.path, *picture_only, "-vf", chain, "-frames:v", str(frames), *encode_args(c), str(temp)])
     temp.rename(dest)
     return dest
 
