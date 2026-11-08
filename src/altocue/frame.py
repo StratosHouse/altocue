@@ -461,7 +461,8 @@ def frame_project(project: Project, force: bool = False) -> Edl:
             frame_box = [0.0, 0.0, float(source[0]), float(source[1])]
         else:
             frame_box = settle_crop(last_crop.get(segment.clip), subject, source, size)
-            moved = bool(subject and subject.spread > DEAD_ZONE * frame_box[2])
+            # This segment's own faces, not a subject held over from a neighbour: an empty shot has nothing to follow.
+            moved = bool(direct and direct.spread > DEAD_ZONE * frame_box[2])
             sizeable = [t for t in tracks if t.area >= tracks[0].area * SECOND_FACE_AREA] if tracks else []
             crowded = bool(direct) and len(sizeable) > direct.faces  # type: ignore[union-attr]
             if follow.needed(mode, moved, crowded):
@@ -517,6 +518,9 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--force", action="store_true", help="Solve again, replacing hand edits")
 
 
+FACELESS_WARN = 2.0  # seconds of a moving crop with no face before frame says to look
+
+
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     edl = frame_project(project, force=args.force)
@@ -532,6 +536,8 @@ def run(args: argparse.Namespace) -> int:
         if row.get("path"):
             cuts = seen.get("switches", 0)
             extra += f", crop follows {'the speaker' if seen.get('voices') else 'the head'}" + (f" with {cuts} cut{'' if cuts == 1 else 's'}" if cuts else "")
+            if seen.get("faceless", 0) >= FACELESS_WARN:
+                extra += f", {seen['faceless']:g} s with no face found: check it"  # the crop takes the centre there
         elif row.get("moved"):
             extra += ", head moved past the dead zone"
         print(f"{segment.id} ({segment.clip}): {note}, {faces} face{'' if faces == 1 else 's'}{extra}")

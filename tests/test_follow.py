@@ -52,10 +52,17 @@ def test_a_camera_change_inside_a_segment_does_not_keep_the_old_place():
     looks = [Look(i / 5, (face(1500.0),), (None,), 0) for i in range(10)]
     looks += [Look(2 + i / 5, (), (), 1) for i in range(15)]
     path, note = follow.solve(looks, [""] * 25, (1920, 1080), (606, 1080), 0.0)
-    assert note["shots"] == 2 and path is not None
+    assert note["shots"] == 2 and path is not None and note["faceless"] == 3.0
     after = [x for t, x, _ in path if t >= 2.0]
     assert after and all(abs(x - (1920 - 606) / 2) < 2 for x in after)  # the centre, not the close-up's place
     assert any(x > 1100 for t, x, _ in path if t < 2.0)
+
+
+def test_one_stray_detection_is_not_followed():
+    looks = [Look(i / 5, (), ()) for i in range(15)]
+    looks[7] = Look(7 / 5, (face(1500.0),), (None,))
+    path, note = follow.solve(looks, [""] * 15, (1920, 1080), (606, 1080), 0.0)
+    assert path is None and note["people"] == 0
 
 
 def test_each_shot_frames_the_face_it_has():

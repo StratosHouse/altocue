@@ -175,7 +175,8 @@ def link(looks: Sequence[Look]) -> list[Person]:
             if mouth is not None:
                 people[best].mouths[index] = mouth
     needed = max(2, math.ceil(len(looks) * MIN_PRESENCE))
-    kept = [p for p in people if len(p.at) >= needed] or sorted(people, key=lambda p: len(p.at), reverse=True)[:1]
+    # A face seen once is a false hit on a wall as often as a person, so the fallback needs two sightings.
+    kept = [p for p in people if len(p.at) >= needed] or [p for p in sorted(people, key=lambda p: len(p.at), reverse=True)[:1] if len(p.at) >= 2]
     return sorted(kept, key=lambda p: p.size, reverse=True)
 
 
@@ -363,6 +364,8 @@ def solve(
             subject = frame._subject([track_of(people[who].nearest(index, same))])
         wanted.append(frame.place_crop(source, size, subject))
         label.append(shot_of[index] * (len(people) + 1) + who + 1)
+    step = 1 / RATE if len(times) < 2 else (times[-1] - times[0]) / (len(times) - 1)
+    note["faceless"] = round(sum(step for who in label if who % (len(people) + 1) == 0), 1)
     room_x, room_y = source[0] - width, source[1] - height
     runs = _runs(label)
     note["switches"] = len(runs) - 1
