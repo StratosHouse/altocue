@@ -365,7 +365,8 @@ def solve(
         wanted.append(frame.place_crop(source, size, subject))
         label.append(shot_of[index] * (len(people) + 1) + who + 1)
     step = 1 / RATE if len(times) < 2 else (times[-1] - times[0]) / (len(times) - 1)
-    note["faceless"] = round(sum(step for who in label if who % (len(people) + 1) == 0), 1)
+    # Every sample with no face found, in an empty shot or where a handheld camera pans off the subject.
+    note["faceless"] = round(step * sum(1 for look in looks if not look.faces), 1)
     room_x, room_y = source[0] - width, source[1] - height
     runs = _runs(label)
     note["switches"] = len(runs) - 1

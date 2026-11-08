@@ -58,6 +58,14 @@ def test_a_camera_change_inside_a_segment_does_not_keep_the_old_place():
     assert any(x > 1100 for t, x, _ in path if t < 2.0)
 
 
+def test_a_pan_off_the_subject_is_counted_as_seconds_with_no_face():
+    xs = [300 + 40 * i for i in range(20)]
+    looks = looks_of([[x] for x in xs])
+    looks[8:20] = [Look(look.t, (), ()) for look in looks[8:20]]
+    _, note = follow.solve(looks, [""] * 20, (1920, 1080), (606, 1080), 0.0)
+    assert note["faceless"] == 2.4
+
+
 def test_one_stray_detection_is_not_followed():
     looks = [Look(i / 5, (), ()) for i in range(15)]
     looks[7] = Look(7 / 5, (face(1500.0),), (None,))
