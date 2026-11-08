@@ -344,3 +344,43 @@ def test_two_voices_come_apart(tmp_path):
     assert len({turn.speaker for turn in found}) == 2
     middle = [word.speaker for word in assign([Word(text="x", start=(a + b) / 2, end=(a + b) / 2 + 0.2) for a, b, _ in truth], found)]
     assert middle[0] == middle[2] == middle[4] != middle[1] == middle[3] == middle[5]
+
+
+def test_a_long_recording_is_cut_into_windows_with_no_short_tail():
+    samples = np.zeros(int((speakers.WINDOW * 3 + 40) * speakers.RATE), dtype=np.float32)
+    cut = speakers.windows(samples)
+    assert [round(offset) for offset, _ in cut] == [0, 300, 600]
+    assert sum(len(chunk) for _, chunk in cut) == len(samples)
+
+
+def test_a_long_tail_keeps_its_own_window():
+    samples = np.zeros(int((speakers.WINDOW * 2 + 200) * speakers.RATE), dtype=np.float32)
+    assert len(speakers.windows(samples)) == 3
+
+
+def voice(direction: int, noise: float, seed: int) -> np.ndarray:
+    base = np.zeros(16, dtype=np.float32)
+    base[direction] = 1.0
+    return base + np.random.default_rng(seed).normal(0, noise, 16).astype(np.float32)
+
+
+def test_the_same_voice_in_every_window_links_to_one_speaker():
+    vectors = [voice(0, 0.1, 1), voice(1, 0.1, 2), voice(0, 0.1, 3), voice(1, 0.1, 4), voice(1, 0.1, 5), voice(0, 0.1, 6)]
+    labels = speakers.link(vectors, [60.0] * 6, count=2)
+    assert labels[0] == labels[2] == labels[5] != labels[1] == labels[3] == labels[4]
+
+
+def test_without_a_count_distinct_voices_stay_apart_and_alike_ones_merge():
+    vectors = [voice(0, 0.05, 1), voice(0, 0.05, 2), voice(1, 0.05, 3), voice(2, 0.05, 4)]
+    labels = speakers.link(vectors, [30.0] * 4)
+    assert labels[0] == labels[1] and len(set(labels)) == 3
+
+
+def test_a_short_voice_joins_the_nearest_speaker_instead_of_starting_one():
+    vectors = [voice(0, 0.05, 1), voice(1, 0.05, 2), voice(2, 0.05, 3), voice(1, 0.3, 4)]
+    labels = speakers.link(vectors, [60.0, 60.0, 1.0, 2.0])
+    assert len(set(labels)) == 2 and labels[3] == labels[1]
+
+
+def test_linking_nothing_gives_nothing():
+    assert speakers.link([], []) == []
