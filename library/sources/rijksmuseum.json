@@ -1,0 +1,49 @@
+{
+  "id": "rijksmuseum",
+  "name": "Rijksmuseum",
+  "url": "https://data.rijksmuseum.nl/",
+  "classes": [
+    "photo"
+  ],
+  "holds": "Paintings, prints and objects from the Dutch national museum, most in the public domain.",
+  "size": {
+    "count": 600000,
+    "unit": "high-resolution photographs",
+    "as_of": "2026-11-08",
+    "method": "page"
+  },
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://data.rijksmuseum.nl/policy",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": "Rijksmuseum, Amsterdam"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://data.rijksmuseum.nl/docs/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Each item's notice decides: public domain or CC0, CC BY 4.0, or restricted with the holder named. Take only the first two. The museum asks for credit even where the licence does not. Data dumps are offered too."
+}

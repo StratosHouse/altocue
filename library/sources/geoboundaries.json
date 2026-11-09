@@ -1,0 +1,48 @@
+{
+  "id": "geoboundaries",
+  "name": "geoBoundaries",
+  "url": "https://github.com/wmgeolab/geoBoundaries",
+  "classes": [
+    "map",
+    "data"
+  ],
+  "holds": "Open administrative boundaries by country, at several admin levels.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://github.com/wmgeolab/geoBoundaries",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "geoBoundaries, William & Mary geoLab"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.geoboundaries.org/api.html",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "credit_required",
+    "share_alike"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The README names both CC BY 4.0 and ODbL without saying which covers what, so read each boundary's metadata. The API answers by ISO code and admin level. Borders are disputed in places, so say whose border a map shows."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "hunyuan-video",
+  "name": "HunyuanVideo",
+  "url": "https://github.com/Tencent-Hunyuan/HunyuanVideo",
+  "classes": [
+    "generate"
+  ],
+  "holds": "Tencent's open-weight text to video model.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "tencent-hunyuan-community",
+    "url": "https://github.com/Tencent-Hunyuan/HunyuanVideo/blob/main/LICENSE.txt",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/Tencent-Hunyuan/HunyuanVideo",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": false
+  },
+  "item_filter": null,
+  "verdict": "EXCLUDE",
+  "flags": [
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "",
+  "exclude_reason": "Its licence does not apply in the European Union, the United Kingdom or South Korea, and using its outputs there is unlicensed, so a film made with it could not ship to those viewers."
+}

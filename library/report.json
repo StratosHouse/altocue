@@ -1,10 +1,10 @@
 {
-  "generated": "2026-11-08T01:31:18Z",
+  "generated": "2026-11-08T02:18:26Z",
   "pins": {
     "hyperframes": "0.9.8",
     "gl-transitions": "2.2.0"
   },
-  "entries": 828,
+  "entries": 908,
   "named_by_a_built_in": [
     "flowchart",
     "typewriter",
@@ -618,6 +618,10 @@
       "reason": "Commercial use needs a paid licence."
     },
     {
+      "id": "hunyuan-video",
+      "reason": "Its licence does not apply in the European Union, the United Kingdom or South Korea, and using its outputs there is unlicensed, so a film made with it could not ship to those viewers."
+    },
+    {
       "id": "iconscout",
       "reason": "Its licence page turned away every read, so nothing could be verified."
     },
@@ -642,6 +646,10 @@
       "reason": "Prosperity licence, with only a 30-day commercial trial for a whole company."
     },
     {
+      "id": "manypixels",
+      "reason": "Its licence bars compiling the art into a similar service, packs, and automated linking or embedding, and warns against adding it to an app, which is how unDraw was judged too."
+    },
+    {
       "id": "mapbox-gl",
       "reason": "Proprietary since version 2, and it needs a key."
     },
@@ -656,6 +664,10 @@
     {
       "id": "mixkit",
       "reason": "Its terms bar aggregating items, building a competitive product and using bots for download."
+    },
+    {
+      "id": "mobygratis",
+      "reason": "Free use is non-commercial only, and that rules out monetised videos, sponsored work and ads."
     },
     {
       "id": "motionsites",
@@ -692,6 +704,10 @@
     {
       "id": "shadertoy",
       "reason": "Shaders default to a non-commercial, share-alike licence, and its terms page could not be read."
+    },
+    {
+      "id": "simple-icons",
+      "reason": "Every icon is a company's brand mark. The CC0 dedication covers the drawing, not the trademark, and Altocue refuses items that rebuild a brand."
     },
     {
       "id": "spline",

@@ -1,0 +1,46 @@
+{
+  "id": "arri-luts",
+  "name": "ARRI LUT Generator and LUT packages",
+  "url": "https://www.arri.com/en/learn-help/learn-help-camera-system/tools/lut-generator",
+  "classes": [
+    "lut"
+  ],
+  "holds": "ARRI's own conversion LUTs for LogC3 and LogC4 footage, as .cube packages and a generator.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.arri.com/en/learn-help/learn-help-camera-system/tools/lut-generator",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.arri.com/en/learn-help/learn-help-camera-system/tools/lut-generator",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The right conversion for ARRI footage. The page gives no licence for the LUTs, only the site's copyright notice, so a person downloads them for their own grade and nothing is redistributed. LogC4 has its own package."
+}

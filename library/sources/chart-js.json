@@ -1,0 +1,44 @@
+{
+  "id": "chart-js",
+  "name": "Chart.js",
+  "url": "https://github.com/chartjs/Chart.js",
+  "classes": [
+    "data"
+  ],
+  "holds": "Simple canvas charts with built-in animation.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/chartjs/Chart.js",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/chartjs/Chart.js",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Its animations run on the browser clock, so drive them frame by frame, or turn animation off and tween the data, before a render can seek them."
+}

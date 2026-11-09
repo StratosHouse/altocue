@@ -1,0 +1,47 @@
+{
+  "id": "gapminder",
+  "name": "Gapminder",
+  "url": "https://www.gapminder.org/",
+  "classes": [
+    "data"
+  ],
+  "holds": "Free data and teaching material on how the world has changed, under CC BY 4.0.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://gapminder.org/free-material",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Based on free material from GAPMINDER.ORG, CC-BY LICENSE"
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.gapminder.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required",
+    "trademark_risk"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Unchanged material is credited FREE TO USE! CC-BY GAPMINDER.ORG, and changed material as in the template. The name Gapminder may appear only in that credit."
+}

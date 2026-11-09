@@ -1,0 +1,45 @@
+{
+  "id": "storyblocks",
+  "name": "Storyblocks",
+  "url": "https://www.storyblocks.com/",
+  "classes": [
+    "video",
+    "music"
+  ],
+  "holds": "Subscription stock video, music and templates.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "storyblocks",
+    "url": "https://www.storyblocks.com/license",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.storyblocks.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Paid. Broadcast, streaming and film need the Business tier. Its licence page is unclear on whether work published under the smaller plans stays covered after you cancel, so read the plan's own licence document."
+}

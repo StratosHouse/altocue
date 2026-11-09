@@ -1,0 +1,45 @@
+{
+  "id": "vanta",
+  "name": "Vanta.js",
+  "url": "https://github.com/tengbao/vanta",
+  "classes": [
+    "overlay",
+    "motion"
+  ],
+  "holds": "Animated 3D backgrounds such as fog, waves, clouds, birds and topology lines.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/tengbao/vanta",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/tengbao/vanta",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Effects draw with three.js or p5.js, which then load under their own licences. They run on the browser clock, so a render needs them stepped frame by frame."
+}

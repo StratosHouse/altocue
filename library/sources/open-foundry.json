@@ -1,0 +1,44 @@
+{
+  "id": "open-foundry",
+  "name": "Open Foundry",
+  "url": "https://open-foundry.com/",
+  "classes": [
+    "font"
+  ],
+  "holds": "A showcase of open-source typefaces that links to each designer's own download.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://open-foundry.com/about",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://open-foundry.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "It hosts files only to draw previews. Every face is under an open licence such as SIL or MIT, read on the designer's page."
+}

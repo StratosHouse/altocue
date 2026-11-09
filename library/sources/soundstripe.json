@@ -1,0 +1,46 @@
+{
+  "id": "soundstripe",
+  "name": "Soundstripe",
+  "url": "https://www.soundstripe.com/",
+  "classes": [
+    "music"
+  ],
+  "holds": "Subscription and single-track music licensing.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "soundstripe",
+    "url": "https://www.soundstripe.com/knowledge/licensing-usage/what-can-i-do-with-license",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.soundstripe.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "no_ai"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Paid. Projects made while subscribed stay licensed. It bars AI training and resale as audio files, and its Warner Chappell tracks carry extra limits and a required credit."
+}

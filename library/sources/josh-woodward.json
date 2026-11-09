@@ -1,0 +1,46 @@
+{
+  "id": "josh-woodward",
+  "name": "Josh Woodward",
+  "url": "https://www.joshwoodward.com/",
+  "classes": [
+    "music"
+  ],
+  "holds": "More than 250 songs, with instrumental versions, under CC BY 4.0.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC-BY-4.0",
+    "url": "https://JoshWoodward.com/faq",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Music - \"{title}\" by Josh Woodward. Free download: https://www.joshwoodward.com/"
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.joshwoodward.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "credit_required"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Commercial use is fine with credit. The credit must keep his name, the song title and the address."
+}

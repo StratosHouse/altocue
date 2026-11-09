@@ -1,0 +1,44 @@
+{
+  "id": "grained-js",
+  "name": "grained.js",
+  "url": "https://github.com/sarathsaleem/grained",
+  "classes": [
+    "overlay"
+  ],
+  "holds": "Animated film grain for a web page, from a generated noise PNG and CSS keyframes.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/sarathsaleem/grained",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/sarathsaleem/grained",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Grain size, opacity and density are options, and the animation can be turned off for static grain. Altocue already writes its own grain in code, so this is for a page built by hand."
+}

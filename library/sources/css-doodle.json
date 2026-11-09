@@ -1,0 +1,45 @@
+{
+  "id": "css-doodle",
+  "name": "css-doodle",
+  "url": "https://github.com/css-doodle/css-doodle",
+  "classes": [
+    "overlay",
+    "motion"
+  ],
+  "holds": "A web component that draws generative patterns, backgrounds and decorations in CSS.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT",
+    "url": "https://github.com/css-doodle/css-doodle",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/css-doodle/css-doodle",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Pure CSS output, so a pattern stays sharp at any size and its CSS animation follows the page clock."
+}

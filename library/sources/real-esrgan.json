@@ -1,0 +1,44 @@
+{
+  "id": "real-esrgan",
+  "name": "Real-ESRGAN",
+  "url": "https://github.com/xinntao/Real-ESRGAN",
+  "classes": [
+    "generate"
+  ],
+  "holds": "Open image and video upscaling, with portable builds that need no CUDA.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "BSD-3-Clause",
+    "url": "https://github.com/xinntao/Real-ESRGAN",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the BSD-3-Clause notice"
+  },
+  "access": {
+    "kind": "local",
+    "docs": "https://github.com/xinntao/Real-ESRGAN",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "The ncnn-vulkan builds run on Intel, AMD and Nvidia GPUs on Windows, Linux and macOS. An upscale invents detail, so label it as enhanced and never use it on evidence or a product shot that must be exact."
+}

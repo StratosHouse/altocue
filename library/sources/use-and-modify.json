@@ -1,0 +1,46 @@
+{
+  "id": "use-and-modify",
+  "name": "Use & Modify",
+  "url": "https://usemodify.com/",
+  "classes": [
+    "font"
+  ],
+  "holds": "A personal selection of open-source typefaces, from classy to punk.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://usemodify.com/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://usemodify.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": "per_item",
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "share_alike"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Licences vary by face, from OFL and MIT to GPL and CC BY-SA, so read each one. Keep GPL and share-alike faces out of anything shipped."
+}

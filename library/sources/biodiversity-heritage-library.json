@@ -1,0 +1,48 @@
+{
+  "id": "biodiversity-heritage-library",
+  "name": "Biodiversity Heritage Library",
+  "url": "https://www.biodiversitylibrary.org/",
+  "classes": [
+    "illustration",
+    "photo"
+  ],
+  "holds": "Scanned natural history books, with a large set of animal and plant illustrations.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://about.biodiversitylibrary.org/?p=2882",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.biodiversitylibrary.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "noncommercial",
+    "share_alike"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "BHL holds no copyright and grants nothing. Read each item's Copyright Status. Public domain items are generally free, while in-copyright items are CC BY-NC-SA 4.0 and so out of bounds for paid work."
+}

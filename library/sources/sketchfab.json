@@ -1,0 +1,48 @@
+{
+  "id": "sketchfab",
+  "name": "Sketchfab downloadable models",
+  "url": "https://sketchfab.com/",
+  "classes": [
+    "3d"
+  ],
+  "holds": "Downloadable 3D models, each under its own Creative Commons licence.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://sketchfab.com/developers/terms",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": "{title} by {author} on Sketchfab, {licence}"
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://sketchfab.com/developers/terms",
+    "key": "free",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "credit_required",
+    "share_alike",
+    "noncommercial"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The download API needs the user's own Sketchfab sign-in, and the app must show each model's licence, credit its creator and say Sketchfab provided it. Keep to CC0 and CC BY, and drop NC and SA models. Its developer guidelines were not read."
+}

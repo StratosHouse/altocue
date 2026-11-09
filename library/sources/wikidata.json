@@ -1,0 +1,46 @@
+{
+  "id": "wikidata",
+  "name": "Wikidata",
+  "url": "https://www.wikidata.org/",
+  "classes": [
+    "data"
+  ],
+  "holds": "The open knowledge graph of the Wikimedia projects, as structured facts with sources.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "api",
+    "docs": "https://www.wikidata.org/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "metadata_unreliable"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Structured data in the main, property and lexeme namespaces is CC0. Text elsewhere is CC BY-SA. Anyone can edit it, so check a figure against its cited source before it goes on screen. Altocue's stock search already uses it to find Cleveland Museum works."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "free-nature-stock",
+  "name": "Free Nature Stock",
+  "url": "https://freenaturestock.com/",
+  "classes": [
+    "video",
+    "photo"
+  ],
+  "holds": "Nature photos and video under CC0, none of it AI generated.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://freenaturestock.com/license/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://freenaturestock.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Its separate terms of use were not read. A person picks and downloads."
+}

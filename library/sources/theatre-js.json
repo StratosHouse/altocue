@@ -1,0 +1,46 @@
+{
+  "id": "theatre-js",
+  "name": "Theatre.js",
+  "url": "https://github.com/theatre-js/theatre",
+  "classes": [
+    "motion"
+  ],
+  "holds": "An animation library for high-fidelity motion graphics, with a visual keyframe editor.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": null,
+    "url": "https://github.com/theatre-js/theatre",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the Apache-2.0 notice"
+  },
+  "access": {
+    "kind": "npm",
+    "docs": "https://github.com/theatre-js/theatre",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": "per_item",
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "RUNTIME",
+  "flags": [
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "@theatre/core, the part a page runs, is Apache-2.0. @theatre/studio, the editor, is AGPL-3.0, so it never ships or loads in Altocue. A person may use the studio on their own machine to make the keyframes."
+}

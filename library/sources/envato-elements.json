@@ -3,13 +3,15 @@
   "name": "Envato Elements",
   "url": "https://elements.envato.com/",
   "classes": [
+    "video",
+    "music",
     "sfx"
   ],
-  "holds": "Stock audio, sound effects, footage and templates on a subscription.",
+  "holds": "Subscription stock video, music, templates, fonts, graphics and 3D.",
   "size": null,
   "licence": {
     "scope": "source",
-    "id": null,
+    "id": "envato-elements",
     "url": "https://help.elements.envato.com/hc/en-us/articles/360000628966-License-Terms",
     "checked_on": "2026-11-08",
     "checked_from": "primary",
@@ -29,19 +31,17 @@
     "rate_limit": null
   },
   "rights": {
-    "commercial": true,
+    "commercial": "per_item",
     "bundle": false,
-    "tool_use": true,
-    "agent_download": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
     "ai_training": "unknown"
   },
   "item_filter": null,
   "verdict": "DIRECTORY",
-  "flags": [
-    "no_redistribution"
-  ],
+  "flags": [],
   "adapter": null,
   "test": null,
-  "notes": "Each download licenses one project. Work finished during the subscription stays licensed, and nothing new may be made after it ends. The licence does not mention AI. The link is the store's plain address and carries no affiliate or referral code.",
+  "notes": "Paid. Each item is registered to one project, and work finished while subscribed stays licensed after you cancel. Its music may not be broadcast, and fonts must be uninstalled when the plan ends. Its sound effects come under the same licence. The link is the store's plain address and carries no affiliate or referral code.",
   "affiliate_url": null
 }

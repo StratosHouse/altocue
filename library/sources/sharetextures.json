@@ -1,0 +1,47 @@
+{
+  "id": "sharetextures",
+  "name": "ShareTextures",
+  "url": "https://www.sharetextures.com/",
+  "classes": [
+    "texture",
+    "3d"
+  ],
+  "holds": "More than 1,600 PBR textures, 250 3D models and 50 atlases, offered as CC0.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "CC0-1.0",
+    "url": "https://www.sharetextures.com/about",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.sharetextures.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Its about page says every download is CC0, but links terms for a limited CC0 application that were not read, so read them before relying on CC0."
+}

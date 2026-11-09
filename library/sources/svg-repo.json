@@ -1,0 +1,50 @@
+{
+  "id": "svg-repo",
+  "name": "SVG Repo",
+  "url": "https://www.svgrepo.com/",
+  "classes": [
+    "illustration",
+    "icon"
+  ],
+  "holds": "A large index of SVG icons and vectors gathered from open sets, each with a stated licence.",
+  "size": null,
+  "licence": {
+    "scope": "per_item",
+    "id": null,
+    "url": "https://svgrepo.com/page/licensing/",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": "per_item",
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.svgrepo.com/",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "share_alike",
+    "noncommercial",
+    "trademark_risk",
+    "no_redistribution"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "Licences run from CC0, MIT and Apache to GPL, CC BY-SA, CC BY-NC and a logo licence, so read each vector's page. Its own licence bars redistributing the collection like the site does. Prefer the original open set where the vector came from one."
+}

@@ -1,0 +1,46 @@
+{
+  "id": "ltx-video",
+  "name": "LTX-Video",
+  "url": "https://github.com/Lightricks/LTX-Video",
+  "classes": [
+    "generate"
+  ],
+  "holds": "Open video models for image to video, keyframes, extension and video to video.",
+  "size": null,
+  "licence": {
+    "scope": "per_set",
+    "id": null,
+    "url": "https://github.com/Lightricks/LTX-Video",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/Lightricks/LTX-Video",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "unknown",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [
+    "licence_conflict"
+  ],
+  "adapter": null,
+  "test": null,
+  "notes": "The code is Apache-2.0, but each checkpoint carries its own weights licence: one release moved to an OpenRAIL-M file for commercial use, and the repo now points to LTX-2. Read the licence of the exact checkpoint before use."
+}

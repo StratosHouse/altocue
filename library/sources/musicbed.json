@@ -1,0 +1,44 @@
+{
+  "id": "musicbed",
+  "name": "Musicbed",
+  "url": "https://www.musicbed.com/",
+  "classes": [
+    "music"
+  ],
+  "holds": "Licensed music from independent artists, by the song or by subscription.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": null,
+    "url": "https://www.musicbed.com/",
+    "checked_on": "2026-11-08",
+    "checked_from": "not_verified",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": false,
+    "template": null
+  },
+  "access": {
+    "kind": "manual",
+    "docs": "https://www.musicbed.com/",
+    "key": "paid",
+    "key_env": null,
+    "sign_in": true,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": "per_item",
+    "bundle": false,
+    "tool_use": "unknown",
+    "agent_download": "unknown",
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "DIRECTORY",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Paid. Its licence was not read from its own pages, so read it before use."
+}

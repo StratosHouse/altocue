@@ -1,0 +1,44 @@
+{
+  "id": "tony-mc-mapface",
+  "name": "Tony McMapface",
+  "url": "https://github.com/h3r2tic/tony-mc-mapface",
+  "classes": [
+    "lut"
+  ],
+  "holds": "A deliberately plain display transform from HDR to SDR, shipped as a LUT with an OCIO config.",
+  "size": null,
+  "licence": {
+    "scope": "source",
+    "id": "MIT OR Apache-2.0",
+    "url": "https://github.com/h3r2tic/tony-mc-mapface",
+    "checked_on": "2026-11-08",
+    "checked_from": "primary",
+    "text_sha256": null
+  },
+  "credit": {
+    "required": true,
+    "template": "Keep the MIT notice"
+  },
+  "access": {
+    "kind": "git",
+    "docs": "https://github.com/h3r2tic/tony-mc-mapface",
+    "key": "none",
+    "key_env": null,
+    "sign_in": false,
+    "user_agent": false,
+    "rate_limit": null
+  },
+  "rights": {
+    "commercial": true,
+    "bundle": true,
+    "tool_use": true,
+    "agent_download": true,
+    "ai_training": "unknown"
+  },
+  "item_filter": null,
+  "verdict": "BUNDLE",
+  "flags": [],
+  "adapter": null,
+  "test": null,
+  "notes": "Built for real-time renderers. It adds no contrast or saturation, so it suits HDR stills and renders that need a neutral tone map before a look. The LUT's file format was not checked."
+}
