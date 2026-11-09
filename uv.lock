@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "altocue"
-version = "0.4.0"
+version = "0.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "faster-whisper", marker = "platform_machine != 'arm64' or sys_platform != 'darwin'" },

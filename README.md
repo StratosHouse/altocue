@@ -35,7 +35,7 @@
 
 You hand your coding agent a messy recording, a long talk or just a brief. Altocue gives it the eyes, ears and tools to finish the job.
 
-- **Reframing that follows.** A tall crop that trails someone walking, and cuts to whoever is talking in a wide shot of two, matched by whose mouth moves with each voice. A still crop stays wherever it already works.
+- **Reframing that follows.** A tall crop that trails someone walking and cuts with the camera, and names the seconds it saw no face. With speaker labels it can also cut to whoever is talking in a wide shot of two, which has not yet worked on real footage. A still crop stays wherever it already works.
 - **Motion tracking.** Blur, pixelate, spotlight, a label or a sticker that stays on a face or on a box you draw, followed through the film on your machine.
 - **Cutting.** Word-timed transcripts with fillers kept, so cuts land on real speech. Each removal has a reason you can overrule. Or edit the script and get a frame-safe cut.
 - **Sound.** Noise and hum out, music under the voice taken off when it is measured and Demucs is installed, each phrase levelled, room tone in the holes, mastered to a measured loudness and true peak.
