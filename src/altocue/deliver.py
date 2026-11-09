@@ -467,7 +467,7 @@ def open_version(project: Project, platform: Platform, target: dict[str, Any], *
         _share_cached_segments(project, home)
     else:
         for segment in edl.segments:
-            segment.crop, segment.zoom_from, segment.zoom_to = None, 1.0, 1.0
+            segment.crop, segment.path, segment.zoom_from, segment.zoom_to = None, None, 1.0, 1.0
             segment.held = [name for name in segment.held if name == "gain"]
     version.save_edl(edl)
     if reuse:

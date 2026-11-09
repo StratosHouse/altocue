@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import cut, ffmpeg, mix, overlays, platforms, transitions
+from . import cut, ffmpeg, mix, overlays, platforms, track, transitions
 from .errors import AltocueError
 from .models import Edl
 from .motion import compositions, formats, placement
@@ -85,6 +85,21 @@ def resolve_overlays(raw: Any, words: list[dict[str, Any]]) -> list[dict[str, An
     """Overlays run the whole film unless they name a `start` or an `end`."""
     items = overlays.parse(raw)
     return [{**item, **{key: resolve_time(item[key], words) for key in ("start", "end") if key in item}} for item in items]
+
+
+def resolve_tracked(raw: Any, words: list[dict[str, Any]], duration: float) -> list[dict[str, Any]]:
+    """Tracked items run the whole film unless they name a `start` or an `end`. A box's `at` may name a word too."""
+    items = []
+    for item in track.parse(raw):
+        start = resolve_time(item.get("start", 0), words, "A tracked item")
+        end = resolve_time(item["end"], words, "A tracked item") if "end" in item else duration
+        if end - start < 0.1:
+            raise AltocueError(f"A tracked {item['type']} runs from {start:.2f} s to {end:.2f} s.", fix="Give it an end after its start.")
+        target = item["target"]
+        if isinstance(target, dict) and "at" in target:
+            target = {**target, "at": resolve_time(target["at"], words, "A tracked box")}
+        items.append({**item, "start": start, "end": min(end, duration), "target": target})
+    return items
 
 
 def resolve_items(raw: list[dict[str, Any]], words: list[dict[str, Any]], duration: float) -> tuple[list[dict[str, Any]], float]:
@@ -229,6 +244,7 @@ def build(project: Project, *, draft: bool = False) -> dict[str, Any]:
         "transitions": edits["transitions"],
         "freezes": edits["freezes"],
         "overlay": resolve_overlays(motion.get("overlay"), words),
+        "tracked": resolve_tracked(motion.get("tracked"), words, duration),
     }
     write_json(project.timeline_path, timeline)
     return timeline

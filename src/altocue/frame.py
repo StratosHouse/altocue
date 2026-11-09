@@ -21,6 +21,7 @@ from statistics import median
 import cv2
 import numpy as np
 
+from . import follow
 from .cut.hand import hand_set
 from .errors import AltocueError
 from .ffmpeg import require
@@ -45,7 +46,7 @@ MIN_TRACK_SHARE = 0.4
 SECOND_FACE_AREA = 0.25
 SIDE_MARGIN = 0.25
 SAMPLES = (3, 6)
-VERSION = 1
+VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,7 @@ class Face:
     score: float = 1.0
     eye_y: float = 0.0
     eyes: tuple[tuple[float, float], ...] = ()
+    mouth: tuple[tuple[float, float], ...] = ()  # its two corners, when the detector gave them
 
     @property
     def area(self) -> float:
@@ -70,7 +72,8 @@ class Face:
 
     def scaled(self, factor: float) -> Face:
         eyes = tuple((x * factor, y * factor) for x, y in self.eyes)
-        return Face(self.x * factor, self.y * factor, self.w * factor, self.h * factor, self.score, self.eye_y * factor, eyes)
+        mouth = tuple((x * factor, y * factor) for x, y in self.mouth)
+        return Face(self.x * factor, self.y * factor, self.w * factor, self.h * factor, self.score, self.eye_y * factor, eyes, mouth)
 
 
 @dataclass(frozen=True)
@@ -143,7 +146,8 @@ def _detect_at(image: np.ndarray, side: int) -> list[Face]:
         x, y, w, h = (float(v) for v in row[:4])
         eye_y = float(row[5] + row[7]) / 2
         eyes = ((float(row[4]), float(row[5])), (float(row[6]), float(row[7])))
-        found.append(Face(x, y, w, h, float(row[14]), eye_y, eyes).scaled(width / size[0]))
+        mouth = ((float(row[10]), float(row[11])), (float(row[12]), float(row[13])))
+        found.append(Face(x, y, w, h, float(row[14]), eye_y, eyes, mouth).scaled(width / size[0]))
     return found
 
 
@@ -395,7 +399,7 @@ def _sample_faces(clips: dict[str, Clip], segments: list[Segment]) -> list[list[
 
 def _fingerprint(project: Project, edl: Edl, target: tuple[int, int]) -> str:
     cuts = [[s.id, s.clip, s.start, s.end] for s in edl.segments]
-    settings = {key: project.setting("frame", key) for key in ("punch_in", "push_in")}
+    settings = {key: project.setting("frame", key) for key in ("punch_in", "push_in", "follow")}
     text = json.dumps({"version": VERSION, "cuts": cuts, "target": target, "settings": settings}, sort_keys=True)
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
@@ -438,21 +442,38 @@ def frame_project(project: Project, force: bool = False) -> Edl:
     edits = {} if force else hand_set(project, edl)
     punch = float(project.setting("frame", "punch_in", PUNCH_ZOOM))
     push = float(project.setting("frame", "push_in", 0.0))
+    mode = str(project.setting("frame", "follow", "auto"))
+    if mode not in follow.MODES:
+        raise AltocueError(f"[frame] follow is {mode!r}.", fix=f"Use one of {', '.join(follow.MODES)}.")
     zooms = plan_zooms(edl.segments, edl.fps)
     samples = _sample_faces(clips, edl.segments)
-    found = [choose_subject(find_tracks(faces), *crop_size(clips[s.clip].display_size, target)) for s, faces in zip(edl.segments, samples, strict=True)]
+    tracked = [find_tracks(faces) for faces in samples]
+    found = [choose_subject(tracks, *crop_size(clips[s.clip].display_size, target)) for s, tracks in zip(edl.segments, tracked, strict=True)]
     subjects = hold_through_gaps(edl.segments, found)
     last_crop: dict[str, list[float]] = {}
     rows = []
-    for segment, zoom, subject, direct in zip(edl.segments, zooms, subjects, found, strict=True):
+    for segment, zoom, subject, direct, tracks in zip(edl.segments, zooms, subjects, found, tracked, strict=True):
         source = clips[segment.clip].display_size
         size = crop_size(source, target)
+        moving, seen, moved = None, None, False
         if matches_aspect(source, target):
             crop = None
             frame_box = [0.0, 0.0, float(source[0]), float(source[1])]
         else:
             frame_box = settle_crop(last_crop.get(segment.clip), subject, source, size)
-            last_crop[segment.clip] = frame_box
+            # This segment's own faces, not a subject held over from a neighbour: an empty shot has nothing to follow.
+            moved = bool(direct and direct.spread > DEAD_ZONE * frame_box[2])
+            sizeable = [t for t in tracks if t.area >= tracks[0].area * SECOND_FACE_AREA] if tracks else []
+            crowded = bool(direct) and len(sizeable) > direct.faces  # type: ignore[union-attr]
+            if follow.needed(mode, moved, crowded):
+                times = follow.sample_times(segment)
+                voices = follow.speaking(_words(project, segment.clip), times)
+                moving, seen = follow.solve(follow.look_at(clips[segment.clip], times), voices, source, size, segment.start)
+            if moving:
+                frame_box = [moving[0][1], moving[0][2], float(size[0]), float(size[1])]
+                last_crop[segment.clip] = [moving[-1][1], moving[-1][2], float(size[0]), float(size[1])]
+            else:
+                last_crop[segment.clip] = frame_box
             crop = frame_box
         level = safe_zoom(frame_box, subject, punch) if zoom > 1 else 1.0
         solved_from, solved_to = round(level, 4), round(level + push, 4)
@@ -460,9 +481,9 @@ def frame_project(project: Project, force: bool = False) -> Edl:
         if "crop" in hand and not fits_shape(hand["crop"], target):
             hand = {name: value for name, value in hand.items() if name != "crop"}
         segment.crop = hand.get("crop", crop)
+        segment.path = None if "crop" in hand else moving
         segment.zoom_from, segment.zoom_to = hand.get("zoom", (solved_from, solved_to))
         segment.held = sorted(hand)
-        moved = bool(subject and subject.spread > DEAD_ZONE * frame_box[2])
         rows.append(
             {
                 "id": segment.id,
@@ -474,6 +495,8 @@ def frame_project(project: Project, force: bool = False) -> Edl:
                 "zoom_to": solved_to,
                 "faces": direct.faces if direct else 0,
                 "moved": moved,
+                "path": moving,
+                "follow": seen,
             }
         )
     if edl.to_dict() != before:  # every render frames first, and a rewrite with nothing new made a finished film look older than its cut
@@ -482,9 +505,20 @@ def frame_project(project: Project, force: bool = False) -> Edl:
     return edl
 
 
+def _words(project: Project, clip_id: str) -> list:
+    """Speaker labels, when the clip has a transcript. Without one the crop follows the biggest face."""
+    try:
+        return project.words(clip_id)
+    except AltocueError:
+        return []
+
+
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--force", action="store_true", help="Solve again, replacing hand edits")
+
+
+FACELESS_WARN = 2.0  # seconds of a moving crop with no face before frame says to look
 
 
 def run(args: argparse.Namespace) -> int:
@@ -498,7 +532,14 @@ def run(args: argparse.Namespace) -> int:
         row = rows.get(segment.id, {})
         faces = row.get("faces", 0)
         extra = f", zoom {segment.zoom_from:g}" if segment.zoom_from != 1 else ""
-        extra += ", head moved past the dead zone" if row.get("moved") else ""
+        seen = row.get("follow") or {}
+        if row.get("path"):
+            cuts = seen.get("switches", 0)
+            extra += f", crop follows {'the speaker' if seen.get('voices') else 'the head'}" + (f" with {cuts} cut{'' if cuts == 1 else 's'}" if cuts else "")
+            if seen.get("faceless", 0) >= FACELESS_WARN:
+                extra += f", {seen['faceless']:g} s with no face found: check it"  # the crop takes the centre there
+        elif row.get("moved"):
+            extra += ", head moved past the dead zone"
         print(f"{segment.id} ({segment.clip}): {note}, {faces} face{'' if faces == 1 else 's'}{extra}")
     print(f"Framed {len(edl.segments)} segments for {project.setting('output', 'aspect')}.")
     return 0

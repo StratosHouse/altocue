@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from altocue import library, overlays, transitions
+from altocue import library, overlays, track, transitions
 from altocue.cli import STAGES
 from altocue.models import Segment
 from altocue.motion import formats
@@ -169,7 +169,7 @@ def check_command(words: list[str], stages: dict[str, argparse.ArgumentParser | 
 
 def known_types() -> set[str]:
     # `footage` is the storyboard's own item for a real clip in a film. storyboard.py and motion/scenes.py read it by name.
-    return set(formats.load()) | formats.CORE_TYPES | set(transitions.NAMES) | set(overlays.KINDS) | set(shader_names()) | {"footage"}
+    return set(formats.load()) | formats.CORE_TYPES | set(transitions.NAMES) | set(overlays.KINDS) | set(track.KINDS) | set(shader_names()) | {"footage"}
 
 
 def shader_names() -> set[str]:

@@ -53,6 +53,8 @@ denoiser = "auto"       # auto, apple, deep-filter or afftdn
 level_phrases = true    # level phrase by phrase, so a quiet aside and a loud line sit together
 deess = "light"         # off, light, normal or strong
 breaths = 0             # dB to turn breaths down. They are never cut
+music = "auto"          # take music off the voice: auto when measured under speech, on, off. Needs Demucs: `altocue doctor`
+echo = "off"            # light or strong takes a little room echo off. The ring is measured either way
 room_tone = true        # fill what cuts leave with the clip's own room, so nothing drops to digital silence
 loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast
 true_peak = -1.5        # dBTP
@@ -67,6 +69,7 @@ lut = ""                # your own .cube file, in place of a look
 enabled = true
 punch_in = 1.12         # zoom used to hide jump cuts
 push_in = 0.0           # slow zoom added per shot, such as 0.04
+follow = "auto"         # auto moves the crop only when a still one fails: a walk, or a wide shot of people taking turns. on, off
 
 [broll]
 share = 0.3             # the most of the runtime B-roll may cover

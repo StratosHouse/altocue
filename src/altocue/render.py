@@ -9,7 +9,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, transitions
+from . import brand as brands
+from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
 from . import timeline as timelines
 from .errors import AltocueError
 from .motion import formats
@@ -89,6 +90,10 @@ def compose_args(project: Project, picture: Path, audio: Path, layer: motion.Lay
     base = "base"
     graph.append(f"[0:v]tpad=stop_mode=clone:stop_duration={tail:.3f}[{base}]" if tail else f"[0:v]null[{base}]")
     next_input = 2
+    extra, lines, base = track.graph(timeline.get("tracked", []), base, c, next_input)  # on the speaker's picture, under inserts
+    inputs += extra
+    graph += lines
+    next_input += sum(item == "-i" for item in extra)
     for index, insert in enumerate(timeline["inserts"]):
         source = (project.root / insert.get("baked", insert["file"])).resolve()
         first, frames = insert_frames(insert, c.fps)
@@ -193,7 +198,8 @@ def bake_edges(project: Project, timeline: dict[str, Any], picture: Path, c: pla
             folder.mkdir(parents=True, exist_ok=True)
             insert = {**insert, "baked": bake_insert(project, insert, picture, c, folder)}
         baked.append(insert)
-    return {**timeline, "inserts": baked, "overlay": overlays.prepare(project, timeline.get("overlay", []), c)}
+    tracked = track.prepare(project, timeline.get("tracked", []), picture, (c.width, c.height), c.fps, brands.load(project))
+    return {**timeline, "inserts": baked, "overlay": overlays.prepare(project, timeline.get("overlay", []), c), "tracked": tracked}
 
 
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:

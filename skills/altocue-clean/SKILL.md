@@ -83,4 +83,7 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 
 ## Be honest
 
-Clean-up cannot rescue clipped audio, heavy room echo or a voice under loud music. Say so instead of pushing the denoiser harder. Numbers show what changed, not whether it sounds better. A person has to listen.
+- **Music under the voice** is measured on every clean. With Demucs installed (`altocue doctor` says), `[audio] music = "auto"` takes the vocal stem first, and undoes it if the words lose more than 6 dB.
+- **Echo** is measured too, and a room that rings is named. `[audio] echo = "light"` takes a little off. On a Mac the apple denoiser removes more.
+
+Clean-up cannot rescue clipped audio, and it only softens a bare room. Say so instead of pushing the denoiser harder. Numbers show what changed, not whether it sounds better. A person has to listen.
