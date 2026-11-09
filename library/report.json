@@ -1,10 +1,10 @@
 {
-  "generated": "2026-11-08T02:18:26Z",
+  "generated": "2026-11-08T04:10:54Z",
   "pins": {
     "hyperframes": "0.9.8",
     "gl-transitions": "2.2.0"
   },
-  "entries": 908,
+  "entries": 1231,
   "named_by_a_built_in": [
     "flowchart",
     "typewriter",

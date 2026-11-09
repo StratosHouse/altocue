@@ -53,7 +53,8 @@ def words(path: str) -> list[str]:
 
 def categorise(path: str, hints: list[str] = ()) -> tuple[str, list[str]]:
     """A clear category from the file's own name first, then its folders, then what the pack says it holds. Never a guess past that."""
-    name, folders = words(PurePosixPath(path).name), words(str(PurePosixPath(path).parent))
+    parent = PurePosixPath(path).parent  # "." for a sound at the top of the archive, which has no folder words
+    name, folders = words(PurePosixPath(path).name), words(str(parent)) if parent.name else []
     for found in (name, folders, list(hints)):
         joined = "-".join(found)
         for category, keys in CATEGORIES:

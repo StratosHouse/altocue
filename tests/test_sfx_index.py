@@ -147,6 +147,11 @@ def test_a_name_that_says_nothing_falls_back_to_its_folder_then_the_pack_and_nev
     assert sfxpacks.categorise("Audio/qwerty.ogg")[0] == "other"
 
 
+def test_a_sound_at_the_top_of_the_archive_with_no_folder_is_still_sorted():
+    assert sfxpacks.categorise("laser_04.wav")[0] == "laser"
+    assert sfxpacks.categorise("qwerty.ogg", ["click"])[0] == "click"
+
+
 def test_ui_sounds_carry_a_ui_tag_and_their_own_words():
     category, tags = sfxpacks.categorise("Interface/click_001.ogg")
     assert category == "click" and {"ui", "click", "interface"} <= set(tags)
@@ -175,14 +180,36 @@ def test_the_index_reads_the_link_from_the_page_pins_its_hash_and_lists_every_so
     assert json.loads((tmp_path / "index.json").read_text())["sounds"] == len(rows)
 
 
-def test_a_pinned_pack_that_changes_upstream_stops_the_run(downloads, packs_file, tmp_path):
+def test_a_pinned_pack_that_changes_upstream_is_reported_and_its_pin_kept(downloads, packs_file, tmp_path):
     data = json.loads(packs_file.read_text())
     data["packs"][0].update(sha256="0" * 64, download="https://packs.example/kenney_tiny-ui.zip")
     packs_file.write_text(json.dumps(data))
-    with pytest.raises(AltocueError, match="does not match") as caught:
-        indexed(packs_file, tmp_path)
-    assert "--repin" in caught.value.fix
+    body = indexed(packs_file, tmp_path)
+    [failure] = body["failed"]
+    assert failure["pack"] == "kenney-tiny-ui" and "does not match" in failure["error"] and "--repin" in failure["fix"]
     assert json.loads(packs_file.read_text())["packs"][0]["sha256"] == "0" * 64, "a mismatch never rewrites the pin"
+
+
+def test_one_dead_pack_is_reported_and_the_rest_are_still_indexed(downloads, packs_file, tmp_path, monkeypatch, capsys):
+    data = json.loads(packs_file.read_text())
+    dead = {**data["packs"][0], "id": "dead-pack", "page": "https://gone.example/pack"}
+    data["packs"].insert(0, dead)
+    packs_file.write_text(json.dumps(data))
+    real_call = http.call
+    monkeypatch.setattr(http, "call", lambda method, url, **kw: http.Response(404, b"") if url == dead["page"] else real_call(method, url, **kw))
+    (tmp_path / "index.json").write_text(json.dumps({"rows": [{"id": "dead-pack-old", "pack": "dead-pack", "category": "click"}], "left_out": {}}))
+    body = indexed(packs_file, tmp_path)
+    assert [item["pack"] for item in body["failed"]] == ["dead-pack"] and "404" in body["failed"][0]["error"]
+    packs = {row["pack"] for row in body["rows"]}
+    assert packs == {"dead-pack", "kenney-tiny-ui"}, "the live pack is indexed and the dead one keeps its last rows"
+    assert "dead-pack: NOT INDEXED" in capsys.readouterr().err
+
+
+def test_the_script_exits_non_zero_when_any_pack_failed(monkeypatch, tmp_path):
+    monkeypatch.setattr(index_sfx, "run", lambda *args, **kwargs: {"sounds": 3, "categories": {"click": 3}, "failed": [{"pack": "dead-pack", "error": "x", "fix": None}]})
+    assert index_sfx.main(["--cache", str(tmp_path)]) == 1
+    monkeypatch.setattr(index_sfx, "run", lambda *args, **kwargs: {"sounds": 3, "categories": {"click": 3}, "failed": []})
+    assert index_sfx.main(["--cache", str(tmp_path)]) == 0
 
 
 def test_a_pack_outside_the_allow_list_is_never_indexed(packs_file, tmp_path):
@@ -195,14 +222,13 @@ def test_a_pack_outside_the_allow_list_is_never_indexed(packs_file, tmp_path):
 
 def test_a_page_with_no_archive_link_says_how_to_fix_it(packs_file, tmp_path, monkeypatch, no_network):
     monkeypatch.setattr(http, "call", lambda *args, **kwargs: http.Response(200, b"<p>No link here</p>"))
-    with pytest.raises(AltocueError) as caught:
-        indexed(packs_file, tmp_path)
-    assert "download" in caught.value.fix
+    [failure] = indexed(packs_file, tmp_path)["failed"]
+    assert "download" in failure["fix"]
 
 
 def test_the_committed_pack_list_is_open_and_holds_no_audio():
     packs = index_sfx.read_packs()
-    assert len(packs["packs"]) >= 10 and all(pack["licence"] == "CC0-1.0" for pack in packs["packs"])
+    assert len(packs["packs"]) >= 4 and all(pack["licence"] == "CC0-1.0" for pack in packs["packs"])
     assert not list((ROOT / "library" / "sfx").glob("*.[ow][ga][gv]")), "no media in git"
 
 
