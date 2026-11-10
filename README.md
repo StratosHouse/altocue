@@ -141,10 +141,12 @@ Or drive it yourself:
 <div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/terminal.gif" alt="A terminal running every Altocue stage, ending in SHIP" width="100%"></div>
 
 ```bash
-altocue new my-video --input take.mov --aspect 9:16 --brief "A reel for first-time founders"
+altocue new my-video --input take.mov --aspect 9:16 --brief "A reel for first-time founders" --brand ~/brand-kit
 cd my-video
 altocue run
 ```
+
+**Your brand comes first.** Altocue makes no caption, graphic or render until the project has read your brand kit: a folder with your logo, your font files and your colours written anywhere in it (a brand.json, a text file, CSS or an SVG). `--brand` reads it as the project starts, or run `altocue brand ingest <kit folder>` later. It says what it read and what it kept from the house look because the kit did not say. With no brand of your own, `altocue brand ingest --house` chooses the house look on purpose.
 
 `altocue run` stops before review. Read `work/cut-review.md`, rule on anything it could not decide with `altocue cut --apply-review decisions.json`, then run `altocue run` again. When QA passes, run `altocue review`.
 

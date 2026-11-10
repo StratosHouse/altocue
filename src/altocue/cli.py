@@ -14,6 +14,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "setup": ("altocue.setup", "Install what is missing, with your consent"),
     "doctor": ("altocue.doctor", "Check this machine"),
     "new": ("altocue.ingest", "Start a project from one or more clips"),
+    "brand": ("altocue.brand", "Read your brand kit first: logo, faces and colours, before any asset"),
     "ingest": ("altocue.ingest", "Probe clips: rotation, frame rate, HDR, audio"),
     "transcribe": ("altocue.transcribe", "Word-timed transcripts, fillers kept"),
     "cut": ("altocue.cut", "Propose or apply the cut"),

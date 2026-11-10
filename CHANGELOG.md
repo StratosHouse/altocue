@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Your brand kit comes first.** A new project makes no caption, graphic or render until it has read the owner's brand kit. `altocue new --brand <kit>` reads it as the project starts, and `altocue brand ingest <kit>` does it later: a folder with a logo, font files and colours written anywhere in it (brand.json, text, CSS or SVG), or a brand.json on its own. The kit is copied into `brand/`, its colours are given the jobs a brand needs (panel, ink, accent, surface, soft), and anything the kit leaves open is named, so nobody ships the house look by accident. `altocue brand ingest --house` chooses the house look on purpose, and `altocue brand show` prints what the project uses. `altocue run` stops before any stage when there is no brand. Projects made before this keep the brand they named.
+
 ## 0.5.0
 
 A moving crop that follows people, motion tracking, music off a voice, a sound effect library of single CC0 sounds, a catalog grown to 1231 entries, and long recordings proven end to end.

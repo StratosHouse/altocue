@@ -258,8 +258,13 @@ def require_clean(film: Film) -> None:
 
 
 def brand_of(film: Film) -> brands.Brand:
-    default = json.loads(brands.data_path("brands", "default.json").read_text())
+    """The project's brand kit, with anything the brief's own brand names laid over it."""
     extra = film.brief.get("brand") or {}
+    chosen = str(film.project.setting("brand", "name", "default")).strip()
+    if not chosen and not extra:
+        brands.load(film.project)  # no kit and no brand in the brief: stop, and say how to read the kit
+    base = brands.load(film.project) if chosen else None
+    default = base.data if base else json.loads(brands.data_path("brands", "default.json").read_text())
     merged = {
         **default,
         "colors": {**default["colors"], **(extra.get("colors") or {})},
@@ -271,7 +276,9 @@ def brand_of(film: Film) -> brands.Brand:
     for key, value in merged["colors"].items():
         if not brands.COLOUR.fullmatch(str(value)):
             raise AltocueError(f"The brand colour {key} is {value!r}.", fix="Use six-digit hex in brief.json, such as #ff7a59.")
-    return brands.Brand(merged, film.project.root if extra.get("logo") or extra.get("font") else brands.data_path("brands"))
+    if not (extra.get("logo") or extra.get("font")):
+        merged["logo"] = default.get("logo")
+    return brands.Brand(merged, film.project.root if extra.get("logo") or extra.get("font") else base.root if base else brands.data_path("brands"))
 
 
 def music_of(film: Film) -> Path | None:

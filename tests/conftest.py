@@ -30,3 +30,11 @@ def no_own_sound_packs(tmp_path_factory: pytest.TempPathFactory, monkeypatch: py
     from altocue.stock import packs
 
     monkeypatch.setattr(packs, "REGISTRY", tmp_path_factory.mktemp("home") / "packs.json")
+
+
+@pytest.fixture(autouse=True)
+def house_brand(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real project reads its brand kit before any asset. Tests start on the house look, chosen, and test_brand_kit tests the gate."""
+    from altocue import project
+
+    monkeypatch.setattr(project, "DEFAULT_CONFIG", project.DEFAULT_CONFIG.replace('name = ""               #', 'name = "default"        #', 1))
