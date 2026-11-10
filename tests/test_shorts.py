@@ -214,3 +214,12 @@ def test_too_many_changes_or_sounds_at_once_fail():
     assert any("3 scene changes" in p for p in shorts.check_pacing(rushed, house))
     busy = "".join(f'<audio id="sfx-{n}" src="media/sfx/a.wav" data-start="{1 + n * 0.2}"></audio>' for n in range(3))
     assert any("3 sound effects" in p for p in shorts.check_pacing(busy, house))
+
+
+def test_a_subtitle_cue_too_short_to_read_fails(tmp_path):
+    (tmp_path / "renders").mkdir()
+    (tmp_path / "renders" / "subtitles.srt").write_text("1\n00:00:01,000 --> 00:00:02,000\nFine\n\n2\n00:00:02,000 --> 00:00:02,001\nGone\n")
+    timeline = {"caption_words": [{"start": 1.0, "end": 1.3}, {"start": 2.0, "end": 2.0}]}
+    problems = shorts.check_cues(tmp_path, timeline)
+    assert any("0.001 s cue at 2.00 s" in p for p in problems)
+    assert any("1 caption words have no length" in p for p in problems)

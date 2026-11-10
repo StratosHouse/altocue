@@ -563,6 +563,25 @@ def check_house(html: str, reel: dict[str, Any], scenes: list[tuple[str, float, 
     return problems
 
 
+SRT_TIME = re.compile(r"(\d+):(\d\d):(\d\d)[,.](\d{3})\s*-->\s*(\d+):(\d\d):(\d\d)[,.](\d{3})")
+SHORTEST_CUE = 0.3  # seconds; a shorter subtitle cue flashes by unread, and one near zero makes the muxer refuse the film
+
+
+def check_cues(run: Path, timeline: dict[str, Any]) -> list[str]:
+    """Captions and subtitles that nobody can read: a caption word of no length, or a subtitle cue that flashes by."""
+    problems = []
+    flat = [w for w in timeline.get("caption_words") or [] if float(w.get("end", 0)) - float(w.get("start", 0)) <= 0]
+    if flat:
+        problems.append(f"{len(flat)} caption words have no length, the first at {float(flat[0]['start']):.2f} s. Measure the run again.")
+    for path in sorted(p for p in run.rglob("*.srt") if p.is_file()):
+        for found in SRT_TIME.finditer(path.read_text(errors="replace")):
+            h1, m1, s1, ms1, h2, m2, s2, ms2 = (int(v) for v in found.groups())
+            start, end = h1 * 3600 + m1 * 60 + s1 + ms1 / 1000, h2 * 3600 + m2 * 60 + s2 + ms2 / 1000
+            if end - start < SHORTEST_CUE:
+                problems.append(f"{path.relative_to(run)} has a {end - start:.3f} s cue at {start:.2f} s, too short to read. Join it to its neighbour.")
+    return problems
+
+
 def check_dashes(run: Path) -> list[str]:
     problems = []
     for path in sorted(p for p in (run / "composition").rglob("*") if p.is_file() and p.suffix in TEXT_FILES and p.name not in KIT_FILES):
@@ -601,7 +620,14 @@ def check(run: Path, render: Path | None) -> list[str]:
     html = page.read_text(errors="replace")
     house = {**HOUSE_DEFAULTS, **(json.loads((run / HOUSE_FILE).read_text()) if (run / HOUSE_FILE).exists() else {})}
     scenes, length = scenes_in(html), float(timeline.get("master_duration", 0.0))
-    problems = check_presenter(reel) + check_sounds(run, html, record) + check_covers(html, timeline, record) + check_video_tags(html) + check_dashes(run)
+    problems = (
+        check_presenter(reel)
+        + check_sounds(run, html, record)
+        + check_covers(html, timeline, record)
+        + check_video_tags(html)
+        + check_dashes(run)
+        + check_cues(run, timeline)
+    )
     problems += check_face(html, timeline, house) + check_pacing(html, house) + check_grain(html, house) + check_house(html, reel, scenes, length, house)
     return problems + check_length(render or run / "renders" / "final.mp4", timeline)
 
