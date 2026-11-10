@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Full graphics land on the footage's joins.** `altocue shorts check` fails a full-screen graphic that starts or ends within 0.7 s of a join in the footage without landing on it, since the picture would change twice in a second: a new line shows for a few frames before the graphic lands, or the speaker comes back mid-line. A join inside another look-away is left alone, since moving the edge there would cut that look-away in two. `join_reach` in a kit's house.json changes the reach.
 - **Shorts takes follow the cut's own joins.** `altocue shorts prepare --project` used to hand Shorts Studio the whole cut as one take, and its measure step then trimmed pauses the edit had already shaped, which doubled the jump cuts and made the delivery robotic. Each stretch between the cut's joins is now its own take, cut on exact frames, so only the dead air at a join is trimmed and nothing inside a line is touched. A line under 0.6 s, or one with no words, joins its neighbour, since a single word is too short to time or measure. The edit plan cues each sentence in its own take, covers are mapped through the take they sit in, and `altocue shorts check` reads runs made before this as one take.
 
 ## 0.5.1
