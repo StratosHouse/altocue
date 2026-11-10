@@ -526,7 +526,9 @@ def gate_word_starts(c: Context) -> GateResult:
         from altocue.cut.snap import HEAD_MAX, HEAD_MIN, clipped_head
     except ImportError:
         return skipped("word_starts", "The speech tools are not installed, so the cuts cannot be read against the sound.")
-    clips = {clip.id: clip for clip in c.project.clips()}
+    clips = {clip.id: clip for clip in c.project.clips() if clip.has_audio and Path(clip.path).exists()}
+    if not any(segment.clip in clips for segment in c.edl.segments):
+        return not_applicable("word_starts", "No source footage with sound is on disk, so there is nothing before each cut to read. cut_sound still reads the film.")
     clipped, read = [], 0
     for segment, shot in zip(c.edl.segments, c.shots, strict=False):
         clip = clips.get(segment.clip)
@@ -537,8 +539,8 @@ def gate_word_starts(c: Context) -> GateResult:
         head = clipped_head(envelope, segment.start)
         if HEAD_MIN <= head <= HEAD_MAX:
             clipped.append(f"{stamp(shot.start)} ({segment.id}, {head:.2f} s of the word is cut off)")
-    if not read:
-        return skipped("word_starts", "No source sound to read the cuts against.")
+    if not read:  # the cut cannot tell speech from the floor here either, so it never snapped on sound
+        return not_applicable("word_starts", "The source sound is steady noise or wall-to-wall, so speech cannot be told from the quiet before a cut.")
     detail = f"shots open inside a word at {', '.join(clipped)}" if clipped else f"{read} shot openings, none inside a word"
     return GateResult(id="word_starts", passed=not clipped, value=len(clipped), threshold=0, detail=detail)
 
