@@ -192,7 +192,9 @@ def write_wav(path: str | Path, samples: np.ndarray, rate: int) -> Path:
 def loudness(path: str | Path, *, seconds: float | None = None) -> dict[str, float]:
     """Integrated loudness, range and true peak, measured with `ebur128`. `seconds` stops early."""
     limit = ["-t", f"{seconds:.3f}"] if seconds else []
-    done = run([*limit, "-i", str(path), "-af", "ebur128=peak=true:framelog=quiet", "-f", "null", "-"])
+    # framelog=verbose keeps the per-frame lines out of the log at ffmpeg's default level. "quiet" needs ffmpeg 6 or later,
+    # and ffmpeg 5.1 (Debian 12, Ubuntu 22.04 backports) refuses it with "Invalid argument", which stopped every clean.
+    done = run([*limit, "-i", str(path), "-af", "ebur128=peak=true:framelog=verbose", "-f", "null", "-"])
     text = done.stderr
     found = {
         "integrated": re.search(r"I:\s+(-?[\d.]+) LUFS", text),

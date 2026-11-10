@@ -4,6 +4,7 @@ import argparse
 import json
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -179,3 +180,16 @@ def test_no_command_takes_an_abbreviated_option(capsys):
         main(["status", "--proj", "."])
     assert stopped.value.code == 2
     assert "unrecognized arguments: --proj" in capsys.readouterr().err
+
+
+def test_loudness_asks_nothing_ffmpeg_five_lacks(monkeypatch):
+    """ffmpeg 5.1 refuses ebur128's framelog=quiet, and every clean stopped there on Debian 12."""
+    seen = []
+
+    def fake(args, **_):
+        seen.append(args)
+        return SimpleNamespace(stderr="I: -20.0 LUFS\nLRA: 3.0 LU\nPeak: -1.0 dBFS\n")
+
+    monkeypatch.setattr(ffmpeg, "run", fake)
+    assert ffmpeg.loudness("x.wav")["integrated"] == -20.0
+    assert "framelog=quiet" not in " ".join(seen[0])

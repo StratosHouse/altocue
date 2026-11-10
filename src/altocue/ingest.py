@@ -18,6 +18,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--input", "-i", nargs="+", required=True, help="Source video files")
         parser.add_argument("--aspect", default="9:16", help="Any W:H, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9")
         parser.add_argument("--brief", default="", help="The goal and audience, in your words")
+        parser.add_argument("--brand", help="The brand kit folder or brand.json to read first, or `house` for Altocue's own look")
     else:
         parser.add_argument("--project", "-p", default=".", help="Project folder")
 
@@ -71,9 +72,16 @@ def run(args: argparse.Namespace) -> int:
         for name, source in zip(order, inputs, strict=True):
             (project.sources / f"{name}{source.suffix.lower()}").symlink_to(source)
         (project.root / "brief.md").write_text(f"# Brief\n\n{args.brief}\n")
+        if args.brand:
+            from . import brand as brands
+
+            done = brands.ingest(project, None if args.brand == "house" else Path(args.brand), house=args.brand == "house")
+            print(f"Brand: {done['brand']}" + (f" (kept from the house look: {', '.join(done['kept'])})" if done["kept"] and args.brand != "house" else ""))
     else:
         project, order = Project.open(args.project), None
     for clip in ingest(project, order):
         print(describe(clip))
     print(f"Project ready at {project.root}")
+    if not str(project.setting("brand", "name", "default")).strip():
+        print("Next: `altocue brand ingest <kit folder>`. Altocue reads your logo, faces and colours before it makes any asset.")
     return 0

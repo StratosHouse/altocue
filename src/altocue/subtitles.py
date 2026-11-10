@@ -22,6 +22,7 @@ SHORTEST = 5 / 6
 LONGEST = 7.0
 PAUSE = 0.6  # a silence this long inside a shot starts a new cue
 GAP_FRAMES = 2
+READABLE = 0.3  # a cue shorter than this flashes by unread; it joins a neighbour in its shot, or goes if it is under a frame
 CLAUSE_END = ",;:"
 BREAK_BEFORE = {"and", "but", "or", "so", "because", "that", "which", "who", "when", "to", "of", "in", "on", "at", "for", "with", "from", "by"}
 KEEP_WITH_NEXT = {"a", "an", "the", "my", "your", "his", "her", "its", "our", "their", "this", "these", "those", "i", "we", "you", "they", "he", "she", "it"}
@@ -148,7 +149,33 @@ def build_cues(words: list[dict[str, Any]], ends: dict[str, float], *, fps: floa
         wanted = max(last + HOLD_AFTER, start + SHORTEST, start + len(text) / READING)
         end = min(wanted, start + LONGEST, wall, following - GAP_FRAMES / fps)
         cues.append(Cue(round(start, 3), round(max(end, min(last, wall)), 3), wrap(text), group[0]["segment"]))
-    return cues
+    return readable(cues, fps)
+
+
+def _join(first: str, second: str) -> str:
+    return first + ("" if UNSPACED.search(first[-1:] + second[:1]) else " ") + second
+
+
+def readable(cues: list[Cue], fps: float = 30) -> list[Cue]:
+    """No cue too short to read. Where a cut leaves a cue almost no room it joins a neighbour in the same shot,
+    and one under a frame with nowhere to go is dropped: a muxer refuses it, and nobody could read it anyway."""
+    frame = 1 / fps
+    out: list[Cue] = []
+    pending = list(cues)
+    while pending:
+        cue = pending.pop(0)
+        if cue.end - cue.start >= READABLE:
+            out.append(cue)
+            continue
+        before = out[-1] if out and out[-1].segment == cue.segment else None
+        after = pending[0] if pending and pending[0].segment == cue.segment else None
+        if before and fits(_join(before.text, cue.text)):
+            out[-1] = Cue(before.start, max(before.end, cue.end), wrap(_join(before.text, cue.text)), cue.segment)
+        elif after and fits(_join(cue.text, after.text)):
+            pending[0] = Cue(cue.start, max(after.end, cue.end), wrap(_join(cue.text, after.text)), cue.segment)
+        elif cue.end - cue.start >= frame:
+            out.append(cue)
+    return out
 
 
 def _stamp(seconds: float, point: str) -> str:

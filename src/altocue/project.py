@@ -30,7 +30,7 @@ fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
 # platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
 
 [brand]
-name = "default"        # a preset name or a path to a brand.json
+name = ""               # empty until `altocue brand ingest` reads your kit. "default" is the house look, on purpose
 
 [transcribe]
 engine = ""             # empty picks the best one installed
@@ -79,6 +79,13 @@ library = []            # folders of your own clips, searched first
 provider = ""           # fal or higgsfield. Empty means nothing generates
 spend_cap_usd = 0.0     # the most this project may spend, on every route. 0 blocks all paid calls
 usd_per_credit = 0.08   # Higgsfield only: your plan's dollars per credit
+
+[shorts]                # `altocue shorts`: Higgsfield Shorts Studio designs the motion on your real take
+sfx_dir = ""            # a folder of sound effects. When set, the run may use only these
+sfx_only = true         # false also allows Shorts Studio's own library sounds
+cover = ""              # JSON of look-away spans in take seconds. Each becomes a full-screen graphic
+caption_words = 3       # words per caption page. 0 turns captions off
+kit = ""                # a folder of house build helpers (shorts_kit.py and its media) copied into each run
 
 [disclosure]            # for a film with a generated person. A check, not legal advice
 label = "AI-generated actor"   # the words that must stay on screen. Put them in motion.json

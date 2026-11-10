@@ -1,6 +1,6 @@
 [project]
 name = "altocue"
-version = "0.5.0"
+version = "0.5.1"
 description = "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out."
 readme = "README.md"
 requires-python = ">=3.11"
