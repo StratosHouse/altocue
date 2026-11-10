@@ -208,6 +208,13 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def look_lines(look: Any) -> list[str]:
+    """house.json's look, as one line or several."""
+    if isinstance(look, str):
+        return [look]
+    return [str(line) for line in look or []]
+
+
 def house_notes(
     sounds: list[dict[str, Any]] | None, sfx_only: bool, spans: list[dict[str, float]], kit: list[str] | None = None, house: dict[str, Any] | None = None
 ) -> str:
@@ -216,7 +223,7 @@ def house_notes(
         "# House rules for this run",
         "",
         "- Shorts Studio upgrades the house look. It does not replace it: keep the house layout, text style, framing and end card.",
-        *[f"  {line}" for line in (house or {}).get("look", [])],
+        *[f"  {line}" for line in look_lines((house or {}).get("look"))],
         f"- Show the face only while it speaks. No pause over {rules['silent_face']:.1f} s on the face, and no flash of the face",
         f"  under {rules['min_face']:.1f} s between two graphics. No scene under {rules['min_scene']:.1f} s.",
         f"- Grain stays at opacity {rules['grain_opacity']:.2f} or less, and never jumps to a new place every frame.",
