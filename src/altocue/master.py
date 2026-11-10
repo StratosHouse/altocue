@@ -151,9 +151,14 @@ def _level_filter(found: dict[str, float], loudness: float, true_peak: float) ->
     return f"loudnorm=I={loudness}:TP={true_peak}:LRA={allowed}:{second}"
 
 
+# ffmpeg 5.1's loudnorm hands on audio with no channel layout, and the limiter then refuses the link. Naming every
+# usual layout lets ffmpeg pick the one with the same number of channels, so nothing is downmixed.
+LAYOUTS = "aformat=channel_layouts=mono|stereo|3.0|quad|5.0|5.1|6.1|7.1"
+
+
 def _chain(level: str, trim: float, ceiling: float) -> str:
     parts = [level] + ([f"volume={trim:.2f}dB"] if trim else [])
-    parts += ["aresample=192000", f"alimiter=limit={10 ** (ceiling / 20):.5f}:level=disabled{limiter_latency()}", f"aresample={RATE}"]
+    parts += [LAYOUTS, "aresample=192000", f"alimiter=limit={10 ** (ceiling / 20):.5f}:level=disabled{limiter_latency()}", f"aresample={RATE}"]
     return ",".join(parts)
 
 

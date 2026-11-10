@@ -350,3 +350,10 @@ def test_a_project_can_name_its_target(tmp_path):
 
 def test_a_number_in_the_project_still_works(tmp_path):
     assert master.project_target(Project.create(tmp_path / "video")) == (-14.0, -1.5)
+
+
+def test_the_limiter_always_gets_a_channel_layout():
+    """ffmpeg 5.1's loudnorm drops the layout, and the limiter refused the link, so every master failed there."""
+    chain = master._chain("loudnorm=I=-14", 0.0, -1.5).split(",")
+    assert chain.index(master.LAYOUTS) < chain.index("aresample=192000") < next(i for i, part in enumerate(chain) if part.startswith("alimiter"))
+    assert "stereo" in master.LAYOUTS and "5.1" in master.LAYOUTS and "mono" in master.LAYOUTS
