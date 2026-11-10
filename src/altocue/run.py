@@ -70,6 +70,9 @@ def stages(project: Project, args: argparse.Namespace) -> dict[str, Callable[[],
 
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
+    from . import brand as brands
+
+    brands.load(project)  # the brand kit comes first: stop before any stage spends time on a look the owner never chose
     table = stages(project, args)
     first, last = ORDER.index(args.start), ORDER.index("render" if args.draft else args.end)
     for name in ORDER[first : last + 1]:

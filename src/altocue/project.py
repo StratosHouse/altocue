@@ -30,7 +30,7 @@ fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
 # platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
 
 [brand]
-name = "default"        # a preset name or a path to a brand.json
+name = ""               # empty until `altocue brand ingest` reads your kit. "default" is the house look, on purpose
 
 [transcribe]
 engine = ""             # empty picks the best one installed

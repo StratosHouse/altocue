@@ -82,6 +82,9 @@ def spell_the_name(project: Project) -> None:
 def start_project(root: Path, sample: Path) -> Project:
     """Registered as what it is, so the claims and disclosure gates hold this film to the rules for a generated person."""
     project = Project.create(root / "altocue-demo")
+    from . import brand as brands
+
+    brands.set_brand(project, "default")  # the demo proves the machine, in the house look on purpose
     spell_the_name(project)
     project = Project.open(project.root)
     prompt = "Altocue's published demo take. The prompt behind it is not recorded here."
