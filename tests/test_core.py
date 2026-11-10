@@ -170,7 +170,7 @@ def test_every_engine_fix_names_a_real_extra():
 
 
 def test_doctor_checks_the_filters_the_required_stages_use():
-    needed = {"highpass", "bandreject", "equalizer", "deesser", "afftdn", "asendcmd", "aresample", "apad", "atrim", "silencedetect", "astats"}
+    needed = {"highpass", "bandreject", "equalizer", "afftdn", "asendcmd", "aresample", "apad", "atrim", "silencedetect", "astats"}
     assert needed <= set(doctor.REQUIRED_FILTERS)
 
 

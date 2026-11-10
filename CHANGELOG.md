@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **No shot opens inside a word.** A cut a few frames into a word loses its first sound, and the transcript cannot see it, because the recogniser's start is late in exactly those words. `altocue cut` now reads the sound before every in point: when 0.03 to 0.30 s of speech runs straight into it, the edge moves back to the quiet before it. More than that is running speech the edit removed on purpose, and stays cut. A new fact gate, `word_starts`, holds hand edits to the same rule, since nothing snaps them. Found on six Reels, where 17 line starts were clipped.
+- **Mouth clicks out, and S sounds that do not cut.** `altocue clean` now turns mouth clicks and lip smacks down by 34 dB under short fades: a burst under 60 ms standing alone in quiet, with quiet before and after it, which a word's onset never is. With a transcript, a burst just after a word or just before one stays, since it may be the word's release or plosive. Nothing is cut and the length never changes. `--no-declick` or `[audio] declick = false` leaves them in. The de-esser is now a split-band compressor that turns only the 3.4 to 14 kHz band down, only while it is louder than usual in that clip, at most 4, 7 or 11 dB for `light`, `normal` and `strong`. ffmpeg's `deesser` did nothing at gentle settings and took 12 dB a step up on a real voice, so it is no longer used. The clean report gives the clicks found, the most taken off the S sounds and the S band's peak before and after.
 
 ## 0.5.1
 

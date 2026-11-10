@@ -36,7 +36,6 @@ REQUIRED_FILTERS = (
     "highpass",
     "bandreject",
     "equalizer",
-    "deesser",
     "afftdn",
     "asendcmd",
     "aresample",
