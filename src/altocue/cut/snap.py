@@ -17,6 +17,11 @@ SHORTEST = 0.3
 OVERLAP = 0.08  # a word is in the shot when this much of it plays
 EPSILON = 1e-6
 FRAME_SLACK = 1e-3  # edges are stored to the microsecond, so frame maths needs this much give
+# A word's first sound before an in point. Under HEAD_MIN is a breath of noise; over HEAD_MAX is running speech
+# the edit cut on purpose (a retake), so only the span between is a clipped word start. Tuned on six Reels.
+HEAD_MIN, HEAD_MAX = 0.03, 0.30
+HEAD_GAP = 2  # envelope frames of dip allowed inside the sound, walking back
+HEAD_LEAD = 0.03  # quiet kept ahead of the restored sound
 
 
 def snap(
@@ -50,6 +55,36 @@ def snap(
     if new_out - new_in < SHORTEST:
         return cin, cout
     return max(0.0, new_in), new_out
+
+
+def clipped_head(envelope: Envelope, at: float) -> float:
+    """Seconds of speech-level sound that run straight into `at` from before it. 0 when the shot opens on quiet.
+
+    A cut a few frames inside a word loses its first sound ("one" heard as "un"), and the transcript cannot see it,
+    because the recogniser's word start is late in exactly those words. The sound itself can.
+    """
+    speech = envelope.speech
+    index = int(round(at / HOP))
+    if index <= 0 or index >= len(speech) or not speech[index : index + 3].any():
+        return 0.0
+    count, missed = 0, 0
+    for frame in range(index - 1, -1, -1):
+        if speech[frame]:
+            count += 1 + missed
+            missed = 0
+        else:
+            missed += 1
+            if missed > HEAD_GAP:
+                break
+    return round(count * HOP, 3)
+
+
+def guard_in(envelope: Envelope, start: float, floor: float = 0.0) -> float:
+    """Move an in point back to the quiet before a word it would clip. Running speech before it is left alone."""
+    head = clipped_head(envelope, start)
+    if HEAD_MIN <= head <= HEAD_MAX:
+        return max(floor, 0.0, round(start - head - HEAD_LEAD, 3))
+    return start
 
 
 def to_grid(start: float, end: float, fps: int, *, floor: float, ceiling: float) -> tuple[float, float]:

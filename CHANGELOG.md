@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **No shot opens inside a word.** A cut a few frames into a word loses its first sound, and the transcript cannot see it, because the recogniser's start is late in exactly those words. `altocue cut` now reads the sound before every in point: when 0.03 to 0.30 s of speech runs straight into it, the edge moves back to the quiet before it. More than that is running speech the edit removed on purpose, and stays cut. A new fact gate, `word_starts`, holds hand edits to the same rule, since nothing snaps them. Found on six Reels, where 17 line starts were clipped.
+
 ## 0.5.1
 
 Your brand kit first, Higgsfield Shorts Studio motion design on real footage with a check that holds a draft to the house look, and fixes found by a fresh install: the demo now runs on ffmpeg 5.1, deliver no longer fails on a subtitle cue a cut squeezed to nothing, and a cover laid on a carried take shows.

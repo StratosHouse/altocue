@@ -515,6 +515,34 @@ def gate_cut_sound(c: Context) -> GateResult:
     return GateResult(id="cut_sound", passed=not quiet, value=len(quiet), threshold=CUT_FLOOR_DB, detail=detail)
 
 
+def gate_word_starts(c: Context) -> GateResult:
+    """No shot opens inside the first sound of a word. Hand edits most of all: nothing snaps them."""
+    if is_film(c) and not c.edl:
+        return not_applicable("word_starts", "A film from a storyboard has no spoken cuts.")
+    if not c.edl:
+        return skipped("word_starts", "No edl.json, so the cuts are unknown.")
+    try:  # the cut reads sound through the transcriber's envelope, which QA must run without
+        from altocue.cut import envelope_of
+        from altocue.cut.snap import HEAD_MAX, HEAD_MIN, clipped_head
+    except ImportError:
+        return skipped("word_starts", "The speech tools are not installed, so the cuts cannot be read against the sound.")
+    clips = {clip.id: clip for clip in c.project.clips()}
+    clipped, read = [], 0
+    for segment, shot in zip(c.edl.segments, c.shots, strict=False):
+        clip = clips.get(segment.clip)
+        envelope = envelope_of(clip) if clip else None
+        if envelope is None or not envelope.reliable or shot.marked(SILENT_LABELS):
+            continue
+        read += 1
+        head = clipped_head(envelope, segment.start)
+        if HEAD_MIN <= head <= HEAD_MAX:
+            clipped.append(f"{stamp(shot.start)} ({segment.id}, {head:.2f} s of the word is cut off)")
+    if not read:
+        return skipped("word_starts", "No source sound to read the cuts against.")
+    detail = f"shots open inside a word at {', '.join(clipped)}" if clipped else f"{read} shot openings, none inside a word"
+    return GateResult(id="word_starts", passed=not clipped, value=len(clipped), threshold=0, detail=detail)
+
+
 def gate_silence(c: Context) -> GateResult:
     if c.audio is None:
         return not_applicable("silence", "The file has no audio stream.")
@@ -1454,6 +1482,7 @@ def plan() -> list[tuple[tuple[str, ...], Callable[[Context], GateResult | list[
         (("frozen_frames",), gate_frozen),
         (("duration",), gate_duration),
         (("cut_sound",), gate_cut_sound),
+        (("word_starts",), gate_word_starts),
         (("silence",), gate_silence),
         (("words", "doubled_phrase", "captions_match"), word_gates),
         (("caption_speed",), gate_caption_speed),
