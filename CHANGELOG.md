@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Shorts Studio motion design on real footage.** `altocue shorts prepare` turns a finished cut into a run folder for Higgsfield Shorts Studio with the real take in the presenter's place, so it designs the captions, graphics and sound without generating a person. Look-away spans become cover beats that a full-screen graphic must hide, and a sound folder named in `[shorts] sfx_dir` becomes the only sounds the run may play. `altocue shorts check` reads what comes back and fails a generated presenter, a sound from outside the pack, an uncovered look-away, an em or en dash on screen, or a render of the wrong length. Nothing in Altocue talks to Higgsfield, and none of its scripts are copied. New skill: `altocue-shorts`.
+
 ## 0.5.0
 
 A moving crop that follows people, motion tracking, music off a voice, a sound effect library of single CC0 sounds, a catalog grown to 1231 entries, and long recordings proven end to end.

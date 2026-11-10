@@ -1,0 +1,132 @@
+"""Shorts Studio runs on a real take: the folder Shorts Studio reads, and the gates on what comes back."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from altocue import shorts
+from altocue.cli import main
+from altocue.errors import AltocueError
+
+needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+
+WORDS = [
+    {"text": "Ask", "start": 0.0, "end": 0.3},
+    {"text": "five", "start": 0.3, "end": 0.6},
+    {"text": "questions", "start": 0.6, "end": 1.1},
+    {"text": "first.", "start": 1.1, "end": 1.5},
+    {"text": "Then", "start": 2.0, "end": 2.3},
+    {"text": "scope", "start": 2.3, "end": 2.7},
+    {"text": "it.", "start": 2.7, "end": 3.0},
+]
+
+
+def take(path: Path, seconds: float = 3.0) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    command = ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc2=s=216x384:r=30:d={seconds}"]
+    command += ["-f", "lavfi", "-i", f"sine=f=220:d={seconds}", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(path)]
+    subprocess.run(command, check=True)
+    return path
+
+
+def tone(path: Path, freq: int) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"sine=f={freq}:d=0.3", str(path)], check=True)
+    return path
+
+
+def test_the_plan_cues_every_sentence_and_every_look_away_word_for_word():
+    dialogue = shorts.dialogue_of(WORDS)
+    plan = shorts.plan_lines(WORDS, dialogue, [{"start": 2.1, "end": 2.9, "reason": "eyes down"}], 3)
+    assert 'Cue: take-01 "Ask five questions first."' in plan
+    assert 'Cue: take-01 "Then scope it."' in plan
+    assert 'Cue: take-01 "scope it."' in plan
+    assert 'data-cover="cover-01"' in plan
+    assert plan.rstrip().endswith("Captions: 3 words")
+    for line in plan.splitlines():
+        if line.startswith("Cue:"):
+            assert line.split('"')[1] in dialogue
+
+
+def test_spans_read_a_gaze_tools_output(tmp_path):
+    path = tmp_path / "gaze.json"
+    path.write_text(json.dumps({"away": [{"start": 4, "end": 5.5, "reason": "looked down"}, {"start": 1, "end": 1}]}))
+    assert shorts.load_spans(path) == [{"start": 4.0, "end": 5.5, "reason": "looked down"}]
+
+
+@needs_ffmpeg
+def test_prepare_writes_a_run_with_a_real_take_and_only_the_pack(tmp_path):
+    pack = tmp_path / "pack"
+    tone(pack / "whoosh" / "air.wav", 600)
+    (tmp_path / "script.txt").write_text("Ask five questions first.\nThen scope it.\n")
+    video = take(tmp_path / "raw.mp4")
+    out = tmp_path / "run"
+    assert main(["shorts", "prepare", "--take", str(video), "--script", str(tmp_path / "script.txt"), "--out", str(out), "--sfx-dir", str(pack)]) == 0
+    reel = json.loads((out / "reel.json").read_text())
+    assert reel["takes"][0]["job_id"] is None
+    assert reel["takes"][0]["dialogue"] == "Ask five questions first. Then scope it."
+    assert reel["media"][0]["role"] == "host-source"
+    assert (out / "media" / "sfx" / "whoosh" / "air.wav").exists()
+    assert json.loads((out / "altocue-shorts.json").read_text())["sfx_only"] is True
+    assert chr(0x2014) not in (out / "HOUSE.md").read_text()
+    assert (tmp_path / "run.zip").exists()
+    with pytest.raises(AltocueError):
+        shorts.prepare(shorts_args(video, tmp_path / "script.txt", out))
+
+
+def shorts_args(video: Path, script: Path, out: Path):
+    from altocue.cli import Parser
+
+    parser = Parser()
+    shorts.add_arguments("shorts", parser)
+    return parser.parse_args(["prepare", "--take", str(video), "--script", str(script), "--out", str(out)])
+
+
+def finished_run(tmp_path: Path, *, sound: Path, cover_start: float, page_text: str = "Ask first.") -> Path:
+    run = tmp_path / "done"
+    (run / "composition" / "media").mkdir(parents=True)
+    shutil.copy(sound, run / "composition" / "media" / sound.name)
+    pack_sound = tone(tmp_path / "pack" / "air.wav", 600)
+    record = {"covers": [{"start": 2.1, "end": 2.9}], "sfx_only": True, "sounds": [{"file": "media/sfx/air.wav", "name": "air", "sha256": shorts.sha256(pack_sound)}]}
+    (run / "altocue-shorts.json").write_text(json.dumps(record))
+    (run / "reel.json").write_text(json.dumps({"takes": [{"id": "take-01", "job_id": None}]}))
+    timeline = {"fps": 30, "master_duration": 3.0, "takes": [{"id": "take-01", "source_from": 0.1, "timeline_start": 0.0}]}
+    (run / "timeline.json").write_text(json.dumps(timeline))
+    page = f"""<div id="root"><audio id="voice" src="media/voice-master.wav" data-start="0"></audio>
+<audio id="sfx-1" src="media/{sound.name}" data-start="1"></audio>
+<div class="card" data-cover="cover-01" data-start="{cover_start}" data-duration="1.0"><p>{page_text}</p></div></div>"""
+    (run / "composition" / "index.html").write_text(page)
+    take(run / "renders" / "final.mp4")
+    return run
+
+
+@needs_ffmpeg
+def test_a_clean_run_passes(tmp_path):
+    run = finished_run(tmp_path, sound=tone(tmp_path / "pack" / "air.wav", 600), cover_start=1.95)
+    assert shorts.check(run, None) == []
+
+
+@needs_ffmpeg
+def test_a_foreign_sound_an_open_look_away_and_a_dash_all_fail(tmp_path):
+    tone(tmp_path / "pack" / "air.wav", 600)
+    run = finished_run(tmp_path, sound=tone(tmp_path / "library" / "swish.wav", 900), cover_start=2.5, page_text=f"Ask {chr(0x2014)} first")
+    problems = shorts.check(run, None)
+    assert any("not from the run's sound pack" in p for p in problems)
+    assert any("cover-01" in p for p in problems)
+    assert any("em dash" in p for p in problems)
+
+
+@needs_ffmpeg
+def test_a_generated_presenter_fails(tmp_path):
+    run = finished_run(tmp_path, sound=tone(tmp_path / "pack" / "air.wav", 600), cover_start=1.95)
+    (run / "reel.json").write_text(json.dumps({"takes": [{"id": "take-01", "job_id": "abc"}]}))
+    assert any("real take" in p for p in shorts.check(run, None))
+
+
+def test_a_missing_render_is_not_a_pass(tmp_path):
+    assert "skipped check is not a pass" in shorts.check_length(tmp_path / "none.mp4", {"master_duration": 3})[0]
