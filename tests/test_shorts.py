@@ -369,3 +369,22 @@ def test_fix_words_times_a_missed_first_word_and_closes_a_false_pause(tmp_path):
     assert fixed["words"][0]["start"] == pytest.approx(0.12, abs=0.03) and fixed["words"][0]["end"] <= fixed["words"][1]["start"] + 1e-6
     assert fixed["words"][1]["end"] == pytest.approx(1.58)
     assert not measured.exists()
+
+
+def test_frames_writes_timestamped_contact_sheets(tmp_path):
+    from PIL import Image
+
+    run = tmp_path / "run"
+    take(run / "renders" / "final.mp4", 4.0)
+    assert main(["shorts", "frames", str(run), "--every", "0.5"]) == 0
+    sheets = sorted((run / "review").glob("sheet-*.jpg"))
+    assert [s.name for s in sheets] == ["sheet-1.jpg"]
+    with Image.open(sheets[0]) as sheet:
+        assert sheet.width == 8 * 360  # 8 frames to a row
+    assert shorts_frames_stamp(61.36) == "1:01.36"
+
+
+def shorts_frames_stamp(seconds: float) -> str:
+    from altocue.sheets import stamp
+
+    return stamp(seconds)
