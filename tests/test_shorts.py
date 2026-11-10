@@ -158,3 +158,43 @@ def test_a_missing_render_is_not_a_pass(tmp_path):
 def test_a_preview_keeps_only_the_covers_inside_it():
     spans = [{"start": 5.0, "end": 6.0, "reason": "a"}, {"start": 19.5, "end": 21.0, "reason": "b"}, {"start": 31.6, "end": 32.0, "reason": "c"}]
     assert shorts.inside_take(spans, 19.8) == [{"start": 5.0, "end": 6.0, "reason": "a"}, {"start": 19.5, "end": 19.8, "reason": "b"}]
+
+
+SPOKEN = {"fps": 30, "master_duration": 6.0, "caption_words": [{"start": 0.0, "end": 1.0}, {"start": 1.1, "end": 2.0}, {"start": 4.0, "end": 6.0}]}
+
+
+def scene(layout: str, start: float, seconds: float) -> str:
+    return f'<section class="scene" data-layout="{layout}" data-start="{start}" data-duration="{seconds}"></section>'
+
+
+def test_the_face_never_shows_without_speech():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    assert any("2.00 to 4.00 s with nothing said" in p for p in shorts.check_face(scene("base", 0, 6), SPOKEN, house))
+    assert shorts.check_face(scene("base", 0, 2) + scene("hidden", 2, 2) + scene("base", 4, 2), SPOKEN, house) == []
+
+
+def test_a_flash_of_the_face_between_graphics_fails():
+    page = scene("hidden", 0, 2.0) + scene("base", 2.0, 0.3) + scene("hidden", 2.3, 3.7)
+    problems = shorts.check_face(page, SPOKEN, dict(shorts.HOUSE_DEFAULTS))
+    assert any("only 0.30 s" in p for p in problems)
+    assert any("flash cut" in p for p in problems)
+
+
+def test_heavy_or_jumping_grain_fails():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    assert shorts.check_grain("<style>.grain{opacity:.03}</style>", house) == []
+    assert any("opacity 0.07" in p for p in shorts.check_grain("<style>.grain{background:url(g.png);opacity:.07}</style>", house))
+    jumping = "const gr = $(host, '.grain'); if (gr) { const f = k.frameAt(t); gr.style.transform = `translate(${f}px)`; }"
+    assert any("every frame" in p for p in shorts.check_grain(jumping, house))
+
+
+def test_the_house_end_card_layouts_and_faces_hold():
+    house = {**shorts.HOUSE_DEFAULTS, "outro": "house-card", "layouts": {"cutout": [0.4, 1.0]}, "fonts": ["Geist"]}
+    page = "<style>.t{font-family:'Inter',sans-serif}</style>" + scene("base", 0, 6)
+    scenes = shorts.scenes_in(page)
+    problems = shorts.check_house(page, {"outro": {"id": "cta"}}, scenes, 6.0, house)
+    assert any("house-card" in p for p in problems)
+    assert any("cutout layout fills 0%" in p for p in problems)
+    assert any("inter" in p for p in problems)
+    good = "<style>.t{font-family:'Geist',sans-serif}</style>" + scene("cutout", 0, 6)
+    assert shorts.check_house(good, {"outro": {"id": "house-card"}}, shorts.scenes_in(good), 6.0, house) == []

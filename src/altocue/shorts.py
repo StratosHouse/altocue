@@ -43,6 +43,12 @@ AUDIO_TAG = re.compile(r"<audio\b[^>]*>", re.IGNORECASE)
 COVER_TAG = re.compile(r"<[a-z][^>]*\bdata-cover\b[^>]*>", re.IGNORECASE)
 HIDDEN_TAG = re.compile(r"<[a-z][^>]*\bdata-layout\s*=\s*\"hidden\"[^>]*>", re.IGNORECASE)  # a scene that hides the take: a cover by layout
 VIDEO_TAG = re.compile(r"<video\b", re.IGNORECASE)
+SCENE_TAG = re.compile(r"<[a-z][^>]*\bdata-layout\s*=\s*\"[a-z]+\"[^>]*>", re.IGNORECASE)
+GRAIN_RULE = re.compile(r"([^{}]*grain[^{}]*)\{([^}]*)\}", re.IGNORECASE)
+GRAIN_PER_FRAME = re.compile(r"grain[^;\n]*;[^\n]*frameAt|frameAt[^\n]*grain", re.IGNORECASE)
+HOUSE_FILE = "house.json"  # in a kit: the house look a run must keep, read by the check
+# What a first draft is held to, unless house.json says otherwise.
+HOUSE_DEFAULTS = {"silent_face": 0.6, "min_face": 0.8, "min_scene": 0.5, "grain_opacity": 0.04}
 ATTR = re.compile(r'([a-z-]+)\s*=\s*"([^"]*)"', re.IGNORECASE)
 CUE_WORDS = 4
 FRAME_SLACK = 1.0  # frames a cover may start late or end early and still count
@@ -185,7 +191,7 @@ def copy_kit(kit: Path, run: Path) -> list[str]:
         raise AltocueError(f"No kit folder at {kit}.", fix="Set [shorts] kit to a folder of build helpers, or pass --kit.")
     copied = []
     for path in sorted(p for p in kit.iterdir() if p.is_file() and not p.name.startswith(".")):
-        target = run / path.name if path.suffix == ".py" else run / "media" / path.name
+        target = run / path.name if path.suffix == ".py" or path.name == HOUSE_FILE else run / "media" / path.name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
         copied.append(target.relative_to(run).as_posix())
@@ -202,10 +208,18 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def house_notes(sounds: list[dict[str, Any]] | None, sfx_only: bool, spans: list[dict[str, float]], kit: list[str] | None = None) -> str:
+def house_notes(
+    sounds: list[dict[str, Any]] | None, sfx_only: bool, spans: list[dict[str, float]], kit: list[str] | None = None, house: dict[str, Any] | None = None
+) -> str:
+    rules = {**HOUSE_DEFAULTS, **(house or {})}
     notes = [
         "# House rules for this run",
         "",
+        "- Shorts Studio upgrades the house look. It does not replace it: keep the house layout, text style, framing and end card.",
+        *[f"  {line}" for line in (house or {}).get("look", [])],
+        f"- Show the face only while it speaks. No pause over {rules['silent_face']:.1f} s on the face, and no flash of the face",
+        f"  under {rules['min_face']:.1f} s between two graphics. No scene under {rules['min_scene']:.1f} s.",
+        f"- Grain stays at opacity {rules['grain_opacity']:.2f} or less, and never jumps to a new place every frame.",
         "- The take is real footage, supplied. Generate no presenter take, no recast and no lip sync. reel.json keeps `job_id` null on every take.",
         "- Keep the speaker's own words. Trim nothing the measure step does not trim.",
         "- On-screen text uses commas, colons or full stops. Never an em dash or an en dash.",
@@ -302,7 +316,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     write_json(run / "reel.json", reel)
     (run / "script.md").write_text(dialogue + "\n")
     (run / "edit-plan.md").write_text(plan_lines(words, dialogue, spans, caption_words) if words else plan_lines([], dialogue, [], caption_words))
-    (run / "HOUSE.md").write_text(house_notes(sounds, sfx_only, spans, kit))
+    (run / "HOUSE.md").write_text(house_notes(sounds, sfx_only, spans, kit, json.loads((run / HOUSE_FILE).read_text()) if (run / HOUSE_FILE).exists() else None))
     write_json(
         run / "altocue-shorts.json",
         {
@@ -393,6 +407,96 @@ def check_video_tags(html: str) -> list[str]:
     return []
 
 
+def scenes_in(html: str) -> list[tuple[str, float, float]]:
+    found = []
+    for tag in SCENE_TAG.findall(html):
+        values = attrs(tag)
+        try:
+            start = float(values["data-start"])
+            found.append((values["data-layout"].lower(), start, start + float(values["data-duration"])))
+        except (KeyError, ValueError):
+            continue
+    return sorted(found, key=lambda scene: scene[1])
+
+
+def face_spans(scenes: list[tuple[str, float, float]], length: float) -> list[tuple[float, float]]:
+    """Where the take shows: the whole reel, less every hidden scene. Base, window and cutout scenes all show the face."""
+    hidden = sorted((a, b) for layout, a, b in scenes if layout == "hidden")
+    spans, at = [], 0.0
+    for a, b in hidden:
+        if a > at:
+            spans.append((at, min(a, length)))
+        at = max(at, b)
+    if at < length:
+        spans.append((at, length))
+    return [(a, b) for a, b in spans if b - a > 1e-3]
+
+
+def check_face(html: str, timeline: dict[str, Any], house: dict[str, Any]) -> list[str]:
+    """The face shows only while it speaks, and never as a flash between two graphics."""
+    length = float(timeline.get("master_duration", 0.0))
+    words = [(float(w["start"]), float(w["end"])) for w in timeline.get("caption_words") or timeline.get("words") or [] if "start" in w and "end" in w]
+    if not length or not words:
+        return []
+    scenes = scenes_in(html)
+    problems = []
+    for a, b in face_spans(scenes, length):
+        between = a > 0 and b < length
+        if between and b - a < house["min_face"]:
+            problems.append(f"The face shows for only {b - a:.2f} s at {a:.2f} s, between two graphics. Hold the graphic, or show the face for a whole phrase.")
+        at = a
+        for start, end in sorted(words):
+            if end <= a or start >= b:
+                continue
+            if start - at > house["silent_face"]:
+                problems.append(f"The face shows from {at:.2f} to {start:.2f} s with nothing said. Cover the pause with the graphic, or tighten it in the cut.")
+            at = max(at, end)
+        if b - at > house["silent_face"]:
+            problems.append(f"The face shows from {at:.2f} to {b:.2f} s with nothing said. Cover the pause with the graphic, or tighten it in the cut.")
+    for layout, a, b in scenes:
+        if b - a < house["min_scene"]:
+            problems.append(f"A {layout} scene at {a:.2f} s lasts {b - a:.2f} s, a flash cut. Merge it into the scene beside it.")
+    return problems
+
+
+def check_grain(html: str, house: dict[str, Any]) -> list[str]:
+    problems = []
+    for selector, body in GRAIN_RULE.findall(html):
+        found = re.search(r"opacity\s*:\s*([\d.]+)", body)
+        if found and float(found.group(1)) > house["grain_opacity"]:
+            problems.append(
+                f"Grain on {selector.strip()[-40:]} runs at opacity {float(found.group(1)):.2f}, over the house's {house['grain_opacity']:.2f}. Turn it down."
+            )
+    if GRAIN_PER_FRAME.search(html):
+        problems.append("The grain moves to a new place every frame, which stutters on a phone. Hold it still or drift it slowly.")
+    return problems
+
+
+def check_house(html: str, reel: dict[str, Any], scenes: list[tuple[str, float, float]], length: float, house: dict[str, Any]) -> list[str]:
+    """Shorts Studio upgrades the house look. It does not replace it: same end card, same layouts, same faces."""
+    problems = []
+    outro = house.get("outro")
+    if outro and (reel.get("outro") or {}).get("id") != outro:
+        problems.append(f"The end card is not the house's {outro!r}. Set reel.json outro to it.")
+    if length:
+        hidden = sum(b - a for a, b in [(a, b) for layout, a, b in scenes if layout == "hidden"])
+        share = {"hidden": hidden / length}
+        for layout in {layout for layout, _, _ in scenes} | set(house.get("layouts", {})):
+            if layout != "hidden":
+                share[layout] = sum(b - a for name, a, b in scenes if name == layout) / length
+        for layout, bounds in (house.get("layouts") or {}).items():
+            low, high = (float(bounds[0]), float(bounds[1])) if isinstance(bounds, list) else (float(bounds), 1.0)
+            if not low <= share.get(layout, 0.0) <= high:
+                problems.append(f"The {layout} layout fills {share.get(layout, 0.0):.0%} of the reel; the house keeps it between {low:.0%} and {high:.0%}.")
+    allowed = {name.lower() for name in house.get("fonts", [])}
+    if allowed:
+        used = {name.strip().strip("'\"").lower() for found in re.findall(r"font-family\s*:\s*([^;}\n]+)", html) for name in found.split(",")}
+        foreign = sorted(name for name in used - allowed if name and name not in ("sans-serif", "serif", "monospace", "inherit", "system-ui"))
+        if foreign:
+            problems.append(f"Faces outside the house set: {', '.join(foreign)}.")
+    return problems
+
+
 def check_dashes(run: Path) -> list[str]:
     problems = []
     for path in sorted(p for p in (run / "composition").rglob("*") if p.is_file() and p.suffix in TEXT_FILES and p.name not in KIT_FILES):
@@ -429,7 +533,10 @@ def check(run: Path, render: Path | None) -> list[str]:
     if not page.exists():
         raise AltocueError(f"No composition at {page}.", fix="Run Shorts Studio's scaffold and build the composition first.")
     html = page.read_text(errors="replace")
+    house = {**HOUSE_DEFAULTS, **(json.loads((run / HOUSE_FILE).read_text()) if (run / HOUSE_FILE).exists() else {})}
+    scenes, length = scenes_in(html), float(timeline.get("master_duration", 0.0))
     problems = check_presenter(reel) + check_sounds(run, html, record) + check_covers(html, timeline, record) + check_video_tags(html) + check_dashes(run)
+    problems += check_face(html, timeline, house) + check_grain(html, house) + check_house(html, reel, scenes, length, house)
     return problems + check_length(render or run / "renders" / "final.mp4", timeline)
 
 
