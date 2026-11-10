@@ -20,6 +20,7 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
 - **One take per recorded line.** From a project, each stretch between the cut's own joins is its own take, cut on those joins. Nothing re-trims the take inside a line: a second trim doubles the jump cuts and makes the delivery robotic. A line under 0.6 s, such as one word, joins the next one. Keep the takes in order.
 - **The take is an image tag.** Show it with `<img data-video>`. A `<video>` tag fails the render, and the check fails it too.
 - **House style on screen.** No em dashes or en dashes in any text, caption or card.
+- **Generated objects look like one set.** When a Reel needs a made object (an icon-like 3D object, never a person), every prompt in the house opens with the same sentence describing material, light, angle, margin and a transparent background, then names one object, and ends with no text, letters, numbers, logos or people. Keep the sentence in the kit's README. Reserve each image in the Reel's project first (`altocue generate --reserve`), and register it after with `altocue generate --import` and its shot, prompt and model, so the spend and the source are on record.
 - **A preset is a style reference, not a script.** `/shorts/<slug>` brings a published look. Keep the speaker's own words.
 
 ## Steps
