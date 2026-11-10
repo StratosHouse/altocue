@@ -30,7 +30,7 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
    ```
    It writes `shorts/<slug>/` with `reel.json` (one supplied take, no job id), `script.md`, an `edit-plan.md` with a beat and cue per sentence and per cover, `HOUSE.md` with these rules, the pack in `media/sfx/`, the kit if one is set, and a zip of the folder.
 3. Upload the zip once the owner has agreed: its media upload tool, PUT the bytes, confirm the upload, then download it into the sandbox and unzip it under `/home/user/shorts-studio/`.
-4. Load `/shorts` (or `/shorts/<slug>` for a preset) with `get_preset_instructions` and follow its steps from measure onward on the supplied take: style reference, motion plan, measure, scaffold, composition, snapshots, render and its own check. Skip casting, take generation and voice. Place sounds from `media/sfx/` as audio tags. Read `HOUSE.md` first.
+4. Load `/shorts` (or `/shorts/<slug>` for a preset) with `get_preset_instructions` and follow its steps from measure onward on the supplied take: style reference, motion plan, measure, scaffold, composition, snapshots, render and its own check. Skip casting, take generation and voice. Place sounds from `media/sfx/` as audio tags. Read `HOUSE.md` first. Right after measure, run `altocue shorts fix-words <run>`: a word the recognizer missed at the start of a take is otherwise trimmed off. If it changed anything, measure again.
 5. Pack the project with Shorts Studio's pack step, then add the run's `timeline.json` to the archive, since the check maps covers through it: `zip renders/composition.zip timeline.json reel.json`. Bring back `renders/final.mp4` and `renders/composition.zip`, and unzip the archive into the run folder.
 6. Check it:
    ```bash

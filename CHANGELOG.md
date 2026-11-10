@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Word times checked by the sound.** `altocue shorts check` used to call any gap between word times a silent face, but the recognizer sometimes ends a word early, so a gap can be on paper only. With the reel's voice in the composition, each gap is now heard, and one with no quiet stretch of 0.25 s is speech. New `altocue shorts fix-words <run>`, run after Shorts Studio's measure: a word the recognizer did not hear gets a time from the sound (from where the sound starts, to where it stops, or across the gap between its neighbours), so the measure no longer trims a missed first word off the take, and a long gap with no quiet in the sound is closed. It rewrites the take's transcript and deletes its measured file, so the next measure trims it again. `--dry` says what it would change.
+
 ## 0.5.1
 
 Your brand kit first, Higgsfield Shorts Studio motion design on real footage with a check that holds a draft to the house look, and fixes found by a fresh install: the demo now runs on ffmpeg 5.1, deliver no longer fails on a subtitle cue a cut squeezed to nothing, and a cover laid on a carried take shows.
