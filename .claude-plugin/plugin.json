@@ -1,7 +1,7 @@
 {
   "name": "altocue",
   "displayName": "Altocue",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "The AI edit suite for coding agents: footage, a long recording or a brief in, a finished and checked video out. Cuts, cleans, grades, captions, animates and delivers on your own machine, then a separate Editor in Chief signs off.",
   "author": { "name": "Stratos House", "url": "https://www.stratosagency.ai" },
   "homepage": "https://www.stratosagency.ai/altocue",

@@ -47,7 +47,7 @@ When the user supplies presenter footage and wants product demonstrations above 
    altocue new my-video --input a.mov b.mov --aspect 9:16 --brief "A 45 second reel for first-time founders" --brand ~/their-brand-kit
    cd my-video
    ```
-   No asset is made until the kit is read: otherwise run `altocue brand ingest <kit>`, and fill what it kept from the house look in `brand/brand.json`. Use `--house` only when the person says they have no brand.
+   No asset before the kit: else `altocue brand ingest <kit>`, then fill gaps in `brand/brand.json`. `--house` only if they have no brand.
 3. **Read every word.** `altocue transcribe`, then see the `altocue-cut` skill. `altocue cut` proposes the edit. Rule on everything in `work/cut-review.md`. Show the user the cut before going further if dialogue is being removed.
 4. **Fix the raw material.** `altocue clean` for sound (see `altocue-clean`), `altocue grade` for colour (`altocue-grade`), `altocue frame` for aspect and punch-ins (`altocue-frame`).
 5. **Cover it.** If a stretch needs a cutaway, follow `altocue-broll`. If nothing real fits, `altocue-direct` and `altocue-generate` make the shot. Many talking heads need neither.
