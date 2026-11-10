@@ -326,3 +326,46 @@ def test_a_graphic_never_snaps_onto_a_join_inside_another_look_away():
     record = {"covers": [{"start": 3.6, "end": 4.3}], "takes": takes}
     timeline = {**JOINED, "takes": [{**t, "source_from": 0.0} for t in JOINED["takes"]]}
     assert shorts.check_joins(scene("hidden", 4.4, 1.6), timeline, record, house) == []
+
+
+def sound(path: Path, parts: list[tuple[float, float]], seconds: float) -> Path:
+    """A voice stand-in: a tone during each (start, end) part and quiet elsewhere."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    loud = "+".join(f"between(t,{a},{b})" for a, b in parts)
+    expr = f"0.3*sin(2*PI*220*t)*({loud})"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"aevalsrc='{expr}':s=16000:d={seconds}", str(path)], check=True)
+    return path
+
+
+@needs_ffmpeg
+def test_a_pause_on_paper_with_the_voice_running_through_is_not_a_silent_face(tmp_path):
+    house = dict(shorts.HOUSE_DEFAULTS)
+    talking = sound(tmp_path / "talking.wav", [(0.0, 6.0)], 6.0)
+    assert shorts.check_face(scene("base", 0, 6), SPOKEN, house, talking) == []
+    paused = sound(tmp_path / "paused.wav", [(0.0, 2.0), (4.0, 6.0)], 6.0)
+    assert any("2.00 to 4.00 s with nothing said" in p for p in shorts.check_face(scene("base", 0, 6), SPOKEN, house, paused))
+
+
+@needs_ffmpeg
+def test_fix_words_times_a_missed_first_word_and_closes_a_false_pause(tmp_path):
+    run = tmp_path / "run"
+    sound(run / "media" / "takes" / "take-01.wav", [(0.12, 1.0), (1.0, 2.6)], 3.0)
+    words = [
+        {"word": "One,", "start": 0.5, "end": 0.5, "interpolated": True},
+        {"word": "clips,", "start": 0.5, "end": 0.9},
+        {"word": "songs", "start": 1.6, "end": 2.0},
+        {"word": "first.", "start": 2.0, "end": 2.5},
+    ]
+    measured = run / "takes" / "take-01.json"
+    measured.parent.mkdir(parents=True)
+    measured.write_text(json.dumps({"caption_words": words, "source_from": 0.0, "source": "media/takes/take-01.wav"}))
+    (run / "transcripts").mkdir()
+    (run / "transcripts" / "take-01.json").write_text(json.dumps({"provider": "whisper", "words": []}))
+    assert shorts.fix_words(run, dry=True) and measured.exists()
+    lines = shorts.fix_words(run)
+    assert "'One,' at the start" in lines[0] and "after 'clips,' closed" in lines[0]
+    fixed = json.loads((run / "transcripts" / "take-01.json").read_text())
+    assert fixed["provider"] == "whisper+sound-fix"
+    assert fixed["words"][0]["start"] == pytest.approx(0.12, abs=0.03) and fixed["words"][0]["end"] <= fixed["words"][1]["start"] + 1e-6
+    assert fixed["words"][1]["end"] == pytest.approx(1.58)
+    assert not measured.exists()

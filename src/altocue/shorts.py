@@ -30,6 +30,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from .errors import AltocueError
 from .project import Project, write_json
 
@@ -64,6 +66,12 @@ HOUSE_DEFAULTS = {
 SECTION = re.compile(r"(<section\b[^>]*\bdata-layout\s*=\s*\"[a-z]+\"[^>]*>)(.*?)</section>", re.IGNORECASE | re.DOTALL)
 ATTR = re.compile(r'([a-z-]+)\s*=\s*"([^"]*)"', re.IGNORECASE)
 CUE_WORDS = 4
+LISTEN_RATE = 16000
+LISTEN_HOP = 320  # 20 ms
+SPEECH_UNDER_PEAK_DB = 26.0  # sound within this of the voice's loudest 20 ms is speech
+REAL_PAUSE = 0.25  # a gap between word times with less quiet than this in the sound is not a pause
+MISSED_WORD = 0.03  # a caption word shorter than this was not heard: the recognizer gave it no time
+FALSE_PAUSE = 0.45  # fix-words listens to any gap between word times longer than this
 FRAME_SLACK = 1.0  # frames a cover may start late or end early and still count
 
 
@@ -84,6 +92,9 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     prepare.add_argument("--aspect", help="Frame, such as 9:16. Defaults to the project's")
     prepare.add_argument("--until", type=float, default=0.0, help="With --project: only the cut's first seconds, ending on a whole word. For a preview")
     prepare.add_argument("--force", action="store_true", help="Write over a run folder that already exists")
+    fix = sub.add_parser("fix-words", help="After Shorts Studio's measure: give missed words a time and close pauses the sound does not have")
+    fix.add_argument("run_dir", help="The run folder, after measure, with takes/ and transcripts/")
+    fix.add_argument("--dry", action="store_true", help="Say what would change and change nothing")
     check = sub.add_parser("check", help="Check a Shorts Studio run: presenter, sounds, look-away covers, dashes, length")
     check.add_argument("run_dir", help="The run folder, or the unzipped composition.zip, with reel.json and timeline.json")
     check.add_argument("--render", help="The final render. Defaults to renders/final.mp4 in the run folder")
@@ -542,13 +553,55 @@ def face_spans(scenes: list[tuple[str, float, float]], length: float) -> list[tu
     return [(a, b) for a, b in spans if b - a > 1e-3]
 
 
-def check_face(html: str, timeline: dict[str, Any], house: dict[str, Any]) -> list[str]:
-    """The face shows only while it speaks, and never as a flash between two graphics."""
+def listen(path: Path, start: float = 0.0, seconds: float | None = None) -> np.ndarray:
+    """The level of a file's sound in 20 ms steps, as RMS."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or not path.exists():
+        return np.zeros(0)
+    window = ["-ss", f"{start:.4f}", *(["-t", f"{seconds:.4f}"] if seconds else [])]
+    command = [ffmpeg, "-v", "error", *window, "-i", str(path), "-vn", "-ac", "1", "-ar", str(LISTEN_RATE), "-f", "f32le", "-"]
+    samples = np.frombuffer(subprocess.run(command, capture_output=True, check=False).stdout, dtype=np.float32)
+    count = len(samples) // LISTEN_HOP
+    return np.sqrt((samples[: count * LISTEN_HOP].reshape(count, LISTEN_HOP).astype(np.float64) ** 2).mean(axis=1) + 1e-12)
+
+
+def longest_quiet(loud: np.ndarray) -> float:
+    """The longest run of quiet steps, in seconds."""
+    best = run = 0
+    for step in loud:
+        run = 0 if step else run + 1
+        best = max(best, run)
+    return best * LISTEN_HOP / LISTEN_RATE
+
+
+def voice_track(run: Path, html: str) -> Path | None:
+    """The reel's voice on the master clock: the composition's `<audio id="voice">`."""
+    for tag in AUDIO_TAG.findall(html):
+        found = attrs(tag)
+        if found.get("id") == "voice" and found.get("src"):
+            path = (run / "composition" / found["src"]).resolve()
+            return path if path.exists() else None
+    return None
+
+
+def check_face(html: str, timeline: dict[str, Any], house: dict[str, Any], voice: Path | None = None) -> list[str]:
+    """The face shows only while it speaks, and never as a flash between two graphics.
+
+    Word times find the pauses. With the reel's voice, each one is heard as well: the recognizer sometimes
+    ends a word early, so a gap on paper with no quiet stretch of REAL_PAUSE in the sound is speech, not a pause.
+    """
     length = float(timeline.get("master_duration", 0.0))
     words = [(float(w["start"]), float(w["end"])) for w in timeline.get("caption_words") or timeline.get("words") or [] if "start" in w and "end" in w]
     if not length or not words:
         return []
     scenes = scenes_in(html)
+    level = listen(voice) if voice else np.zeros(0)
+    loud = level > level.max() * 10 ** (-SPEECH_UNDER_PEAK_DB / 20) if len(level) else level
+    step = LISTEN_HOP / LISTEN_RATE
+
+    def silent(a: float, b: float) -> bool:
+        return not len(loud) or longest_quiet(loud[int(a / step) : max(int(a / step) + 1, int(b / step))]) >= REAL_PAUSE
+
     problems = []
     for a, b in face_spans(scenes, length):
         between = a > 0 and b < length
@@ -558,10 +611,10 @@ def check_face(html: str, timeline: dict[str, Any], house: dict[str, Any]) -> li
         for start, end in sorted(words):
             if end <= a or start >= b:
                 continue
-            if start - at > house["silent_face"]:
+            if start - at > house["silent_face"] and silent(at, start):
                 problems.append(f"The face shows from {at:.2f} to {start:.2f} s with nothing said. Cover the pause with the graphic, or tighten it in the cut.")
             at = max(at, end)
-        if b - at > house["silent_face"]:
+        if b - at > house["silent_face"] and silent(at, b):
             problems.append(f"The face shows from {at:.2f} to {b:.2f} s with nothing said. Cover the pause with the graphic, or tighten it in the cut.")
     for layout, a, b in scenes:
         if b - a < house["min_scene"]:
@@ -716,6 +769,104 @@ def check_joins(html: str, timeline: dict[str, Any], record: dict[str, Any], hou
     return problems
 
 
+def _span_times(words: list[dict[str, Any]], missed: set[int], times: dict[int, tuple[float, float]], on: float, off: float, length: float) -> list[str]:
+    """Give every run of missed words a time from the sound and its heard neighbours. Changes `times` in place."""
+    notes, index = [], 0
+    while index < len(words):
+        if index not in missed:
+            index += 1
+            continue
+        after = index
+        while after < len(words) and after in missed:
+            after += 1
+        run = list(range(index, after))
+        said = " ".join(str(words[k].get("word", "")).strip() for k in run)
+        if index == 0:  # before the first heard word: from where the sound starts
+            b = times[after][0]
+            a = max(0.0, min(on, b - 0.12 * len(run)))
+            if b - a < 0.08:  # the first heard word already starts at the top: share its time
+                s0, e0 = times[after]
+                a, b = s0, s0 + (e0 - s0) * 0.45
+                times[after] = (b, e0)
+            notes.append(f"{said!r} at the start now from {a:.2f} s (the sound starts at {on:.2f} s)")
+        elif after == len(words):  # after the last heard word: to where the sound stops
+            a = times[index - 1][1]
+            b = min(length, max(off, a + 0.12 * len(run)))
+            if b - a < 0.08:
+                s0, e0 = times[index - 1]
+                a, b = s0 + (e0 - s0) * 0.55, e0
+                times[index - 1] = (s0, a)
+            notes.append(f"{said!r} at the end now to {b:.2f} s (the sound stops at {off:.2f} s)")
+        else:  # between two heard words: spread across the gap
+            a, b = times[index - 1][1], times[after][0]
+            if b - a < 0.06 * len(run):  # no room: borrow from the word before
+                a = max(times[index - 1][0] + 0.05, b - 0.08 * len(run))
+                times[index - 1] = (times[index - 1][0], a)
+            notes.append(f"{said!r} in the line given a time")
+        part = (b - a) / len(run)
+        for n, k in enumerate(run):
+            times[k] = (round(a + n * part, 3), round(a + (n + 1) * part, 3))
+        index = after
+    return notes
+
+
+def fix_words(run: Path, dry: bool = False) -> list[str]:
+    """Correct the measured word times of each take by its sound. Returns one line per take it changed.
+
+    A word the recognizer did not hear has no length, and when it opens a take, Shorts Studio's measure trims the
+    take from the first word it did hear, cutting the missed one off. Such a word gets a time from the sound: from
+    where the sound starts, to where it stops, or across the gap between its heard neighbours. A gap between two
+    words over the house's silent-face limit with no quiet stretch of REAL_PAUSE in the sound is closed. A changed
+    take's transcript is rewritten and its measured file deleted, so the next measure trims it again.
+    """
+    lines = []
+    for measured in sorted((run / "takes").glob("take-*.json")):
+        record = json.loads(measured.read_text())
+        words, base = record.get("caption_words") or [], float(record.get("source_from") or 0.0)
+        missed = {i for i, w in enumerate(words) if w.get("interpolated") and float(w["end"]) - float(w["start"]) < MISSED_WORD}
+        if not words or len(missed) == len(words):
+            continue
+        source = Path(str(record.get("source", "")))
+        source = source if source.is_absolute() else run / source
+        level = listen(source)
+        if not len(level):
+            lines.append(f"{measured.stem}: no sound at {source}, left as it was")
+            continue
+        loud = level > level.max() * 10 ** (-SPEECH_UNDER_PEAK_DB / 20)
+        step = LISTEN_HOP / LISTEN_RATE
+        steady = [i for i in range(len(loud) - 1) if loud[i] and loud[i + 1]]
+        on, off = (steady[0] * step, (steady[-1] + 2) * step) if steady else (0.0, len(level) * step)
+        times = {i: (float(w["start"]) + base, float(w["end"]) + base) for i, w in enumerate(words) if i not in missed}
+        notes = _span_times(words, missed, times, on, off, len(level) * step)
+        for k in range(len(words) - 1):
+            (s0, e0), (s1, _) = times[k], times[k + 1]
+            if s1 - e0 <= FALSE_PAUSE:
+                continue
+            quiet = longest_quiet(loud[int(e0 / step) : min(len(loud), int(s1 / step))])
+            if quiet < REAL_PAUSE:
+                times[k] = (s0, round(s1 - 0.02, 3))
+                notes.append(f"the pause after {str(words[k].get('word', '')).strip()!r} closed: {s1 - e0:.2f} s on paper, {quiet:.2f} s quiet in the sound")
+        if not notes:
+            continue
+        lines.append(f"{measured.stem}: " + "; ".join(notes))
+        if dry:
+            continue
+        fixed, previous = [], 0.0
+        for k, word in enumerate(words):
+            start, end = times[k]
+            start = max(start, previous)
+            fixed.append({"word": " " + str(word.get("word", "")).strip(), "start": round(start, 3), "end": round(max(end, start), 3), "probability": 1.0})
+            previous = start
+        transcript_path = run / "transcripts" / f"{measured.stem}.json"
+        transcript = json.loads(transcript_path.read_text()) if transcript_path.exists() else {}
+        provider = str(transcript.get("provider", "")).replace("+sound-fix", "")
+        transcript.update(words=fixed, text=" ".join(str(w.get("word", "")).strip() for w in words), provider=provider + "+sound-fix")
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.write_text(json.dumps(transcript, indent=1))
+        measured.unlink()
+    return lines
+
+
 def check_length(render: Path, timeline: dict[str, Any]) -> list[str]:
     if not render.exists():
         return [f"No render at {render}. A skipped check is not a pass."]
@@ -753,7 +904,8 @@ def check(run: Path, render: Path | None) -> list[str]:
         + check_cues(run, timeline)
     )
     problems += check_joins(html, timeline, record, house)
-    problems += check_face(html, timeline, house) + check_pacing(html, house) + check_grain(html, house) + check_house(html, reel, scenes, length, house)
+    problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_grain(html, house)
+    problems += check_house(html, reel, scenes, length, house)
     return problems + check_length(render or run / "renders" / "final.mp4", timeline)
 
 
@@ -764,6 +916,15 @@ def run(args: argparse.Namespace) -> int:
         takes = "1 take" if done["takes"] == 1 else f"{done['takes']} takes, one per line"
         print(f"Bundle: {done['bundle']} ({done['seconds']:.1f} s in {takes}, {len(done['spans'])} cover beats, {done['sounds']} sounds)")
         print("Uploading the bundle sends the footage to Higgsfield. Do it only once the owner has agreed.")
+        return 0
+    if args.action == "fix-words":
+        lines = fix_words(Path(args.run_dir).expanduser().resolve(), args.dry)
+        for line in lines:
+            print(line)
+        if not lines:
+            print("Every word already has a time the sound agrees with.")
+        elif not args.dry:
+            print("Run Shorts Studio's measure step again, so it trims the corrected takes.")
         return 0
     problems = check(Path(args.run_dir).expanduser().resolve(), Path(args.render).expanduser().resolve() if args.render else None)
     for problem in problems:
