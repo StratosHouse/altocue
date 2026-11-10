@@ -1619,7 +1619,7 @@ def test_fixed_footage_captions_are_drawn_above_the_picture_outside_the_camera()
     assert all(page["steady"] for page in line["captions"])
     page = scenes.compose(line, default_brand())
     camera = page.split('id="cam-problem"')[1].split('<div class="cam"')[0].split('class="ahead"')[0]
-    assert 'clip cap boxed' not in camera
+    assert "clip cap boxed" not in camera
     assert page.index('class="clip cap boxed') > page.index('class="clip footage')
 
 
@@ -2174,3 +2174,16 @@ def test_a_track_can_come_in_on_a_later_beat(tmp_path, monkeypatch):
     sound, rate = ffmpeg.read_wav(folder / "stems" / "music.wav")  # the example's own effects play from the start, so the music is read alone
     assert np.abs(sound[: round(1.45 * rate)]).max() < 1e-3
     assert np.abs(sound[round(1.6 * rate) : round(2.0 * rate)]).max() > 0.01
+
+
+def test_a_still_laid_on_a_carried_full_frame_take_is_drawn_over_it():
+    """A take carried across scenes once sat over every camera, so a full-frame cover or card on it never showed."""
+    made = board()
+    made["scenes"][0]["items"].insert(0, {"type": "footage", "file": "media/take.mp4", "start": 0, "carry": True, "end": {"scene": "close", "offset": 0}})
+    made["scenes"][1]["items"].append({"type": "footage", "file": "media/cover.png", "start": 1, "duration": 2})
+    page = scenes.compose(timeline_for(made), default_brand())
+    take = page.index('<video id="footage-')
+    assert page.index('<div class="held">') < take < page.index('class="cam"') < page.index('<img id="footage-')
+    made["scenes"][0]["items"][0]["over"] = True
+    page = scenes.compose(timeline_for(made), default_brand())
+    assert page.index('<img id="footage-') < page.index('<div class="over">') < page.index('<video id="footage-')

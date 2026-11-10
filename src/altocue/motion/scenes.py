@@ -95,7 +95,7 @@ ZONES = {
 
 FILM_CSS = """
 .ground{position:absolute;inset:0;background:var(--panel)}
-.world,.cam,.over{position:absolute;inset:0;transform-origin:50% 50%}
+.world,.held,.cam,.over{position:absolute;inset:0;transform-origin:50% 50%}
 .cam .bg{display:none}
 .zone{display:flex;flex-direction:column;justify-content:center}
 .zone.mid{align-items:center;text-align:center}
@@ -600,8 +600,17 @@ def tail(scene: dict[str, Any], lap: float) -> float:
     return scene["end"] + lap
 
 
+def beneath(item: dict[str, Any]) -> bool:
+    """A carried take that fills the frame sits under the scenes, or every still and card laid on it is hidden behind it.
+
+    A take with a zone or a box of its own stays over them, and so does one that says "over": true.
+    """
+    placed = re.search(r"(?:^|;)\s*(?:left|right|top|bottom|width|height)\s*:", str(item.get("place") or ""))
+    return item["type"] == "footage" and bool(item.get("fixed")) and not item.get("zone") and not placed and not item.get("over")
+
+
 def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
-    """One page. Ground, then the world, then a camera per scene, then anything laid over the lot.
+    """One page. Ground, then the world, then any take carried full frame, then a camera per scene, then anything laid over the lot.
 
     CSS animates it, so the root says it has no timeline, as HyperFrames lint asks.
     """
@@ -614,6 +623,11 @@ def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
     for item in line.get("backdrops", []):
         track += 1
         (ahead if item.get("over") else behind).append(_clip(item, brand, track))
+    held = []
+    for item in line["items"]:
+        if beneath(item):
+            track += 1
+            held.append(_clip(item, brand, track))
     cameras = []
     for index, scene in enumerate(scenes):
         before = scenes[index - 1] if index else None
@@ -637,7 +651,7 @@ def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
         seconds = spans["last"] - spans["first"]
         style = f"transform-origin:{fx * 100:.2f}% {fy * 100:.2f}%;animation:cam-{scene['id']} {seconds:.3f}s linear {max(spans['first'], 0):.3f}s both"
         cameras.append(f'<div class="cam" id="cam-{escape(str(scene["id"]))}" style="{style}">\n' + "\n".join(inner) + "\n</div>")
-    fixed = [item for item in line["items"] if item.get("fixed")]
+    fixed = [item for item in line["items"] if item.get("fixed") and not beneath(item)]
     for item in [*fixed, *line.get("links", [])]:
         track += 1
         ahead.append(_clip(item, brand, track))
@@ -658,6 +672,9 @@ def compose(line: dict[str, Any], brand: Brand, *, blur: bool = True) -> str:
 <div class="ground"></div>
 <div class="world" style="animation:world {total:.3f}s linear 0s both">
 {chr(10).join(behind)}
+</div>
+<div class="held">
+{chr(10).join(held)}
 </div>
 {chr(10).join(cameras)}
 <div class="over">

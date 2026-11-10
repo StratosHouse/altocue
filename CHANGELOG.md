@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **A cover laid on a carried take shows.** A full-frame take carried across scenes used to be drawn over every scene's camera, so a full-frame still, cover or card laid on it in a film never appeared. It now sits under the scenes. A take with a zone or its own box stays on top as before, and `"over": true` keeps a full-frame one on top on purpose.
+
 ## 0.5.0
 
 A moving crop that follows people, motion tracking, music off a voice, a sound effect library of single CC0 sounds, a catalog grown to 1231 entries, and long recordings proven end to end.
