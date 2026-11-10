@@ -122,3 +122,18 @@ def test_a_cue_at_the_limit_after_rounding_is_not_over_it():
 def test_the_report_says_how_fast_the_fastest_cue_reads():
     report = reading_report([Cue(0.0, 1.0, ["x" * 30], "s001"), Cue(2.0, 4.0, ["y" * 10], "s001")])
     assert report["cues"] == 2 and report["fastest_cps"] == 30.0 and report["over_limit"] == 1 and report["longest_line"] == 30
+
+
+def test_a_cue_a_cut_leaves_no_room_for_joins_its_neighbour_or_goes():
+    """A word mapped right onto a cut once made a cue thousandths of a second long, and the muxer refused the whole film."""
+    words = speech("this runs right up to", segment="s001") + [word("cut.", 1.6, 1.62, "s001")]
+    cues = build_cues([*words[:-1], {**words[-1], "start": 1.5}, word("Gone", 1.6, 1.6005, "s001")], {"s001": 1.6})
+    assert all(cue.end - cue.start >= subtitles.READABLE for cue in cues)
+    alone = build_cues([word("Ah", 2.0, 2.0004, "s002")], {"s002": 2.0004})
+    assert alone == []
+    assert reading_report(cues)["fastest_cps"] < 200
+
+
+def test_readable_merges_a_flash_into_the_cue_before_it():
+    cues = subtitles.readable([Cue(0.0, 1.2, ["Write the answers"], "s001"), Cue(1.2, 1.2005, ["first."], "s001")])
+    assert len(cues) == 1 and cues[0].text == "Write the answers first." and cues[0].end == 1.2005
