@@ -82,6 +82,10 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     prepare.add_argument("--aspect", help="Frame, such as 9:16. Defaults to the project's")
     prepare.add_argument("--until", type=float, default=0.0, help="With --project: only the cut's first seconds, ending on a whole word. For a preview")
     prepare.add_argument("--force", action="store_true", help="Write over a run folder that already exists")
+    frames = sub.add_parser("frames", help="Timestamped contact sheets of the render, to look at every beat before anyone else does")
+    frames.add_argument("run_dir", help="The run folder")
+    frames.add_argument("--render", help="The render. Defaults to renders/final.mp4 in the run folder")
+    frames.add_argument("--every", type=float, default=1.36, help="Seconds between frames")
     check = sub.add_parser("check", help="Check a Shorts Studio run: presenter, sounds, look-away covers, dashes, length")
     check.add_argument("run_dir", help="The run folder, or the unzipped composition.zip, with reel.json and timeline.json")
     check.add_argument("--render", help="The final render. Defaults to renders/final.mp4 in the run folder")
@@ -638,6 +642,15 @@ def run(args: argparse.Namespace) -> int:
         print(f"Run folder: {done['run']}")
         print(f"Bundle: {done['bundle']} ({done['seconds']:.1f} s take, {len(done['spans'])} cover beats, {done['sounds']} sounds)")
         print("Uploading the bundle sends the footage to Higgsfield. Do it only once the owner has agreed.")
+        return 0
+    if args.action == "frames":
+        from .sheets import contact_sheets
+
+        run_dir = Path(args.run_dir).expanduser().resolve()
+        render = Path(args.render).expanduser().resolve() if args.render else run_dir / "renders" / "final.mp4"
+        for sheet in contact_sheets(render, run_dir / "review", args.every):
+            print(sheet)
+        print("Look at every frame yourself. A passing check is not a review.")
         return 0
     problems = check(Path(args.run_dir).expanduser().resolve(), Path(args.render).expanduser().resolve() if args.render else None)
     for problem in problems:

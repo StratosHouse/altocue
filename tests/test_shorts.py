@@ -223,3 +223,23 @@ def test_a_subtitle_cue_too_short_to_read_fails(tmp_path):
     problems = shorts.check_cues(tmp_path, timeline)
     assert any("0.001 s cue at 2.00 s" in p for p in problems)
     assert any("1 caption words have no length" in p for p in problems)
+
+
+@needs_ffmpeg
+def test_frames_writes_timestamped_contact_sheets(tmp_path):
+    from PIL import Image
+
+    run = tmp_path / "run"
+    take(run / "renders" / "final.mp4", 4.0)
+    assert main(["shorts", "frames", str(run), "--every", "0.5"]) == 0
+    sheets = sorted((run / "review").glob("sheet-*.jpg"))
+    assert [s.name for s in sheets] == ["sheet-1.jpg"]
+    with Image.open(sheets[0]) as sheet:
+        assert sheet.width == 8 * 360  # 8 frames to a row
+    assert shorts_frames_stamp(61.36) == "1:01.36"
+
+
+def shorts_frames_stamp(seconds: float) -> str:
+    from altocue.sheets import stamp
+
+    return stamp(seconds)

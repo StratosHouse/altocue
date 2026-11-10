@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Contact sheets of a Reel.** New `altocue shorts frames <run>` puts a frame of the render every 1.36 s (`--every`) on sheets of 8 by 3, each stamped with its time, in the run's `review/` folder, so a reviewer looks at every beat and can name the second a problem happens. The stamps are drawn with Pillow, so it works on ffmpeg builds without drawtext.
+
 ## 0.5.1
 
 Your brand kit first, Higgsfield Shorts Studio motion design on real footage with a check that holds a draft to the house look, and fixes found by a fresh install: the demo now runs on ffmpeg 5.1, deliver no longer fails on a subtitle cue a cut squeezed to nothing, and a cover laid on a carried take shows.

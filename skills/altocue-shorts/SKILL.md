@@ -36,7 +36,7 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
    ```bash
    altocue shorts check shorts/<slug>
    ```
-   Fix every failure in the composition and render again. A skipped check is not a pass.
+   Fix every failure in the composition and render again. A skipped check is not a pass. Then `altocue shorts frames shorts/<slug>` writes timestamped contact sheets into `review/`: look at every frame yourself before anyone else sees the Reel. A passing check is not a review.
 7. Master, review and deliver the render with the usual stages.
 
 ## When to use something else
