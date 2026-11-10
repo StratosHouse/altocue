@@ -53,8 +53,8 @@ HOUSE_DEFAULTS = {
     "min_face": 0.8,  # the shortest look at the face between two graphics
     "min_scene": 0.5,  # anything shorter is a flash cut
     "grain_opacity": 0.04,
-    "min_graphic": 1.5,  # the shortest hold for a graphic with any text on it
-    "read_rate": 3.5,  # words a viewer reads a second, on top of a half-second glance
+    "min_graphic": 1.2,  # the shortest hold for a graphic with any text on it
+    "read_rate": 5.0,  # words a viewer reads a second, the voice saying most of them, on top of a short glance
     "max_changes": 2,  # scene changes allowed inside any `change_window` seconds
     "change_window": 4.0,
     "max_sounds": 2,  # sound effects allowed inside any one second
@@ -497,7 +497,7 @@ def check_pacing(html: str, house: dict[str, Any]) -> list[str]:
         words = on_screen_words(inner)
         if not words:
             continue
-        needed = max(house["min_graphic"], 0.5 + words / house["read_rate"])
+        needed = max(house["min_graphic"], 0.3 + words / house["read_rate"])
         if seconds + 1e-3 < needed:
             problems.append(f"The graphic at {start:.2f} s holds {seconds:.2f} s for {words} words on screen. Hold it {needed:.1f} s, or cut words.")
     changes = sorted({round(a, 3) for _, a, _ in scenes_in(html) if a > 0})
