@@ -386,7 +386,10 @@ def check(run: Path, render: Path | None) -> list[str]:
     def read(name: str) -> dict[str, Any]:
         path = run / name
         if not path.exists():
-            raise AltocueError(f"No {name} in {run}.", fix="Point at the run folder, after Shorts Studio's measure and render.")
+            raise AltocueError(
+                f"No {name} in {run}.",
+                fix="Point at the run folder. Shorts Studio's pack leaves out timeline.json, so add it to composition.zip before bringing it back.",
+            )
         return json.loads(path.read_text())
 
     record, reel, timeline = read("altocue-shorts.json"), read("reel.json"), read("timeline.json")
