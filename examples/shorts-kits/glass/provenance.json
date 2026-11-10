@@ -1,0 +1,286 @@
+{
+ "note": "Every image in glass/ is AI-generated with Higgsfield. Keep this label wherever you use them. Higgsfield's terms of use apply: https://higgsfield.ai/terms-of-use-agreement",
+ "terms_url": "https://higgsfield.ai/terms-of-use-agreement",
+ "objects": [
+  {
+   "file": "glass/bell.webp",
+   "sha256": "2dfc992572ee0dd330b76932e0835d3d7a74d4aa9770ffd3de52fb294debff36",
+   "prompt": "Premium 3D glass object (reception desk bell), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/button.webp",
+   "sha256": "829c9234f961995c21316a5cc320295bfd83173cb017bba4517896c607319bcd",
+   "prompt": "Premium 3D glass object (button), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/cable.webp",
+   "sha256": "d218cf62ddcc99f50287d42212cb62e6f76adb7b1f99ba736eaa9dd7df5188e8",
+   "prompt": "Premium 3D glass object (cable with two plugs), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/calendar.webp",
+   "sha256": "ba2fdcab340b8deacd1b39e53eaa37369efe1e6a01c4db9cd47d9ac5aa526d21",
+   "prompt": "Premium 3D glass object (desk calendar block), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/camera.webp",
+   "sha256": "10e3d2338c2932dbe89ce61f58d9e9ea766619f9d7fe8e490076f511683df46c",
+   "prompt": "Premium 3D glass object (cinema camera), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/chat.webp",
+   "sha256": "9f679f516fba4ca472a50213fda81b2079b5efd46738ecbe523b2040e31c1435",
+   "prompt": "Premium 3D glass object (chat), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/check.webp",
+   "sha256": "096aaa67ad6479518af2627ec0d56694c1d43c23fecb27e4fa787716c44c76c3",
+   "prompt": "Premium 3D glass object (check), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/clapper.webp",
+   "sha256": "a0fd188ed723cc5a6f6a67418537bdf53e9db8e848af7fa9425cb7215f96d641",
+   "prompt": "Premium 3D glass object (clapperboard), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/cloud.webp",
+   "sha256": "84bc597cf131a1e837f90886428cbbfd0a5b47f94ce6abe1d69657c1871e5595",
+   "prompt": "Premium 3D glass object (cloud with a server inside), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/coins.webp",
+   "sha256": "7efa3abc454c7481f70a406258cf172048f5fa98b9ab1b96d4841ed7ae40be4b",
+   "prompt": "Premium 3D glass object (stack of plain coins), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/connect.webp",
+   "sha256": "74b0d3f0d0533654454271f6a82f01179c0a5d18d9beb5972586134bc4cde3d9",
+   "prompt": "Premium 3D glass object (connect), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/docs.webp",
+   "sha256": "606fbe883d6500940ee32d8b9114a9fafac6e7a50d4b0afec1196fe1c70a10f7",
+   "prompt": "Premium 3D glass object (docs), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/gavel.webp",
+   "sha256": "2ef953ac53219dcde63c44724603648743071c5909fc16ec33a3c4dcba8aef9a",
+   "prompt": "Premium 3D glass object (gavel), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/headset.webp",
+   "sha256": "a91e6eb81777029c4216edd2c5d85a5228564ba345d2b4108077f7ebbe7fd848",
+   "prompt": "Premium 3D glass object (call centre headset), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/id.webp",
+   "sha256": "ba7abefba329a5a14b1d2bf9e2e8223dd2b3310f9ee109392f3f136b4c4f9efa",
+   "prompt": "Premium 3D glass object (id), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/key.webp",
+   "sha256": "c9a9c6defc1b371f21157a6560e9e3f5173776839a36d67656307d5a631256cc",
+   "prompt": "Premium 3D glass object (key), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/laptop.webp",
+   "sha256": "796193f9521d08e40d188f974b9beebe775936d41bf9f87dc86ab87901819db1",
+   "prompt": "Premium 3D glass object (open laptop), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/megaphone.webp",
+   "sha256": "c1f269887bb7bb0183e6577cebd5fc909f5135e4b632b642a22a6455c6ae250d",
+   "prompt": "Premium 3D glass object (megaphone), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/mic.webp",
+   "sha256": "2b282c807b239de95a9aed8b7002389d8f138fb640ca8af0582d5d72d81406be",
+   "prompt": "Premium 3D glass object (microphone with sound bars), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/phone.webp",
+   "sha256": "7eeea9589ca62badd59ebd4111a55563480a654d943ffa49e6ae600bc74e162a",
+   "prompt": "Premium 3D glass object (smartphone), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/prism.webp",
+   "sha256": "50dd7b4f1d216d86d1ffc004ae5cd30de200f085d214e5e07b6fc6340fbbd0a6",
+   "prompt": "Premium 3D glass object (prism splitting light), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/scissors.webp",
+   "sha256": "539df20cd235182081779434416e6573420ababdfa72ed70d341ec3fe08379cc",
+   "prompt": "Premium 3D glass object (scissors), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/search.webp",
+   "sha256": "44ed1bcd0af303359fbc7dfeb0a89c80fd814920c31d8313c5749004b07ec0dc",
+   "prompt": "Premium 3D glass object (search), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/shield.webp",
+   "sha256": "0c67cdeb58795d35a5019d19e007c7439c1c78a717886e25715d34b15fc6806e",
+   "prompt": "Premium 3D glass object (shield with check mark), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/system.webp",
+   "sha256": "78fff70c17c0e9e8a337885a101bea1d27a07827b01411997998069c76d29f21",
+   "prompt": "Premium 3D glass object (system), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/timeline.webp",
+   "sha256": "bc463931d981e5a9949295a8a15d3f5d795c08f9eedc964477954b42adf9e990",
+   "prompt": "Premium 3D glass object (editing timeline), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/toggle.webp",
+   "sha256": "3289661ddbed7716c51702f4d6c13273a31f76c1e853d7519c32ed00d226f20f",
+   "prompt": "Premium 3D glass object (toggle), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  },
+  {
+   "file": "glass/tower.webp",
+   "sha256": "bb7b62b7fc97956a5e591beaf721820ee1579c09e21639b3a50f36355472e550",
+   "prompt": "Premium 3D glass object (desktop computer tower), frosted and clear glass, mint glow, emerald accents, transparent background. No text, logos or people.",
+   "provider": "higgsfield",
+   "model": "seedream_5_5",
+   "date": "2026-11-10",
+   "ai_generated": true,
+   "edits": "scaled to fit 560 px and saved as WebP for this kit"
+  }
+ ]
+}

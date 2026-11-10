@@ -290,12 +290,19 @@ def copy_pack(pack: Path, run: Path) -> list[dict[str, Any]]:
 
 
 def copy_kit(kit: Path, run: Path) -> list[str]:
-    """House build helpers, such as a shared stylesheet and motion module, so every Reel's build.py starts from the same look."""
+    """House build helpers, such as a shared stylesheet and motion module, so every Reel's build.py starts from the same look.
+
+    Python files and house.json go to the run folder, other files to media/, and a subfolder, such as glass/ or
+    brand/, to media/ under its own name. The kit's README stays behind.
+    """
     if not kit.is_dir():
         raise AltocueError(f"No kit folder at {kit}.", fix="Set [shorts] kit to a folder of build helpers, or pass --kit.")
     copied = []
-    for path in sorted(p for p in kit.iterdir() if p.is_file() and not p.name.startswith(".")):
-        target = run / path.name if path.suffix == ".py" or path.name == HOUSE_FILE else run / "media" / path.name
+    files = [p for p in kit.rglob("*") if p.is_file() and not any(part.startswith(".") or part == "__pycache__" for part in p.relative_to(kit).parts)]
+    for path in sorted(p for p in files if p.relative_to(kit) != Path("README.md")):
+        relative = path.relative_to(kit)
+        top = len(relative.parts) == 1 and (path.suffix == ".py" or path.name == HOUSE_FILE)
+        target = run / path.name if top else run / "media" / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
         copied.append(target.relative_to(run).as_posix())

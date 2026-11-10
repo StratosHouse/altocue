@@ -1,0 +1,121 @@
+{
+ "kit": "glass",
+ "brand": {
+  "name": "Stratos House",
+  "logo": "media/brand/stratos-logo.png"
+ },
+ "outro": "cta",
+ "layouts": {
+  "cutout": [
+   0.4,
+   0.97
+  ],
+  "hidden": [
+   0.03,
+   0.6
+  ],
+  "base": [
+   0,
+   0.05
+  ],
+  "window": [
+   0,
+   0.05
+  ]
+ },
+ "fonts": [
+  "Geist",
+  "Geist Mono"
+ ],
+ "grain_opacity": 0,
+ "colors": {
+  "canvas": "#F3F7FA",
+  "ink": "#142027",
+  "soft": "#64716D",
+  "green": "#267052",
+  "mint": "#B5F4D9",
+  "edge": "#D7E1DE"
+ },
+ "frame": {
+  "size": [
+   1080,
+   1920
+  ],
+  "brand_row": {
+   "y": 351,
+   "mark": "brand logo, 44 px, left x 74",
+   "text": "brand name, Geist 600, 27 px, ink, x 132",
+   "reel_label": "Reel name, right-aligned at x 875, Geist Mono, 26 px, soft"
+  },
+  "headline": {
+   "x": 74,
+   "y": 436,
+   "font": "Geist 500 to 600",
+   "size": 60,
+   "color": "ink",
+   "align": "left"
+  },
+  "graphics_band": [
+   480,
+   860
+  ],
+  "caption": {
+   "y": 880,
+   "align": "center",
+   "font": "Geist 600",
+   "size": 57,
+   "color": "ink",
+   "active_word": "green",
+   "max_width": 801
+  },
+  "presenter": {
+   "plate_shift_y": 300,
+   "aperture": {
+    "x": [
+     30,
+     1050
+    ],
+    "top": 1092,
+    "radius": 90
+   },
+   "cutout": "Optional media/<take>-cutout.webm with alpha: the head breaks above the aperture top and the room shows only inside it. Without one, the take fills the aperture."
+  }
+ },
+ "end_card": {
+  "mark": "brand logo, about 300 px, centred above the card",
+  "card": "white rounded card x 151 to 929, y 896 to 1285, light shadow",
+  "lines": [
+   "Comment (Geist 500, about 64 px, ink)",
+   "KEYWORD (Geist 600, about 125 px, green #267052)",
+   "Get the setup guide (Geist 400, about 34 px, soft)"
+  ],
+  "brand_row": "kept, with the Reel name in an outlined pill on the right"
+ },
+ "look": [
+  "Light canvas throughout. No grain, no dark theme, no film texture.",
+  "Top half explains with clean white cards, real icons and logos, and short Geist headlines in ink. One idea per card. Changes land on spoken words.",
+  "Bottom half is the speaker in a rounded aperture. Only on-lens moments show the speaker. Every off-lens moment is a full light-canvas graphic with the brand row and no presenter.",
+  "The caption sits centred between the graphics and the presenter: 2 or 3 words, ink, with the spoken word in green.",
+  "End card: the brand logo, then a white card with Comment, the green KEYWORD and the subline.",
+  "Sounds only from the run's pack. Typing sounds under every typing animation. No music unless the brief asks for it."
+ ],
+ "silent_face": 0.6,
+ "typing_sounds": [
+  [
+   "keyboard-short-01",
+   0.6
+  ],
+  [
+   "keyboard-01",
+   2.1
+  ],
+  [
+   "keyboard-02",
+   2.3
+  ],
+  [
+   "keyboard-04",
+   5.2
+  ]
+ ]
+}
