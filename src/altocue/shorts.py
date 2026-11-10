@@ -192,7 +192,7 @@ def house_notes(sounds: list[dict[str, Any]] | None, sfx_only: bool, spans: list
         "- On-screen text uses commas, colons or full stops. Never an em dash or an en dash.",
     ]
     if spans:
-        notes.append(f"- {len(spans)} look-away moments are cover beats in edit-plan.md.")
+        notes.append(f"- {len(spans)} look-away {'moment is a cover beat' if len(spans) == 1 else 'moments are cover beats'} in edit-plan.md.")
         notes.append("  Each gets a full-screen graphic marked `data-cover`, so the presenter never shows looking off the lens.")
     if sounds is not None:
         rule = "from media/sfx/ first."
@@ -219,6 +219,9 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     run = Path(args.out).expanduser().resolve() if args.out else (base / "shorts" / slug if project else base / f"shorts-{slug}")
     if (run / "reel.json").exists() and not args.force:
         raise AltocueError(f"{run} already holds a run.", fix="Pass --out for a new run folder, or --force to write this one again.")
+    if args.force:
+        shutil.rmtree(run, ignore_errors=True)
+        (run.parent / f"{run.name}.zip").unlink(missing_ok=True)
     run.mkdir(parents=True, exist_ok=True)
 
     if project:

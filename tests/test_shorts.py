@@ -77,6 +77,11 @@ def test_prepare_writes_a_run_with_a_real_take_and_only_the_pack(tmp_path):
     assert (tmp_path / "run.zip").exists()
     with pytest.raises(AltocueError):
         shorts.prepare(shorts_args(video, tmp_path / "script.txt", out))
+    (pack / "whoosh" / "air.wav").unlink()
+    tone(pack / "pop.wav", 800)
+    assert main(["shorts", "prepare", "--take", str(video), "--script", str(tmp_path / "script.txt"), "--out", str(out), "--sfx-dir", str(pack), "--force"]) == 0
+    assert not (out / "media" / "sfx" / "whoosh").exists()
+    assert (out / "media" / "sfx" / "pop.wav").exists()
 
 
 def shorts_args(video: Path, script: Path, out: Path):
