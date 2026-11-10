@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Generated objects in a Reel look like one set.** The `altocue-shorts` skill now says how: one shared opening sentence for every object prompt (material, light, angle, margin, transparent background), one object each, no text or people, reserved in the Reel's project before it is made and registered after with `generate --import`.
+
 ## 0.5.1
 
 Your brand kit first, Higgsfield Shorts Studio motion design on real footage with a check that holds a draft to the house look, and fixes found by a fresh install: the demo now runs on ffmpeg 5.1, deliver no longer fails on a subtitle cue a cut squeezed to nothing, and a cover laid on a carried take shows.

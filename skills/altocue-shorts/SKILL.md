@@ -19,6 +19,7 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
 - **House look, every Reel.** `[shorts] kit` names a folder of build helpers, such as a shared stylesheet and motion module. Each run gets them beside its `build.py`, and any image in the kit goes into `media/`.
 - **The take is an image tag.** Show it with `<img data-video>`. A `<video>` tag fails the render, and the check fails it too.
 - **House style on screen.** No em dashes or en dashes in any text, caption or card.
+- **Generated objects look like one set.** When a Reel needs a made object (an icon-like 3D object, never a person), every prompt in the house opens with the same sentence describing material, light, angle, margin and a transparent background, then names one object, and ends with no text, letters, numbers, logos or people. Keep the sentence in the kit's README. Reserve each image in the Reel's project first (`altocue generate --reserve`), and register it after with `altocue generate --import` and its shot, prompt and model, so the spend and the source are on record.
 - **A preset is a style reference, not a script.** `/shorts/<slug>` brings a published look. Keep the speaker's own words.
 
 ## Steps
