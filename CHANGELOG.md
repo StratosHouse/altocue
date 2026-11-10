@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Look-aways found against the lens.** New `altocue shorts gaze` reads a plate (or any video) with MediaPipe's face landmarker and writes the spans where the eyes leave the lens, ready for `shorts prepare --cover`. The eyeline is head turn plus eye turn, judged against the lens rather than against the take, so eyes that only cancel a head turn count as on the lens, and a take read from notes beside the lens is not turned around. A blink (0.3 s or less of the eyes only dropping) is not a look-away, but one at the edge of a look-away grows its cover until the eyes are up. `[shorts] lens` sets the eyeline for a camera off to one side. `altocue shorts check --gaze` scans the finished render as well and fails any look-away left on screen outside a hidden scene. MediaPipe is Apache 2.0 and optional: `uv tool install --force altocue --with mediapipe`; its 3.7 MB model is downloaded once and checked against a pinned hash.
+
 ## 0.5.1
 
 Your brand kit first, Higgsfield Shorts Studio motion design on real footage with a check that holds a draft to the house look, and fixes found by a fresh install: the demo now runs on ffmpeg 5.1, deliver no longer fails on a subtitle cue a cut squeezed to nothing, and a cover laid on a carried take shows.
