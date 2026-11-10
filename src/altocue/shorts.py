@@ -219,7 +219,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     run = Path(args.out).expanduser().resolve() if args.out else (base / "shorts" / slug if project else base / f"shorts-{slug}")
     if (run / "reel.json").exists() and not args.force:
         raise AltocueError(f"{run} already holds a run.", fix="Pass --out for a new run folder, or --force to write this one again.")
-    if args.force:
+    if args.force and (run / "altocue-shorts.json").exists():  # only ever a folder this command wrote
         shutil.rmtree(run, ignore_errors=True)
         (run.parent / f"{run.name}.zip").unlink(missing_ok=True)
     run.mkdir(parents=True, exist_ok=True)
