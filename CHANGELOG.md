@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **No subtitle cue too short to read.** Where a cut left a cue almost no room, `altocue deliver` wrote a cue a few thousandths of a second long, read at tens of thousands of characters a second, and the muxer refused the film with "Invalid argument". A cue under 0.3 s now joins its neighbour in the same shot when the two fit, and one under a frame with nowhere to go is dropped.
+
 ## 0.5.0
 
 A moving crop that follows people, motion tracking, music off a voice, a sound effect library of single CC0 sounds, a catalog grown to 1231 entries, and long recordings proven end to end.
