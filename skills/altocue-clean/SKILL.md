@@ -34,9 +34,10 @@ compatibility: Requires the altocue CLI. On macOS 13 or later with the Xcode com
 - **Pauses are left exactly alone,** so room tone and breaths are not pumped.
 - **Only one part of a clip wrong, or a quiet speaker beside a loud one:** set `gain` on those segments in `edl.json`, after the cut is final.
 - **Breaths stay unless asked.** `altocue clean --breaths 9` turns them down 9 dB. They are never cut. The finder has not been checked against labelled breaths, so listen.
-- **De-essing has four settings:** `off`, `light`, `normal`, `strong`, through `--deess`. Light is the default. Too much makes a lisp, so go up one step at a time.
+- **De-essing has four settings:** `off`, `light`, `normal`, `strong`, through `--deess`. They take at most 4, 7 or 11 dB off sharp S sounds. Light is the default. A voice whose S sounds are harsh on a phone speaker wants `strong`. Too much makes a lisp, so go up one step at a time.
+- **Mouth clicks and lip smacks** are turned down by default, never cut. `--no-declick` or `declick = false` leaves them in.
 
-Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess`, `breaths`, `room_tone`.
+Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess`, `declick`, `breaths`, `room_tone`.
 
 ## Room tone
 

@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from altocue import clean, ffmpeg
+from altocue import clean, ffmpeg, mouth
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import Clip
@@ -187,10 +187,9 @@ def test_tone_chain_uses_stock_filters_only():
     assert not names & {"drawtext", "subtitles", "zscale"}
 
 
-def test_the_de_esser_can_be_set_or_left_out():
-    assert "deesser" not in clean.tone_filters(None, "off")
-    strengths = [next(part for part in clean.tone_filters(None, name).split(",") if part.startswith("deesser")) for name in ("light", "normal", "strong")]
-    assert len(set(strengths)) == 3
+def test_the_tone_chain_no_longer_carries_ffmpegs_de_esser():
+    for name in clean.DEESS:
+        assert "deesser" not in clean.tone_filters(None, name)
 
 
 def test_an_unknown_de_ess_strength_is_refused():
@@ -199,26 +198,63 @@ def test_an_unknown_de_ess_strength_is_refused():
     assert "strong" in caught.value.fix
 
 
-def sibilants(seconds: float, db: float, seed: int = 11) -> np.ndarray:
+def esses(seconds: float, seed: int = 11) -> np.ndarray:
+    """S sounds as speech has them: short, a few per second at most, some louder than others."""
     n = int(seconds * RATE)
     freqs = np.fft.rfftfreq(n, 1 / RATE)
-    white = np.random.default_rng(seed).normal(0, 1, n)
-    hissed = np.fft.irfft(np.fft.rfft(white) * ((freqs > 5000) & (freqs < 9000)), n)
-    bursts = (np.arange(n) / RATE) % 0.8 < 0.15
-    return hissed / hissed.std() * 10 ** (db / 20) * bursts
+    hissed = np.fft.irfft(np.fft.rfft(np.random.default_rng(seed).normal(0, 1, n)) * ((freqs > 5000) & (freqs < 9000)), n)
+    t = np.arange(n) / RATE
+    envelope = np.zeros(n)
+    for k, start in enumerate(np.arange(0.3, seconds - 0.2, 0.9)):
+        envelope[(t >= start) & (t < start + 0.09)] = 10 ** ((-28 + 2.5 * ((k * 7) % 5)) / 20)
+    return hissed / hissed.std() * np.convolve(envelope, np.ones(240) / 240, mode="same")
 
 
 @pytest.mark.parametrize(("strength", "least"), [("light", 3.0), ("normal", 6.0), ("strong", 9.0)])
-def test_the_de_esser_takes_the_sibilants_down_and_more_when_asked(tmp_path, strength, least):
-    voice = speech(6, 0.1) + sibilants(6, -22)
-    path = ffmpeg.write_wav(tmp_path / "in.wav", voice, RATE)
-    outs = []
-    for name in ("off", strength):
-        out = tmp_path / f"{name}.wav"
-        chain = next(part for part in clean.tone_filters(None, name).split(",") if part.startswith("deesser")) if name != "off" else "anull"
-        ffmpeg.run(["-i", str(path), "-af", chain, "-c:a", "pcm_s16le", str(out)])
-        outs.append(ffmpeg.read_wav(out)[0])
-    assert band_db(outs[0], 5000, 9000) - band_db(outs[1], 5000, 9000) >= least
+def test_the_de_esser_takes_the_sibilants_down_and_more_when_asked(strength, least):
+    voice = (speech(6, 0.1) + esses(6)).astype(np.float32)
+    out, taken = mouth.deess(voice, RATE, clean.DEESS[strength])
+    assert len(out) == len(voice) and 0 < taken["most_db"] <= clean.DEESS[strength]
+    assert band_db(voice, 5000, 9000) - band_db(out, 5000, 9000) >= least
+    assert abs(band_db(voice, 100, 2500) - band_db(out, 100, 2500)) < 0.5  # the voice's body is left alone
+
+
+def test_de_essing_off_returns_the_samples_untouched():
+    voice = (speech(2, 0.1) + esses(2)).astype(np.float32)
+    assert mouth.deess(voice, RATE, clean.DEESS["off"])[0] is voice
+
+
+def clicked(seconds: float = 6.0) -> tuple[np.ndarray, list[float]]:
+    """Room tone with a phrase, and three short clicks standing alone in the quiet."""
+    voice = hiss(seconds, -62).astype(np.float32)
+    phrase = speech(2.35, 0.15)  # four whole syllables, so none is cut short into a burst
+    voice[int(2.6 * RATE) : int(2.6 * RATE) + len(phrase)] += phrase
+    at = [0.8, 1.5, 5.6]
+    for t in at:
+        i = int(t * RATE)
+        voice[i : i + 96] += np.hanning(96) * np.sign(np.sin(np.arange(96))) * 0.3
+    return voice, at
+
+
+def test_mouth_clicks_alone_in_quiet_are_found_and_turned_down():
+    voice, at = clicked()
+    found = mouth.find_clicks(voice, RATE)
+    assert [round(start, 1) for start, _ in found] == at
+    out = mouth.quiet_clicks(voice, RATE, found)
+    for t in at:
+        i = int(t * RATE)
+        assert np.abs(out[i : i + 96]).max() < np.abs(voice[i : i + 96]).max() / 20
+    assert len(out) == len(voice)
+
+
+def test_a_burst_just_before_a_word_is_kept_as_its_plosive():
+    voice, _ = clicked()
+    found = mouth.find_clicks(voice, RATE, words=[(1.55, 1.9), (2.6, 5.0)])
+    assert [round(start, 1) for start, _ in found] == [0.8, 5.6]
+
+
+def test_speech_has_no_clicks():
+    assert mouth.find_clicks(speech(4, 0.1) + hiss(4, -62), RATE) == []
 
 
 def test_output_is_mono_48k_16_bit_and_the_exact_source_length(tmp_path):

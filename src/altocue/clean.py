@@ -1,4 +1,4 @@
-"""Clean each clip's voice: denoise, hum, tone, de-ess, level. Timecodes never move."""
+"""Clean each clip's voice: denoise, hum, mouth clicks, de-ess, tone, level. Timecodes never move."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ffmpeg, level, stems, swift
+from . import ffmpeg, level, mouth, stems, swift
 from .errors import AltocueError
 from .master import limiter_latency
 from .models import Clip
@@ -37,9 +37,9 @@ VERSION_TIMEOUT = 10.0
 PRINT_SECONDS = 0.25
 TAIL = 4800  # `deep-filter -D` drops the last 1440 samples, so it gets spare ones
 ENGINES = ("auto", "apple", "deep-filter", "afftdn")
-# ffmpeg's `deesser` raises its intensity to the fifth power, so i=0.3 does nothing to real speech.
-# Measured on real sibilants at the chain's -18 LUFS: light -1 to -3 dB, normal -2 to -6, strong -4 to -8.
-DEESS = {"off": 0.0, "light": 0.45, "normal": 0.5, "strong": 0.55}
+# The most each strength takes off the S band. ffmpeg's `deesser` raised its intensity to the fifth power,
+# so it did nothing gently and too much a step up; `mouth.deess` is a measured split-band compressor instead.
+DEESS = mouth.DEESS_DB
 ISOLATOR = Path(__file__).with_name("isolate.swift")
 
 # Runs on Apple Silicon as downloaded. It is ad-hoc signed and embeds DeepFilterNet3.
@@ -83,6 +83,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--denoiser", choices=ENGINES, help="Override the engine set in altocue.toml")
     parser.add_argument("--deess", choices=list(DEESS), help="Override the de-essing set in altocue.toml")
     parser.add_argument("--breaths", type=float, help="Turn breaths down this many dB. 0 leaves them")
+    parser.add_argument("--no-declick", action="store_true", help="Leave mouth clicks and lip smacks in")
 
 
 def find_deep_filter() -> str | None:
@@ -223,7 +224,10 @@ def plan_denoise(snr: float) -> dict[str, Any]:
 
 
 def tone_filters(hum: dict[str, Any] | None, deess: str = "light") -> str:
-    """High-pass, optional hum notches, gentle EQ, de-esser, compressor. Stock filters only."""
+    """High-pass, optional hum notches, gentle EQ, compressor. Stock filters only.
+
+    `deess` is only checked here: the de-esser runs before this chain, in `mouth.deess`.
+    """
     if deess not in DEESS:
         raise AltocueError(f"Unknown de-essing strength {deess}.", fix=f"Use one of {', '.join(DEESS)}.")
     parts = ["highpass=f=80:p=2"]
@@ -232,7 +236,6 @@ def tone_filters(hum: dict[str, Any] | None, deess: str = "light") -> str:
     parts += [
         "equalizer=f=300:t=q:w=1.2:g=-1.5",
         "equalizer=f=3000:t=q:w=1.2:g=1.5",
-        *([f"deesser=i={DEESS[deess]}"] if DEESS[deess] else []),
         "acompressor=threshold=0.15:ratio=2:attack=10:release=150:makeup=1.3",
     ]
     return ",".join(parts)
@@ -377,6 +380,12 @@ def _level(voice: Path, folder: Path, words: list[tuple[float, float]] | None, p
     return (voice if levelled is samples else ffmpeg.write_wav(folder / "levelled.wav", levelled, RATE)), report
 
 
+def _mouth(voice: Path, folder: Path, words: list[tuple[float, float]] | None, declick: bool, deess: str) -> tuple[Path, dict[str, Any]]:
+    samples, _ = ffmpeg.read_wav(voice)
+    cleaned, report = mouth.clean_mouth(samples, RATE, words, declick, deess)
+    return (voice if cleaned is samples else ffmpeg.write_wav(folder / "mouth.wav", cleaned, RATE)), report
+
+
 def _harm(before: np.ndarray, voice: Path, raw: Path) -> dict[str, float]:
     return {"retained_db": 0.0, "share_lost": 0.0} if voice == raw else speech_change(before, ffmpeg.read_wav(voice)[0], RATE)
 
@@ -403,6 +412,7 @@ def clean_clip(
     breath_down_db: float = 0.0,
     music: str = "off",
     echo: str = "off",
+    declick: bool = True,
 ) -> dict[str, Any]:
     """Clean one clip to `dest` and report what was measured and what was done.
 
@@ -467,6 +477,7 @@ def clean_clip(
                 return report
 
         voice, levelled = _level(voice, folder, words, phrases, breath_down_db)
+        voice, mouthed = _mouth(voice, folder, words, declick, deess)
         into = ffmpeg.loudness(voice)["integrated"]
         pre = INTO_COMPRESSOR_LUFS - into if into > -69 else 0.0
         toned = folder / "toned.wav"
@@ -498,6 +509,7 @@ def clean_clip(
             speech_retained_db=change["retained_db"],
             speech_share_lost=change["share_lost"],
             **levelled,
+            mouth=mouthed,
             level_before_lufs=loud["integrated"],
             level_lufs=final["integrated"],
             range_before=loud["range"],
@@ -521,7 +533,14 @@ def _words(project: Project, clip: Clip) -> list[tuple[float, float]] | None:
     return [(word.start, word.end) for word in words]
 
 
-def clean_project(project: Project, force: bool = False, denoiser: str | None = None, deess: str | None = None, breaths: float | None = None) -> dict[str, Any]:
+def clean_project(
+    project: Project,
+    force: bool = False,
+    denoiser: str | None = None,
+    deess: str | None = None,
+    breaths: float | None = None,
+    declick: bool | None = None,
+) -> dict[str, Any]:
     """Clean every clip to `work/audio/<clip id>.wav` and save the report beside them."""
     path = project.audio_dir / "report.json"
     saved = json.loads(path.read_text()) if path.exists() else {}
@@ -537,6 +556,7 @@ def clean_project(project: Project, force: bool = False, denoiser: str | None = 
         "breaths": float(project.setting("audio", "breaths", 0) if breaths is None else breaths),
         "music": str(project.setting("audio", "music", "auto")),
         "echo": str(project.setting("audio", "echo", "off")),
+        "declick": bool(project.setting("audio", "declick", True) if declick is None else declick),
     }
     if settings["music"] not in stems.MODES:
         raise AltocueError(f"[audio] music is {settings['music']!r}.", fix=f"Use one of {', '.join(stems.MODES)}.")
@@ -574,6 +594,7 @@ def clean_project(project: Project, force: bool = False, denoiser: str | None = 
                 breath_down_db=settings["breaths"],
                 music=settings["music"],
                 echo=settings["echo"],
+                declick=settings["declick"],
             )
     report = {**settings, "target_lufs": VOICE_LUFS, "warnings": notes, "clips": entries}
     write_json(path, report)
@@ -595,11 +616,23 @@ def describe(entry: dict[str, Any]) -> str:
         line += f", echo taken off ({stem['echo']}, RT60 {stem.get('rt60')} to {stem.get('rt60_after')} s)"
     if entry.get("phrases"):
         line += f", {entry['phrases']} phrases, range {entry['range_before']} to {entry['range_after']} LU"
+    said = entry.get("mouth") or {}
+    if said.get("clicks"):
+        line += f", {said['clicks']} mouth clicks taken out"
+    if said.get("deess_most_db"):
+        line += f", S sounds down up to {said['deess_most_db']} dB"
     return f"{line} (reused)" if entry["status"] == "reused" else line
 
 
 def run(args: argparse.Namespace) -> int:
-    report = clean_project(Project.open(args.project), force=args.force, denoiser=args.denoiser, deess=args.deess, breaths=args.breaths)
+    report = clean_project(
+        Project.open(args.project),
+        force=args.force,
+        denoiser=args.denoiser,
+        deess=args.deess,
+        breaths=args.breaths,
+        declick=False if args.no_declick else None,
+    )
     for note in report["warnings"]:
         print(f"Warning: {note}")
     for entry in report["clips"].values():
