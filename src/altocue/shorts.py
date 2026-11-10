@@ -59,6 +59,7 @@ HOUSE_DEFAULTS = {
     "max_changes": 2,  # scene changes allowed inside any `change_window` seconds
     "change_window": 4.0,
     "max_sounds": 2,  # sound effects allowed inside any one second
+    "join_reach": 0.7,  # a full graphic edge this close to a join in the footage belongs on the join
 }
 SECTION = re.compile(r"(<section\b[^>]*\bdata-layout\s*=\s*\"[a-z]+\"[^>]*>)(.*?)</section>", re.IGNORECASE | re.DOTALL)
 ATTR = re.compile(r'([a-z-]+)\s*=\s*"([^"]*)"', re.IGNORECASE)
@@ -307,6 +308,8 @@ def house_notes(
         "- Keep the motion graphics strong. What fails is pacing: give each graphic time to read, one idea on screen at a time,",
         f"  at least {rules['min_graphic']:.1f} s and longer for more words, and no more than {rules['max_changes']} scene changes in any"
         f" {rules['change_window']:.0f} s.",
+        f"- A full graphic starts and ends on a join in the footage when one is within {rules['join_reach']:.1f} s, so the picture never"
+        " changes twice in a second. Never onto a join inside another look-away.",
         f"- Grain stays at opacity {rules['grain_opacity']:.2f} or less, and never jumps to a new place every frame.",
         "- The take is real footage, supplied. Generate no presenter take, no recast and no lip sync. reel.json keeps `job_id` null on every take.",
         "- Keep the speaker's own words. Trim nothing the measure step does not trim.",
@@ -678,6 +681,41 @@ def check_dashes(run: Path) -> list[str]:
     return problems
 
 
+def check_joins(html: str, timeline: dict[str, Any], record: dict[str, Any], house: dict[str, Any]) -> list[str]:
+    """A full graphic starts and ends on a join in the footage when one is near, so the picture never changes twice
+    in a second. Not onto a join inside another look-away: that edge would cut the look-away in two."""
+    fps = float(timeline.get("fps", 30))
+    slack, reach = 1.5 / fps, float(house["join_reach"])
+    length = float(timeline.get("master_duration", 0.0))
+    joins = sorted(float(t["timeline_start"]) for t in timeline.get("takes", [])[1:] if "timeline_start" in t)
+    if not joins:
+        return []
+    takes = record.get("takes")
+    away = []
+    for span in record.get("covers", []):
+        try:
+            away.append((to_timeline(timeline, span["start"], takes), to_timeline(timeline, span["end"], takes, end=True)))
+        except AltocueError:
+            continue
+    problems = []
+    for layout, a, b in scenes_in(html):
+        if layout != "hidden":
+            continue
+
+        def free(join: float, a: float = a, b: float = b) -> bool:
+            return not any(lo < join < hi and not (a <= lo and hi <= b) for lo, hi in away)
+
+        near = [j for j in joins if abs(j - a) <= reach and abs(j - a) > slack and free(j)]
+        if near and not any(abs(j - a) <= slack for j in joins):
+            j = min(near, key=lambda j: abs(j - a))
+            problems.append(f"The graphic at {a:.2f} s starts {abs(j - a):.2f} s from a join in the footage at {j:.2f} s. Start it on the join.")
+        near = [j for j in joins if abs(j - b) <= reach and abs(j - b) > slack and free(j) and j < length - 1.0]
+        if near and not any(abs(j - b) <= slack for j in joins):
+            j = min(near, key=lambda j: abs(j - b))
+            problems.append(f"The graphic ending at {b:.2f} s ends {abs(j - b):.2f} s from a join in the footage at {j:.2f} s. End it on the join.")
+    return problems
+
+
 def check_length(render: Path, timeline: dict[str, Any]) -> list[str]:
     if not render.exists():
         return [f"No render at {render}. A skipped check is not a pass."]
@@ -714,6 +752,7 @@ def check(run: Path, render: Path | None) -> list[str]:
         + check_dashes(run)
         + check_cues(run, timeline)
     )
+    problems += check_joins(html, timeline, record, house)
     problems += check_face(html, timeline, house) + check_pacing(html, house) + check_grain(html, house) + check_house(html, reel, scenes, length, house)
     return problems + check_length(render or run / "renders" / "final.mp4", timeline)
 

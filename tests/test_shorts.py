@@ -301,3 +301,28 @@ def test_prepare_from_a_project_gives_one_take_per_line(tmp_path):
     record = json.loads((out / "altocue-shorts.json").read_text())
     assert record["takes"] == [{"id": "take-01", "from": 0.0, "to": 2.0}, {"id": "take-02", "from": 2.0, "to": 3.5}]
     assert 'Cue: take-02 "Then scope it."' in (out / "edit-plan.md").read_text()
+
+
+JOINED = {
+    "fps": 30,
+    "master_duration": 10.0,
+    "takes": [{"id": "take-01", "timeline_start": 0.0}, {"id": "take-02", "timeline_start": 4.0}, {"id": "take-03", "timeline_start": 7.0}],
+}
+
+
+def test_a_full_graphic_near_a_join_lands_on_it():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    late = scene("hidden", 4.4, 2.0)
+    assert any("starts 0.40 s from a join" in p for p in shorts.check_joins(late, JOINED, {}, house))
+    early_end = scene("hidden", 4.0, 2.6)
+    assert any("ends 0.40 s from a join" in p for p in shorts.check_joins(early_end, JOINED, {}, house))
+    assert shorts.check_joins(scene("hidden", 4.0, 3.0), JOINED, {}, house) == []
+    assert shorts.check_joins(scene("hidden", 5.0, 1.0), JOINED, {}, house) == []  # no join near
+
+
+def test_a_graphic_never_snaps_onto_a_join_inside_another_look_away():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    takes = [{"id": "take-01", "from": 0.0, "to": 4.0}, {"id": "take-02", "from": 4.0, "to": 7.0}, {"id": "take-03", "from": 7.0, "to": 10.0}]
+    record = {"covers": [{"start": 3.6, "end": 4.3}], "takes": takes}
+    timeline = {**JOINED, "takes": [{**t, "source_from": 0.0} for t in JOINED["takes"]]}
+    assert shorts.check_joins(scene("hidden", 4.4, 1.6), timeline, record, house) == []
