@@ -40,9 +40,13 @@ def tone(path: Path, freq: int) -> Path:
     return path
 
 
+def framed(words: list[dict], fps: int = 30) -> list[dict]:
+    return [{**w, "start_frame": round(w["start"] * fps), "end_frame": round(w["end"] * fps)} for w in words]
+
+
 def test_the_plan_cues_every_sentence_and_every_look_away_word_for_word():
-    dialogue = shorts.dialogue_of(WORDS)
-    plan = shorts.plan_lines(WORDS, dialogue, [{"start": 2.1, "end": 2.9, "reason": "eyes down"}], 3)
+    takes = shorts.lines_of([90], framed(WORDS), 30)
+    plan = shorts.plan_lines(takes, [{"start": 2.1, "end": 2.9, "reason": "eyes down"}], 3)
     assert 'Cue: take-01 "Ask five questions first."' in plan
     assert 'Cue: take-01 "Then scope it."' in plan
     assert 'Cue: take-01 "scope it."' in plan
@@ -50,7 +54,52 @@ def test_the_plan_cues_every_sentence_and_every_look_away_word_for_word():
     assert plan.rstrip().endswith("Captions: 3 words")
     for line in plan.splitlines():
         if line.startswith("Cue:"):
-            assert line.split('"')[1] in dialogue
+            assert line.split('"')[1] in takes[0]["dialogue"]
+
+
+def test_each_recorded_line_is_its_own_take_cut_on_the_joins():
+    # Two segments: "Ask five questions first." then, after a join at 1.8 s, "Then scope it."
+    takes = shorts.lines_of([54, 36], framed(WORDS), 30)
+    assert [(t["id"], t["first_frame"], t["last_frame"]) for t in takes] == [("take-01", 0, 54), ("take-02", 54, 90)]
+    assert [t["dialogue"] for t in takes] == ["Ask five questions first.", "Then scope it."]
+    assert takes[1]["words"][0]["start"] == pytest.approx(0.2)  # in the take's own seconds
+    plan = shorts.plan_lines(takes, [{"start": 2.1, "end": 2.9, "reason": "eyes down"}], 3)
+    assert 'Cue: take-02 "Then scope it."' in plan and 'Cue: take-02 "scope it."' in plan
+    assert "from 0.30 s into take-02" in plan
+
+
+def test_a_one_word_line_or_a_line_with_no_words_joins_its_neighbour():
+    words = framed([{"text": "First,", "start": 0.05, "end": 0.35}, *[{**w, "start": w["start"] + 1.0, "end": w["end"] + 1.0} for w in WORDS]])
+    # "First," alone in 0.4 s, a 0.1 s breath with no words, then two real lines
+    takes = shorts.lines_of([12, 3, 60, 45], words, 30)
+    assert [t["dialogue"] for t in takes] == ["First, Ask five questions first.", "Then scope it."]
+    assert takes[0]["first_frame"] == 0 and takes[1]["last_frame"] == 120
+    assert shorts.lines_of([80, 10], framed(WORDS), 30)[-1]["last_frame"] == 90  # a short last line joins the one before
+
+
+def test_covers_map_through_the_take_they_sit_in():
+    timeline = {"takes": [{"id": "take-01", "source_from": 0.1, "timeline_start": 0.0}, {"id": "take-02", "source_from": 0.15, "timeline_start": 1.6}]}
+    placed = [{"id": "take-01", "from": 0.0, "to": 1.8}, {"id": "take-02", "from": 1.8, "to": 3.0}]
+    assert shorts.to_timeline(timeline, 2.1, placed) == pytest.approx(2.1 - 1.8 - 0.15 + 1.6)
+    assert shorts.to_timeline(timeline, 1.8, placed, end=True) == pytest.approx(1.7)  # the end of take-01, not the start of take-02
+    assert shorts.to_timeline(timeline, 2.1) == pytest.approx(2.0)  # a run from before: one take, the whole cut
+
+
+@needs_ffmpeg
+def test_a_take_is_cut_on_exact_frames(tmp_path):
+    plate = take(tmp_path / "plate.mp4", 3.0)
+    voice = tmp_path / "voice.wav"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=f=220:d=3", str(voice)], check=True)
+    out = tmp_path / "take-02.mp4"
+    shorts.cut_take(plate, voice, out, 54, 90, 30)
+    frames = subprocess.run(
+        ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(out)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert int(frames) == 36
+    assert shorts.probe_duration(out) == pytest.approx(1.2, abs=0.05)
 
 
 def test_spans_read_a_gaze_tools_output(tmp_path):
@@ -223,3 +272,119 @@ def test_a_subtitle_cue_too_short_to_read_fails(tmp_path):
     problems = shorts.check_cues(tmp_path, timeline)
     assert any("0.001 s cue at 2.00 s" in p for p in problems)
     assert any("1 caption words have no length" in p for p in problems)
+
+
+@needs_ffmpeg
+def test_prepare_from_a_project_gives_one_take_per_line(tmp_path):
+    from conftest import make_clip
+
+    from altocue import ffmpeg, render
+    from altocue.ingest import ingest
+    from altocue.models import Edl, Segment, Word
+    from altocue.project import Project
+
+    source = make_clip(tmp_path / "take.mp4", seconds=4.0, size="320x568")
+    project = Project.create(tmp_path / "video", aspect="9:16")
+    (project.sources / "take.mp4").symlink_to(source)
+    clip = ingest(project)[0]
+    said = [("Ask", 0.1), ("five", 0.4), ("questions", 0.7), ("first.", 1.2), ("Then", 2.4), ("scope", 2.8), ("it.", 3.2)]
+    project.save_words(clip.id, [Word(text, at, round(at + 0.25, 3)) for text, at in said], "test")
+    ffmpeg.extract_wav(source, project.audio_dir / "take.wav", rate=48000)
+    project.save_edl(Edl(fps=30, segments=[Segment(id="s001", clip=clip.id, start=0.0, end=2.0), Segment(id="s002", clip=clip.id, start=2.2, end=3.7)]))
+    render.build(project, renderer="basic")
+    out = tmp_path / "run"
+    assert main(["shorts", "prepare", "--project", str(project.root), "--out", str(out)]) == 0
+    reel = json.loads((out / "reel.json").read_text())
+    assert [(t["id"], t["dialogue"]) for t in reel["takes"]] == [("take-01", "Ask five questions first."), ("take-02", "Then scope it.")]
+    assert [t["duration"] for t in reel["takes"]] == pytest.approx([2.0, 1.5], abs=0.05)
+    assert all(t["job_id"] is None for t in reel["takes"]) and len(reel["media"]) == 2
+    record = json.loads((out / "altocue-shorts.json").read_text())
+    assert record["takes"] == [{"id": "take-01", "from": 0.0, "to": 2.0}, {"id": "take-02", "from": 2.0, "to": 3.5}]
+    assert 'Cue: take-02 "Then scope it."' in (out / "edit-plan.md").read_text()
+
+
+JOINED = {
+    "fps": 30,
+    "master_duration": 10.0,
+    "takes": [{"id": "take-01", "timeline_start": 0.0}, {"id": "take-02", "timeline_start": 4.0}, {"id": "take-03", "timeline_start": 7.0}],
+}
+
+
+def test_a_full_graphic_near_a_join_lands_on_it():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    late = scene("hidden", 4.4, 2.0)
+    assert any("starts 0.40 s from a join" in p for p in shorts.check_joins(late, JOINED, {}, house))
+    early_end = scene("hidden", 4.0, 2.6)
+    assert any("ends 0.40 s from a join" in p for p in shorts.check_joins(early_end, JOINED, {}, house))
+    assert shorts.check_joins(scene("hidden", 4.0, 3.0), JOINED, {}, house) == []
+    assert shorts.check_joins(scene("hidden", 5.0, 1.0), JOINED, {}, house) == []  # no join near
+
+
+def test_a_graphic_never_snaps_onto_a_join_inside_another_look_away():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    takes = [{"id": "take-01", "from": 0.0, "to": 4.0}, {"id": "take-02", "from": 4.0, "to": 7.0}, {"id": "take-03", "from": 7.0, "to": 10.0}]
+    record = {"covers": [{"start": 3.6, "end": 4.3}], "takes": takes}
+    timeline = {**JOINED, "takes": [{**t, "source_from": 0.0} for t in JOINED["takes"]]}
+    assert shorts.check_joins(scene("hidden", 4.4, 1.6), timeline, record, house) == []
+
+
+def sound(path: Path, parts: list[tuple[float, float]], seconds: float) -> Path:
+    """A voice stand-in: a tone during each (start, end) part and quiet elsewhere."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    loud = "+".join(f"between(t,{a},{b})" for a, b in parts)
+    expr = f"0.3*sin(2*PI*220*t)*({loud})"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"aevalsrc='{expr}':s=16000:d={seconds}", str(path)], check=True)
+    return path
+
+
+@needs_ffmpeg
+def test_a_pause_on_paper_with_the_voice_running_through_is_not_a_silent_face(tmp_path):
+    house = dict(shorts.HOUSE_DEFAULTS)
+    talking = sound(tmp_path / "talking.wav", [(0.0, 6.0)], 6.0)
+    assert shorts.check_face(scene("base", 0, 6), SPOKEN, house, talking) == []
+    paused = sound(tmp_path / "paused.wav", [(0.0, 2.0), (4.0, 6.0)], 6.0)
+    assert any("2.00 to 4.00 s with nothing said" in p for p in shorts.check_face(scene("base", 0, 6), SPOKEN, house, paused))
+
+
+@needs_ffmpeg
+def test_fix_words_times_a_missed_first_word_and_closes_a_false_pause(tmp_path):
+    run = tmp_path / "run"
+    sound(run / "media" / "takes" / "take-01.wav", [(0.12, 1.0), (1.0, 2.6)], 3.0)
+    words = [
+        {"word": "One,", "start": 0.5, "end": 0.5, "interpolated": True},
+        {"word": "clips,", "start": 0.5, "end": 0.9},
+        {"word": "songs", "start": 1.6, "end": 2.0},
+        {"word": "first.", "start": 2.0, "end": 2.5},
+    ]
+    measured = run / "takes" / "take-01.json"
+    measured.parent.mkdir(parents=True)
+    measured.write_text(json.dumps({"caption_words": words, "source_from": 0.0, "source": "media/takes/take-01.wav"}))
+    (run / "transcripts").mkdir()
+    (run / "transcripts" / "take-01.json").write_text(json.dumps({"provider": "whisper", "words": []}))
+    assert shorts.fix_words(run, dry=True) and measured.exists()
+    lines = shorts.fix_words(run)
+    assert "'One,' at the start" in lines[0] and "after 'clips,' closed" in lines[0]
+    fixed = json.loads((run / "transcripts" / "take-01.json").read_text())
+    assert fixed["provider"] == "whisper+sound-fix"
+    assert fixed["words"][0]["start"] == pytest.approx(0.12, abs=0.03) and fixed["words"][0]["end"] <= fixed["words"][1]["start"] + 1e-6
+    assert fixed["words"][1]["end"] == pytest.approx(1.58)
+    assert not measured.exists()
+
+
+def test_frames_writes_timestamped_contact_sheets(tmp_path):
+    from PIL import Image
+
+    run = tmp_path / "run"
+    take(run / "renders" / "final.mp4", 4.0)
+    assert main(["shorts", "frames", str(run), "--every", "0.5"]) == 0
+    sheets = sorted((run / "review").glob("sheet-*.jpg"))
+    assert [s.name for s in sheets] == ["sheet-1.jpg"]
+    with Image.open(sheets[0]) as sheet:
+        assert sheet.width == 8 * 360  # 8 frames to a row
+    assert shorts_frames_stamp(61.36) == "1:01.36"
+
+
+def shorts_frames_stamp(seconds: float) -> str:
+    from altocue.sheets import stamp
+
+    return stamp(seconds)

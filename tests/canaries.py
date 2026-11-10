@@ -442,8 +442,13 @@ def planted(built: Built) -> Iterator[None]:
 
 @contextmanager
 def fakes(expected: list[str], mapped: list[dict[str, Any]], heard: list[Word] | None) -> Iterator[None]:
+    import altocue.cut as real_cut  # the sound reading stays real: only the words are planted
+
     cut = SimpleNamespace(
-        expected_words=lambda project, edl: list(expected), caption_words=lambda project, edl: list(expected), map_words=lambda project, edl: list(mapped)
+        expected_words=lambda project, edl: list(expected),
+        caption_words=lambda project, edl: list(expected),
+        map_words=lambda project, edl: list(mapped),
+        envelope_of=real_cut.envelope_of,
     )
     transcribe = SimpleNamespace(transcribe_file=lambda path, **_: list(heard or []))
     saved = {name: sys.modules.get(name) for name in ("altocue.cut", "altocue.transcribe")}

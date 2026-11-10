@@ -51,7 +51,8 @@ remove_fillers = true
 denoise = true
 denoiser = "auto"       # auto, apple, deep-filter or afftdn
 level_phrases = true    # level phrase by phrase, so a quiet aside and a loud line sit together
-deess = "light"         # off, light, normal or strong
+deess = "light"         # off, light, normal or strong: the most taken off sharp S sounds is 4, 7 or 11 dB
+declick = true          # turn mouth clicks and lip smacks down. Nothing is cut
 breaths = 0             # dB to turn breaths down. They are never cut
 music = "auto"          # take music off the voice: auto when measured under speech, on, off. Needs Demucs: `altocue doctor`
 echo = "off"            # light or strong takes a little room echo off. The ring is measured either way
@@ -86,6 +87,7 @@ sfx_only = true         # false also allows Shorts Studio's own library sounds
 cover = ""              # JSON of look-away spans in take seconds. Each becomes a full-screen graphic
 caption_words = 3       # words per caption page. 0 turns captions off
 kit = ""                # a folder of house build helpers (shorts_kit.py and its media) copied into each run
+lens = 2.5              # degrees of head plus eye turn when looking down the lens. `altocue shorts gaze` judges look-aways by it
 
 [disclosure]            # for a film with a generated person. A check, not legal advice
 label = "AI-generated actor"   # the words that must stay on screen. Put them in motion.json

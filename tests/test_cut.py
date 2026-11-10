@@ -831,3 +831,32 @@ def test_a_ruled_out_um_stays_out_when_the_edge_snaps():
     _, end = bounds([0], words, clip, None, 30, (wall,))
     start, _ = bounds([1], words, clip, None, 30, (wall,))
     assert end <= 1.5 + 0.2 and start >= 3.0 - 0.2
+
+
+def test_an_in_point_never_opens_inside_a_words_first_sound():
+    """A shot that opened 0.07 s into "One" lost its first sound. The sound before the cut puts the edge back."""
+    from altocue.cut.snap import HEAD_LEAD, clipped_head, guard_in
+
+    env = envelope(4.0, [(1.0, 1.6)])
+    assert clipped_head(env, 1.08) == pytest.approx(0.08, abs=HOP)
+    assert guard_in(env, 1.08) == pytest.approx(1.08 - clipped_head(env, 1.08) - HEAD_LEAD, abs=1e-3)
+    assert guard_in(env, 0.9) == 0.9  # opens on quiet: nothing to restore
+    assert guard_in(env, 1.08, floor=1.06) == 1.06  # never back past the word before
+
+
+def test_running_speech_before_a_cut_is_left_alone():
+    """Half a second of sound into the cut is a retake the edit removed on purpose, not a clipped word."""
+    from altocue.cut.snap import guard_in
+
+    env = envelope(4.0, [(0.5, 1.6)])
+    assert guard_in(env, 1.1) == 1.1
+
+
+def test_a_cut_word_with_a_late_transcript_start_keeps_its_first_sound(tmp_path):
+    """The recogniser put "One" 0.2 s late. The shot still opens before the sound starts."""
+    from altocue.cut import bounds
+
+    clip = add_clip(tmp_path, "a", 4.0, [(0.2, 0.6), (1.6, 2.4)])
+    words = [Word(text="Um", start=0.2, end=0.6), Word(text="One", start=1.85, end=2.4)]
+    start, _ = bounds([1], words, clip, cut.envelope_of(clip), 30)
+    assert start <= 1.6

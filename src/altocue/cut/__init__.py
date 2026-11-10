@@ -25,7 +25,7 @@ from .detect import VOICED_PAUSE, candidates, certain
 from .hand import carry, hand_set
 from .review import apply_rulings, covering, load_rulings, removal_id, write_report, write_review
 from .script import NO_SPEECH, Key, from_script, in_source_order, play_order, write_script
-from .snap import FRAME_SLACK, OVERLAP, POST, PRE, frame_count, last_full_frame, overlap, plays, snap, to_grid
+from .snap import FRAME_SLACK, OVERLAP, POST, PRE, frame_count, guard_in, last_full_frame, overlap, plays, snap, to_grid
 
 __all__ = [
     "add_arguments",
@@ -79,6 +79,7 @@ def bounds(run: list[int], words: list[Word], clip: Clip, envelope: Envelope | N
         start, end = snap(envelope, start, end, first_word_start=first.start, last_word_end=last.end)
         start = min(start, max(first.start, first.end - OVERLAP))
         end = max(end, min(last.end, last.start + OVERLAP))
+        start = guard_in(envelope, start, floor)  # never open a shot inside the first sound of its first word
     frame = 1 / fps
     before = words[run[0] - 1] if run[0] else None
     after = words[run[-1] + 1] if run[-1] + 1 < len(words) else None

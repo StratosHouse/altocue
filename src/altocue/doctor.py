@@ -36,7 +36,6 @@ REQUIRED_FILTERS = (
     "highpass",
     "bandreject",
     "equalizer",
-    "deesser",
     "afftdn",
     "asendcmd",
     "aresample",
@@ -143,6 +142,14 @@ def check_stems() -> Check:
     return Check("music removal", True, False, "Demucs, run on this machine when music is measured under the voice")
 
 
+def check_gaze() -> Check:
+    from .gaze import INSTALL
+
+    if importlib.util.find_spec("mediapipe") is None:
+        return Check("eyeline", False, False, "MediaPipe not installed: `altocue shorts gaze` cannot find look-aways", f"Run `{INSTALL}`.")
+    return Check("eyeline", True, False, "MediaPipe face landmarker, run on this machine for `altocue shorts gaze`")
+
+
 def ocr_reader() -> tuple[str | None, str]:
     from .qa import ocr
 
@@ -195,7 +202,7 @@ def check_clis() -> list[Check]:
 
 
 def core_checks() -> list[Check]:
-    return [check_ffmpeg(), check_node(), check_renderer(), check_transcriber(), check_denoiser(), check_speakers(), check_stems(), check_ocr()]
+    return [check_ffmpeg(), check_node(), check_renderer(), check_transcriber(), check_denoiser(), check_speakers(), check_stems(), check_gaze(), check_ocr()]
 
 
 def checks(core: list[Check] | None = None) -> list[Check]:
