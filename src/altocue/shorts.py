@@ -48,7 +48,18 @@ GRAIN_RULE = re.compile(r"([^{}]*grain[^{}]*)\{([^}]*)\}", re.IGNORECASE)
 GRAIN_PER_FRAME = re.compile(r"grain[^;\n]*;[^\n]*frameAt|frameAt[^\n]*grain", re.IGNORECASE)
 HOUSE_FILE = "house.json"  # in a kit: the house look a run must keep, read by the check
 # What a first draft is held to, unless house.json says otherwise.
-HOUSE_DEFAULTS = {"silent_face": 0.6, "min_face": 0.8, "min_scene": 0.5, "grain_opacity": 0.04}
+HOUSE_DEFAULTS = {
+    "silent_face": 0.6,  # seconds the face may show with nothing said
+    "min_face": 0.8,  # the shortest look at the face between two graphics
+    "min_scene": 0.5,  # anything shorter is a flash cut
+    "grain_opacity": 0.04,
+    "min_graphic": 1.5,  # the shortest hold for a graphic with any text on it
+    "read_rate": 3.5,  # words a viewer reads a second, on top of a half-second glance
+    "max_changes": 2,  # scene changes allowed inside any `change_window` seconds
+    "change_window": 4.0,
+    "max_sounds": 2,  # sound effects allowed inside any one second
+}
+SECTION = re.compile(r"(<section\b[^>]*\bdata-layout\s*=\s*\"[a-z]+\"[^>]*>)(.*?)</section>", re.IGNORECASE | re.DOTALL)
 ATTR = re.compile(r'([a-z-]+)\s*=\s*"([^"]*)"', re.IGNORECASE)
 CUE_WORDS = 4
 FRAME_SLACK = 1.0  # frames a cover may start late or end early and still count
@@ -226,6 +237,9 @@ def house_notes(
         *[f"  {line}" for line in look_lines((house or {}).get("look"))],
         f"- Show the face only while it speaks. No pause over {rules['silent_face']:.1f} s on the face, and no flash of the face",
         f"  under {rules['min_face']:.1f} s between two graphics. No scene under {rules['min_scene']:.1f} s.",
+        "- Keep the motion graphics strong. What fails is pacing: give each graphic time to read, one idea on screen at a time,",
+        f"  at least {rules['min_graphic']:.1f} s and longer for more words, and no more than {rules['max_changes']} scene changes in any"
+        f" {rules['change_window']:.0f} s.",
         f"- Grain stays at opacity {rules['grain_opacity']:.2f} or less, and never jumps to a new place every frame.",
         "- The take is real footage, supplied. Generate no presenter take, no recast and no lip sync. reel.json keeps `job_id` null on every take.",
         "- Keep the speaker's own words. Trim nothing the measure step does not trim.",
@@ -466,6 +480,51 @@ def check_face(html: str, timeline: dict[str, Any], house: dict[str, Any]) -> li
     return problems
 
 
+def on_screen_words(inner: str) -> int:
+    text = re.sub(r"<(script|style)\b.*?</\1>", " ", inner, flags=re.IGNORECASE | re.DOTALL)
+    return len(re.findall(r"[A-Za-z0-9][\w'%$.,/]*", re.sub(r"<[^>]+>", " ", text)))
+
+
+def check_pacing(html: str, house: dict[str, Any]) -> list[str]:
+    """Strong graphics, at a pace a viewer can take in: time to read each one, and not too many changes or sounds at once."""
+    problems = []
+    for tag, inner in SECTION.findall(html):
+        values = attrs(tag)
+        try:
+            start, seconds = float(values["data-start"]), float(values["data-duration"])
+        except (KeyError, ValueError):
+            continue
+        words = on_screen_words(inner)
+        if not words:
+            continue
+        needed = max(house["min_graphic"], 0.5 + words / house["read_rate"])
+        if seconds + 1e-3 < needed:
+            problems.append(f"The graphic at {start:.2f} s holds {seconds:.2f} s for {words} words on screen. Hold it {needed:.1f} s, or cut words.")
+    changes = sorted({round(a, 3) for _, a, _ in scenes_in(html) if a > 0})
+    window = house["change_window"]
+    for index, at in enumerate(changes):
+        inside = [c for c in changes[index:] if c < at + window]
+        if len(inside) > house["max_changes"]:
+            problems.append(f"{len(inside)} scene changes between {at:.2f} and {inside[-1]:.2f} s. Nobody can take that in; hold the graphics longer.")
+            break
+    sounds = []
+    for tag in AUDIO_TAG.findall(html):
+        values = attrs(tag)
+        if values.get("id") in ("voice", "music", "bed") or "data-start" not in values:
+            continue
+        try:
+            sounds.append(float(values["data-start"]))
+        except ValueError:
+            continue
+    sounds.sort()
+    for index, at in enumerate(sounds):
+        inside = [t for t in sounds[index:] if t < at + 1.0]
+        if len(inside) > house["max_sounds"]:
+            problems.append(f"{len(inside)} sound effects inside one second at {at:.2f} s. Keep the sounds to the moments that matter.")
+            break
+    return problems
+
+
 def check_grain(html: str, house: dict[str, Any]) -> list[str]:
     problems = []
     for selector, body in GRAIN_RULE.findall(html):
@@ -543,7 +602,7 @@ def check(run: Path, render: Path | None) -> list[str]:
     house = {**HOUSE_DEFAULTS, **(json.loads((run / HOUSE_FILE).read_text()) if (run / HOUSE_FILE).exists() else {})}
     scenes, length = scenes_in(html), float(timeline.get("master_duration", 0.0))
     problems = check_presenter(reel) + check_sounds(run, html, record) + check_covers(html, timeline, record) + check_video_tags(html) + check_dashes(run)
-    problems += check_face(html, timeline, house) + check_grain(html, house) + check_house(html, reel, scenes, length, house)
+    problems += check_face(html, timeline, house) + check_pacing(html, house) + check_grain(html, house) + check_house(html, reel, scenes, length, house)
     return problems + check_length(render or run / "renders" / "final.mp4", timeline)
 
 

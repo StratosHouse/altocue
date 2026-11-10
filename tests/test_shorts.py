@@ -198,3 +198,19 @@ def test_the_house_end_card_layouts_and_faces_hold():
     assert any("inter" in p for p in problems)
     good = "<style>.t{font-family:'Geist',sans-serif}</style>" + scene("cutout", 0, 6)
     assert shorts.check_house(good, {"outro": {"id": "house-card"}}, shorts.scenes_in(good), 6.0, house) == []
+
+
+def test_each_graphic_holds_long_enough_to_read():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    wordy = '<section data-layout="hidden" data-start="1" data-duration="1.2"><h2>Write the answers first, and the demo changes</h2></section>'
+    assert any("8 words" in p for p in shorts.check_pacing(wordy, house))
+    calm = wordy.replace('data-duration="1.2"', 'data-duration="3.0"')
+    assert shorts.check_pacing(calm, house) == []
+
+
+def test_too_many_changes_or_sounds_at_once_fail():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    rushed = scene("base", 0, 1) + scene("hidden", 1, 1) + scene("base", 2, 1) + scene("hidden", 3, 3)
+    assert any("3 scene changes" in p for p in shorts.check_pacing(rushed, house))
+    busy = "".join(f'<audio id="sfx-{n}" src="media/sfx/a.wav" data-start="{1 + n * 0.2}"></audio>' for n in range(3))
+    assert any("3 sound effects" in p for p in shorts.check_pacing(busy, house))
