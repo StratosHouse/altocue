@@ -25,6 +25,7 @@ Altocue's own code is MIT. Nothing it needs charges a licence fee, so a team of 
 | 12 shader transitions | MIT, text in `src/altocue/data/transitions/LICENSE` | gl-transitions contributors, in `src/altocue/data/transitions/`, each file's header kept |
 | Tabler Icons, 16 outline icons for feature badges | MIT, text in `src/altocue/data/icons/LICENSE` | Copyright 2020-2025 Paweł Kuna, version 3.35.0, in `src/altocue/data/icons/`. See its `README.md` |
 | Country and land outlines | Public domain shapes. The world-atlas packaging is ISC, text in `src/altocue/data/maps/LICENSE` | Natural Earth 1:110m, packaged by world-atlas, copyright 2013-2019 Michael Bostock, in `src/altocue/data/maps/` |
+| Glass kit example: 28 glass objects and the Stratos mark | AI-generated with Higgsfield, under [Higgsfield's terms of use](https://higgsfield.ai/terms-of-use-agreement). The Stratos mark is Stratos House's | `examples/shorts-kits/glass/`, not in the package. See its `README.md` and `provenance.json` |
 
 - **Kenney is credited by name only, never the logo.** Credit is optional under CC0, and we give it.
 - **BigSoundBank warns that third parties can file wrong Content ID claims on its CC0 sounds.** Its page gives a dispute link.
