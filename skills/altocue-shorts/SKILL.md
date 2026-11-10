@@ -14,7 +14,7 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
 - **The person on screen is real.** The take is supplied. Never generate, recast, lip-sync or redraw the presenter. `altocue shorts check` fails any run whose `reel.json` holds a generated take.
 - **Uploading sends footage to Higgsfield.** Its terms let it train on uploads. Upload only footage the owner has agreed to send. Never a client's face without that client's yes.
 - **Altocue's stages come first and last.** Cut, clean, grade and frame run before. Master, review and deliver run after. Shorts Studio designs the motion; it does not replace the edit.
-- **Looking away gets covered.** When a gaze tool gives spans where the eyes leave the lens, pass them with `--cover`. Each becomes a cover beat. The composition hides the presenter for the whole moment: put it inside a `data-layout="hidden"` scene, or under a full-screen graphic marked `data-cover`.
+- **Looking away gets covered.** `altocue shorts gaze -p .` finds where the eyes leave the lens (it needs MediaPipe; `altocue doctor` says how to add it) and writes `gaze.json`; pass it with `--cover`. The eyeline is judged against the lens, so eyes that only cancel a head turn are on it, and a blink is not a look-away. If the camera sits off to one side, set `[shorts] lens` to the head plus eye turn in degrees when looking down it. Each becomes a cover beat. The composition hides the presenter for the whole moment: put it inside a `data-layout="hidden"` scene, or under a full-screen graphic marked `data-cover`.
 - **One sound pack, when the house has one.** `[shorts] sfx_dir` names it. With `sfx_only` on, only those files may play. Shorts Studio's library sounds fail the check.
 - **House look, every Reel.** `[shorts] kit` names a folder of build helpers, such as a shared stylesheet and motion module. Each run gets them beside its `build.py`, and any image in the kit goes into `media/`.
 - **One take per recorded line.** From a project, each stretch between the cut's own joins is its own take, cut on those joins. Nothing re-trims the take inside a line: a second trim doubles the jump cuts and makes the delivery robotic. A line under 0.6 s, such as one word, joins the next one. Keep the takes in order.
@@ -37,7 +37,7 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
    ```bash
    altocue shorts check shorts/<slug>
    ```
-   Fix every failure in the composition and render again. A skipped check is not a pass.
+   Add `--gaze` to scan the finished render too: it fails any look-away left on screen. Fix every failure in the composition and render again. A skipped check is not a pass.
 7. Master, review and deliver the render with the usual stages.
 
 ## When to use something else

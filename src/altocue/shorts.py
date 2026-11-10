@@ -95,9 +95,18 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     fix = sub.add_parser("fix-words", help="After Shorts Studio's measure: give missed words a time and close pauses the sound does not have")
     fix.add_argument("run_dir", help="The run folder, after measure, with takes/ and transcripts/")
     fix.add_argument("--dry", action="store_true", help="Say what would change and change nothing")
+
+    gaze = sub.add_parser("gaze", help="Find where the eyes leave the lens, as cover spans for prepare --cover")
+    gaze_source = gaze.add_mutually_exclusive_group(required=True)
+    gaze_source.add_argument("--project", "-p", help="An Altocue project after `altocue plate`: its plate is scanned, in cut seconds")
+    gaze_source.add_argument("--video", help="Any talking video")
+    gaze.add_argument("--out", help="JSON to write. Defaults to gaze.json in the project, or beside the video")
+    gaze.add_argument("--lens", type=float, help="Degrees of head plus eye turn when looking down this camera's lens. Overrides [shorts] lens")
     check = sub.add_parser("check", help="Check a Shorts Studio run: presenter, sounds, look-away covers, dashes, length")
     check.add_argument("run_dir", help="The run folder, or the unzipped composition.zip, with reel.json and timeline.json")
     check.add_argument("--render", help="The final render. Defaults to renders/final.mp4 in the run folder")
+    check.add_argument("--gaze", action="store_true", help="Also scan the render's eyeline and fail any look-away left on screen. Needs MediaPipe")
+    check.add_argument("--lens", type=float, help="With --gaze: degrees of head plus eye turn on the lens. Defaults to [shorts] lens of the project")
 
 
 # ---------------------------------------------------------------- prepare
@@ -867,6 +876,38 @@ def fix_words(run: Path, dry: bool = False) -> list[str]:
     return lines
 
 
+def check_gaze(render: Path, html: str, lens: float) -> list[str]:
+    """Scan the finished render and fail any look-away the viewer can see. Hidden scenes are left out: a graphic there can read as a face."""
+    from . import gaze
+
+    if not render.exists():
+        return []
+    hidden = [(a, b) for layout, a, b in scenes_in(html) if layout == "hidden"]
+    rows = [r for r in gaze.scan(render) if not any(a - gaze.MARGIN <= r["t"] <= b + gaze.MARGIN for a, b in hidden)]
+    spans, _ = gaze.away_spans(rows, lens, no_face=False)
+    return [f"The speaker looks off the lens from {s['start']:.2f} to {s['end']:.2f} s of the render ({s['reason']}), with no graphic over it." for s in spans]
+
+
+def find_gaze(args: argparse.Namespace) -> Path:
+    from . import gaze
+
+    project = Project.open(args.project) if args.project else None
+    video = project.work / "plate.mp4" if project else Path(args.video).expanduser()
+    if not video.exists():
+        raise AltocueError(f"No video at {video}.", fix="Run `altocue plate` first." if project else "Pass a video that exists.")
+    lens = args.lens if args.lens is not None else float((project.config.get("shorts", {}) if project else {}).get("lens", gaze.LENS))
+    rows = gaze.scan(video)
+    spans, blinks = gaze.away_spans(rows, lens)
+    out = Path(args.out).expanduser() if args.out else (project.root / "gaze.json" if project else video.with_name(f"{video.stem}-gaze.json"))
+    write_json(out, {"video": str(video), "lens": lens, "samples": len(rows), "spans": spans, "blinks": [list(b) for b in blinks], "rows": rows})
+    print(f"{len(spans)} look-away {'span' if len(spans) == 1 else 'spans'} in {len(rows)} samples, {len(blinks)} blinks. Written to {out}")
+    for span in spans:
+        print(f"  {span['start']:.2f} to {span['end']:.2f} s: {span['reason']}")
+    if project:
+        print(f"Pass it on: altocue shorts prepare -p {project.root} --cover {out}")
+    return out
+
+
 def check_length(render: Path, timeline: dict[str, Any]) -> list[str]:
     if not render.exists():
         return [f"No render at {render}. A skipped check is not a pass."]
@@ -878,7 +919,7 @@ def check_length(render: Path, timeline: dict[str, Any]) -> list[str]:
     return []
 
 
-def check(run: Path, render: Path | None) -> list[str]:
+def check(run: Path, render: Path | None, gaze_lens: float | None = None) -> list[str]:
     def read(name: str) -> dict[str, Any]:
         path = run / name
         if not path.exists():
@@ -906,7 +947,10 @@ def check(run: Path, render: Path | None) -> list[str]:
     problems += check_joins(html, timeline, record, house)
     problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_grain(html, house)
     problems += check_house(html, reel, scenes, length, house)
-    return problems + check_length(render or run / "renders" / "final.mp4", timeline)
+    final = render or run / "renders" / "final.mp4"
+    if gaze_lens is not None:
+        problems += check_gaze(final, html, gaze_lens)
+    return problems + check_length(final, timeline)
 
 
 def run(args: argparse.Namespace) -> int:
@@ -926,7 +970,21 @@ def run(args: argparse.Namespace) -> int:
         elif not args.dry:
             print("Run Shorts Studio's measure step again, so it trims the corrected takes.")
         return 0
-    problems = check(Path(args.run_dir).expanduser().resolve(), Path(args.render).expanduser().resolve() if args.render else None)
+    if args.action == "gaze":
+        find_gaze(args)
+        return 0
+    run_dir = Path(args.run_dir).expanduser().resolve()
+    lens = None
+    if args.gaze:
+        from . import gaze
+
+        lens = args.lens
+        if lens is None:
+            record = json.loads((run_dir / "altocue-shorts.json").read_text()) if (run_dir / "altocue-shorts.json").exists() else {}
+            owner = Path(record.get("project") or "")
+            config = Project.open(owner).config if record.get("project") and (owner / "altocue.toml").exists() else {}
+            lens = float(config.get("shorts", {}).get("lens", gaze.LENS))
+    problems = check(run_dir, Path(args.render).expanduser().resolve() if args.render else None, lens)
     for problem in problems:
         print(f"FAIL {problem}")
     print("Shorts check passed." if not problems else f"{len(problems)} problems.")
