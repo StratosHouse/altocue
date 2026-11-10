@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Clean works on ffmpeg 5.1.** The loudness measure asked ebur128 for `framelog=quiet`, which needs ffmpeg 6 or later, so on Debian 12's ffmpeg 5.1 every `altocue clean`, and so `altocue demo`, stopped with "Invalid argument". It now asks for `framelog=verbose`, which every version takes and which keeps the log just as quiet.
+- **Master works on ffmpeg 5.1.** There, `loudnorm` hands on audio with no channel layout and the limiter refused it, so every master failed. The chain now names the usual layouts first, and ffmpeg keeps the one with the same number of channels. With both fixes `altocue demo` runs clean to deliver on Debian 12's ffmpeg 5.1.
 
 ## 0.5.0
 
