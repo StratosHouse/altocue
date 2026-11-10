@@ -80,6 +80,13 @@ provider = ""           # fal or higgsfield. Empty means nothing generates
 spend_cap_usd = 0.0     # the most this project may spend, on every route. 0 blocks all paid calls
 usd_per_credit = 0.08   # Higgsfield only: your plan's dollars per credit
 
+[shorts]                # `altocue shorts`: Higgsfield Shorts Studio designs the motion on your real take
+sfx_dir = ""            # a folder of sound effects. When set, the run may use only these
+sfx_only = true         # false also allows Shorts Studio's own library sounds
+cover = ""              # JSON of look-away spans in take seconds. Each becomes a full-screen graphic
+caption_words = 3       # words per caption page. 0 turns captions off
+kit = ""                # a folder of house build helpers (shorts_kit.py and its media) copied into each run
+
 [disclosure]            # for a film with a generated person. A check, not legal advice
 label = "AI-generated actor"   # the words that must stay on screen. Put them in motion.json
 exempt = ""             # why no label is needed, in your words. Recorded, never judged
