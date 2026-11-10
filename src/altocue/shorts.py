@@ -34,6 +34,7 @@ from .errors import AltocueError
 from .project import Project, write_json
 
 TAKE = "take-01"
+MIN_TAKE = 0.6  # a line shorter than this, such as one word, is too short to time or measure: it joins its neighbour
 SOUNDS = (".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aif", ".aiff")
 DASHES = {chr(0x2014): "em dash", chr(0x2015): "horizontal bar", chr(0x2013): "en dash"}
 TEXT_FILES = (".html", ".js", ".css", ".md", ".json", ".txt")
@@ -114,37 +115,91 @@ def inside_take(spans: list[dict[str, float]], seconds: float) -> list[dict[str,
     return [{**span, "end": min(span["end"], round(seconds, 3))} for span in spans if span["start"] < seconds]
 
 
-def project_take(project: Project, run: Path, until: float = 0.0) -> tuple[Path, list[dict[str, Any]]]:
-    """The plate and its edited voice, muxed into one take, plus the kept words in take seconds."""
-    from . import cut
+def take_id(number: int) -> str:
+    return f"take-{number:02d}"
+
+
+def lines_of(lengths: list[int], words: list[dict[str, Any]], fps: float) -> list[dict[str, Any]]:
+    """One take per recorded line. The cut's own joins split the plate, and nothing else does.
+
+    `lengths` are the cut's segments in frames, in order. A line under MIN_TAKE, or with no word in it,
+    joins the line after it (the last one joins the line before), so the join stays inside that take.
+    Pauses inside a line are never touched: Shorts Studio trims only the dead air at each take's edges.
+    """
+    lines: list[list[int]] = []
+    frame = 0
+    for length in lengths:
+        lines.append([frame, frame + length])
+        frame += length
+
+    def spoken(line: list[int]) -> bool:
+        return any(line[0] <= w["start_frame"] < line[1] for w in words)
+
+    changed = True
+    while changed and len(lines) > 1:
+        changed = False
+        for index, line in enumerate(lines):
+            if (line[1] - line[0]) / fps >= MIN_TAKE and spoken(line):
+                continue
+            if index + 1 < len(lines):
+                lines[index + 1][0] = line[0]
+            else:
+                lines[index - 1][1] = line[1]
+            del lines[index]
+            changed = True
+            break
+    takes = []
+    for number, (first, last) in enumerate(lines, 1):
+        start, end = first / fps, last / fps
+        inside = [{**w, "start": round(w["start"] - start, 3), "end": round(min(w["end"], end) - start, 3)} for w in words if first <= w["start_frame"] < last]
+        take = {"id": take_id(number), "first_frame": first, "last_frame": last, "from": round(start, 3), "to": round(end, 3)}
+        takes.append({**take, "words": inside, "dialogue": dialogue_of(inside)})
+    return takes
+
+
+def project_takes(project: Project, run: Path, until: float = 0.0) -> list[dict[str, Any]]:
+    """The plate and its edited voice, cut on the plate's own joins into one take per line, with each take's words."""
+    from .cut import map_words
+    from .cut.snap import frame_count
 
     plate, voice = project.work / "plate.mp4", project.work / "voice.wav"
     if not plate.exists() or not voice.exists():
         raise AltocueError("This project has no plate yet.", fix="Run `altocue plate` first. Shorts Studio designs on the finished cut.")
-    words = [w for w in cut.map_words(project, project.edl()) if w.get("kind", "word") == "word"]
+    edl = project.edl()
+    words = [w for w in map_words(project, edl) if w.get("kind", "word") == "word"]
     if not words:
         raise AltocueError("The cut keeps no spoken words.", fix="Shorts Studio needs a talking take. Check the cut with `altocue cut`.")
-    seconds = 0.0
+    lengths = [frame_count(segment.start, segment.end, edl.fps) for segment in edl.segments]
     if until:
-        words = [w for w in words if w["end"] <= until] or words[:1]
-        seconds = words[-1]["end"] + 0.4
-    target = run / "media" / "takes" / f"{TAKE}.mp4"
-    mux(plate, voice, target, seconds)
-    return target, words
+        kept = [w for w in words if w["end"] <= until] or words[:1]
+        stop = min(sum(lengths), round((kept[-1]["end"] + 0.4) * edl.fps))
+        words, total, cut_lengths = kept, 0, []
+        for length in lengths:
+            if total >= stop:
+                break
+            cut_lengths.append(min(length, stop - total))
+            total += cut_lengths[-1]
+        lengths = cut_lengths
+    takes = lines_of(lengths, words, edl.fps)
+    for take in takes:
+        take["path"] = run / "media" / "takes" / f"{take['id']}.mp4"
+        cut_take(plate, voice, take["path"], take["first_frame"], take["last_frame"], edl.fps)
+    return takes
 
 
-def mux(picture: Path, voice: Path, target: Path, seconds: float = 0.0) -> None:
-    """Join picture and voice. A trim re-encodes the picture, so it ends on the frame asked for, not the next keyframe."""
+def cut_take(picture: Path, voice: Path, target: Path, first: int, last: int, fps: float) -> None:
+    """One line of the plate with its voice, cut on exact frames. The picture is re-encoded so it starts on the frame asked for."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise AltocueError("ffmpeg is not on PATH.", fix="Run `altocue doctor`.")
     target.parent.mkdir(parents=True, exist_ok=True)
     command = [ffmpeg, "-y", "-loglevel", "error", "-i", str(picture), "-i", str(voice), "-map", "0:v:0", "-map", "1:a:0"]
-    picture_codec = ["-c:v", "libx264", "-crf", "14", "-preset", "medium", "-pix_fmt", "yuv420p", "-t", f"{seconds:.3f}"] if seconds else ["-c:v", "copy"]
-    command += [*picture_codec, "-c:a", "aac", "-b:a", "256k", "-shortest", "-movflags", "+faststart", str(target)]
+    command += ["-vf", f"trim=start_frame={first}:end_frame={last},setpts=PTS-STARTPTS"]
+    command += ["-af", f"atrim=start={first / fps:.6f}:end={last / fps:.6f},asetpts=PTS-STARTPTS"]
+    command += ["-c:v", "libx264", "-crf", "14", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart", str(target)]
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     if result.returncode:
-        raise AltocueError(f"ffmpeg could not join the plate and voice: {result.stderr.strip()[-400:]}")
+        raise AltocueError(f"ffmpeg could not cut {target.stem} from the plate: {result.stderr.strip()[-400:]}")
 
 
 def dialogue_of(words: list[dict[str, Any]]) -> str:
@@ -155,25 +210,37 @@ def cue_phrase(words: list[str]) -> str:
     return " ".join(words[:CUE_WORDS])
 
 
-def plan_lines(words: list[dict[str, Any]], dialogue: str, spans: list[dict[str, float]], caption_words: int) -> str:
-    """The edit plan's skeleton: one beat per sentence, and one cover beat per look-away span.
+def take_at(takes: list[dict[str, Any]], seconds: float) -> dict[str, Any]:
+    """The take holding this moment of the cut, the last one for a moment past the end."""
+    return next((take for take in takes if take["from"] <= seconds < take["to"]), takes[-1])
 
-    Cue phrases are copied from the dialogue word for word, because Shorts Studio times a beat by
-    finding its phrase in the take.
+
+def plan_lines(takes: list[dict[str, Any]], spans: list[dict[str, float]], caption_words: int) -> str:
+    """The edit plan's skeleton: one beat per sentence in each take, and one cover beat per look-away span.
+
+    Cue phrases are copied from the take's dialogue word for word, because Shorts Studio times a beat by
+    finding its phrase in that take. A sentence that runs across a join gets a beat in each take.
     """
     lines = ["# Edit plan", "", "Real footage. The presenter is the person in the take: never generate, recast or redraw them.", ""]
-    tokens = dialogue.split(" ")
-    for number, sentence in enumerate(s for s in SENTENCE.split(dialogue) if s.strip()):
-        lines += [f"Beat: line-{number + 1:02d}", f'Cue: {TAKE} "{cue_phrase(sentence.split(" "))}"', ""]
-    for number, span in enumerate(spans):
-        inside = [i for i, w in enumerate(words) if w["start"] >= span["start"] - 0.05 and w["start"] < span["end"]]
-        near = inside[0] if inside else min(range(len(words)), key=lambda i: abs(words[i]["start"] - span["start"]))
-        phrase = cue_phrase(tokens[near:])
+    if len(takes) > 1:
+        lines += [f"{len(takes)} takes, one per recorded line, cut on the joins already in the edit. Keep them in order and trim only", "the dead air at each join.", ""]
+    number = 0
+    for take in takes:
+        for sentence in (s for s in SENTENCE.split(take["dialogue"]) if s.strip()):
+            number += 1
+            lines += [f"Beat: line-{number:02d}", f'Cue: {take["id"]} "{cue_phrase(sentence.split(" "))}"', ""]
+    for index, span in enumerate(spans):
+        take = take_at(takes, span["start"])
+        words, tokens = take["words"], take["dialogue"].split(" ")
+        local = span["start"] - take["from"]
+        inside = [i for i, w in enumerate(words) if w["start"] >= local - 0.05 and w["start"] < span["end"] - take["from"]]
+        near = inside[0] if inside else min(range(len(words)), key=lambda i: abs(words[i]["start"] - local)) if words else 0
         lines += [
-            f"Beat: cover-{number + 1:02d}",
-            f'Cue: {TAKE} "{phrase}"',
-            f"Cover {span['start']:.2f} to {span['end']:.2f} s of the take ({span['reason']}) with a full-screen graphic that hides the presenter.",
-            f'Put the moment in a data-layout="hidden" scene, or mark its element data-cover="cover-{number + 1:02d}",',
+            f"Beat: cover-{index + 1:02d}",
+            f'Cue: {take["id"]} "{cue_phrase(tokens[near:])}"',
+            f"Cover {span['start']:.2f} to {span['end']:.2f} s of the cut ({span['reason']}), from {local:.2f} s into {take['id']},"
+            " with a full-screen graphic that hides the presenter.",
+            f'Put the moment in a data-layout="hidden" scene, or mark its element data-cover="cover-{index + 1:02d}",',
             "with data-start and data-duration that span the whole moment.",
             "",
         ]
@@ -283,8 +350,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     run.mkdir(parents=True, exist_ok=True)
 
     if project:
-        take, words = project_take(project, run, args.until)
-        dialogue = dialogue_of(words)
+        takes = project_takes(project, run, args.until)
         aspect = args.aspect or project.config["output"]["aspect"]
     else:
         if not args.script:
@@ -293,18 +359,22 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         source = Path(args.take).expanduser()
         if not source.exists():
             raise AltocueError(f"No take at {source}.")
-        take = run / "media" / "takes" / f"{TAKE}.mp4"
-        take.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, take)
-        words = []
+        path = run / "media" / "takes" / f"{TAKE}.mp4"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, path)
+        takes = [{"id": TAKE, "path": path, "from": 0.0, "to": probe_duration(path), "words": [], "dialogue": dialogue}]
         aspect = args.aspect or "9:16"
+    for take in takes:
+        take["duration"] = round(probe_duration(take["path"]), 3)
+    dialogue = " ".join(take["dialogue"] for take in takes if take["dialogue"])
+    seconds = round(sum(take["duration"] for take in takes), 3)
 
     cover = args.cover or settings.get("cover", "")
     cover_path = (base / cover).expanduser() if cover and not Path(cover).is_absolute() else Path(cover) if cover else None
     spans = load_spans(cover_path) if cover_path else []
-    if spans and not words:
+    if spans and not project:
         raise AltocueError("Cover spans need word timings.", fix="Use --project, so each cover can be cued on the words spoken during it.")
-    spans = inside_take(spans, probe_duration(take))
+    spans = inside_take(spans, takes[-1]["to"])
     caption_words = args.captions if args.captions is not None else int(settings.get("caption_words", 3))
     pack = args.sfx_dir or settings.get("sfx_dir", "")
     sfx_only = not args.sfx_any and bool(settings.get("sfx_only", True))
@@ -321,27 +391,39 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         "video_model": "seedance_2_5",
         "takes": [
             {
-                "id": TAKE,
-                "dialogue": dialogue,
+                "id": take["id"],
+                "dialogue": take["dialogue"],
                 "pronunciations": [],
-                "duration": round(probe_duration(take), 3),
+                "duration": take["duration"],
                 "job_id": None,
                 "url": None,
-                "local_path": f"media/takes/{TAKE}.mp4",
+                "local_path": f"media/takes/{take['id']}.mp4",
                 "matte": None,
             }
+            for take in takes
         ],
         "outro": None,
-        "media": [{"id": "real-take", "kind": "video", "source": "supplied", "role": "host-source", "purpose": "presenter", "local_path": f"media/takes/{TAKE}.mp4"}],
+        "media": [
+            {
+                "id": "real-take" if len(takes) == 1 else f"real-{take['id']}",
+                "kind": "video",
+                "source": "supplied",
+                "role": "host-source",
+                "purpose": "presenter",
+                "local_path": f"media/takes/{take['id']}.mp4",
+            }
+            for take in takes
+        ],
     }
     write_json(run / "reel.json", reel)
     (run / "script.md").write_text(dialogue + "\n")
-    (run / "edit-plan.md").write_text(plan_lines(words, dialogue, spans, caption_words) if words else plan_lines([], dialogue, [], caption_words))
+    (run / "edit-plan.md").write_text(plan_lines(takes, spans, caption_words))
     (run / "HOUSE.md").write_text(house_notes(sounds, sfx_only, spans, kit, json.loads((run / HOUSE_FILE).read_text()) if (run / HOUSE_FILE).exists() else None))
     write_json(
         run / "altocue-shorts.json",
         {
-            "take": f"media/takes/{TAKE}.mp4",
+            "take": f"media/takes/{takes[0]['id']}.mp4",
+            "takes": [{"id": take["id"], "from": take["from"], "to": take["to"]} for take in takes],  # where each take sits in the cut
             "covers": spans,
             "sfx_only": bool(sounds is not None and sfx_only),
             "sounds": sounds or [],
@@ -352,7 +434,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     if sounds is not None:
         write_json(run / "sfx-pack.json", [{"file": s["file"], "name": s["name"]} for s in sounds])
     archive = bundle(run)
-    return {"run": run, "bundle": archive, "spans": spans, "sounds": len(sounds or []), "seconds": reel["takes"][0]["duration"]}
+    return {"run": run, "bundle": archive, "spans": spans, "sounds": len(sounds or []), "seconds": seconds, "takes": len(takes)}
 
 
 def probe_duration(path: Path) -> float:
@@ -373,11 +455,15 @@ def attrs(tag: str) -> dict[str, str]:
     return {key.lower(): value for key, value in ATTR.findall(tag)}
 
 
-def to_timeline(timeline: dict[str, Any], seconds: float) -> float:
-    take = next((t for t in timeline.get("takes", []) if t.get("id") == TAKE), None)
+def to_timeline(timeline: dict[str, Any], seconds: float, takes: list[dict[str, Any]] | None = None, end: bool = False) -> float:
+    """A moment of the cut on the reel's timeline. `takes` says where each take sits in the cut; a run from before
+    takes followed the joins has one take that is the whole cut. An end moment belongs to the take it ends in."""
+    placed = takes or [{"id": TAKE, "from": 0.0, "to": float("inf")}]
+    holder = next((t for t in placed if t["from"] < seconds <= t["to"]) if end else (t for t in placed if t["from"] <= seconds < t["to"]), placed[-1])
+    take = next((t for t in timeline.get("takes", []) if t.get("id") == holder["id"]), None)
     if not take:
-        raise AltocueError(f"timeline.json has no {TAKE}.", fix="Run Shorts Studio's measure step on the run first.")
-    return seconds - float(take.get("source_from", 0.0)) + float(take.get("timeline_start", 0.0))
+        raise AltocueError(f"timeline.json has no {holder['id']}.", fix="Run Shorts Studio's measure step on the run first.")
+    return seconds - holder["from"] - float(take.get("source_from", 0.0)) + float(take.get("timeline_start", 0.0))
 
 
 def check_presenter(reel: dict[str, Any]) -> list[str]:
@@ -416,7 +502,7 @@ def check_covers(html: str, timeline: dict[str, Any], record: dict[str, Any]) ->
             continue
     problems = []
     for number, span in enumerate(record.get("covers", [])):
-        start, end = to_timeline(timeline, span["start"]), to_timeline(timeline, span["end"])
+        start, end = to_timeline(timeline, span["start"], record.get("takes")), to_timeline(timeline, span["end"], record.get("takes"), end=True)
         if not any(a <= start + slack and b >= end - slack for a, b in covers):
             problems.append(f"cover-{number + 1:02d} ({start:.2f} to {end:.2f} s) is not inside a hidden scene or a full-screen data-cover element for the whole moment.")
     return problems
@@ -636,7 +722,8 @@ def run(args: argparse.Namespace) -> int:
     if args.action == "prepare":
         done = prepare(args)
         print(f"Run folder: {done['run']}")
-        print(f"Bundle: {done['bundle']} ({done['seconds']:.1f} s take, {len(done['spans'])} cover beats, {done['sounds']} sounds)")
+        takes = "1 take" if done["takes"] == 1 else f"{done['takes']} takes, one per line"
+        print(f"Bundle: {done['bundle']} ({done['seconds']:.1f} s in {takes}, {len(done['spans'])} cover beats, {done['sounds']} sounds)")
         print("Uploading the bundle sends the footage to Higgsfield. Do it only once the owner has agreed.")
         return 0
     problems = check(Path(args.run_dir).expanduser().resolve(), Path(args.render).expanduser().resolve() if args.render else None)

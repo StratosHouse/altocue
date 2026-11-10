@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Shorts takes follow the cut's own joins.** `altocue shorts prepare --project` used to hand Shorts Studio the whole cut as one take, and its measure step then trimmed pauses the edit had already shaped, which doubled the jump cuts and made the delivery robotic. Each stretch between the cut's joins is now its own take, cut on exact frames, so only the dead air at a join is trimmed and nothing inside a line is touched. A line under 0.6 s, or one with no words, joins its neighbour, since a single word is too short to time or measure. The edit plan cues each sentence in its own take, covers are mapped through the take they sit in, and `altocue shorts check` reads runs made before this as one take.
+
 ## 0.5.1
 
 Your brand kit first, Higgsfield Shorts Studio motion design on real footage with a check that holds a draft to the house look, and fixes found by a fresh install: the demo now runs on ffmpeg 5.1, deliver no longer fails on a subtitle cue a cut squeezed to nothing, and a cover laid on a carried take shows.
