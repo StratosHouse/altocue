@@ -130,3 +130,8 @@ def test_a_generated_presenter_fails(tmp_path):
 
 def test_a_missing_render_is_not_a_pass(tmp_path):
     assert "skipped check is not a pass" in shorts.check_length(tmp_path / "none.mp4", {"master_duration": 3})[0]
+
+
+def test_a_preview_keeps_only_the_covers_inside_it():
+    spans = [{"start": 5.0, "end": 6.0, "reason": "a"}, {"start": 19.5, "end": 21.0, "reason": "b"}, {"start": 31.6, "end": 32.0, "reason": "c"}]
+    assert shorts.inside_take(spans, 19.8) == [{"start": 5.0, "end": 6.0, "reason": "a"}, {"start": 19.5, "end": 19.8, "reason": "b"}]

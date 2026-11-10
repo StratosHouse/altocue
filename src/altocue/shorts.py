@@ -89,6 +89,11 @@ def load_spans(path: Path) -> list[dict[str, float]]:
     return sorted(spans, key=lambda span: span["start"])
 
 
+def inside_take(spans: list[dict[str, float]], seconds: float) -> list[dict[str, float]]:
+    """Spans that start inside the take, each ended by the take at the latest. A preview keeps only its own."""
+    return [{**span, "end": min(span["end"], round(seconds, 3))} for span in spans if span["start"] < seconds]
+
+
 def project_take(project: Project, run: Path, until: float = 0.0) -> tuple[Path, list[dict[str, Any]]]:
     """The plate and its edited voice, muxed into one take, plus the kept words in take seconds."""
     from . import cut
@@ -238,6 +243,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     spans = load_spans(cover_path) if cover_path else []
     if spans and not words:
         raise AltocueError("Cover spans need word timings.", fix="Use --project, so each cover can be cued on the words spoken during it.")
+    spans = inside_take(spans, probe_duration(take))
     caption_words = args.captions if args.captions is not None else int(settings.get("caption_words", 3))
     pack = args.sfx_dir or settings.get("sfx_dir", "")
     sfx_only = not args.sfx_any and bool(settings.get("sfx_only", True))
