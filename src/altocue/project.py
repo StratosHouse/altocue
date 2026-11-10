@@ -85,6 +85,7 @@ sfx_dir = ""            # a folder of sound effects. When set, the run may use o
 sfx_only = true         # false also allows Shorts Studio's own library sounds
 cover = ""              # JSON of look-away spans in take seconds. Each becomes a full-screen graphic
 caption_words = 3       # words per caption page. 0 turns captions off
+kit = ""                # a folder of house build helpers (shorts_kit.py and its media) copied into each run
 
 [disclosure]            # for a film with a generated person. A check, not legal advice
 label = "AI-generated actor"   # the words that must stay on screen. Put them in motion.json

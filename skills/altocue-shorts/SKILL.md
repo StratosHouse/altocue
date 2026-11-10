@@ -14,8 +14,10 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
 - **The person on screen is real.** The take is supplied. Never generate, recast, lip-sync or redraw the presenter. `altocue shorts check` fails any run whose `reel.json` holds a generated take.
 - **Uploading sends footage to Higgsfield.** Its terms let it train on uploads. Upload only footage the owner has agreed to send. Never a client's face without that client's yes.
 - **Altocue's stages come first and last.** Cut, clean, grade and frame run before. Master, review and deliver run after. Shorts Studio designs the motion; it does not replace the edit.
-- **Looking away gets covered.** When a gaze tool gives spans where the eyes leave the lens, pass them with `--cover`. Each becomes a cover beat, and the composition must hide the presenter with a full-screen graphic marked `data-cover` for the whole moment.
+- **Looking away gets covered.** When a gaze tool gives spans where the eyes leave the lens, pass them with `--cover`. Each becomes a cover beat. The composition hides the presenter for the whole moment: put it inside a `data-layout="hidden"` scene, or under a full-screen graphic marked `data-cover`.
 - **One sound pack, when the house has one.** `[shorts] sfx_dir` names it. With `sfx_only` on, only those files may play. Shorts Studio's library sounds fail the check.
+- **House look, every Reel.** `[shorts] kit` names a folder of build helpers, such as a shared stylesheet and motion module. Each run gets them beside its `build.py`, and any image in the kit goes into `media/`.
+- **The take is an image tag.** Show it with `<img data-video>`. A `<video>` tag fails the render, and the check fails it too.
 - **House style on screen.** No em dashes or en dashes in any text, caption or card.
 - **A preset is a style reference, not a script.** `/shorts/<slug>` brings a published look. Keep the speaker's own words.
 
@@ -26,10 +28,10 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
    ```bash
    altocue shorts prepare --project . --cover gaze.json --sfx-dir ~/sounds/house-pack
    ```
-   It writes `shorts/<slug>/` with `reel.json` (one supplied take, no job id), `script.md`, an `edit-plan.md` with a beat and cue per sentence and per cover, `HOUSE.md` with these rules, the pack in `media/sfx/`, and a zip of the folder.
+   It writes `shorts/<slug>/` with `reel.json` (one supplied take, no job id), `script.md`, an `edit-plan.md` with a beat and cue per sentence and per cover, `HOUSE.md` with these rules, the pack in `media/sfx/`, the kit if one is set, and a zip of the folder.
 3. Upload the zip once the owner has agreed: its media upload tool, PUT the bytes, confirm the upload, then download it into the sandbox and unzip it under `/home/user/shorts-studio/`.
 4. Load `/shorts` (or `/shorts/<slug>` for a preset) with `get_preset_instructions` and follow its steps from measure onward on the supplied take: style reference, motion plan, measure, scaffold, composition, snapshots, render and its own check. Skip casting, take generation and voice. Place sounds from `media/sfx/` as audio tags. Read `HOUSE.md` first.
-5. Pack the project with Shorts Studio's pack step, then add the run's `timeline.json` to the archive, since the check maps covers through it: `zip renders/composition.zip timeline.json`. Bring back `renders/final.mp4` and `renders/composition.zip`, and unzip the archive into the run folder.
+5. Pack the project with Shorts Studio's pack step, then add the run's `timeline.json` to the archive, since the check maps covers through it: `zip renders/composition.zip timeline.json reel.json`. Bring back `renders/final.mp4` and `renders/composition.zip`, and unzip the archive into the run folder.
 6. Check it:
    ```bash
    altocue shorts check shorts/<slug>

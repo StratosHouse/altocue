@@ -41,6 +41,8 @@ KIT_FILES = {"kit.js", "fonts.css"}  # Shorts Studio's own files, written by its
 SENTENCE = re.compile(r"(?<=[.!?])\s+")
 AUDIO_TAG = re.compile(r"<audio\b[^>]*>", re.IGNORECASE)
 COVER_TAG = re.compile(r"<[a-z][^>]*\bdata-cover\b[^>]*>", re.IGNORECASE)
+HIDDEN_TAG = re.compile(r"<[a-z][^>]*\bdata-layout\s*=\s*\"hidden\"[^>]*>", re.IGNORECASE)  # a scene that hides the take: a cover by layout
+VIDEO_TAG = re.compile(r"<video\b", re.IGNORECASE)
 ATTR = re.compile(r'([a-z-]+)\s*=\s*"([^"]*)"', re.IGNORECASE)
 CUE_WORDS = 4
 FRAME_SLACK = 1.0  # frames a cover may start late or end early and still count
@@ -58,6 +60,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     prepare.add_argument("--sfx-dir", help="Folder of sound effects the run may use. Overrides [shorts] sfx_dir")
     prepare.add_argument("--sfx-any", action="store_true", help="Allow Shorts Studio's own library sounds next to the pack")
     prepare.add_argument("--cover", help="JSON of look-away spans in take seconds, [{start, end}] or {spans: [...]}. Overrides [shorts] cover")
+    prepare.add_argument("--kit", help="Folder of house build helpers: .py files go beside build.py, anything else into media/. Overrides [shorts] kit")
     prepare.add_argument("--captions", type=int, help="Words per caption page. 0 turns captions off. Overrides [shorts] caption_words")
     prepare.add_argument("--aspect", help="Frame, such as 9:16. Defaults to the project's")
     prepare.add_argument("--until", type=float, default=0.0, help="With --project: only the cut's first seconds, ending on a whole word. For a preview")
@@ -153,7 +156,8 @@ def plan_lines(words: list[dict[str, Any]], dialogue: str, spans: list[dict[str,
             f"Beat: cover-{number + 1:02d}",
             f'Cue: {TAKE} "{phrase}"',
             f"Cover {span['start']:.2f} to {span['end']:.2f} s of the take ({span['reason']}) with a full-screen graphic that hides the presenter.",
-            f'Mark its element data-cover="cover-{number + 1:02d}" with data-start and data-duration that span the whole moment.',
+            f'Put the moment in a data-layout="hidden" scene, or mark its element data-cover="cover-{number + 1:02d}",',
+            "with data-start and data-duration that span the whole moment.",
             "",
         ]
     lines.append(f"Captions: {caption_words} words" if caption_words else "Captions: none")
@@ -175,6 +179,21 @@ def copy_pack(pack: Path, run: Path) -> list[dict[str, Any]]:
     return sounds
 
 
+def copy_kit(kit: Path, run: Path) -> list[str]:
+    """House build helpers, such as a shared stylesheet and motion module, so every Reel's build.py starts from the same look."""
+    if not kit.is_dir():
+        raise AltocueError(f"No kit folder at {kit}.", fix="Set [shorts] kit to a folder of build helpers, or pass --kit.")
+    copied = []
+    for path in sorted(p for p in kit.iterdir() if p.is_file() and not p.name.startswith(".")):
+        target = run / path.name if path.suffix == ".py" else run / "media" / path.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+        copied.append(target.relative_to(run).as_posix())
+    if not copied:
+        raise AltocueError(f"{kit} holds no files.", fix="Put the house helpers, such as shorts_kit.py, in it.")
+    return copied
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -183,7 +202,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def house_notes(sounds: list[dict[str, Any]] | None, sfx_only: bool, spans: list[dict[str, float]]) -> str:
+def house_notes(sounds: list[dict[str, Any]] | None, sfx_only: bool, spans: list[dict[str, float]], kit: list[str] | None = None) -> str:
     notes = [
         "# House rules for this run",
         "",
@@ -193,12 +212,16 @@ def house_notes(sounds: list[dict[str, Any]] | None, sfx_only: bool, spans: list
     ]
     if spans:
         notes.append(f"- {len(spans)} look-away {'moment is a cover beat' if len(spans) == 1 else 'moments are cover beats'} in edit-plan.md.")
-        notes.append("  Each gets a full-screen graphic marked `data-cover`, so the presenter never shows looking off the lens.")
+        notes.append('  Each sits inside a `data-layout="hidden"` scene, or under a full-screen graphic marked `data-cover`,')
+        notes.append("  so the presenter never shows looking off the lens.")
     if sounds is not None:
         rule = "from media/sfx/ first."
         if sfx_only:
             rule = "only from media/sfx/, as listed in sfx-pack.json. Do not place Shorts Studio's library sounds."
         notes.append(f"- Sound effects come {rule} Place each as an <audio> tag in the composition.")
+    notes.append("- Show the take with `<img data-video>`. A `<video>` tag fails the render.")
+    if kit:
+        notes.append(f"- House build helpers: {', '.join(kit)}. Build the composition with them, after measure and a first scaffold.")
     notes.append("- Music only when the brief asks for it.")
     return "\n".join(notes) + "\n"
 
@@ -251,6 +274,8 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     pack = args.sfx_dir or settings.get("sfx_dir", "")
     sfx_only = not args.sfx_any and bool(settings.get("sfx_only", True))
     sounds = copy_pack(Path(pack).expanduser(), run) if pack else None
+    kit_dir = args.kit or settings.get("kit", "")
+    kit = copy_kit(Path(kit_dir).expanduser(), run) if kit_dir else None
 
     reel = {
         "language": (project.setting("transcribe", "language", "en") if project else "en"),
@@ -277,7 +302,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     write_json(run / "reel.json", reel)
     (run / "script.md").write_text(dialogue + "\n")
     (run / "edit-plan.md").write_text(plan_lines(words, dialogue, spans, caption_words) if words else plan_lines([], dialogue, [], caption_words))
-    (run / "HOUSE.md").write_text(house_notes(sounds, sfx_only, spans))
+    (run / "HOUSE.md").write_text(house_notes(sounds, sfx_only, spans, kit))
     write_json(
         run / "altocue-shorts.json",
         {
@@ -285,6 +310,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             "covers": spans,
             "sfx_only": bool(sounds is not None and sfx_only),
             "sounds": sounds or [],
+            "kit": kit or [],
             "project": str(project.root) if project else "",
         },
     )
@@ -346,7 +372,7 @@ def check_covers(html: str, timeline: dict[str, Any], record: dict[str, Any]) ->
     fps = float(timeline.get("fps", 30))
     slack = FRAME_SLACK / fps
     covers = []
-    for tag in COVER_TAG.findall(html):
+    for tag in COVER_TAG.findall(html) + HIDDEN_TAG.findall(html):
         found = attrs(tag)
         try:
             start = float(found["data-start"])
@@ -357,8 +383,14 @@ def check_covers(html: str, timeline: dict[str, Any], record: dict[str, Any]) ->
     for number, span in enumerate(record.get("covers", [])):
         start, end = to_timeline(timeline, span["start"]), to_timeline(timeline, span["end"])
         if not any(a <= start + slack and b >= end - slack for a, b in covers):
-            problems.append(f"cover-{number + 1:02d} ({start:.2f} to {end:.2f} s) has no full-screen data-cover element over the whole moment.")
+            problems.append(f"cover-{number + 1:02d} ({start:.2f} to {end:.2f} s) is not inside a hidden scene or a full-screen data-cover element for the whole moment.")
     return problems
+
+
+def check_video_tags(html: str) -> list[str]:
+    if VIDEO_TAG.search(html):
+        return ["The composition has a <video> tag, which fails the Shorts Studio render. Use <img data-video> for the take."]
+    return []
 
 
 def check_dashes(run: Path) -> list[str]:
@@ -397,7 +429,7 @@ def check(run: Path, render: Path | None) -> list[str]:
     if not page.exists():
         raise AltocueError(f"No composition at {page}.", fix="Run Shorts Studio's scaffold and build the composition first.")
     html = page.read_text(errors="replace")
-    problems = check_presenter(reel) + check_sounds(run, html, record) + check_covers(html, timeline, record) + check_dashes(run)
+    problems = check_presenter(reel) + check_sounds(run, html, record) + check_covers(html, timeline, record) + check_video_tags(html) + check_dashes(run)
     return problems + check_length(render or run / "renders" / "final.mp4", timeline)
 
 

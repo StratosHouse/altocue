@@ -64,9 +64,16 @@ def test_prepare_writes_a_run_with_a_real_take_and_only_the_pack(tmp_path):
     pack = tmp_path / "pack"
     tone(pack / "whoosh" / "air.wav", 600)
     (tmp_path / "script.txt").write_text("Ask five questions first.\nThen scope it.\n")
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    (kit / "shorts_kit.py").write_text("CSS = ''\n")
+    (kit / "grain.png").write_bytes(b"png")
     video = take(tmp_path / "raw.mp4")
     out = tmp_path / "run"
-    assert main(["shorts", "prepare", "--take", str(video), "--script", str(tmp_path / "script.txt"), "--out", str(out), "--sfx-dir", str(pack)]) == 0
+    command = ["shorts", "prepare", "--take", str(video), "--script", str(tmp_path / "script.txt"), "--out", str(out), "--sfx-dir", str(pack)]
+    assert main([*command, "--kit", str(kit)]) == 0
+    assert (out / "shorts_kit.py").exists() and (out / "media" / "grain.png").exists()
+    assert "shorts_kit.py" in (out / "HOUSE.md").read_text()
     reel = json.loads((out / "reel.json").read_text())
     assert reel["takes"][0]["job_id"] is None
     assert reel["takes"][0]["dialogue"] == "Ask five questions first. Then scope it."
@@ -124,6 +131,17 @@ def test_a_foreign_sound_an_open_look_away_and_a_dash_all_fail(tmp_path):
     assert any("not from the run's sound pack" in p for p in problems)
     assert any("cover-01" in p for p in problems)
     assert any("em dash" in p for p in problems)
+
+
+@needs_ffmpeg
+def test_a_hidden_scene_covers_a_look_away_and_a_video_tag_fails(tmp_path):
+    run = finished_run(tmp_path, sound=tone(tmp_path / "pack" / "air.wav", 600), cover_start=2.5)
+    page = run / "composition" / "index.html"
+    html = page.read_text().replace('<div class="card"', '<section data-layout="hidden" data-start="1.9" data-duration="1.2"></section><div class="card"')
+    page.write_text(html)
+    assert shorts.check(run, None) == []
+    page.write_text(html.replace("</div></div>", '<video src="media/take.mp4"></video></div></div>'))
+    assert any("<video>" in p for p in shorts.check(run, None))
 
 
 @needs_ffmpeg
