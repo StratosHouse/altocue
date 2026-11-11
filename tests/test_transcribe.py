@@ -746,6 +746,36 @@ def test_faster_whisper_falls_back_to_the_cpu_when_cuda_libraries_are_missing(mo
     assert "libcublas" in capsys.readouterr().err
 
 
+def test_a_blocked_model_download_names_the_host_and_the_fix(monkeypatch, tmp_path):
+    """Seen on a network that reaches the web only through a proxy: 103 lines of traceback ending in a ProxyError."""
+    fake_whisper(monkeypatch, gpus=0)
+    refused = type("ProxyError", (Exception,), {"__module__": "httpx2"})
+
+    def blocked(name, device, compute_type):
+        try:
+            raise refused("403 Forbidden")
+        except refused as error:
+            raise ValueError("could not fetch the snapshot") from error
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=blocked))
+    with pytest.raises(AltocueError) as caught:
+        transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert "small.en" in str(caught.value) and "huggingface.co" in str(caught.value)
+    assert "proxy" in caught.value.fix and "[transcribe] engine" in caught.value.fix
+
+
+def test_a_model_that_fails_for_another_reason_is_not_called_a_download(monkeypatch, tmp_path):
+    fake_whisper(monkeypatch, gpus=0)
+
+    def broken(name, device, compute_type):
+        raise ValueError("unsupported compute type")
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=broken))
+    with pytest.raises(ValueError, match="unsupported compute type"):
+        transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert transcribe.download_failed(TimeoutError("timed out")) and not transcribe.download_failed(RuntimeError("libcublas"))
+
+
 def test_faster_whisper_stays_on_the_cpu_without_a_card_or_when_told(monkeypatch, tmp_path):
     made = fake_whisper(monkeypatch, gpus=0)
     transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")

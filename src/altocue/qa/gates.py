@@ -294,6 +294,9 @@ def transcribe(path: str | Path, language: str = "en", spans: list[tuple[float, 
         return (module.transcribe_file(path, language=language, spans=spans) if spans else module.transcribe_file(path, language=language)), ""
     except AltocueError as error:
         return None, str(error)
+    except Exception as error:  # a transcriber that breaks for any reason skips the word gates. It never ends the run, and never passes them
+        said = (str(error).strip().splitlines() or [""])[0][:200]
+        return None, f"The transcriber stopped on {type(error).__name__}{': ' + said if said else ''}, so nothing was re-transcribed."
 
 
 def transcript_record(digest: str, words: list[Word] | None, reason: str) -> dict[str, Any]:

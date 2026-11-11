@@ -5,7 +5,11 @@ from __future__ import annotations
 import argparse
 import contextlib
 import importlib
+import os
+import re
 import sys
+import time
+from pathlib import Path
 
 from . import __version__
 from .errors import AltocueError
@@ -55,6 +59,14 @@ STAGES: dict[str, tuple[str, str]] = {
     "mcp": ("altocue.mcp", "Serve Altocue to any MCP client over stdio"),
 }
 
+
+TRACEBACK = "ALTOCUE_TRACEBACK"  # set to 1 and a failure nobody planned for shows its traceback, as a developer wants
+ISSUES = "https://github.com/StratosHouse/altocue/issues"
+LOGS_KEPT = 20
+RENDERER_HELP = (
+    "What draws the graphics: hyperframes for full motion graphics, or basic for captions and cards with nothing to install. "
+    "auto, the default, takes hyperframes when `altocue setup` has installed it"
+)
 
 # "Your brand kit comes first." These stages make a caption, a graphic or a render, so each stops on a missing brand
 # before it does any slow work. The stages before them need no brand, and end by saying it comes next.
@@ -138,6 +150,37 @@ def brand_next(args: argparse.Namespace) -> None:
         print(f"This project has no brand yet, so `altocue run` and `altocue render` stop until it has one. {brands.ways_out()}")
 
 
+def crash_log(argv: list[str], trace: str) -> Path | None:
+    """The full traceback, kept in the user folder so the terminal shows three lines. None when that folder cannot be written."""
+    from .start import home
+
+    name = re.sub(r"[^a-z0-9]+", "-", (argv[0] if argv else "altocue").lower()).strip("-") or "altocue"
+    try:
+        folder = home() / "logs"
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"{time.strftime('%Y%m%d-%H%M%S')}-{name}.log"
+        target.write_text(f"altocue {__version__}, Python {sys.version.split()[0]} on {sys.platform}\nCommand: altocue {' '.join(argv)}\n\n{trace}")
+        for old in sorted(folder.glob("*.log"))[:-LOGS_KEPT]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        return None
+    return target
+
+
+def report_crash(argv: list[str], error: Exception) -> int:
+    """One line on what failed, how to report it, and where the traceback went."""
+    import traceback
+
+    log = crash_log(argv, "".join(traceback.format_exception(error)))
+    said = (str(error).strip().splitlines() or [""])[0][:300]
+    what = f"{type(error).__name__}: {said}" if said else type(error).__name__
+    print(f"altocue: `altocue {argv[0] if argv else ''}` stopped on an error it did not plan for. {what}".rstrip(), file=sys.stderr)
+    where = "with the log below, after taking out anything private" if log else "with the command you ran"
+    print(f"Fix: Run it again. If it stops the same way, report it at {ISSUES} {where}. {TRACEBACK}=1 prints the traceback here.", file=sys.stderr)
+    print(f"Log: {log}" if log else "Log: none, because the Altocue user folder could not be written.", file=sys.stderr)
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     args = build_parser(argv).parse_args(argv)
@@ -153,6 +196,13 @@ def main(argv: list[str] | None = None) -> int:
     except AltocueError as error:
         print(f"altocue: {error}", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        print("altocue: stopped.", file=sys.stderr)
+        return 130
+    except Exception as error:  # not SystemExit: a stage that exits on purpose still does
+        if os.environ.get(TRACEBACK, "") not in ("", "0"):
+            raise
+        return report_crash(argv, error)
 
 
 if __name__ == "__main__":

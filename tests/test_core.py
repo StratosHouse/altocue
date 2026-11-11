@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -193,3 +194,78 @@ def test_loudness_asks_nothing_ffmpeg_five_lacks(monkeypatch):
     monkeypatch.setattr(ffmpeg, "run", fake)
     assert ffmpeg.loudness("x.wav")["integrated"] == -20.0
     assert "framelog=quiet" not in " ".join(seen[0])
+
+
+def broken_stage(monkeypatch, error: BaseException) -> None:
+    from altocue import status
+
+    def boom(args):
+        raise error
+
+    monkeypatch.setattr(status, "run", boom)
+
+
+def test_a_failure_nobody_planned_for_is_three_lines_and_a_log(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    broken_stage(monkeypatch, KeyError("foo"))
+    assert main(["status", "-p", str(tmp_path)]) == 1
+    captured = capsys.readouterr()
+    lines = captured.err.splitlines()
+    assert len(lines) == 3 and "Traceback" not in captured.err + captured.out
+    assert lines[0].startswith("altocue: `altocue status` stopped") and "KeyError" in lines[0] and "foo" in lines[0]
+    assert lines[1].startswith("Fix: ") and cli.ISSUES in lines[1] and "ALTOCUE_TRACEBACK=1" in lines[1]
+    log = Path(lines[2].removeprefix("Log: "))
+    assert log.parent == Path(os.environ["ALTOCUE_HOME"]) / "logs"
+    written = log.read_text()
+    assert "Traceback (most recent call last)" in written and "KeyError: 'foo'" in written and f"Command: altocue status -p {tmp_path}" in written
+
+
+def test_only_the_newest_crash_logs_are_kept(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    folder = Path(os.environ["ALTOCUE_HOME"]) / "logs"
+    folder.mkdir(parents=True)
+    for number in range(cli.LOGS_KEPT + 5):
+        (folder / f"20200101-0000{number:02d}-old.log").write_text("old")
+    broken_stage(monkeypatch, RuntimeError("no"))
+    assert main(["status"]) == 1
+    kept = sorted(path.name for path in folder.glob("*.log"))
+    assert len(kept) == cli.LOGS_KEPT and kept[-1].endswith("-status.log") and "20200101-000000-old.log" not in kept
+
+
+def test_a_developer_can_ask_for_the_traceback(monkeypatch):
+    broken_stage(monkeypatch, KeyError("foo"))  # ALTOCUE_TRACEBACK=1 is set for every test, in conftest
+    with pytest.raises(KeyError):
+        main(["status"])
+
+
+def test_an_interrupt_is_quiet_and_an_exit_is_left_alone(monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    broken_stage(monkeypatch, KeyboardInterrupt())
+    assert main(["status"]) == 130
+    assert capsys.readouterr().err.strip() == "altocue: stopped."
+    broken_stage(monkeypatch, SystemExit(7))
+    with pytest.raises(SystemExit) as left:
+        main(["status"])
+    assert left.value.code == 7
+
+
+def test_an_error_with_a_fix_still_prints_as_it_did(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    broken_stage(monkeypatch, AltocueError("No film here.", fix="Render one."))
+    assert main(["status"]) == 1
+    assert capsys.readouterr().err == "altocue: No film here.\nFix: Render one.\n"
+    assert not (Path(os.environ["ALTOCUE_HOME"]) / "logs").exists()
+
+
+def test_run_takes_the_same_renderers_as_render(capsys):
+    from altocue import motion
+
+    def choices(command: str) -> list[str]:
+        parser = cli.Parser(prog=command)
+        __import__(cli.STAGES[command][0], fromlist=["add_arguments"]).add_arguments(command, parser)
+        return next(action.choices for action in parser._actions if action.dest == "renderer")
+
+    assert choices("run") == choices("render") == [*motion.RENDERERS, "auto"]
+    with pytest.raises(SystemExit):
+        main(["run", "--renderer", "foo"])
+    assert "invalid choice: 'foo'" in capsys.readouterr().err

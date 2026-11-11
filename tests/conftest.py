@@ -44,3 +44,9 @@ def house_brand(monkeypatch: pytest.MonkeyPatch) -> None:
     from altocue import project
 
     monkeypatch.setattr(project, "DEFAULT_CONFIG", project.DEFAULT_CONFIG.replace('name = ""               #', 'name = "default"        #', 1))
+
+
+@pytest.fixture(autouse=True)
+def show_tracebacks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failure nobody planned for raises through `main`, so a failing test shows where. test_core tests the three plain lines a user sees."""
+    monkeypatch.setenv("ALTOCUE_TRACEBACK", "1")

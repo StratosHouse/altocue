@@ -6,7 +6,7 @@ import argparse
 import importlib
 from collections.abc import Callable
 
-from .cli import stage_args
+from .cli import RENDERER_HELP, stage_args
 from .project import Project
 
 ORDER = ("ingest", "transcribe", "cut", "clean", "grade", "frame", "render", "master", "qa", "review")
@@ -17,7 +17,9 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--from", dest="start", choices=ORDER, default=ORDER[0], help="First stage")
     parser.add_argument("--to", dest="end", choices=ORDER, default="qa", help="Last stage")
     parser.add_argument("--draft", action="store_true", help="Stop after a draft render")
-    parser.add_argument("--renderer", default="auto")
+    from . import motion
+
+    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto", help=RENDERER_HELP)
 
 
 def stages(project: Project, args: argparse.Namespace) -> dict[str, Callable[[], object]]:

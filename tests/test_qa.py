@@ -163,6 +163,21 @@ def test_transcriber_failure_skips_with_its_reason(clean, monkeypatch):
     assert by_id(results, "words").skipped and "No engine installed" in by_id(results, "words").detail
 
 
+def test_a_transcriber_that_breaks_for_any_reason_skips_and_the_run_goes_on(clean, monkeypatch):
+    """A blocked model download raised from deep inside the engine. It ended `altocue qa` with a traceback and no qa.json."""
+
+    def boom(path, **_):
+        raise ConnectionError("403 Forbidden\nfrom the proxy")
+
+    with planted(clean):
+        monkeypatch.setattr(sys.modules["altocue.transcribe"], "transcribe_file", boom)
+        words, why = gates.transcribe(clean.file)
+        results = gates.word_gates(gates.Context.open(clean.project, clean.file))
+    assert words is None and "ConnectionError: 403 Forbidden" in why and "proxy" not in why
+    found = by_id(results, "words")
+    assert found.skipped and not found.passed and "403 Forbidden" in found.detail
+
+
 def test_transcriber_without_any_entry_point_skips(clean, monkeypatch):
     monkeypatch.setitem(sys.modules, "altocue.transcribe", SimpleNamespace())
     words, why = gates.transcribe(clean.file)
