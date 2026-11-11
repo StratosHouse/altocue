@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import re
+
+import pytest
+
 from altocue.models import Clip, Segment
-from altocue.plate import Canvas, fit_crop, push_filter, segment_filter, zoomed
+from altocue.plate import Canvas, eased_place, fit_crop, origin_of, push_filter, push_travel, segment_filter, zoomed
 
 CANVAS = Canvas(1080, 1920, 30, 16, "medium")
 
@@ -31,6 +35,73 @@ def test_a_crop_from_an_older_aspect_is_not_stretched():
 def test_zoom_narrows_the_crop():
     _, _, width, height = zoomed((0, 0, 1000, 2000), 1.25)
     assert width == 800 and height == 1600
+
+
+def test_a_zoom_holds_its_origin_still_and_stays_inside_the_crop():
+    crop = (100.0, 50.0, 1000.0, 2000.0)
+    assert zoomed((0, 0, 1000, 2000), 1.25) == (100.0, 168.0, 800.0, 1600.0), "with no point named, the middle and 42 percent down, as before"
+    for origin in ((0.2, 0.3), (0.0, 0.0), (1.0, 1.0)):
+        x, y, width, height = zoomed(crop, 1.25, origin)
+        point = (crop[0] + crop[2] * origin[0], crop[1] + crop[3] * origin[1])
+        assert ((point[0] - x) / width, (point[1] - y) / height) == pytest.approx(origin)
+        assert crop[0] <= x and x + width <= crop[0] + crop[2] + 1e-9 and crop[1] <= y and y + height <= crop[1] + crop[3] + 1e-9
+
+
+def test_a_cut_from_before_the_zoom_origin_plays_as_it_did():
+    old = Segment.from_dict({"id": "s", "clip": "a", "start": 0, "end": 2, "zoom_from": 1.12, "zoom_to": 1.12, "crop": [656.0, 0.0, 608.0, 1080.0]})
+    assert old.origin is None and old.ease is None
+    x, y, width, height = 656 + (608 - 608 / 1.12) / 2, (1080 - 1080 / 1.12) * 0.42, 608 / 1.12, 1080 / 1.12
+    assert f"crop={int(width / 2) * 2}:{int(height / 2) * 2}:{int(x)}:{int(y)},scale=1080:1920" in segment_filter(clip(), old, CANVAS, None)
+    assert push_filter(CANVAS, 60, 1.0, 1.06).startswith("perspective=((W-(W/(1.0+(1.06-1.0)*in/59)))/2):((H-(H/(1.0+(1.06-1.0)*in/59)))*0.42):")
+    crop = (656.0, 0.0, 608.0, 1080.0)
+    assert origin_of(old, crop) == (0.5, 0.42)
+    assert origin_of(Segment(id="s", clip="a", start=0, end=2, origin=[808.0, 270.0]), crop) == (0.25, 0.25)
+    assert origin_of(Segment(id="s", clip="a", start=0, end=2, origin=[5000.0, -20.0]), crop) == (1.0, 0.0), "a point outside the crop would take the window outside it"
+
+
+def test_a_new_zoom_origin_is_a_new_recipe():
+    """The plate caches each segment by its filter chain, so the chain must change when the point does."""
+
+    def chain(origin, zoom_to=1.12):
+        return segment_filter(clip(), Segment(id="s", clip="a", start=0, end=2, zoom_from=1.12, zoom_to=zoom_to, origin=origin), CANVAS, None)
+
+    assert len({chain(None), chain([840.0, 380.0]), chain([1020.0, 380.0])}) == 3
+    assert len({chain(None, 1.18), chain([840.0, 380.0], 1.18), chain([840.0, 430.0], 1.18)}) == 3
+    assert chain([960.0, 453.6]) == chain(None), "the old fixed point, named in pixels, is the old picture"
+    wide = [segment_filter(clip(), Segment(id="s", clip="a", start=0, end=2, origin=origin), CANVAS, None) for origin in (None, [840.0, 380.0])]
+    assert wide[0] == wide[1], "at 1.0 the point changes nothing, so nothing is encoded again"
+
+
+def place_at(expression: str, frame: int) -> float:
+    """What ffmpeg works out for one frame of a piece, counted from 0. Its own counter, `in`, starts at 1."""
+    names = {"clip": lambda value, low, high: min(max(value, low), high), "pow": pow, "max": max, "n": frame + 1}
+    return eval(re.sub(r"\bin\b", "n", expression.replace("\\,", ",")), {"__builtins__": {}}, names)
+
+
+def test_an_eased_push_draws_the_curve_the_frame_stage_planned():
+    canvas = Canvas(1080, 1920, 30, 16, "medium")
+    whole = eased_place(canvas, 60, 0, [0.0, 2.0])
+    assert place_at(whole, 0) == 0 and place_at(whole, 60) == pytest.approx(1.0)
+    assert place_at(whole, 30) == pytest.approx(0.5), "it speeds up and slows down by the same amount"
+    assert place_at(whole, 3) < 3 / 60 / 2 and 1 - place_at(whole, 57) < 3 / 60 / 2, "and it is slow at both ends"
+    later = eased_place(canvas, 30, 0, [1.0, 2.0])  # the second half of that push, as the next segment
+    for frame in (0, 10, 29, 30):
+        expected = (push_travel(1.0 + frame / 30, 2.0) - push_travel(1.0, 2.0)) / (push_travel(2.0, 2.0) - push_travel(1.0, 2.0))
+        assert place_at(later, frame) == pytest.approx(expected, abs=1e-4)
+    assert place_at(eased_place(canvas, 30, 12, [1.0, 2.0]), 0) == pytest.approx(place_at(later, 12)), "a piece that starts part way in carries on from there"
+    assert eased_place(canvas, 30, 0, [5.0, 2.0]) is None, "past the end of its push a segment does not move"
+    moving = segment_filter(clip(), Segment(id="s", clip="a", start=0, end=2, zoom_from=1.0, zoom_to=1.017, ease=[0.0, 2.0]), CANVAS, None)
+    assert "pow(" in moving and "pow(" not in segment_filter(clip(), Segment(id="s", clip="a", start=0, end=2, zoom_from=1.0, zoom_to=1.017), CANVAS, None)
+
+
+def test_ffmpeg_takes_an_eased_push_about_a_point(tmp_path):
+    from altocue import ffmpeg
+
+    canvas = Canvas(64, 96, 10, 30, "ultrafast")
+    move = push_filter(canvas, 10, 1.0, 1.05, origin=(0.3, 0.35), ease=[0.0, 1.0])
+    out = tmp_path / "push.mp4"
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=s=64x96:r=10:d=1", "-vf", move, "-frames:v", "10", "-c:v", "libx264", "-preset", "ultrafast", str(out)])
+    assert probe(out, "-select_streams", "v:0", "-count_frames", "-show_entries", "stream=nb_read_frames").strip().strip(",") == "10"
 
 
 def test_segment_filter_uses_even_dimensions_and_ends_tagged():

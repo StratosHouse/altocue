@@ -468,6 +468,7 @@ def open_version(project: Project, platform: Platform, target: dict[str, Any], *
     else:
         for segment in edl.segments:
             segment.crop, segment.path, segment.zoom_from, segment.zoom_to = None, None, 1.0, 1.0
+            segment.origin, segment.ease = None, None  # both were solved against the old crop
             segment.held = [name for name in segment.held if name == "gain"]
     version.save_edl(edl)
     if reuse:

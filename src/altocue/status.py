@@ -121,7 +121,7 @@ def check_frame(project: Project) -> Look:
         return Look(DONE, "off in altocue.toml")
     if not project.edl_path.exists() or not (project.work / "frame.json").exists():
         return Look(NOT_RUN)
-    return Look(DONE) if frame.up_to_date(project) else Look(STALE, "the cut, the aspect or a frame setting changed")
+    return Look(DONE) if frame.up_to_date(project) else Look(STALE, "the cut, the aspect, a source, a frame setting or the inserts over a jump cut changed")
 
 
 def check_broll(project: Project) -> Look | None:

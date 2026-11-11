@@ -231,8 +231,13 @@ def test_a_person_changing_a_solved_crop_is_a_hand_edit(tmp_path, landscape):
     assert len(found) == 2
 
 
-def test_taking_a_punch_in_off_by_hand_counts(tmp_path, landscape):
-    project = framed_project(tmp_path, landscape)
+def test_taking_a_punch_in_off_by_hand_counts(tmp_path):
+    """A punch-in needs a new beat, a size held long enough, a jump that shows and a source with the pixels for it."""
+    stills = [face_image(800, 640, ((x, 300, 120),)) for x in (300, 420)]
+    moving = write_clip(tmp_path / "moving.mp4", [stills[0]] * 27 + [stills[1]] * 27, fps=10)
+    project = Project.create(tmp_path / "video", aspect="1:1")
+    project.save_clips([probe_clip(moving, clip_id="moving")])
+    project.save_edl(Edl(fps=30, segments=[Segment(id="s001", clip="moving", start=0.0, end=2.5), Segment(id="s002", clip="moving", start=3.5, end=5.2)]))
     edl = frame_project(project)
     punched = next(s for s in edl.segments if s.zoom_from > 1)
     punched.zoom_from = punched.zoom_to = 1.0
