@@ -77,6 +77,9 @@ NEUTRAL_CHROMA = 24.0
 FACE_BAND = (0.45, 0.75)  # Face luma where exposure is left alone.
 SKIN_HUE_LIMIT = 3.0  # Degrees.
 SAME_SKIN_HUE = 5.0  # Degrees. Wider than this, two clips show different people or very different light.
+# Where skin usually sits, as a CIELAB hue angle: the vectorscope's skin line is the same idea. A reading outside it is a
+# note to look again (the room's light can be the reason), never a correction: colorists treat the line as a reference.
+SKIN_HUE_USUAL = (30.0, 70.0)  # Degrees. Six Reels in a warm room measured 36 to 44.
 SAME_SKIN_CHROMA = 0.25
 SCENE_LIMIT = 18.0  # Lab distance past which two backgrounds are different rooms.
 SKIN_SIGMA_AB = 12.0
@@ -766,6 +769,10 @@ def _summary(clip_id: str, entry: dict[str, Any]) -> str:
         notes.append(f"backed off to {changes['strength']:.0%} for skin")
     if changes.get("look_skin_moved"):
         notes.append(f"look at {changes['look_strength']:.0%}, skin hue moved {changes['look_skin_moved']:.1f} degrees")
+    hue = after.get("skin_hue")
+    if hue is not None and not SKIN_HUE_USUAL[0] <= hue <= SKIN_HUE_USUAL[1]:
+        side = "toward magenta" if hue < SKIN_HUE_USUAL[0] else "toward yellow-green"
+        notes.append(f"skin hue {hue:.0f} degrees, {side} of where skin usually sits ({SKIN_HUE_USUAL[0]:.0f} to {SKIN_HUE_USUAL[1]:.0f}); look at it")
     if entry.get("reference"):
         notes.append("reference")
     return f"{clip_id}: {', '.join(notes) or 'no change'}"
