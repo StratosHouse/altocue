@@ -29,7 +29,7 @@ REPO = "https://github.com/StratosHouse/altocue"
 UV_INSTALLER = "https://astral.sh/uv/install.sh"
 # Commands light enough to run beside a render. Anything else waits for the running job, because two heavy jobs at once
 # have crashed a 16 GB Mac.
-LIGHT = {"doctor", "status", "recipes", "credits", "library", "--help", "-h", "--version"}
+LIGHT = {"doctor", "start", "status", "recipes", "credits", "library", "--help", "-h", "--version"}
 MAX_WAIT = 600
 OUTPUT_CHARS = 16000
 
@@ -38,9 +38,10 @@ sound, review and delivery. It also makes launch films and explainers with no fo
 
 1. Call altocue_doctor first. If Altocue is missing, ask the user, then call altocue_install with confirm true.
 2. Read altocue_guide before editing. It holds the workflow and the hard rules, and each tool has its own guide.
-3. Run commands with altocue_run, for example ["new", "my-video", "--input", "/path/take.mov", "--aspect", "9:16"]. \
+3. Call altocue_profile before the first job. If nobody has answered, ask the user its questions once and save what they say.
+4. Run commands with altocue_run, for example ["new", "my-video", "--input", "/path/take.mov", "--aspect", "9:16"]. \
 A long command keeps running in the background: follow it with altocue_job.
-4. Never spend money, upload footage or install software without the user's yes for that exact step."""
+5. Never spend money, upload footage or install software without the user's yes for that exact step."""
 
 
 def bin_dirs() -> list:
@@ -324,6 +325,33 @@ def tool_run(args: dict) -> dict:
     return job.report()
 
 
+def tool_profile(args: dict) -> dict:
+    """The user's answers from `altocue start`. Every answer is checked by that command, so this server has no second set of rules."""
+    exe = find_altocue()
+    if not exe:
+        raise ToolError(not_installed()["next"])
+    answers = args.get("answers")
+    if answers is None:
+        argv = ["start", "--questions"]
+    else:
+        plain = isinstance(answers, dict) and answers and all(isinstance(value, (str, int, float)) and not isinstance(value, bool) for value in answers.values())
+        if not plain:
+            raise ToolError('answers must map a question id to its answer, such as {"kind": "short", "checks": "cut"}. Call with no arguments to read the questions.')
+        argv = ["start", "--json"]
+        for key, value in answers.items():
+            argv += ["--answer", f"{key}={value}"]
+    try:
+        done = subprocess.run([exe] + argv, capture_output=True, text=True, timeout=120, env=child_env())
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ToolError(f"altocue start did not finish: {error}") from None
+    if done.returncode != 0:
+        raise ToolError((done.stderr or done.stdout).strip()[-OUTPUT_CHARS:] or "altocue start failed and gave no reason.")
+    try:
+        return json.loads(done.stdout)
+    except ValueError:
+        raise ToolError("This Altocue is too old to keep a profile. Ask the user, then call altocue_install with confirm and upgrade true.") from None
+
+
 def chosen_job(args: dict) -> Job:
     with JOBS_LOCK:
         job = JOBS.get(str(args.get("job", "")))
@@ -445,6 +473,29 @@ TOOLS = [
         },
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True},
         "run": tool_install,
+    },
+    {
+        "name": "altocue_profile",
+        "title": "Read or save how the user works",
+        "description": (
+            "The user's profile: eight answers, asked once, on what they make, where it is published, their look, captions, sound, language, "
+            "online services and how often to check with them. With no arguments it returns the questions, their choices and any saved answers. "
+            "With answers it saves them, checked the same way as altocue start, and returns the profile. Ask the user: never answer for them. "
+            "spend_cap_usd is only ever a number the user typed. Keys are never stored."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "answers": {
+                    "type": "object",
+                    "description": 'Question id to answer, such as {"kind": "short", "platform": "vertical", "checks": "cut"}. Leave it out to read the questions.',
+                    "additionalProperties": {"type": ["string", "number"]},
+                }
+            },
+            "additionalProperties": False,
+        },
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        "run": tool_profile,
     },
     {
         "name": "altocue_run",
