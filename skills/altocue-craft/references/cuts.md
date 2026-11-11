@@ -82,6 +82,26 @@ A cut that is true to the feeling and breaks continuity is usually right. A cut 
 - **Then check what is left still makes sense.** Read the kept words in order as a stranger would. A reference to something that was cut has to go too.
 - **Never change what the speaker meant.** Moving and trimming lines can turn a hedge into a claim. If the meaning shifts, put it back or ask.
 
+## The tells of a machine edit
+
+Each of these is something a viewer feels without naming. Check your own cut for them before anyone else does.
+
+- **Every pause the same length.** Shape pauses by what they do.
+- **No air at all.** Remove a sentence, never every gap.
+- **Half a breath at a join.** Keep breaths whole or take them out whole.
+- **Every "um" gone, so speech sounds typed.** Leave the ones that belong to the thought.
+- **Pitch that jumps or hangs at a cut.** End a segment on a falling word, and join takes that match.
+- **Zoom in, zoom out, on every cut.** Change size for meaning and hold it for a section.
+- **A punch-in too small to be a choice,** or so large the picture goes soft.
+- **A first frame in the middle of a blink.**
+- **An insert that matches a word, not the point,** or one that covers the line that needed the face.
+- **Inserts slotted exactly sentence by sentence.** Let picture and sound change at different moments.
+- **A cut every few seconds, like a clock.**
+- **A sound effect on every cut, and music at one level from first frame to last.**
+- **A greeting at the start and a goodbye at the end.**
+- **An opening that promises what the film does not hold.**
+- **A reference to something that was cut.**
+
 ## Reading your own cut
 
 After each pass, ask in this order: does it still feel right, does it still say the point, does it move. Then the smaller things: where the eye lands at each cut, whether any frame is a stray. [The passes](passes.md) has the full set.
