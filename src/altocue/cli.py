@@ -202,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"altocue: {error}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
+        if os.environ.get(TRACEBACK, "") not in ("", "0"):
+            raise
         print("altocue: stopped.", file=sys.stderr)
         return 130
     except Exception as error:  # not SystemExit: a stage that exits on purpose still does
