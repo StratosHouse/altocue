@@ -73,3 +73,12 @@ Choose an aspect ratio and use `altocue motion`, `altocue timeline` or a native 
 Sound is optional. Use a quiet contact when a card settles, a short travel cue as an artifact moves and a restrained click when a selection changes. Use typing only while text visibly types. Calculate absolute cue times against the actual graphic or row arrival, rather than placing a sound arbitrarily at each cut. Duck cues under speech and inspect the delivered mix.
 
 Public previews are silent. No paid audio is included in Altocue, its recipes or these graphics. Users supply their own licensed sounds through native motion SFX cues. A written cue suggestion is not permission to download, redistribute or purchase sound.
+
+## Demos and logos
+
+From a Reel's review.
+
+- **Show a feature on material made for it, not on the speaker.** A demo of tracking, grading, a transition or a filter reads better on a clean stock-style shot (`altocue generate`, no people) than on the speaker's own face, and the speaker's frame is easy to choose badly. The face stays where the feature is about a face, such as captions.
+- **When the speaker's face is a still, choose it.** Eyes open, on the lens, mouth closed or relaxed. Never a mid-blink or mid-syllable frame.
+- **A number on screen matches the number said,** and a claim of scale shows scale: many items loading and scrolling, not six.
+- **A logo arrives when it is named,** with a soft shadow and a little depth, and a title can unfurl from it.

@@ -44,6 +44,8 @@ altocue grade --lut ~/luts/show.cube
 
 ## Rules
 
+- **Grade in order, and demonstrate it in order.** Balance first: white balance, then exposure and contrast. Then secondary work, such as skin. Then the look, and a last check. A before and after on screen goes the same way, from a flat camera file with its cast, through each correction, to the look. Never the finished frame first and a filter after it.
+
 - **Skin comes first.** If a correction moves skin hue too far, it backs off by itself. Do not fight that.
 - **Looks protect skin too.** Colours near this clip's skin take a quarter of the look. If skin hue still moves past 3 degrees or the face past 10% in level, the guard tightens, and only then does the whole look back off, to no less than a quarter of the strength you asked for. The report says what each clip took: `look_strength` and `look_skin_moved`.
 - **A look that removes colour is not guarded,** so black and white stays black and white.

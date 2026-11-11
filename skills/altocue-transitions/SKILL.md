@@ -85,6 +85,8 @@ Nothing that QA measures moves. A transition or a freeze changes picture only.
 
 ## Overlays
 
+A light leak is stray light that fogged film inside a camera: a warm orange, red or magenta bloom that comes in from one edge of the frame, organic and flickering, added with a screen blend. Grain changes every frame. When a film names either one, show the real thing.
+
 Texture made in code, drawn on the picture and under the captions and graphics. Nothing is bundled.
 
 ```json

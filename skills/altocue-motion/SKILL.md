@@ -81,6 +81,7 @@ Rules of thumb, not findings, apart from reading time.
 - **Hold text long enough to read.** QA fails a graphic that shows more than 3 words for each second on screen, the top of what Ofcom recommends for subtitles. That is a subtitle guideline, not a phone study. Lists and charts count only their longest row, because they are scanned. A format's default length does not always fit its copy, so set `duration`. Set `reading_wps` under `[qa]` for a slower audience.
 - **Keep the picture moving.** `altocue facts` reports the longest static stretch. There is no target: no study shows viewers leave if nothing changes for a set time, so pace to the content.
 - **End on the last useful point.** Keep the end card short.
+- **Demos, stills of the speaker, numbers and logos:** see [references/studio-graphics.md](references/studio-graphics.md#demos-and-logos).
 
 ## Timing
 
