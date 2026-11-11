@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -332,20 +333,64 @@ def collect(project: Project) -> list[Stage]:
     return stages
 
 
+def route() -> tuple[str, ...]:
+    """The stages one plain `altocue run` covers, in its order."""
+    from .run import ORDER
+
+    return ORDER[: ORDER.index("qa") + 1]
+
+
 def next_command(stages: list[Stage], folder: str) -> str | None:
-    """The first stage that is not done, as a command to paste. None when everything is."""
-    return next((stage.command.format(folder=folder) for stage in stages if stage.state != DONE), None)
+    """The shortest route from here, as a command to paste. None when everything is done.
+
+    One `altocue run` where it covers what is left, so nobody is walked through the stages one at a time. A stage outside
+    the run, or one that needs its own flags, is named by itself.
+    """
+    first = next((stage for stage in stages if stage.state != DONE), None)
+    if first is None:
+        return None
+    own = first.command.format(folder=folder)
+    covered = route()
+    if any(stage.name == "film" for stage in stages) or first.name not in covered or own != f"altocue {first.name} -p {folder}":
+        return own
+    if first.name == "cut" and first.state == STALE:
+        return own  # a new proposal. `altocue cut` saves the old cut and its rulings first, and `run --from cut` does not
+    # A step the run does not cover, such as stale B-roll, may sit in its way. The run then stops just before it.
+    after = stages[stages.index(first) + 1 :]
+    held = next((index for index, stage in enumerate(after) if stage.name not in covered and stage.state != DONE), len(after))
+    last = ([first] + [stage for stage in after[:held] if stage.name in covered])[-1]
+    stop = f" --to {last.name}" if any(stage.name in covered for stage in after[held:]) else ""
+    if stop and last is first:
+        return own
+    if covered.index(first.name) <= covered.index("transcribe"):
+        return f"altocue run{stop} -p {folder}"  # probing the clips again takes no time, so the plain command is the short one
+    return f"altocue run --from {first.name}{stop} -p {folder}"
+
+
+def report(project: Project, stages: list[Stage], folder: str) -> dict[str, Any]:
+    """What `--json` prints: every row with the command that redoes that one stage, and the one command to run next."""
+    return {
+        "project": str(project.root),
+        "stages": [{"stage": stage.name, "state": stage.state, "reason": stage.detail, "command": stage.command.format(folder=folder)} for stage in stages],
+        "next": next_command(stages, folder),
+    }
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
+    parser.add_argument("--json", action="store_true", help="Machine-readable output: stage, state, reason and command for each row, and one next")
 
 
 def run(args: argparse.Namespace) -> int:
-    stages = collect(Project.open(args.project))
+    project = Project.open(args.project)
+    stages = collect(project)
+    folder = shlex.quote(args.project)
+    if args.json:
+        print(json.dumps(report(project, stages, folder), indent=2, ensure_ascii=False))
+        return 0
     width = max(len(stage.name) for stage in stages)
     for stage in stages:
         print(f"{stage.name:<{width}}  {stage.state:<7}  {stage.detail}".rstrip())
-    command = next_command(stages, args.project)
+    command = next_command(stages, folder)
     print(f"\nNext: {command}" if command else "\nNext: nothing. This film is done and delivered.")
     return 0
