@@ -11,6 +11,7 @@ from ..models import Edl, Removed, Word
 from ..project import Project
 
 PHRASE_PAUSE = 0.5
+SHORT_SHOT = 0.5  # seconds. A kept segment under this is a shot too brief to read
 RULING_HELP = 'Use {"<id>": "cut"} or {"<id>": "keep"}, or {"<id>": {"decision": "keep", "reason": "..."}}.'
 
 
@@ -25,6 +26,17 @@ def midpoint(word: Word) -> float:
 
 def covering(word: Word, removed: list[Removed]) -> Removed | None:
     return next((r for r in removed if r.start <= midpoint(word) <= r.end), None)
+
+
+def pause_note(item: Removed) -> str:
+    """What a join kept, in a few words: `sentence pause 1.20 s, kept 0.50 s`. Empty when the cut placed no join on this removal."""
+    if not item.pause or item.kept is None:
+        return ""
+    if item.pause == "end":
+        return f"end of the film, held {item.kept:.2f} s"
+    if item.kind == "silence":
+        return f"{item.pause} pause {item.end - item.start:.2f} s, kept {item.kept:.2f} s"
+    return f"{item.pause} join, kept {item.kept:.2f} s"
 
 
 def spoken_in(project: Project, item: Removed) -> str:
@@ -106,6 +118,10 @@ def write_review(project: Project, edl: Edl) -> Path:
         lines += ["", "Nothing."]
     lines += ["", "## Already cut, overrule with keep", ""]
     lines += [f"- `{removal_id(r)}` {r.kind}, {r.clip} {r.start:.2f}-{r.end:.2f} s: {r.evidence}" for r in overrulable] or ["Nothing."]
+    stamped = [r for r in edl.removed if r.decision == "auto" and r.kind == "silence" and r.pause and r.kept is not None]
+    paused = [r for r in stamped if r.pause == "end" or r.kept < r.end - r.start - 1e-3]
+    lines += ["", "## Pauses", "", "What each cut pause was and what it keeps. Rule `keep` on one to leave it whole, such as the beat before a key line.", ""]
+    lines += [f"- `{removal_id(r)}` {r.clip} {r.start:.2f} s: {pause_note(r)}" for r in paused] or ["Nothing."]
     lines += ["", "## Transcript", "", "`~~words~~` are out. `{id: words}` wait for a ruling.", *packed_transcript(project, edl), ""]
     path = project.work / "cut-review.md"
     path.write_text("\n".join(lines))
@@ -130,6 +146,10 @@ def write_report(project: Project, edl: Edl) -> Path:
     silent = [clip.id for clip in clips if not clip.has_audio]
     if silent:
         lines.append(f"- **Not checked:** {', '.join(silent)} have no audio, so their edges did not snap to speech.")
+    short = [s for s in edl.segments if s.end - s.start < SHORT_SHOT - 1e-6]
+    if short:
+        listed = ", ".join(f"{s.id} ({s.end - s.start:.2f} s)" for s in short)
+        lines.append(f"- **Short shots:** {listed} run under {SHORT_SHOT:g} s, too brief to read. Keep the filler or pause beside one, or remove it.")
     if any(s.held for s in edl.segments) or edl.lost:
         lines += ["", "## Hand edits", ""]
         lines += [f"- **{s.id}:** kept {', '.join(s.held)}." for s in edl.segments if s.held]
@@ -145,7 +165,8 @@ def write_report(project: Project, edl: Edl) -> Path:
     ]
     for item in sorted(edl.removed, key=lambda r: (r.clip, r.start)):
         span = f"{item.clip} | {item.start:.2f} | {item.end:.2f}"
-        spoken, reason = spoken_in(project, item).replace("|", "/"), item.evidence.replace("|", "/")
+        note = pause_note(item)
+        spoken, reason = spoken_in(project, item).replace("|", "/"), (f"{item.evidence} ({note})" if note else item.evidence).replace("|", "/")
         lines.append(f"| {removal_id(item)} | {span} | {item.kind} | {item.decision} | {item.score:.2f} | {spoken} | {reason} |")
     path = project.work / "cut-report.md"
     path.write_text("\n".join(lines) + "\n")

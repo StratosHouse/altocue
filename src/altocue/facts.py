@@ -19,6 +19,7 @@ import numpy as np
 from . import __version__, ffmpeg, qa
 from .errors import AltocueError
 from .models import Word
+from .pace import ends_sentence
 from .project import Project, write_json
 from .qa import gates, ocr, rules
 
@@ -32,7 +33,6 @@ SILENT_LUFS = -69.0
 SILENT_DB = -99.0
 BUCKETS = ((10.0, "0-10"), (30.0, "10-30"), (60.0, "30-60"))
 LAST_BUCKET = "60+"
-SENTENCE_END = ".?!"
 LAST_WORD_NEAR = 0.5
 META_REELS_AD = {"left": 0.06, "right": 0.94, "top": 0.14, "bottom": 0.65}  # Meta's Reels ad guidance: 14% top, 35% bottom, 6% sides. An ad figure
 
@@ -61,6 +61,7 @@ NAMES = {
     "loop_ssim": "Last frame against the first, SSIM from 0 to 1",
     "loop_audio_delta_db": f"Last {LOOP_WINDOW:g}s of sound against the first {LOOP_WINDOW:g}s, dB",
     "ends_mid_sentence": "Speech stops mid sentence at the end",
+    "ends_cold_s": "Last word's end to the last frame",
 }
 
 
@@ -123,10 +124,10 @@ def longest_gap(events: list[float], end: float) -> tuple[float, float, float]:
 
 def ends_mid_sentence(words: list[dict[str, Any]], end: float) -> bool | None:
     """Only a transcript with punctuation can say. Speech that stops early is not mid sentence."""
-    if not any(w["text"].rstrip()[-1:] in SENTENCE_END for w in words):
+    if not any(ends_sentence(w["text"]) for w in words):
         return None
     last = words[-1]
-    return last["text"].rstrip()[-1:] not in SENTENCE_END and end - float(last["end"]) <= LAST_WORD_NEAR
+    return not ends_sentence(last["text"]) and end - float(last["end"]) <= LAST_WORD_NEAR
 
 
 def recall_transcript(c: gates.Context, digest: str, *, listen: bool) -> None:
@@ -140,11 +141,14 @@ def recall_transcript(c: gates.Context, digest: str, *, listen: bool) -> None:
         c._heard = (None, "No transcript of this file is saved.")
 
 
+SPEECH_FACTS = ("first_word_s", "hook_word_count", "hook_wps", "caption_coverage", "ends_mid_sentence", "ends_cold_s")
+
+
 def speech_facts(c: gates.Context) -> dict[str, Any]:
     words = c.spoken()
     if words is None:
         why = c.heard()[1] or "No transcript of this file."
-        return {name: unknown(why) for name in ("first_word_s", "hook_word_count", "hook_wps", "caption_coverage", "ends_mid_sentence")}
+        return {name: unknown(why) for name in SPEECH_FACTS}
     how = "re-transcribed from the rendered file" if c.heard()[0] is not None else "mapped from the cut, not heard"
     window = min(HOOK_SECONDS, c.clip.duration) or HOOK_SECONDS
     hook = sum(1 for w in words if float(w["end"]) <= window)
@@ -163,6 +167,7 @@ def speech_facts(c: gates.Context) -> dict[str, Any]:
         found["caption_coverage"] = known(round(coverage(speech, pages), 3), f"speech seconds {how}, against caption pages on the timeline")
     ended = ends_mid_sentence(words, c.clip.duration) if words else None
     found["ends_mid_sentence"] = known(ended, how) if ended is not None else unknown("The transcript has no punctuation to judge by.")
+    found["ends_cold_s"] = known(round(max(c.clip.duration - float(words[-1]["end"]), 0.0), 3), how) if words else unknown("No speech was heard.")
     return found
 
 
@@ -321,7 +326,7 @@ def measure(project: Project, file: str | Path, *, stage: str = "final", ocr_fps
         "first_text_s": guarded(("first_text_s",), lambda: {"first_text_s": first_text(c, ocr_fps)})["first_text_s"],
     }
     for names, step in (
-        (("first_word_s", "hook_word_count", "hook_wps", "caption_coverage", "ends_mid_sentence"), speech_facts),
+        (SPEECH_FACTS, speech_facts),
         (("cuts_per_10s", "first_cut_s", "scene_changes_per_10s", "longest_static_s"), edit_facts),
         (("text_reading_margin_s", "text_under_reading_time", "caption_wps_peak"), text_facts),
         (("safe_zone_project", "safe_zone_meta_reels_ad"), zone_facts),

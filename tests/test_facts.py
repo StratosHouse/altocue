@@ -168,7 +168,7 @@ def test_no_transcript_leaves_speech_facts_unknown(tmp_path, monkeypatch):
     built.project.edl_path.unlink()
     data = facts.measure(built.project, built.file)
     assert value(data, "first_word_s") is None and "No transcriber" in data["facts"]["first_word_s"]["why"]
-    assert value(data, "hook_word_count") is None
+    assert value(data, "hook_word_count") is None and value(data, "ends_cold_s") is None
 
 
 def test_silent_film_reports_no_loudness_rather_than_failing(tmp_path):
@@ -194,6 +194,17 @@ def test_saved_transcript_is_reused_and_a_stale_one_is_not(film, monkeypatch):
     write_json(film.project.review_dir / "transcript.json", {"sha256": "other", "available": True, "reason": "", "words": heard})
     monkeypatch.setattr(gates, "transcribe", lambda *_, **__: ([Word(text="now", start=0.5, end=0.9)], ""))
     assert value(facts.measure(film.project, film.file), "first_word_s") == 0.5
+    (film.project.review_dir / "transcript.json").unlink()
+
+
+def test_the_ending_is_timed_from_the_last_word_to_the_last_frame(film, monkeypatch):
+    heard = [{"text": "late", "start": 1.5, "end": 1.9}]
+    write_json(film.project.review_dir / "transcript.json", {"sha256": qa.sha256(film.file), "available": True, "reason": "", "words": heard})
+    monkeypatch.setattr(gates, "transcribe", lambda *_, **__: pytest.fail("transcribed again"))
+    data = facts.measure(film.project, film.file)
+    length = gates.Context.open(film.project, film.file).clip.duration
+    assert value(data, "ends_cold_s") == pytest.approx(length - 1.9, abs=0.001)
+    assert facts.NAMES["ends_cold_s"] in facts.report_text(data)
     (film.project.review_dir / "transcript.json").unlink()
 
 

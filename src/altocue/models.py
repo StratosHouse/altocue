@@ -104,6 +104,8 @@ class Removed(Model):
     evidence: str
     decision: Decision = "auto"
     score: float = 1.0
+    pause: str = ""  # the join this left behind: clause, comma, sentence or topic, or `end` at the end of the film
+    kept: float | None = None  # seconds of quiet still in the film at that join. None when the cut did not place it
 
 
 @dataclass

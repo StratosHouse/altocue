@@ -28,7 +28,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from . import follow
+from . import follow, pace
 from .cut.hand import hand_set
 from .cut.script import ends_sentence
 from .cut.snap import frame_count, plays
@@ -598,14 +598,6 @@ def _faces_at(clips: dict[str, Clip], wanted: list[tuple[str, float]]) -> dict[t
     return found
 
 
-def _pace(project: Project) -> str:
-    """`[cut] pace`, read here until the pace module is the one place that knows it."""
-    pace = str(project.setting("cut", "pace", "natural") or "natural")
-    if pace not in HOLDS:
-        raise AltocueError(f"[cut] pace is {pace!r}.", fix=f"Use one of {', '.join(HOLDS)}.")
-    return pace
-
-
 def _number(project: Project, key: str, default: float) -> float:
     value = project.setting("frame", key, default)
     if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value) or value < 0:
@@ -616,7 +608,7 @@ def _number(project: Project, key: str, default: float) -> float:
 def min_hold_of(project: Project) -> float:
     """Seconds a shot size stays on screen before it may change: `[frame] min_hold`, or else what `[cut] pace` gives."""
     if project.setting("frame", "min_hold") is None:
-        return HOLDS[_pace(project)]
+        return HOLDS[pace.pace_of(project)]
     return _number(project, "min_hold", 0.0)
 
 

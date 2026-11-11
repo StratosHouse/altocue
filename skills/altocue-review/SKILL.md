@@ -63,7 +63,7 @@ Turn each note into one named fix: one sentence, one change, everything else lef
 
 | Say | For a note on | Change |
 |---|---|---|
-| Tighter cut | `pacing` | `altocue cut --remove s007 --reason "drags"` for one stretch. For the whole film, lower `[cut] max_pause`, then `altocue cut` and rule again |
+| Tighter cut | `pacing` | `altocue cut --remove s007 --reason "drags"` for one stretch. For the whole film, set `[cut] pace` to `tight`, then `altocue cut` and rule again |
 | Harder hook | `hook` | Move the strongest self-contained line to the top of `segments` in `edl.json`, then set the `hook` item's `text` in `motion.json` to its promise, with `start` at 0 |
 | Match pacing | `pacing` | Measure the reference in its own project: `altocue new ref --input reference.mp4`, then `altocue facts -p ref --file <that file>`. Compare `scene_changes_per_10s` and `longest_static_s` with this film's, then use the rows above and below. Never aim at the number |
 | Hide the jump | `pacing`, `picture` | `altocue broll --pick b1=c2`, or raise `[frame] punch_in` and run `altocue frame` |

@@ -35,13 +35,19 @@ MUSIC_GUARD = 0.005  # against a click, and no more
 FRAMES_PER_SECOND = 100
 SYLLABLE_FRAMES = 5
 SYLLABLE_HOLD = 15  # 150 ms either side
-DUCK_UNDER_VOICE_DB = 12.0
+DUCK_UNDER_VOICE_DB = 18.0  # the default `[audio] music_under`. 12 is a montage with a line over it, and speech needs more room
+DUCK_UNDER_RANGE = (6.0, 30.0)
 DUCK_LEAST_DB = 7.0  # a dip the ear can hear, even when the level alone would not ask for one
 DUCK_BEFORE = 0.25  # a word lands on music that is already down
-DUCK_AFTER = 0.5
+DUCK_AFTER = 0.8  # coming back is slower than going down
 DUCK_HOLD = 0.1
-DUCK_BRIDGE = 0.45  # a shorter gap is a breath, and the music stays down through it
+DUCK_BRIDGE = 1.2  # a shorter gap is a pause inside the talk, and the music stays down through it
+DUCK_RETURN = 2.5  # a gap this long is a real break, and the music comes all the way back
+DUCK_PARTIAL_DB = 4.0  # between the two the music may rise this far, so a kept pause never swells
 DUCK_WINDOW = 2  # seconds of voice and music that set the depth
+DUCK_TRUST = 0.25  # seconds of speech in that window before its level is believed
+CARVE_HZ, CARVE_Q, CARVE_DB = 2500.0, 0.8, 4.0  # under speech the bed also loses this much where consonants live
+END_FADE_FRAMES = 6  # the room fades over this many frames at the end of a film that has no tail
 RIDER_GATE_BELOW_VOICE_DB = 26.0
 SFX_UNDER_DB = 10.0
 SFX_UNDER_RANGE = (8.0, 12.0)
@@ -323,14 +329,21 @@ def _raised(position: np.ndarray) -> np.ndarray:
     return 0.5 - 0.5 * np.cos(np.pi * np.clip(position, 0, 1))
 
 
-def _duck_shape(speaking: np.ndarray) -> np.ndarray:
-    """How far down the music is, 0 to 1 per frame: down before the word, back up after it, slowly."""
+def _duck_shape(speaking: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """How far down the music is, 0 to 1 per frame: down before the word, back up after it, slowly.
+
+    A gap under `DUCK_BRIDGE` keeps the music down. The second array marks the gaps from there up to
+    `DUCK_RETURN`, where the music may come up a little and no further. A longer gap lets it back.
+    """
     bridged = speaking.copy()
+    partial = np.zeros(len(speaking), dtype=bool)
     edges = np.flatnonzero(np.diff(np.r_[0, speaking.astype(np.int8), 0]))
     starts, ends = edges[::2], edges[1::2]
     for end, start in zip(ends[:-1], starts[1:], strict=True):
         if start - end < DUCK_BRIDGE * FRAMES_PER_SECOND:
             bridged[end:start] = True
+        elif start - end < DUCK_RETURN * FRAMES_PER_SECOND:
+            partial[end:start] = True
     edges = np.flatnonzero(np.diff(np.r_[0, bridged.astype(np.int8), 0]))
     shape = np.zeros(len(speaking))
     frames = np.arange(len(speaking))
@@ -338,7 +351,7 @@ def _duck_shape(speaking: np.ndarray) -> np.ndarray:
     hold = DUCK_HOLD * FRAMES_PER_SECOND
     for start, end in zip(edges[::2], edges[1::2], strict=True):
         shape = np.maximum(shape, _raised((frames - (start - before)) / before) * _raised(((end + hold + after) - frames) / after))
-    return shape
+    return shape, partial
 
 
 def _mean_db(power: np.ndarray, weight: np.ndarray) -> np.ndarray:
@@ -349,11 +362,13 @@ def _mean_db(power: np.ndarray, weight: np.ndarray) -> np.ndarray:
     return 10 * np.log10((total / (count + 1e-9))[middle : middle + len(power)] + 1e-12)
 
 
-def _ride(bed: np.ndarray, voice: np.ndarray, gate_db: float) -> tuple[np.ndarray, float]:
-    """Duck the bed under speech. Gain only ever comes down, and it moves on a smooth ramp.
+def _ride(bed: np.ndarray, voice: np.ndarray, gate_db: float, under: float = DUCK_UNDER_VOICE_DB, carved: np.ndarray | None = None) -> tuple[np.ndarray, float]:
+    """Duck the bed `under` dB below speech. Gain only ever comes down, and it moves on a smooth ramp.
 
     The file is known in advance, so the ramp starts before the first word and is finished as it
     lands. Depth follows the voice and the music over seconds, not syllables, so nothing pumps.
+    `carved` is the same bed with its presence band cut. It is blended in on the same ramp, so the
+    music gives the consonants room only while someone is speaking.
     """
     hop = RATE // FRAMES_PER_SECOND
     count = len(bed) // hop
@@ -366,14 +381,37 @@ def _ride(bed: np.ndarray, voice: np.ndarray, gate_db: float) -> tuple[np.ndarra
     speaking = voice_db > gate_db
     if not speaking.any():
         return bed, 0.0
-    depth = np.minimum(_mean_db(voice_power, speaking) - DUCK_UNDER_VOICE_DB - _mean_db(bed_power, np.ones(count, dtype=bool)), -DUCK_LEAST_DB)
-    gain_db = depth * _duck_shape(speaking)
+    spoken_db = _mean_db(voice_power, speaking)
+    middle = DUCK_WINDOW * FRAMES_PER_SECOND // 2
+    heard = np.convolve(speaking.astype(float), np.ones(2 * middle + 1))[middle : middle + count]
+    near = np.flatnonzero(heard >= min(DUCK_TRUST * FRAMES_PER_SECOND, heard.max()) - 0.5)
+    # Deep in a pause the window holds too little speech to level by, so the level moves from one line to the next.
+    spoken_db = np.interp(np.arange(count), near, spoken_db[near])
+    depth = np.minimum(spoken_db - under - _mean_db(bed_power, np.ones(count, dtype=bool)), -DUCK_LEAST_DB)
+    shape, partial = _duck_shape(speaking)
+    shape = np.maximum(shape, np.clip(1 + DUCK_PARTIAL_DB / depth, 0, 1) * partial)
+    gain_db = depth * shape
     times = (np.arange(count) + 0.5) * hop
-    curve = 10 ** (np.interp(np.arange(len(bed)), times, gain_db) / 20)
+    at = np.arange(len(bed))
+    curve = 10 ** (np.interp(at, times, gain_db) / 20)
     ridden = bed * curve[:, None]
+    if carved is not None:
+        ridden += (carved - bed) * (curve * np.interp(at, times, shape))[:, None]
     held = np.lib.stride_tricks.sliding_window_view(np.pad(voice_db, SYLLABLE_HOLD, mode="edge"), 2 * SYLLABLE_HOLD + 1).max(axis=1)
     after = 10 * np.log10(np.convolve(bed_power * 10 ** (gain_db / 10), syllable)[SYLLABLE_FRAMES // 2 : SYLLABLE_FRAMES // 2 + count] + 1e-12)
     return ridden, float(np.median((held - after)[speaking]))
+
+
+def _carved(bed: np.ndarray, folder: Path) -> np.ndarray:
+    """The bed with a broad cut where consonants live, for `_ride` to blend in under speech."""
+    source, shaped = folder / "bed.f32", folder / "carved.f32"
+    bed.astype("<f4").tofile(source)
+    raw = ["-f", "f32le", "-ar", str(RATE), "-ac", "2"]
+    ffmpeg.run([*raw, "-i", str(source), "-af", f"equalizer=f={CARVE_HZ:g}:t=q:w={CARVE_Q:g}:g=-{CARVE_DB:g}", *raw, str(shaped)])
+    carved = np.fromfile(shaped, dtype="<f4").astype(np.float64).reshape(-1, 2)
+    if len(carved) != len(bed):
+        raise AltocueError("The carved music came back a different length.", fix="Report this with the ffmpeg version from `altocue doctor`.")
+    return carved
 
 
 def _trimmed_music(path: Path) -> np.ndarray:
@@ -645,6 +683,8 @@ def mix_bed(
     stems: str | Path | None = None,
     music_from: float | None = None,
     music_enter: float = 0.0,
+    music_under: float = DUCK_UNDER_VOICE_DB,
+    end_fade: float = 0.0,
 ) -> Path:
     """Mix voice, music and effects to stereo 48 kHz, running `tail` seconds past the picture.
 
@@ -662,8 +702,14 @@ def mix_bed(
     in this mix, and they add up to it. `music_from` starts the track that many seconds in, on a downbeat
     chosen by ear or by its beat grid, and the bed fades out at the film's end. With `music_from`, `music_enter` holds
     the track silent for that many seconds of the film, so it comes in on a later beat of the same grid.
+    `music_under` is how many dB the music sits under the voice while someone speaks. `end_fade` fades the
+    voice and its room over that many seconds at the end of a film that has no tail, so it does not stop dead.
     """
     dest = Path(dest)
+    low, high = DUCK_UNDER_RANGE
+    if isinstance(music_under, bool) or not isinstance(music_under, (int, float)) or not low <= music_under <= high:
+        fix = f"Set `[audio] music_under` from {low:g} to {high:g}. The default is {DUCK_UNDER_VOICE_DB:g}."
+        raise AltocueError(f"Music cannot sit {music_under} dB under the voice.", fix=fix)
     if voice is None:
         if seconds is None:
             raise AltocueError("A mix with no voice has nothing to set its length.", fix="Pass seconds, the film's length.")
@@ -684,7 +730,8 @@ def mix_bed(
         else:
             room_path = Path(room) if room else None
             out, report = _with_voice(
-                Path(voice), samples, Path(music) if music else None, cues, total, tail, room_path, music_end, folder, layers, music_from, music_enter
+                Path(voice), samples, Path(music) if music else None, cues, total, tail, room_path, music_end, folder, layers, music_from, music_enter,
+                under=float(music_under), end_fade=end_fade,
             )
     peak = float(np.abs(out).max())
     if stems:
@@ -719,11 +766,17 @@ def _with_voice(
     layers: dict[str, np.ndarray] | None = None,
     music_from: float | None = None,
     music_enter: float = 0.0,
+    *,
+    under: float = DUCK_UNDER_VOICE_DB,
+    end_fade: float = 0.0,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """The voice leads. Music ducks under it, and effects are levelled against it."""
     level = _voice_level(voice)
     out = np.zeros((total, 2))
     out[: len(samples)] = samples[:, None]
+    fade = 0 if tail else min(round(end_fade * RATE), len(samples))
+    if fade > 0:
+        out[len(samples) - fade : len(samples)] *= _curve(fade, False)[::-1, None]
     if room and tail:
         start = max(len(samples) - round(FADE_MS / 1000 * RATE) // 2, 0)
         bed = _room_tail(room, start, total)
@@ -734,8 +787,9 @@ def _with_voice(
     report: dict[str, Any] = {"mode": "voice", "voice_lufs": level, "music": None, "sfx": []}
     if music:
         bed, report["music"] = _music_bed(music, level - MUSIC_UNDER_VOICE_LU, total, end, folder, start=music_from, enter=music_enter)
-        ridden, under = _ride(bed, samples, level - RIDER_GATE_BELOW_VOICE_DB)
-        report["music"]["under_voice_db"] = round(under, 1)
+        ridden, measured = _ride(bed, samples, level - RIDER_GATE_BELOW_VOICE_DB, under, _carved(bed, folder))
+        report["music"]["under_voice_db"] = round(measured, 1)
+        report["music"]["under_target_db"] = under
         out += ridden
         if layers is not None:
             layers["music"] = ridden

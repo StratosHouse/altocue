@@ -57,7 +57,9 @@ WAV_BYTES_PER_SECOND = 2 * RATE
 QUIET_WINDOW = 25  # envelope frames that must be quiet together, so a split lands in a pause and not between syllables
 ENVELOPE_BLOCK = 5000  # envelope frames read from disk at once
 
-FILLERS = frozenset("um umm uh uhh uhm er erm hm hmm mm mmm mhm ah ahh eh".split())
+HESITATIONS = frozenset("um umm uh uhh uhm er erm".split())  # a stall, and nothing else
+REACTIONS = frozenset("hm hmm mm mmm mhm ah ahh eh".split())  # can be an answer or the moment itself, so the cut asks before it takes one that stands alone
+FILLERS = HESITATIONS | REACTIONS
 FILLER_PROMPT = "Um, uh, so, like, you know, okay, hmm, I mean, right."
 
 NUMBERS = "one two three four five six seven eight nine ten 1 2 3 4 5 6 7 8 9 10".split()

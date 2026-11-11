@@ -57,13 +57,30 @@ The lines choose the words. The edges come from the same code as every other cut
 ## Changing the cut
 
 - **One stretch:** `altocue cut --remove s007 --reason "drags"`. Segment ids are in `work/cut-report.md`.
-- **The whole film tighter:** lower `[cut] max_pause` from its 0.4 default. [source] One guide cuts pauses over about a third of a second. Then run `altocue cut` and rule again.
+- **The whole film tighter:** set `[cut] pace` to `tight`. See Pace below. Then run `altocue cut` and rule again.
 - **`altocue cut` with no flags starts over.** Your earlier cut and rulings go to `work/edl-previous.json`.
 - **New order:** move lines in `script.md`, or segments in `edl.json`. Either way the order stays through a re-cut.
 - **Hand edits stay.** `--remove`, `--apply-review` and `--from-script` keep `crop`, `zoom_from`, `zoom_to`, `gain` and order. See below.
 - **Every cut change moves B-roll.** See `altocue-broll`.
 
 Long video into shorts belongs to `altocue-clips`.
+
+## Pace
+
+- **`[cut] pace` sets how much of each pause stays:** `tight`, `natural` (the default) or `relaxed`. Tight suits a short. Relaxed suits a talk or a story.
+- **A pause is judged by where it falls.** Inside a clause it is left whole up to `[cut] max_pause`, 0.4 s by default. [source] One guide cuts pauses over about a third of a second. Past that it is shortened, and it keeps more after a comma, more at the end of a sentence, and most where a new subject starts. A longer pause never keeps less than a shorter one.
+- **A natural film keeps at most** 0.4 s inside a clause or after a comma, 0.5 s after a sentence and 0.8 s before a new subject. A tight one keeps 0.2, 0.26, 0.36 and 0.5 s, and starts on clause pauses at 0.2 s.
+- **A breath stays whole or goes whole.** No shot opens halfway through one.
+- **`work/cut-review.md` lists each shortened pause under Pauses,** such as `sentence pause 1.20 s, kept 0.50 s`. Rule `keep` on one to leave it whole.
+- **The film holds after its last word:** 0.25 s tight, 0.5 s natural, 0.8 s relaxed. Set `end_hold` under `[cut]`, in seconds, to choose. The hold is real picture. Where the clip has none left, the last frame is held for up to 0.4 s.
+
+## Fillers and repeats
+
+- **`[cut] fillers` is `clean` by default.** An "um" goes on its own only when the sound dips on both sides of it and the shot left beside it runs 0.6 s or more. One slurred into a word waits for a ruling, with the reason.
+- **`all` cuts every filler. `none` keeps them all.**
+- **"Mhm", "hmm" and "ah" wait when they stand alone** between pauses, or are all a speaker says. They may be an answer.
+- **A repeated content word waits.** "Easy, easy, easy" is rhetoric more often than a stutter. Only a quick run of a small word, such as "I I I", goes on its own.
+- **`work/cut-report.md` lists any kept shot under 0.5 s** as Short shots. Keep the filler or pause beside it, or remove the shot.
 
 ## Whose footage
 
