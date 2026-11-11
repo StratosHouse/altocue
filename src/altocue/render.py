@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
+from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, platforms, track, transitions
 from . import timeline as timelines
 from .errors import AltocueError
 from .motion import formats
@@ -226,6 +226,10 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
 
 
 def run(args: argparse.Namespace) -> int:
-    dest = build(Project.open(args.project), draft=args.draft, renderer=args.renderer)
+    project = Project.open(args.project)
+    dest = build(project, draft=args.draft, renderer=args.renderer)
     print(f"Rendered {dest}")
+    note = platforms.note(project)
+    if note:
+        print(note)
     return 0

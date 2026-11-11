@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 
 from altocue import brand as brands
-from altocue import master, platforms
+from altocue import caption, master, platforms, timeline
+from altocue.cli import main
 from altocue.errors import AltocueError
+from altocue.models import Clip, Edl, Segment, Word
 from altocue.motion import placement
 from altocue.motion.basic import caption_frame
 from altocue.motion.html import compose, layout
@@ -20,7 +22,7 @@ def brand(tmp_path):
 
 
 def test_every_platform_is_a_real_size_with_a_sourced_zone_and_length():
-    assert set(platforms.PLATFORMS) == {"reels", "tiktok", "shorts", "youtube", "linkedin", "square"}
+    assert set(platforms.PLATFORMS) == {"reels", "tiktok", "shorts", "youtube", "linkedin", "square", "vertical"}
     for platform in platforms.PLATFORMS.values():
         assert platform.aspect in SIZES
         assert platform.loudness in master.TARGETS
@@ -49,8 +51,32 @@ def test_for_splits_a_list_and_refuses_an_unknown_name():
         platforms.parse("reels,myspace")
 
 
+def test_the_vertical_zone_is_worked_out_from_the_table():
+    """Whatever the three apps leave alone between them. Nothing here is typed in twice."""
+    apps = [platforms.PLATFORMS[name].zone for name in platforms.VERTICAL_APPS]
+    zone = platforms.PLATFORMS["vertical"].zone
+    assert zone == platforms.overlap(platforms.VERTICAL_APPS)
+    assert zone == {
+        "left": max(app["left"] for app in apps),
+        "right": min(app["right"] for app in apps),
+        "top": max(app["top"] for app in apps),
+        "bottom": min(app["bottom"] for app in apps),
+    }
+    assert {side: round(value, 2) for side, value in zone.items()} == {"left": 0.11, "right": 0.82, "top": 0.15, "bottom": 0.65}
+    for app in apps:
+        assert app["left"] <= zone["left"] < zone["right"] <= app["right"] and app["top"] <= zone["top"] < zone["bottom"] <= app["bottom"]
+    assert set(platforms.VERTICAL_APPS) == {name for name, platform in platforms.PLATFORMS.items() if platform.aspect == "9:16" and name != "vertical"}
+    assert platforms.PLATFORMS["vertical"].longest == min(platforms.PLATFORMS[name].longest for name in platforms.VERTICAL_APPS)
+
+
+def test_the_vertical_zone_follows_a_change_to_the_table(monkeypatch):
+    lower = platforms.Platform("reels", "9:16", {"left": 0.06, "right": 0.94, "top": 0.14, "bottom": 0.6}, "Estimate.", 180.0, None, "A test zone.")
+    monkeypatch.setitem(platforms.PLATFORMS, "reels", lower)
+    assert platforms.overlap(platforms.VERTICAL_APPS)["bottom"] == 0.6
+
+
 def test_a_project_names_its_platform(tmp_path):
-    project = Project.create(tmp_path / "video")
+    project = Project.create(tmp_path / "video", aspect="16:9")
     assert platforms.zone_of(project) is None
     project.config["output"]["platform"] = "reels"
     assert platforms.zone_of(project) == platforms.PLATFORMS["reels"].zone
@@ -59,12 +85,97 @@ def test_a_project_names_its_platform(tmp_path):
         platforms.zone_of(project)
 
 
+def test_a_tall_project_with_no_platform_gets_the_vertical_zone(tmp_path):
+    """The old fallback let captions sit in the band where every vertical app draws its own caption and buttons."""
+    vertical = platforms.PLATFORMS["vertical"].zone
+    tall = Project.create(tmp_path / "tall")
+    assert "platform" not in tall.config["output"]
+    assert platforms.zone_of(tall) == vertical and platforms.built_in(tall)
+    assert gates.zone_for(FakeContext(tall)) == vertical
+    odd = Project.create(tmp_path / "odd", aspect="2:3")
+    assert platforms.zone_of(odd) == vertical
+
+
+def test_vertical_can_be_asked_for_by_name(tmp_path):
+    project = Project.create(tmp_path / "video", platform="vertical")
+    assert project.config["output"]["platform"] == "vertical"
+    assert platforms.zone_of(project) == platforms.PLATFORMS["vertical"].zone and not platforms.built_in(project)
+    assert [p.name for p in platforms.parse("vertical")] == ["vertical"]
+    assert platforms.note(project) == ""
+
+
+@pytest.mark.parametrize("aspect", ["4:5", "1:1", "16:9"])
+def test_a_canvas_no_taller_than_four_by_five_keeps_its_old_zone(tmp_path, aspect):
+    project = Project.create(tmp_path / "video", aspect=aspect)
+    assert platforms.zone_of(project) is None and not platforms.built_in(project) and platforms.note(project) == ""
+    width, height = project.size
+    assert gates.zone_for(FakeContext(project)) == (gates.TALL_ZONE if height > width else gates.FLAT_ZONE)
+
+
+def test_a_film_from_a_storyboard_keeps_its_own_zones(tmp_path):
+    """Its text is laid out in zones of its own, which no platform moves, so the gate must not start failing it."""
+    project = Project.create(tmp_path / "film")
+    (project.root / "storyboard.json").write_text("{}")
+    assert platforms.zone_of(project) is None and platforms.note(project) == ""
+    assert gates.zone_for(FakeContext(project)) == gates.TALL_ZONE
+
+
+def test_new_writes_the_vertical_platform_for_a_tall_project_only(tmp_path, clip):
+    assert main(["new", str(tmp_path / "tall"), "--input", str(clip)]) == 0
+    text = (tmp_path / "tall" / "altocue.toml").read_text()
+    assert '\nplatform = "vertical"' in text and "# platform" not in text
+    assert Project.open(tmp_path / "tall").config["output"]["platform"] == "vertical"
+    for aspect in ("16:9", "4:5"):
+        folder = tmp_path / aspect.replace(":", "x")
+        assert main(["new", str(folder), "--input", str(clip), "--aspect", aspect]) == 0
+        assert "platform" not in Project.open(folder).config["output"]
+        assert '# platform = "reels"' in (folder / "altocue.toml").read_text()
+
+
+def spoken(tmp_path, aspect="9:16"):
+    project = Project.create(tmp_path / "talk", aspect=aspect)
+    project.save_clips([Clip(id="a", path=str(tmp_path / "gone.mp4"), duration=6.0, fps=30, width=1080, height=1920, has_audio=False)])
+    line = "the international committee of experts met again in Geneva yesterday"
+    project.save_words("a", [Word(text, 0.3 + n * 0.4, 0.6 + n * 0.4) for n, text in enumerate(line.split())], "test")
+    project.save_edl(Edl(fps=30, segments=[Segment(id="s001", clip="a", start=0.0, end=5.0)]))
+    return project
+
+
+def test_the_built_in_zone_is_named_once_and_only_when_nobody_chose_it(tmp_path, capsys):
+    project = spoken(tmp_path)
+    assert "built-in vertical safe zone" in platforms.note(project)
+    assert main(["caption", "-p", str(project.root)]) == 0
+    assert capsys.readouterr().out.count("built-in vertical safe zone") == 1
+    config = project.root / "altocue.toml"
+    config.write_text(config.read_text().replace('# platform = "reels"   ', 'platform = "tiktok"'))
+    assert main(["caption", "-p", str(project.root)]) == 0
+    assert "built-in" not in capsys.readouterr().out
+
+
+def test_a_tall_project_with_no_platform_sets_its_captions_inside_the_vertical_zone(tmp_path, brand):
+    project = spoken(tmp_path)
+    zone = platforms.PLATFORMS["vertical"].zone
+    pages = caption.build(project)
+    made = timeline.build(project)
+    assert made["zone"] == zone and made["captions"] == pages
+    assert max(len(page["lines"]) for page in pages) == 2  # the test means nothing unless a page really takes two lines
+    geo = layout(1080, 1920, brand, made["zone"])
+    assert geo["gutter"] >= zone["left"] * 1080 and 1080 - geo["gutter"] - geo["rail"] <= zone["right"] * 1080
+    for page in pages:
+        drawn = caption_frame((1080, 1920), page, 0, brand, made["zone"])
+        left, top, right, bottom = drawn.getbbox()
+        spread = 40  # the soft shadow spreads a little past the letters
+        assert zone["top"] * 1920 <= top and bottom <= zone["bottom"] * 1920 + spread, page
+        assert zone["left"] * 1080 - spread <= left and right <= zone["right"] * 1080 + spread, page
+    assert f"--cap-y:{geo['cap_y']}px" in compose(made, brand)
+
+
 def text_box(brand, geo, height, lines=2):
     size = int(brand.caption["size"])
     return geo["cap_y"], geo["cap_y"] + lines * size * 1.14
 
 
-@pytest.mark.parametrize("name", ["reels", "tiktok", "shorts"])
+@pytest.mark.parametrize("name", ["reels", "tiktok", "shorts", "vertical"])
 def test_tall_captions_rise_into_the_zone(brand, name):
     zone = platforms.PLATFORMS[name].zone
     plain, moved = layout(1080, 1920, brand), layout(1080, 1920, brand, zone)
@@ -151,7 +262,7 @@ class FakeContext:
 
 def test_the_gate_reads_the_platform_zone(tmp_path):
     project = Project.create(tmp_path / "video")
-    assert gates.zone_for(FakeContext(project)) == gates.TALL_ZONE
+    assert gates.zone_for(FakeContext(project)) == platforms.PLATFORMS["vertical"].zone
     project.config["output"]["platform"] = "reels"
     assert gates.zone_for(FakeContext(project)) == platforms.PLATFORMS["reels"].zone
 

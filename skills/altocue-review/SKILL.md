@@ -70,7 +70,7 @@ Turn each note into one named fix: one sentence, one change, everything else lef
 | Land the line | `clarity` | `edl.json` `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06 |
 | Fix the level | `sound_as_speech` | `edl.json` `gain` on that segment |
 | Hold it longer | `captions`, `clarity` | `duration` on that item in `motion.json`, or fewer words |
-| Cleaner captions | `captions` | `style` to `boxed` and a lower `max_words`, under `caption` in the brand file |
+| Cleaner captions | `captions` | `style` to `boxed` under `caption` in the brand file, and a lower `[caption] max_words` in `altocue.toml` |
 | Fewer effects | `sound_as_speech` | `"sfx": false` in `motion.json`, or `under_db` on one cue |
 | Softer look | `picture` | `[grade] look_strength`, such as 0.6, then `altocue grade` |
 | Hard cut | `pacing` | Delete that row from `transitions` in `motion.json` |

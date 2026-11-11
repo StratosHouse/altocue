@@ -7,12 +7,18 @@ from html import escape
 from typing import Any
 
 from ..brand import Brand
-from . import compositions, formats
+from . import breaks, compositions, formats
 from .formats import kit
 
 CAPTION_LINES = 2  # four words rarely wrap further, and a third line shows in the safe zone gate
 LINE_HEIGHT = 1.14
 ZONE_INSET = 12  # pixels. Text moved for a zone stops short of its edge, not on it
+CAPTION_POP = 1.07  # the spoken word grows by this, and every word holds the room for it
+CAPTION_GAP, BOXED_GAP = 0.26, 0.24  # the space between two words, in ems
+CAPTION_TRACKING, BOLD_TRACKING, RAIL_TRACKING = -0.018, -0.01, -0.008  # letter spacing, in ems
+BOXED_PAD = 0.6  # ems of plate each side of a boxed line
+RAIL_SIZE = 0.76  # the quiet style is set smaller
+LINE_ROOM = 0.96  # a line is planned a little narrower than its room, because a browser's letters are not Pillow's to the pixel
 
 CSS = """
 @font-face{font-family:"Brand";src:url("%(font)s");font-weight:100 900}
@@ -26,7 +32,7 @@ font-family:"Brand",sans-serif;color:var(--ink);-webkit-font-smoothing:antialias
 em{font-style:normal;color:var(--accent)}
 
 /* Captions */
-.cap{--pop:1.07;left:var(--gutter);right:calc(var(--gutter) + var(--rail,0px));top:var(--cap-y);display:flex;flex-wrap:wrap;justify-content:center;
+.cap{--pop:%(pop)s;left:var(--gutter);right:calc(var(--gutter) + var(--rail,0px));top:var(--cap-y);display:flex;flex-wrap:wrap;justify-content:center;
 align-items:baseline;gap:.08em .26em;font-size:calc(var(--cap-size) * 1px);font-weight:700;line-height:1.12;letter-spacing:-.018em;text-align:center;
 text-wrap:balance;text-shadow:0 0 3px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.62),0 4px 22px rgba(0,0,0,.62),0 0 44px rgba(0,0,0,.34)}
 .cap.enter{animation:capin .13s var(--ease) both}
@@ -38,11 +44,20 @@ text-wrap:balance;text-shadow:0 0 3px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.62),0
 .cap b.on{color:var(--accent)}
 .cap b.on>span{transform:scale(var(--pop))}
 .cap .who{flex:0 0 100%%;font-style:normal;font-size:.5em;font-weight:600;letter-spacing:0;line-height:1.3}
+/* A name sits above the caption line, and so does the top of a plate, so the words stay where the layout put them and inside the safe zone */
+.cap.named{margin-top:-.73em}
+.cap.boxed.home{margin-top:-.32em}
+.cap.boxed.named{margin-top:-1.05em}
+/* The lines are chosen before the page is drawn, so a browser never wraps one word down on its own */
+.cap .ln{flex:0 0 100%%;display:flex;justify-content:center;align-items:baseline;gap:0 .26em;white-space:nowrap}
 .cap.bold{text-transform:uppercase;font-weight:800;letter-spacing:-.01em;line-height:1.04;
 text-shadow:0 0 2px #000,0 4px 0 rgba(0,0,0,.65),0 8px 30px rgba(0,0,0,.5)}
-.cap.boxed{text-shadow:none;left:auto;right:auto;width:100%%;padding:0 var(--gutter)}
+.cap.boxed{text-shadow:none;left:auto;right:auto;width:100%%;padding:0 calc(var(--gutter) + var(--rail,0px)) 0 var(--gutter)}
 .cap.boxed .plate{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:.08em .24em;padding:.32em .6em .36em;border-radius:.42em;
 background:color-mix(in srgb,var(--panel) 84%%,transparent);box-shadow:0 0 0 1px rgba(255,255,255,.1) inset,0 18px 48px rgba(0,0,0,.34);max-width:100%%}
+.cap.boxed .plate.rows{flex-direction:column;flex-wrap:nowrap;align-items:center}
+.cap.boxed .plate.rows .ln,.cap.boxed .plate.rows .who{flex:none}
+.cap.boxed .plate.rows .ln{gap:0 .24em}
 .cap.rail{font-weight:600;font-size:calc(var(--cap-size) * .76px);letter-spacing:-.008em}
 .cap.rail{--pop:1}
 @keyframes capin{from{transform:scale(.94)}to{transform:none}}
@@ -133,6 +148,23 @@ def caption_size(width: int, height: int, brand: Brand) -> float:
     return int(brand.caption["size"]) * (geometry(width, height)["scale"] if width > height else 1)
 
 
+def caption_lines(texts: list[str], brand: Brand, width: int, height: int, zone: dict[str, float] | None = None, glue: list[float] | None = None) -> list[int]:
+    """How many of a page's words go on each line, measured in the brand's face at the size and in the room the page is drawn in.
+
+    `glue` is what a break after each word costs, from `caption.joins`. Without it the lines are only made to fit and to balance.
+    """
+    style = brand.caption["style"]
+    geo = layout(width, height, brand, zone)
+    size = caption_size(width, height, brand) * (RAIL_SIZE if style == "rail" else 1)
+    font = breaks.face(brand.font_file, max(int(round(size)), 1), {"bold": 800, "rail": 600}.get(style, 700))
+    pop = 1.0 if style == "rail" else CAPTION_POP
+    tracking = {"bold": BOLD_TRACKING, "rail": RAIL_TRACKING}.get(style, CAPTION_TRACKING) * size
+    shown = [text.upper() if style == "bold" or brand.caption.get("uppercase") else text for text in texts]
+    widths = [max(font.getlength(text) + tracking * len(text), 0.0) * pop for text in shown]
+    room = width - 2 * geo["gutter"] - geo["rail"] - (2 * BOXED_PAD * size if style == "boxed" else 0)
+    return breaks.split(widths, (BOXED_GAP if style == "boxed" else CAPTION_GAP) * size, room * LINE_ROOM, glue)
+
+
 def layout(width: int, height: int, brand: Brand, zone: dict[str, float] | None = None) -> dict[str, float]:
     """`geometry`, moved only as far as a platform's safe zone needs. Text never leaves the zone for the sake of the layout."""
     geo = geometry(width, height)
@@ -176,24 +208,27 @@ def _style(item: dict[str, Any], *, leave: bool = False) -> str:
 
 
 def caption_html(page: dict[str, Any], style: str, track: int, place: str = "") -> str:
-    """One clip per spoken word. Only the first one plays the entrance. `place` sets the page somewhere other than the caption line."""
+    """One clip per spoken word. Only the first one plays the entrance. `place` sets the page somewhere other than the caption line.
+
+    A page that carries `lines`, the count of words on each, is set on those lines and no others.
+    """
     out = []
     words = page["words"]
+    rows = breaks.rows(breaks.given(page) or [])
     for index, word in enumerate(words):
         start = page["start"] if index == 0 else word["start"]
         end = page["end"] if index == len(words) - 1 else words[index + 1]["start"]
         if end - start < 0.02:
             continue
-        spans = "".join(
-            _caption_word(w, i, index, show_label=i == 0 or w.get("tag") != words[i - 1].get("tag"))
-            for i, w in enumerate(words)
-        )
+        drawn = [_caption_word(w, i, index, show_label=i == 0 or w.get("tag") != words[i - 1].get("tag")) for i, w in enumerate(words)]
+        spans = "".join(f'<span class="ln">{"".join(drawn[i] for i in row)}</span>' for row in rows) if rows else "".join(drawn)
         who = f'<i class="who">{escape(page["name"])}</i>' if page.get("name") else ""
-        body = f'<span class="plate">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
+        body = f'<span class="plate{" rows" if rows else ""}">{who}{spans}</span>' if style == "boxed" else f"{who}{spans}"
         enter = " enter" if index == 0 and style != "rail" else ""
+        home = "" if place else " home named" if who else " home"  # on the caption line, not set somewhere by a film
         css = ";".join(part for part in (place, f"color:{escape(page['colour'], quote=True)}" if page.get("colour") else "") if part)
         tint = f' style="{css}"' if css else ""
-        out.append(f'<div class="clip cap {style}{enter}"{tint} {_attrs(start, end, track)}>{body}</div>')
+        out.append(f'<div class="clip cap {style}{home}{enter}"{tint} {_attrs(start, end, track)}>{body}</div>')
     return "\n".join(out)
 
 
@@ -264,8 +299,19 @@ def compose(timeline: dict[str, Any], brand: Brand, under: str = "") -> str:
     tokens = root_tokens(timeline, brand, geo)
     style = brand.caption["style"]
     upper = brand.caption.get("uppercase")
+    zone = timeline.get("zone")
     captions = "\n".join(
-        caption_html({**p, "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]]}, style, 1) for p in timeline["captions"]
+        caption_html(
+            {
+                **p,
+                "words": [{**w, "text": w["text"].upper() if upper else w["text"]} for w in p["words"]],
+                # pages built by `altocue caption` carry their lines. Any other page is balanced here
+                "lines": breaks.given(p) or caption_lines([w["text"] for w in p["words"]], brand, width, height, zone),
+            },
+            style,
+            1,
+        )
+        for p in timeline["captions"]
     )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -294,6 +340,7 @@ def base_css(timeline: dict[str, Any], brand: Brand) -> tuple[str, dict[str, flo
         "surface": colors["surface"],
         "scale": geo["scale"],
         "gutter": geo["gutter"],
+        "pop": CAPTION_POP,
         "width": width,
         "height": height,
     }

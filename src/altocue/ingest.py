@@ -6,10 +6,10 @@ import argparse
 import re
 from pathlib import Path
 
-from . import ffmpeg
+from . import ffmpeg, platforms
 from .errors import AltocueError
 from .models import Clip
-from .project import Project
+from .project import Project, size_for
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -66,7 +66,7 @@ def run(args: argparse.Namespace) -> int:
         missing = [str(p) for p in inputs if not p.is_file()]
         if missing:
             raise AltocueError(f"Not found: {', '.join(missing)}")
-        project = Project.create(args.folder, aspect=args.aspect)
+        project = Project.create(args.folder, aspect=args.aspect, platform=platforms.default_for(size_for(args.aspect)))
         taken: set[str] = set()
         order = [clip_id(source, taken) for source in inputs]
         for name, source in zip(order, inputs, strict=True):
