@@ -571,3 +571,14 @@ def test_framing_reads_hdr_through_the_same_maths(tmp_path):
     project.save_edl(Edl(fps=30, segments=[Segment(id="s1", clip="wide", start=0, end=0.9)]))
     x, _, w, _ = frame_project(project).segments[0].crop
     assert x < 360 < x + w and abs(x + w / 2 - 360) < 40
+
+
+def test_a_skin_hue_off_the_usual_range_is_noted_not_corrected():
+    """Colorists read skin against the vectorscope's skin line as a reference. The summary says when it is far off."""
+    from altocue.grade import _summary
+
+    base = {"changes": {}, "before": {"face_luma": 0.4}}
+    assert "skin hue" not in _summary("a", {**base, "after": {"face_luma": 0.45, "skin_hue": 41.0}})
+    note = _summary("a", {**base, "after": {"face_luma": 0.45, "skin_hue": 22.0}})
+    assert "skin hue 22 degrees, toward magenta" in note
+    assert "toward yellow-green" in _summary("a", {**base, "after": {"face_luma": 0.45, "skin_hue": 80.0}})
