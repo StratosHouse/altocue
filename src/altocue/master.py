@@ -303,6 +303,8 @@ def run(args: argparse.Namespace) -> int:
         print(f"This film has nothing to hear, so {dest} is the render as it was.")
         return 0
     print(f"Mastered {dest}: {result['integrated']} LUFS, {result['true_peak']} dBTP, range {result['range']} LU, {result['mode']}")
+    if project:
+        print("out/final.mp4 is the file to share. out/render.mp4 beside it is the same film before mastering.")
     for note in result["warnings"]:
         print(f"Warning: {note}")
     return 0 if result["passed"] else 1

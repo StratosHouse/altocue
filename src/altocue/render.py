@@ -12,6 +12,7 @@ from typing import Any
 from . import brand as brands
 from . import broll, caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
 from . import timeline as timelines
+from .cli import RENDERER_HELP
 from .cut.snap import frame_count
 from .errors import AltocueError
 from .motion import formats
@@ -22,7 +23,7 @@ from .stock import credits
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--draft", action="store_true", help="Half size, quick encode, no mastering")
-    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
+    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto", help=RENDERER_HELP)
 
 
 def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
@@ -204,6 +205,7 @@ def bake_edges(project: Project, timeline: dict[str, Any], picture: Path, c: pla
 
 
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:
+    brands.load(project)  # the brand kit comes first: stop here, before the framing and the plate spend any time
     with locks.heavy("rendering"):
         frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
         said = project.work / "progress.json"  # the same numbers the lines carry, for an agent that polls
@@ -233,4 +235,6 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
 def run(args: argparse.Namespace) -> int:
     dest = build(Project.open(args.project), draft=args.draft, renderer=args.renderer)
     print(f"Rendered {dest}")
+    if not args.draft:
+        print("That is the film before mastering. `altocue master` makes out/final.mp4, and that is the file to share.")
     return 0

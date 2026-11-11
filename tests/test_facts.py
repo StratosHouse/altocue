@@ -226,6 +226,37 @@ def test_the_report_carries_its_caution(measured):
 # The command
 
 
+def test_the_table_says_what_each_number_is_counted_in():
+    """It printed "Time to first word | 0.1", a bare number in a wide table."""
+    made = {name: facts.unknown("not here") for name in facts.NAMES}
+    made.update(
+        first_word_s=facts.known(0.1, "heard"),
+        hook_word_count=facts.known(9, "heard"),
+        hook_wps=facts.known(3.0, "heard"),
+        caption_coverage=facts.known(0.934, "timeline"),
+        opening_lufs=facts.known(-15.2, "ffmpeg"),
+        opening_minus_integrated=facts.known(-1.2, "ffmpeg"),
+        loop_audio_delta_db=facts.known(2.5, "rms"),
+        safe_zone_project=facts.known(1.0, "boxes"),
+        ends_mid_sentence=facts.known(False, "heard"),
+        text_under_reading_time=facts.known(0, "timeline"),
+    )
+    cells = {line.split(" | ")[0].strip("| "): line.split(" | ")[1] for line in facts.rows({"facts": made})[2:]}
+    assert cells[facts.NAMES["first_word_s"]] == "0.1 s"
+    assert cells[facts.NAMES["hook_word_count"]] == "9", "a count needs no unit: its name says what is counted"
+    assert cells[facts.NAMES["hook_wps"]] == "3 words/s"
+    assert cells[facts.NAMES["caption_coverage"]] == "93%" and cells[facts.NAMES["safe_zone_project"]] == "100%"
+    assert cells[facts.NAMES["opening_lufs"]] == "-15.2 LUFS" and cells[facts.NAMES["opening_minus_integrated"]] == "-1.2 LU"
+    assert cells[facts.NAMES["loop_audio_delta_db"]] == "2.5 dB"
+    assert cells[facts.NAMES["ends_mid_sentence"]] == "no" and cells[facts.NAMES["text_under_reading_time"]] == "0"
+    assert cells[facts.NAMES["first_cut_s"]] == "not measured"
+    assert set(facts.UNITS) | set(facts.SHARES) <= set(facts.NAMES)
+
+
+def test_the_saved_numbers_stay_bare(measured):
+    assert all(not isinstance(entry["value"], str) for entry in measured["facts"].values())
+
+
 def test_command_writes_facts_and_a_short_report(film, capsys):
     with planted(film):
         assert main(["facts", "-p", str(film.project.root)]) == 0

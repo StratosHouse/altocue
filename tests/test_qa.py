@@ -163,6 +163,21 @@ def test_transcriber_failure_skips_with_its_reason(clean, monkeypatch):
     assert by_id(results, "words").skipped and "No engine installed" in by_id(results, "words").detail
 
 
+def test_a_transcriber_that_breaks_for_any_reason_skips_and_the_run_goes_on(clean, monkeypatch):
+    """A blocked model download raised from deep inside the engine. It ended `altocue qa` with a traceback and no qa.json."""
+
+    def boom(path, **_):
+        raise ConnectionError("403 Forbidden\nfrom the proxy")
+
+    with planted(clean):
+        monkeypatch.setattr(sys.modules["altocue.transcribe"], "transcribe_file", boom)
+        words, why = gates.transcribe(clean.file)
+        results = gates.word_gates(gates.Context.open(clean.project, clean.file))
+    assert words is None and "ConnectionError: 403 Forbidden" in why and "proxy" not in why
+    found = by_id(results, "words")
+    assert found.skipped and not found.passed and "403 Forbidden" in found.detail
+
+
 def test_transcriber_without_any_entry_point_skips(clean, monkeypatch):
     monkeypatch.setitem(sys.modules, "altocue.transcribe", SimpleNamespace())
     words, why = gates.transcribe(clean.file)
@@ -357,9 +372,53 @@ def test_results_are_saved_and_printed(clean, capsys):
     saved = json.loads((clean.project.review_dir / "qa.json").read_text())
     assert [g["id"] for g in saved["gates"]] == [g.id for g in results]
     assert saved["stage"] == "final" and len(saved["sha256"]) == 64
-    qa.print_table(results)
+    qa.print_table(results, everything=True)
     out = capsys.readouterr().out
     assert "PASS" in out and "n/a" in out and "loudness" in out
+
+
+def some_of_each() -> list[GateResult]:
+    return [
+        GateResult(id="loudness", passed=True, value=-14.0, detail="on target"),
+        qa.gates.not_applicable("frame_zero", "Not a film from a storyboard"),
+        GateResult(id="true_peak", passed=False, value=-0.2, threshold=-1.5, detail="over the ceiling"),
+        qa.gates.not_applicable("disclosure", "No synthetic person"),
+        GateResult(id="words", passed=False, skipped=True, detail="no transcriber"),
+        GateResult(id="black_frames", passed=True, value=0, detail="none"),
+    ]
+
+
+def test_the_printout_leads_with_what_needs_doing_and_counts_the_rest(capsys):
+    """An ordinary edit printed 33 rows, 16 of them n/a, with the one failure somewhere in the middle."""
+    qa.print_table(some_of_each())
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("Gate") and lines[1].startswith("true_peak") and "FAIL" in lines[1]
+    assert lines[2].startswith("words") and "SKIP" in lines[2]
+    assert "1 failed, 1 skipped, 2 passed, 2 do not apply. `altocue qa --all` lists every gate." in lines
+    assert lines[-1] == "Not checked: words. A skipped gate is not a pass."
+    assert not any(line.startswith(("loudness", "frame_zero", "disclosure", "black_frames")) for line in lines)
+
+
+def test_a_clean_film_is_one_line(capsys):
+    qa.print_table([gate for gate in some_of_each() if gate.passed or gate.value == qa.gates.NOT_APPLICABLE])
+    assert capsys.readouterr().out == "2 passed, 2 do not apply. `altocue qa --all` lists every gate.\n"
+
+
+def test_all_prints_every_gate_in_the_order_they_ran(capsys):
+    qa.print_table(some_of_each(), everything=True)
+    out = capsys.readouterr().out
+    rows = [line.split()[0] for line in out.splitlines()[1:7]]
+    assert rows == ["loudness", "frame_zero", "true_peak", "disclosure", "words", "black_frames"]
+    assert "1 failed, 1 skipped, 2 passed, 2 do not apply." in out and "--all" not in out
+
+
+def test_the_command_takes_all_and_the_saved_file_always_holds_every_gate(clean, capsys, monkeypatch):
+    monkeypatch.setattr(qa, "run_gates", lambda project, file, stage, **_: some_of_each())
+    assert main(["qa", "-p", str(clean.project.root), "--file", str(clean.file)]) == 1
+    short = capsys.readouterr().out
+    assert main(["qa", "-p", str(clean.project.root), "--file", str(clean.file), "--all"]) == 1
+    full = capsys.readouterr().out
+    assert "frame_zero" not in short and "frame_zero" in full and "black_frames" in full
 
 
 def test_skipped_prints_skip_never_pass(capsys):

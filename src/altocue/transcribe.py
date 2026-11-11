@@ -244,6 +244,39 @@ class MlxWhisper(LocalEngine):
         ]
 
 
+MODEL_HOST = "huggingface.co"
+NETWORK_MODULES = frozenset({"httpx", "httpcore", "requests", "urllib", "http", "socket", "ssl", "huggingface_hub"})
+
+
+def download_failed(error: BaseException | None) -> bool:
+    """True when an error, or anything it was raised from, came from the network or from the model hub."""
+    for _ in range(12):
+        if error is None:
+            return False
+        if isinstance(error, ConnectionError | TimeoutError) or type(error).__module__.split(".")[0].rstrip("0123456789") in NETWORK_MODULES:
+            return True
+        error = error.__cause__ or error.__context__
+    return False
+
+
+@contextmanager
+def loading_model(name: str) -> Iterator[None]:
+    """The one step that may reach the network. A blocked download names the host and the way out. Any other failure passes through."""
+    try:
+        yield
+    except AltocueError:
+        raise
+    except Exception as error:
+        if not download_failed(error):
+            raise
+        said = (str(error).strip().splitlines() or [type(error).__name__])[0][:200]
+        fix = (
+            f"Check that this machine's network or proxy lets it reach {MODEL_HOST}, then run this again. The model is fetched once and kept. "
+            "Or set `[transcribe] engine` in altocue.toml to another engine `altocue doctor` shows as installed."
+        )
+        raise AltocueError(f"Could not download the speech model {name} from {MODEL_HOST}: {said}", fix=fix) from error
+
+
 class FasterWhisper(LocalEngine):
     english = "small.en"
     multilingual = "large-v3-turbo"
@@ -301,7 +334,8 @@ def load_faster_whisper(name: str, device: str, compute: str) -> Any:
     """
     from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
 
-    return WhisperModel(name, device=device, compute_type=compute)
+    with loading_model(name):
+        return WhisperModel(name, device=device, compute_type=compute)
 
 
 class Parakeet(LocalEngine):

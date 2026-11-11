@@ -22,6 +22,8 @@ from .errors import AltocueError
 HOME = Path.home() / ".altocue"
 DOWNLOAD_AFTER = 5.0  # seconds a download runs before it first says how far it is
 DOWNLOAD_EVERY = 5.0  # seconds between those lines
+# How each step ended, so the last line can say what really happened.
+INSTALLED, ALREADY, DECLINED, NOT_ASKED, UNAVAILABLE = "installed", "already there", "declined", "not asked", "unavailable"
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -71,18 +73,24 @@ def download(url: str, name: str, *, timeout: float) -> bytes:
     return b"".join(pieces)
 
 
-def install_renderer(yes: bool) -> None:
+def refused(yes: bool) -> str:
+    """Why a step with no consent did not run: somebody said no, or there was nobody to ask."""
+    return DECLINED if yes or sys.stdin.isatty() else NOT_ASKED
+
+
+def install_renderer(yes: bool) -> str:
     from .motion.hyperframes import quiet_env
 
     if not shutil.which("npm"):
         print("Skipped the motion renderer: npm is not installed. The basic renderer will be used.")
-        return
+        return UNAVAILABLE
     target = HOME / "renderer"
     if (target / "node_modules" / ".bin" / "hyperframes").exists():
         print(f"Renderer already installed at {target}")
-        return
+        return ALREADY
     if not consent("Install the motion renderer (HyperFrames, Apache-2.0, about 120 MB, plus its own headless Chrome, about 200 MB)?", yes):
-        return
+        return refused(yes)
+    print("Installing the motion renderer: about 320 MB from the npm registry and Chrome's download host. This can take a few minutes.", flush=True)
     target.mkdir(parents=True, exist_ok=True)
     for name in ("package.json", "package-lock.json"):
         shutil.copy(data_path("renderer", name), target / name)
@@ -94,24 +102,25 @@ def install_renderer(yes: bool) -> None:
     if browser.returncode != 0:
         print("Could not fetch headless Chrome now. The first render will try again.")
     print(f"Renderer installed at {target}")
+    return INSTALLED
 
 
-def install_denoiser(yes: bool, even_on_a_mac: bool = False) -> None:
+def install_denoiser(yes: bool, even_on_a_mac: bool = False) -> str:
     from .clean import DEEP_FILTER_RELEASES, find_deep_filter, find_isolator
 
     if find_isolator() and not even_on_a_mac:
         print("Apple voice isolation is built into this Mac, so nothing to download.")
-        return
+        return ALREADY
     if find_deep_filter():
         print("deep-filter already installed.")
-        return
+        return ALREADY
     key = f"{platform.system().lower()}-{platform.machine().lower()}"
     release = DEEP_FILTER_RELEASES.get(key)
     if not release:
         print(f"No deep-filter build for {key}. afftdn will be used.")
-        return
+        return UNAVAILABLE
     if not consent(f"Download deep-filter ({release['url'].rsplit('/', 1)[-1]}) for better noise removal?", yes):
-        return
+        return refused(yes)
     target = HOME / "bin" / "deep-filter"
     target.parent.mkdir(parents=True, exist_ok=True)
     body = download(release["url"], "deep-filter", timeout=120)
@@ -121,18 +130,19 @@ def install_denoiser(yes: bool, even_on_a_mac: bool = False) -> None:
     target.write_bytes(body)
     target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     print(f"deep-filter installed at {target}")
+    return INSTALLED
 
 
-def install_speakers(yes: bool) -> None:
+def install_speakers(yes: bool) -> str:
     """Fetch every model before keeping any, so a bad checksum leaves nothing half done."""
     from .speakers import MODELS, model_folder, models_ready
 
     if models_ready():
         print(f"Speaker models already at {model_folder()}")
-        return
+        return ALREADY
     listing = "; ".join(f"{model.name}, {model.megabytes:g} MB, {model.licence}" for model in MODELS)
     if not consent(f"Download the speaker models ({listing})?", yes):
-        return
+        return refused(yes)
     fetched: dict[str, bytes] = {}
     for model in MODELS:
         body = download(model.url, f"the {model.name} model", timeout=300)
@@ -150,6 +160,7 @@ def install_speakers(yes: bool) -> None:
     for name, body in fetched.items():
         (folder / name).write_bytes(body)
     print(f"Speaker models installed at {folder}: {listing}.")
+    return INSTALLED
 
 
 def speech_engine() -> tuple[Any, str]:
@@ -173,18 +184,18 @@ def speech_model_ready(engine: Any, name: str) -> bool:
     return True
 
 
-def install_speech_model(yes: bool) -> None:
+def install_speech_model(yes: bool) -> str:
     """Fetch the speech model with the engine's own downloader, so the first transcription does not stop for it."""
     engine, name = speech_engine()
     if engine is None:
         print(f"Skipped the speech model: {name}")
-        return
+        return UNAVAILABLE
     if speech_model_ready(engine, name):
         print(f"Speech model {name} already downloaded.")
-        return
+        return ALREADY
     size = f", {engine.download}" if name == engine.english else ""
     if not consent(f"Download the {name} speech model for {engine.name} from {engine.host}{size}?", yes):
-        return
+        return refused(yes)
     print(f"Downloading the {name} speech model from {engine.host}{size}.", flush=True)
     try:
         engine.fetch(name)
@@ -192,6 +203,7 @@ def install_speech_model(yes: bool) -> None:
         fix = f"Check this machine can reach {engine.host}, then run `altocue setup --speech-model` again."
         raise AltocueError(f"Could not download the speech model: {error}", fix=fix) from error
     print(f"Speech model {name} downloaded.")
+    return INSTALLED
 
 
 def _member(archive: tarfile.TarFile, name: str) -> bytes:
@@ -207,14 +219,15 @@ def run(args: argparse.Namespace) -> int:
     ffmpeg_check = doctor.check_ffmpeg()
     if not ffmpeg_check.ok:
         raise AltocueError(f"ffmpeg: {ffmpeg_check.detail}", fix=ffmpeg_check.fix)
+    ended: list[str] = []
     if not args.skip_renderer:
-        install_renderer(args.yes)
+        ended.append(install_renderer(args.yes))
     if not args.skip_denoiser:
-        install_denoiser(args.yes, even_on_a_mac=args.deep_filter)
+        ended.append(install_denoiser(args.yes, even_on_a_mac=args.deep_filter))
     if getattr(args, "speakers", False):
-        install_speakers(args.yes)
+        ended.append(install_speakers(args.yes))
     if getattr(args, "speech_model", False):
-        install_speech_model(args.yes)
+        ended.append(install_speech_model(args.yes))
     else:
         engine, name = speech_engine()
         if engine is not None and not speech_model_ready(engine, name):
@@ -226,5 +239,22 @@ def run(args: argparse.Namespace) -> int:
             "\n\nIn Gemini CLI:\n  gemini extensions install https://github.com/StratosHouse/altocue"
             '\n\nIn any MCP client:\n  {"mcpServers": {"altocue": {"command": "uvx", "args": ["altocue", "mcp"]}}}'
         )
-    print("\nRun `altocue doctor` to confirm.")
+    print(f"\n{last_line(ended)}")
     return 0
+
+
+def last_line(ended: list[str]) -> str:
+    """The line an agent reads last. A run that installed nothing says so first, and never reads as done.
+
+    The exit code stays 0: the extras are optional, and the skills run a plain `altocue setup` straight after the install.
+    """
+    if INSTALLED in ended:
+        return "Run `altocue doctor` to confirm."
+    if NOT_ASKED in ended:
+        return (
+            "Nothing was installed: there is no terminal to ask at, and --yes was not given. Altocue still edits without these extras. "
+            "Ask the user, then run `altocue setup --yes`."
+        )
+    if DECLINED in ended:
+        return "Nothing was installed, as you chose. Altocue still edits without these extras, and `altocue setup` asks again any time."
+    return "Nothing was installed, because nothing was missing that this machine can take. Run `altocue doctor` to see what is ready."

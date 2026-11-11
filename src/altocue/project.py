@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shlex
 import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -122,6 +123,33 @@ def nearest_rate(fps: float) -> int:
     return min(OUTPUT_RATES, key=lambda rate: abs(rate - fps))
 
 
+def find_root(asked: Path) -> Path | None:
+    """The folder that holds `altocue.toml`: `asked` itself, or the nearest folder above it. A folder that is not there finds nothing."""
+    if not asked.is_dir():
+        return None
+    return next((folder for folder in (asked, *asked.parents) if (folder / CONFIG).is_file()), None)
+
+
+def projects_in(folder: Path) -> list[str]:
+    """The projects one level down, for a folder that holds projects in place of being one."""
+    try:
+        return sorted(child.name for child in folder.iterdir() if (child / CONFIG).is_file())
+    except OSError:
+        return []
+
+
+def not_a_project(asked: Path) -> AltocueError:
+    """Why nothing opened, and the way on: the path is wrong, the projects are one level down, or there is none yet."""
+    start = "`altocue new <folder> --input <video>` starts a new one."
+    if not asked.is_dir():
+        return AltocueError(f"No folder at {asked}.", fix=f"Check the path given with -p. {start}")
+    found = projects_in(asked)
+    if found:
+        listed = ", ".join(found[:12]) + (f" and {len(found) - 12} more" if len(found) > 12 else "")
+        return AltocueError(f"{asked} is not a project. It holds projects: {listed}.", fix=f"Name one with `-p {shlex.quote(found[0])}`, or `cd` into it.")
+    return AltocueError(f"No {CONFIG} in {asked} or any folder above it.", fix=f"`cd` into a project, or name one with `-p <folder>`. {start}")
+
+
 @dataclass
 class Project:
     root: Path
@@ -129,11 +157,12 @@ class Project:
 
     @classmethod
     def open(cls, path: str | Path = ".") -> Project:
-        root = Path(path).resolve()
-        target = root / CONFIG
-        if not target.exists():
-            raise AltocueError(f"No {CONFIG} in {root}.", fix="Run `altocue new <folder> --input <video>` first.")
-        return cls(root=root, config=tomllib.loads(target.read_text()))
+        """The project at `path`, or the one `path` sits inside: a command run from `work/` finds its project, as git finds a repository."""
+        asked = Path(path).resolve()
+        root = find_root(asked)
+        if root is None:
+            raise not_a_project(asked)
+        return cls(root=root, config=tomllib.loads((root / CONFIG).read_text()))
 
     @classmethod
     def create(cls, path: str | Path, *, aspect: str = "9:16") -> Project:

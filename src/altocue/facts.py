@@ -64,6 +64,22 @@ NAMES = {
 }
 
 
+# What each number is counted in, shown beside it in the table. The saved JSON keeps the bare number.
+UNITS = {
+    "first_word_s": "s",
+    "first_text_s": "s",
+    "first_cut_s": "s",
+    "longest_static_s": "s",
+    "text_reading_margin_s": "s",
+    "hook_wps": "words/s",
+    "caption_wps_peak": "words/s",
+    "opening_lufs": "LUFS",
+    "opening_minus_integrated": "LU",
+    "loop_audio_delta_db": "dB",
+}
+SHARES = ("caption_coverage", "safe_zone_project", "safe_zone_meta_reels_ad")  # saved from 0 to 1, shown as a percentage
+
+
 def known(value: Any, how: str, **more: Any) -> dict[str, Any]:
     return {"value": value, "how": how, **more}
 
@@ -325,17 +341,21 @@ def measure(project: Project, file: str | Path, *, stage: str = "final", ocr_fps
     }
 
 
-def _shown(value: Any) -> str:
+def _shown(value: Any, name: str = "") -> str:
+    """A value with its unit, so "0.1" reads as "0.1 s" and a share reads as a percentage."""
     if isinstance(value, bool):
         return "yes" if value else "no"
-    return f"{value:g}" if isinstance(value, float) else str(value)
+    if name in SHARES and isinstance(value, int | float):
+        return f"{value * 100:.0f}%"
+    text = f"{value:g}" if isinstance(value, float) else str(value)
+    return f"{text} {UNITS[name]}" if name in UNITS and isinstance(value, int | float) else text
 
 
 def rows(data: dict[str, Any]) -> list[str]:
     lines = ["| Fact | Value | How it was measured |", "|---|---|---|"]
     for name, label in NAMES.items():
         entry = data["facts"][name]
-        value = "not measured" if entry["value"] is None else _shown(entry["value"])
+        value = "not measured" if entry["value"] is None else _shown(entry["value"], name)
         lines.append(f"| {label} | {value} | {str(entry.get('how') or entry.get('why', '')).replace('|', '/')} |")
     return lines
 
