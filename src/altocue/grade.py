@@ -157,6 +157,15 @@ def hdr_lut(transfer: str, size: int = HDR_LUT_SIZE) -> np.ndarray:
     return hdr_to_sdr(identity_grid(size), transfer)
 
 
+def to_sdr(rgb: np.ndarray, clip: Clip) -> np.ndarray:
+    """One clip's picture as BT.709 SDR: log by `[grade] input`, HDR by its tags, and anything else as it is."""
+    if clip.input:
+        from . import logs
+
+        return logs.to_sdr(rgb, clip)
+    return hdr_to_sdr(rgb, clip.transfer) if clip.is_hdr else rgb
+
+
 def write_cube(path: str | Path, table: np.ndarray, title: str) -> Path:
     size = round(len(table) ** (1 / 3))
     target = Path(path)
@@ -499,7 +508,9 @@ def apply_look(rgb: np.ndarray, look: str) -> np.ndarray:
         lab[..., 2] -= 3.0 * mid
     elif look == "punchy":
         lab[..., 0] = 100 * np.clip(light + 0.16 * (light - 0.5) * mid, 0, 1)
-        lab[..., 1:] *= 1.08
+        chroma = np.hypot(lab[..., 1], lab[..., 2])[..., None]
+        lifted = chroma * (1 + 0.12 * 40 / (chroma + 40))  # weak colour gains most, so skin and strong colour are not pushed
+        lab[..., 1:] *= np.where(lifted <= 57, lifted, 57 + 38 * np.tanh((lifted - 57) / 38)) / np.maximum(chroma, 1e-6)  # and a ceiling of 95
     elif look == "filmic":
         lab[..., 1:] *= (1 - 0.12 * light)[..., None]
         lab[..., 1] += 0.5 * (light - 0.5) * mid
@@ -591,8 +602,8 @@ def _read_clip(clip: Clip, spans: list[tuple[float, float]] | None) -> ClipStats
         frames = [f for f in pool.map(lambda at: read_rgb(clip, at, SAMPLE_SIDE), sample_times(clip, spans)) if f is not None]
     if not frames:
         raise AltocueError(f"Could not read any frame of {clip.id}.", fix=f"Check that {clip.path} plays. If it lives in iCloud, download it first.")
-    if clip.is_hdr:
-        sdr = [hdr_to_sdr(f, clip.transfer) for f in frames]
+    if clip.is_hdr or clip.input:
+        sdr = [to_sdr(f, clip) for f in frames]
         stats = measure_frames(clip.id, sdr, frames)
     else:
         stats = measure_frames(clip.id, frames)
@@ -630,8 +641,8 @@ def _bake(project: Project, clip: Clip, correction: Correction, finish: Any) -> 
     if clip.is_hdr and correction.is_identity and finish.is_identity:
         table = hdr_lut(clip.transfer)
     else:
-        grid = identity_grid(LUT_SIZE)
-        table = finish.apply(correction.apply(hdr_to_sdr(grid, clip.transfer) if clip.is_hdr else grid))
+        grid = identity_grid(HDR_LUT_SIZE if clip.input else LUT_SIZE)  # a log curve bends more than 33 points can follow
+        table = finish.apply(correction.apply(to_sdr(grid, clip)))
     write_cube(path, table, f"Altocue {clip.id}")
     return table
 
@@ -646,6 +657,7 @@ def _changes(clip: Clip, correction: Correction, stats: ClipStats | None) -> dic
 
     return {
         "hdr": clip.transfer if clip.is_hdr else None,
+        "input": clip.input or None,
         "gains": [round(g, 4) for g in correction.gains],
         "lift": round(correction.lift, 4),
         "skin_match": show(correction.skin_match),
@@ -668,14 +680,14 @@ def _stamp(project: Project, clips: list[Clip], look: str, enabled: bool, ranges
 
 def _asked(project: Project, look: str | None = None, strength: float | None = None, lut: str | Path | None = None) -> tuple[Any, float, str]:
     """What the flags and `altocue.toml` ask for. A flag beats the file, and a LUT replaces the look in the file."""
-    from . import looks
+    from . import logs, looks
 
     amount = float(project.setting("grade", "look_strength", 1.0) if strength is None else strength)
     named = project.setting("grade", "lut", "")
     user_lut = Path(lut) if lut else project.root / Path(named).expanduser() if named else None  # a flag reads from the shell, the file from the project
     plain = "natural" if user_lut and not look else None
     finish = looks.choose(look or plain or project.setting("grade", "look", "natural"), strength=amount, lut=user_lut)
-    return finish, amount, looks.stamp(user_lut)
+    return finish, amount, looks.stamp(user_lut) + logs.mark(project)
 
 
 def up_to_date(project: Project) -> bool:
@@ -690,18 +702,18 @@ def up_to_date(project: Project) -> bool:
 
 def grade_project(project: Project, force: bool = False, look: str | None = None, *, strength: float | None = None, lut: str | Path | None = None) -> dict[str, Any]:
     """Bake one LUT per clip and write `work/luts/report.json`."""
-    from . import looks
+    from . import logs, looks
 
     finish, amount, lut_mark = _asked(project, look, strength, lut)
     chosen = finish.name
     enabled = bool(project.setting("grade", "enabled", True))
-    clips = project.clips()
+    clips = logs.tagged(project, project.clips())
     ranges = _kept_ranges(project)
     stamp = _stamp(project, clips, chosen, enabled, ranges, strength=amount, lut=lut_mark)
     report_path = project.lut_dir / "report.json"
     if not force and report_path.exists():
         saved = json.loads(report_path.read_text())
-        if saved.get("stamp") == stamp and all((project.lut_dir / f"{c.id}.cube").exists() for c in clips if c.is_hdr or enabled):
+        if saved.get("stamp") == stamp and all((project.lut_dir / f"{c.id}.cube").exists() for c in clips if c.is_hdr or c.input or enabled):
             return saved
 
     project.lut_dir.mkdir(parents=True, exist_ok=True)
@@ -709,8 +721,8 @@ def grade_project(project: Project, force: bool = False, look: str | None = None
     if not enabled:
         for clip in clips:
             (project.lut_dir / f"{clip.id}.cube").unlink(missing_ok=True)  # an older grade must not keep applying
-            if clip.is_hdr:
-                write_cube(project.lut_dir / f"{clip.id}.cube", hdr_lut(clip.transfer), f"Altocue {clip.id}")
+            if clip.is_hdr or clip.input:
+                write_cube(project.lut_dir / f"{clip.id}.cube", to_sdr(identity_grid(HDR_LUT_SIZE), clip), f"Altocue {clip.id}")
                 report["clips"][clip.id] = {"lut": f"{clip.id}.cube", "changes": _changes(clip, Correction(), None)}
         write_json(report_path, report)
         return report
@@ -741,6 +753,7 @@ def grade_project(project: Project, force: bool = False, look: str | None = None
         }
         if clip.is_hdr:
             entry["plain_conversion"] = _measure(sample.coded_skin, sample.coded_rest)
+        entry["input_hint"] = logs.hint(project, clip) or None
         report["clips"][clip.id] = entry
     write_json(report_path, report)
     return json.loads(report_path.read_text())
@@ -760,6 +773,10 @@ def _summary(clip_id: str, entry: dict[str, Any]) -> str:
     notes = []
     if changes.get("hdr"):
         notes.append("HDR to SDR")
+    if changes.get("input"):
+        notes.append(f"log to SDR as {changes['input']}")
+    if entry.get("input_hint"):
+        notes.append(entry["input_hint"])
     before, after = entry.get("before", {}), entry.get("after", {})
     if before.get("face_luma") is not None:
         notes.append(f"face {before['face_luma']:.2f} to {after['face_luma']:.2f}")

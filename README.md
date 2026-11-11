@@ -163,7 +163,7 @@ altocue run
   <tr>
     <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/cut-tile.svg" width="56" alt=""><br><strong>Cut</strong><br>Silence, fillers, stutters and retakes go. Edges snap to real speech. No cut lands inside a word. Or edit the script and get a frame-safe cut.</td>
     <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/clean-tile.svg" width="56" alt=""><br><strong>Clean</strong><br>Noise and hum out, each phrase levelled, room tone in the holes, mastered to a measured loudness and true peak.</td>
-    <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/grade-tile.svg" width="56" alt=""><br><strong>Grade</strong><br>iPhone HDR to SDR. White balance and exposure anchored on the face. 8 film looks written as code, or your own .cube, with skin protected.</td>
+    <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/grade-tile.svg" width="56" alt=""><br><strong>Grade</strong><br>iPhone HDR to SDR. White balance and exposure anchored on the face. 19 film looks written as code, or your own .cube, with skin protected.</td>
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/frame-tile.svg" width="56" alt=""><br><strong>Frame</strong><br>Any aspect ratio up to 4:1 either way. Face-aware crops per shot, with punch-ins that hide jump cuts.</td>
