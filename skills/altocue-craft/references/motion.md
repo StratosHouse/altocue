@@ -61,6 +61,31 @@ If none applies, leave the frame alone. A film with a graphic on every line has 
 - **Still while being read.** Text that is moving is not being read. Animate in, hold still, animate out.
 - **Animate the change, not the object.** For a count, a chart or a before and after, the thing that changed is what moves.
 
+## Numbers to start from
+
+Starting points, to be judged on the frames. Interface design systems agree on the shape of these and differ on the digits.
+
+| What | Start at |
+|---|---|
+| A colour or opacity change, the active caption word | About a tenth of a second |
+| A chip, a label, a single word | A fifth of a second |
+| A card, a lower third, a panel | A third to under half a second |
+| A hero title, a full-frame wipe, an end card | Half to two thirds of a second |
+| Any exit | Roughly half its entrance |
+| Words arriving one after another | A few frames apart, the whole cascade inside half a second |
+| A line of text on screen | Half a second plus a third of a second per word, never much under a second |
+| The last line and the call to action | Two seconds or more |
+
+- **Longer for larger and farther.** A small label crossing a little space is quick. A full-frame move takes time.
+- **Position and size may overshoot. Opacity and colour never do.**
+- **One move is one movement.** Slide in and stop. Not slide, pause, nudge, leave.
+- **A static card goes dead.** After several seconds with nothing changing, reveal the next part or leave.
+- **Contrast.** [evidence] WCAG 1.4.3 asks 4.5 to 1 for normal text and 3 to 1 for large text. A video frame is shrunk about three times on a phone, so "large" means very large in frame pixels. Aim higher for the hook and the action.
+- **Caption size.** [source] The BBC subtitle guidelines put a caption line at about 4% of the frame height in vertical video and about 7 to 8% in horizontal, with up to 90% of the width in vertical and about two thirds in horizontal.
+- **Weight.** Over footage, use a heavy weight at caption size. Thin strokes break up when the platform re-encodes.
+- **Reading speed.** [source] Subtitle guides sit near 160 to 180 words a minute for adults and slower for children and learners. No standard exists for graphics on a phone, so treat those as a ceiling.
+- **Numbers that change keep a fixed width,** so a counter does not jitter.
+
 ## Depth and finish
 
 - **A soft shadow or a faint edge lifts a card off footage.** Enough to separate it, not enough to be noticed.
