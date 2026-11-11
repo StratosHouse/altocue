@@ -17,9 +17,7 @@ import numpy as np
 
 from .errors import AltocueError
 from .grade import (
-    LOOKS as SMALL_LOOKS,
-)
-from .grade import (
+    DISPLAY_GAMMA,
     LUMA_709,
     _hue_gap,
     apply_look,
@@ -30,14 +28,23 @@ from .grade import (
     rgb_to_lab,
     skin_weight,
 )
+from .grade import (
+    LOOKS as SMALL_LOOKS,
+)
 from .project import Project
 
+VERSION = 2  # Raise it when the maths of a look changes, so a grade baked with the old maths is solved again.
 SKIN_GUARDS = (0.75, 0.9, 1.0)  # How much of a look the colours at the centre of skin refuse. Tighter comes before weaker.
 FLOOR = 0.25  # A look a person asked for never backs off to nothing.
-GREY_SKIN = 0.25  # Skin left with less colour than this share was turned to mono on purpose.
+GREY_SKIN = 0.25  # A look that leaves skin less colour than this share is black and white on purpose.
+# Five skin colours from light to deep, to ask what a look does to skin. They are fixtures, not measurements of people.
+SKIN_PROBE = np.array([[0.86, 0.70, 0.60], [0.78, 0.58, 0.47], [0.60, 0.42, 0.32], [0.42, 0.28, 0.21], [0.25, 0.17, 0.14]])
 SHEET_CELL = 260
 SHEET_ROW = 5
 CUBE_MOST = 256  # Points per side. A 256-point cube is 16 million rows and no real LUT is larger.
+
+
+Points = tuple[tuple[float, float], ...]  # A curve as (input, output) control points on the 0 to 1 signal.
 
 
 def _matte(rgb: np.ndarray, black: float, white: float) -> np.ndarray:
@@ -55,21 +62,74 @@ def _shoulder(rgb: np.ndarray, knee: float) -> np.ndarray:
     return np.minimum(rgb, knee) + span * (1 - np.exp(-over / span)) / (1 - np.exp(-1))
 
 
+def _curve(points: Points) -> Callable[[np.ndarray], np.ndarray]:
+    """A monotone cubic through control points (Fritsch and Carlson, 1980), so a curve can never overshoot or reverse."""
+    xs, ys = (np.array(axis, np.float64) for axis in zip(*points, strict=True))
+    step = np.diff(xs)
+    rise = np.diff(ys) / step
+    slope = np.zeros_like(xs)
+    slope[0], slope[-1] = rise[0], rise[-1]
+    for i in range(1, len(xs) - 1):
+        if rise[i - 1] * rise[i] > 0:
+            first, second = 2 * step[i] + step[i - 1], step[i] + 2 * step[i - 1]
+            slope[i] = (first + second) / (first / rise[i - 1] + second / rise[i])
+
+    def at(x: np.ndarray) -> np.ndarray:
+        x = np.clip(np.asarray(x, np.float64), xs[0], xs[-1])
+        i = np.clip(np.searchsorted(xs, x, side="right") - 1, 0, len(xs) - 2)
+        t = (x - xs[i]) / step[i]
+        start, end = (2 * t**3 - 3 * t**2 + 1) * ys[i], (3 * t**2 - 2 * t**3) * ys[i + 1]
+        return start + end + step[i] * ((t**3 - 2 * t**2 + t) * slope[i] + (t**3 - t**2) * slope[i + 1])
+
+    return at
+
+
+def _tone(rgb: np.ndarray, points: Points) -> np.ndarray:
+    """A curve on luma. Colour rides on the ratio, so hue holds, and the ratio is capped so shadows cannot gain wild colour."""
+    grey = (rgb @ LUMA_709)[..., None]
+    curved = _curve(points)(grey)
+    ratio = (curved + 1e-4) / (grey + 1e-4)
+    return np.clip(curved + (rgb - grey) * np.minimum(ratio, 1.25), 0, 1)
+
+
+def _tone_each(rgb: np.ndarray, red: Points, green: Points | None = None, blue: Points | None = None) -> np.ndarray:
+    """A curve per channel, as a print has. Colour rises with contrast and hue bends, which is the point."""
+    curves = (red, green or red, blue or red)
+    return np.stack([_curve(points)(rgb[..., i]) for i, points in enumerate(curves)], axis=-1)
+
+
+def _zones(lab: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """How much each colour is a shadow, a mid and a highlight."""
+    light = np.clip(lab[..., 0] / 100, 0, 1)
+    return (1 - light) ** 2, 4 * light * (1 - light), light**2
+
+
 def _tint(lab: np.ndarray, *, shadows: tuple[float, float] = (0, 0), mids: tuple[float, float] = (0, 0), highlights: tuple[float, float] = (0, 0)) -> np.ndarray:
     """Move a and b by how dark or bright each colour is."""
-    light = np.clip(lab[..., 0] / 100, 0, 1)
-    low, mid, high = (1 - light) ** 2, 4 * light * (1 - light), light**2
+    low, mid, high = _zones(lab)
     out = lab.copy()
     for channel in (0, 1):
         out[..., channel + 1] += low * shadows[channel] + mid * mids[channel] + high * highlights[channel]
     return out
 
 
-def _density(lab: np.ndarray, amount: float) -> np.ndarray:
-    """Film gets darker as it gets more colourful, where video gets brighter."""
+def _deepen(lab: np.ndarray, amount: float) -> np.ndarray:
+    """Film gets darker as it gets more colourful, where video gets brighter. Greys do not move."""
     out = lab.copy()
-    out[..., 0] -= amount * np.hypot(lab[..., 1], lab[..., 2])
+    out[..., 0] = np.maximum(lab[..., 0] - amount * np.hypot(lab[..., 1], lab[..., 2]), 0)
     return out
+
+
+def _dye(rgb: np.ndarray, amount: float, saturation: float) -> np.ndarray:
+    """Subtractive saturation, in linear light.
+
+    Video saturation pivots on luma, so more colour is brighter. Dye pivots toward the largest channel, so more colour
+    is denser. `amount` slides from the first to the second, and greys do not move at any setting.
+    """
+    linear = np.clip(rgb, 0, 1) ** DISPLAY_GAMMA
+    grey = (linear @ LUMA_709)[..., None]
+    pivot = grey + amount * (linear.max(axis=-1, keepdims=True) - grey)
+    return np.clip(pivot + (linear - pivot) * saturation, 0, 1) ** (1 / DISPLAY_GAMMA)
 
 
 def _chroma(lab: np.ndarray, scale: float) -> np.ndarray:
@@ -78,14 +138,70 @@ def _chroma(lab: np.ndarray, scale: float) -> np.ndarray:
     return out
 
 
+def _chroma_by_zone(lab: np.ndarray, shadows: float = 1.0, mids: float = 1.0, highlights: float = 1.0) -> np.ndarray:
+    low, mid, high = _zones(lab)
+    out = lab.copy()
+    out[..., 1:] *= ((low * shadows + mid * mids + high * highlights) / (low + mid + high))[..., None]
+    return out
+
+
+def _vibrance(lab: np.ndarray, amount: float, knee: float = 40.0) -> np.ndarray:
+    """Lift weak colour more than strong colour, so a wall wakes up and a red jumper does not shout."""
+    chroma = np.hypot(lab[..., 1], lab[..., 2])[..., None]
+    out = lab.copy()
+    out[..., 1:] *= 1 + amount * knee / (chroma + knee)
+    return out
+
+
+def _ceiling(lab: np.ndarray, limit: float, knee: float = 0.6) -> np.ndarray:
+    """A chroma ceiling with a knee: untouched below `knee * limit`, then easing toward `limit`, which it never passes."""
+    chroma = np.hypot(lab[..., 1], lab[..., 2])
+    start = knee * limit
+    eased = np.where(chroma <= start, chroma, start + (limit - start) * np.tanh((chroma - start) / (limit - start)))
+    out = lab.copy()
+    out[..., 1:] *= (eased / np.maximum(chroma, 1e-6))[..., None]
+    return out
+
+
+def _near_hue(lab: np.ndarray, centre: float, width: float) -> np.ndarray:
+    """1 at the centre hue, 0 at `width` degrees away, smooth between.
+
+    CIELAB hue for BT.709: red 40, skin 45 to 60, yellow 103, green 136, cyan 196, sky 250 to 275, blue 306, magenta 328.
+    """
+    hue = np.degrees(np.arctan2(lab[..., 2], lab[..., 1]))
+    near = np.clip(1 - np.abs((hue - centre + 180) % 360 - 180) / width, 0, 1)
+    return near * near * (3 - 2 * near)
+
+
+def _turn(lab: np.ndarray, centre: float, width: float, *, degrees: float = 0.0, saturation: float = 1.0) -> np.ndarray:
+    """Turn or strengthen one band of hues. Near-greys have no hue to move, so they are left out."""
+    chroma = np.hypot(lab[..., 1], lab[..., 2])
+    weight = _near_hue(lab, centre, width) * np.clip(chroma / 12, 0, 1)
+    hue = np.arctan2(lab[..., 2], lab[..., 1]) + np.radians(degrees) * weight
+    scaled = chroma * (1 + (saturation - 1) * weight)
+    out = lab.copy()
+    out[..., 1], out[..., 2] = scaled * np.cos(hue), scaled * np.sin(hue)
+    return out
+
+
+def _clean_white(lab: np.ndarray, start: float, keep: float, reach: float = 25.0) -> np.ndarray:
+    """Near-white loses its cast. Only colours weaker than `reach` are touched, so a bright strong colour keeps its colour."""
+    top = np.clip((lab[..., 0] - start) / (100 - start), 0, 1)
+    top = top * top * (3 - 2 * top)
+    weak = np.clip(1 - np.hypot(lab[..., 1], lab[..., 2]) / reach, 0, 1)
+    out = lab.copy()
+    out[..., 1:] *= (1 - (1 - keep) * top * weak)[..., None]
+    return out
+
+
 def warm_film(rgb: np.ndarray) -> np.ndarray:
     lab = rgb_to_lab(_s_curve(_shoulder(_matte(rgb, 0.018, 1.0), 0.8), 0.32))
-    return lab_to_rgb(_tint(_chroma(_density(lab, 0.05), 0.97), shadows=(-1.6, 0.8), mids=(1.2, 4.5), highlights=(1.4, 5.5)))
+    return lab_to_rgb(_tint(_chroma(_deepen(lab, 0.05), 0.97), shadows=(-1.6, 0.8), mids=(1.2, 4.5), highlights=(1.4, 5.5)))
 
 
 def cool_film(rgb: np.ndarray) -> np.ndarray:
     lab = rgb_to_lab(_s_curve(_shoulder(_matte(rgb, 0.012, 1.0), 0.8), 0.34))
-    return lab_to_rgb(_tint(_chroma(_density(lab, 0.05), 0.92), shadows=(-2.0, -6.0), mids=(-0.8, -3.0), highlights=(0.4, 0.8)))
+    return lab_to_rgb(_tint(_chroma(_deepen(lab, 0.05), 0.92), shadows=(-2.0, -6.0), mids=(-0.8, -3.0), highlights=(0.4, 0.8)))
 
 
 def faded_matte(rgb: np.ndarray) -> np.ndarray:
@@ -94,9 +210,19 @@ def faded_matte(rgb: np.ndarray) -> np.ndarray:
 
 
 def mono_contrast(rgb: np.ndarray) -> np.ndarray:
-    """A black and white stock leans on red and green, so skin stays bright and skies fall away."""
-    grey = rgb @ np.array([0.34, 0.58, 0.08])
+    """A black and white stock leans on red and green, so skin stays bright and skies fall away.
+
+    The channels are mixed as light, the way a filter over the lens mixes them, and only then coded for the display.
+    """
+    grey = ((np.clip(rgb, 0, 1) ** DISPLAY_GAMMA) @ np.array([0.34, 0.58, 0.08])) ** (1 / DISPLAY_GAMMA)
     curved = _s_curve(_s_curve(grey, 0.9), 0.5)
+    return np.stack((curved, curved, curved), axis=-1)
+
+
+def mono_silver(rgb: np.ndarray) -> np.ndarray:
+    """A softer black and white: the whole tonal range, with a gentle toe and shoulder."""
+    grey = ((np.clip(rgb, 0, 1) ** DISPLAY_GAMMA) @ np.array([0.30, 0.59, 0.11])) ** (1 / DISPLAY_GAMMA)
+    curved = _curve(((0, 0.02), (0.1, 0.085), (0.25, 0.24), (0.5, 0.53), (0.75, 0.79), (0.92, 0.93), (1, 0.975)))(grey)
     return np.stack((curved, curved, curved), axis=-1)
 
 
@@ -107,17 +233,24 @@ def bleach_bypass(rgb: np.ndarray) -> np.ndarray:
     return lab_to_rgb(_chroma(rgb_to_lab(rgb + (silver - rgb) * 0.75), 0.52))
 
 
+TEAL, ORANGE = 218.0, 62.0  # CIELAB hue. Skin of every tone sits near the orange, and the teal is close to its opposite.
+
+
 def teal_orange(rgb: np.ndarray) -> np.ndarray:
-    """Warm hues lean to orange and the others to teal, by less as they near the line between the two."""
-    lab = rgb_to_lab(_s_curve(rgb, 0.22))
+    """The cool half of the wheel leans to teal, and warm colours keep their own hue, so a red stays that red.
+
+    Every move here turns or scales the colour a pixel already has, and adds none. So black, white and every grey come
+    out as they went in: a grey wall does not turn blue-green and a white shirt does not turn cream.
+    """
+    lab = rgb_to_lab(_tone(rgb, ((0, 0), (0.08, 0.062), (0.25, 0.235), (0.5, 0.52), (0.75, 0.80), (0.92, 0.94), (1, 1))))
     hue, chroma = np.arctan2(lab[..., 2], lab[..., 1]), np.hypot(lab[..., 1], lab[..., 2])
-    orange, teal = np.radians(62.0), np.radians(218.0)
-    warmth = np.cos(hue - orange)
-    target = np.where(warmth > 0, orange, teal)
-    lean = np.arctan2(np.sin(target - hue), np.cos(target - hue)) * 0.45 * np.abs(warmth)
-    turned = hue + lean
-    lab[..., 1], lab[..., 2] = 1.08 * chroma * np.cos(turned), 1.08 * chroma * np.sin(turned)
-    return lab_to_rgb(_tint(lab, shadows=(-5.0, -7.0), highlights=(3.0, 7.0)))
+    warmth = np.cos(hue - np.radians(ORANGE))
+    cool, warm = np.clip(-warmth, 0, 1), np.clip(warmth, 0, 1)
+    turned = hue + np.arctan2(np.sin(np.radians(TEAL) - hue), np.cos(np.radians(TEAL) - hue)) * 0.45 * cool
+    shadows, _, highlights = _zones(lab)
+    scaled = chroma * (1 + 0.18 * cool * shadows + 0.06 * warm * (1 + highlights))
+    lab[..., 1], lab[..., 2] = scaled * np.cos(turned), scaled * np.sin(turned)
+    return lab_to_rgb(_ceiling(lab, 100))
 
 
 def soft_pastel(rgb: np.ndarray) -> np.ndarray:
@@ -136,6 +269,93 @@ def neutral_show(rgb: np.ndarray) -> np.ndarray:
     return np.clip(grey * ratio + (rgb - grey) * np.minimum(ratio, 1.15) * 0.97, 0, 1)
 
 
+def clean_commercial(rgb: np.ndarray) -> np.ndarray:
+    """Crisp and neutral: true whites, clean blacks, weak colour lifted and strong colour held."""
+    lab = rgb_to_lab(_tone(rgb, ((0, 0), (0.06, 0.052), (0.25, 0.25), (0.5, 0.535), (0.75, 0.80), (0.92, 0.945), (1, 1))))
+    lab = _clean_white(_ceiling(_vibrance(lab, 0.14), 95), 84, 0.35)
+    return lab_to_rgb(_chroma_by_zone(lab, shadows=0.85))
+
+
+def product_white(rgb: np.ndarray) -> np.ndarray:
+    """A white background goes white, greys stay grey, and the product keeps its colour."""
+    lab = rgb_to_lab(_tone(rgb, ((0, 0), (0.06, 0.05), (0.25, 0.26), (0.5, 0.56), (0.75, 0.835), (0.90, 0.965), (0.97, 1.0), (1, 1))))
+    lab = _clean_white(lab, 78, 0.0)
+    weak = np.clip(1 - np.hypot(lab[..., 1], lab[..., 2]) / 15, 0, 1)
+    lab[..., 1:] *= (1 - 0.5 * _zones(lab)[0] * weak)[..., None]  # grey shadows lose half their cast
+    return lab_to_rgb(_ceiling(_vibrance(lab, 0.10), 100))
+
+
+def warm_lifestyle(rgb: np.ndarray) -> np.ndarray:
+    """Bright, open and golden: warm mids and highlights, quiet greens, a soft top."""
+    lifted = _tone(rgb, ((0, 0.012), (0.08, 0.085), (0.25, 0.275), (0.5, 0.56), (0.75, 0.81), (0.92, 0.94), (1, 0.985)))
+    lab = _tint(rgb_to_lab(_dye(lifted, 0.35, 1.04)), shadows=(0.6, 1.5), mids=(1.6, 5.0), highlights=(1.2, 6.0))
+    lab = _turn(lab, 135, 55, degrees=-12, saturation=0.72)  # greens toward olive, and no stronger for the gold laid over them
+    return lab_to_rgb(_turn(lab, 265, 50, degrees=-6, saturation=0.90))  # sky a touch toward cyan
+
+
+def airy_bright(rgb: np.ndarray) -> np.ndarray:
+    """Light and soft: lifted shadows, gentle colour, a little warmth."""
+    lifted = _tone(rgb, ((0, 0.04), (0.1, 0.125), (0.25, 0.29), (0.5, 0.585), (0.75, 0.84), (0.92, 0.95), (1, 0.99)))
+    lab = _tint(_ceiling(_chroma(rgb_to_lab(lifted), 0.9), 70), shadows=(0.8, -0.5), mids=(1.0, 1.5), highlights=(0.6, 2.0))
+    return lab_to_rgb(_turn(lab, 135, 55, degrees=-8, saturation=0.75))
+
+
+def earthy_doc(rgb: np.ndarray) -> np.ndarray:
+    """Documentary: natural contrast, olive greens, slate blues, earth and skin held."""
+    curved = _tone(rgb, ((0, 0.01), (0.08, 0.07), (0.25, 0.24), (0.5, 0.51), (0.75, 0.77), (0.92, 0.92), (1, 0.975)))
+    lab = _deepen(_chroma(rgb_to_lab(curved), 0.95), 0.05)
+    lab = _turn(_turn(lab, 135, 60, degrees=-14, saturation=0.72), 265, 55, degrees=-8, saturation=0.78)
+    return lab_to_rgb(_tint(_turn(lab, 55, 40, saturation=1.06), shadows=(0.5, 1.0), mids=(0.6, 1.8), highlights=(0.2, 1.5)))
+
+
+def moody_low(rgb: np.ndarray) -> np.ndarray:
+    """Dark mids, capped whites, dense quiet colour, cool green shadows."""
+    curved = _tone(rgb, ((0, 0.03), (0.1, 0.085), (0.25, 0.20), (0.5, 0.44), (0.75, 0.69), (0.92, 0.84), (1, 0.90)))
+    lab = _tint(_deepen(_chroma(rgb_to_lab(curved), 0.88), 0.06), shadows=(-2.5, -1.5), mids=(-0.5, 1.0), highlights=(0.5, 2.5))
+    return lab_to_rgb(_turn(_chroma_by_zone(lab, shadows=0.75, mids=0.9, highlights=0.8), 135, 55, degrees=10, saturation=0.7))
+
+
+def print_film(rgb: np.ndarray) -> np.ndarray:
+    """A print: toe and shoulder, half of the curve per channel, dense colour, cool shadows and a warm top."""
+    points = ((0, 0.022), (0.08, 0.065), (0.25, 0.225), (0.5, 0.525), (0.75, 0.815), (0.90, 0.93), (1, 0.975))
+    lab = rgb_to_lab(_dye(0.5 * _tone_each(rgb, points) + 0.5 * _tone(rgb, points), 0.8, 1.08))
+    lab = _tint(lab, shadows=(-1.2, -2.5), mids=(0.3, 1.0), highlights=(0.8, 3.5))
+    return lab_to_rgb(_ceiling(_turn(_turn(lab, 135, 55, degrees=-6, saturation=0.85), 265, 50, degrees=-8, saturation=0.9), 85))
+
+
+def vintage_print(rgb: np.ndarray) -> np.ndarray:
+    """An old print: three channel curves that cross. Blue is lifted in the shadows and held back on top, so whites go cream."""
+    aged = _tone_each(
+        rgb,
+        ((0, 0.04), (0.25, 0.245), (0.5, 0.525), (0.75, 0.795), (1, 0.975)),
+        ((0, 0.04), (0.25, 0.245), (0.5, 0.515), (0.75, 0.78), (1, 0.96)),
+        ((0, 0.055), (0.25, 0.25), (0.5, 0.49), (0.75, 0.725), (1, 0.90)),
+    )
+    lab = _turn(_deepen(_chroma(rgb_to_lab(aged), 0.92), 0.04), 135, 55, degrees=-10, saturation=0.8)
+    return lab_to_rgb(_ceiling(_turn(lab, 35, 35, degrees=4, saturation=1.05), 75))  # reds toward orange
+
+
+def _spare_warm(lab: np.ndarray, cooled: np.ndarray, spare: float) -> np.ndarray:
+    """Lamps, fire and skin keep most of their own colour while the rest of the frame takes the night."""
+    warm = spare * _near_hue(lab, 60, 60)[..., None]
+    return cooled * (1 - warm) + lab * warm
+
+
+def night_blue(rgb: np.ndarray) -> np.ndarray:
+    """Night that reads as night: darker mids, cool shadows, less colour in the dark, and warm lights left warm."""
+    lab = rgb_to_lab(_tone(rgb, ((0, 0.0), (0.1, 0.06), (0.25, 0.17), (0.5, 0.40), (0.75, 0.68), (0.92, 0.88), (1, 0.97))))
+    cooled = _tint(lab, shadows=(-2.0, -7.0), mids=(-2.0, -6.0), highlights=(0.0, -1.5))
+    return lab_to_rgb(_spare_warm(lab, _chroma_by_zone(cooled, shadows=0.6, mids=0.85), 0.85))
+
+
+def neon_night(rgb: np.ndarray) -> np.ndarray:
+    """City night: violet shadows, magenta and cyan signs pushed, green spill turned to cyan, warm skin kept."""
+    lab = rgb_to_lab(_tone(rgb, ((0, 0), (0.1, 0.065), (0.25, 0.20), (0.5, 0.47), (0.75, 0.77), (0.92, 0.94), (1, 1))))
+    lab = _spare_warm(lab, _tint(lab, shadows=(1.5, -6.0), mids=(1.0, -3.0), highlights=(-1.0, -1.0)), 0.8)
+    lab = _turn(_turn(lab, 330, 60, saturation=1.15), 215, 55, saturation=1.12)
+    return lab_to_rgb(_ceiling(_turn(lab, 135, 45, degrees=25, saturation=0.7), 90))
+
+
 RECIPES: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "warm_film": warm_film,
     "cool_film": cool_film,
@@ -145,6 +365,17 @@ RECIPES: dict[str, Callable[[np.ndarray], np.ndarray]] = {
     "teal_orange": teal_orange,
     "soft_pastel": soft_pastel,
     "neutral_show": neutral_show,
+    "clean_commercial": clean_commercial,
+    "product_white": product_white,
+    "warm_lifestyle": warm_lifestyle,
+    "airy_bright": airy_bright,
+    "earthy_doc": earthy_doc,
+    "moody_low": moody_low,
+    "print_film": print_film,
+    "vintage_print": vintage_print,
+    "mono_silver": mono_silver,
+    "night_blue": night_blue,
+    "neon_night": neon_night,
 }
 IDS = tuple(RECIPES)
 ALL = (*SMALL_LOOKS, *IDS)
@@ -271,19 +502,27 @@ def choose(look: str = "natural", *, strength: float = 1.0, lut: str | Path | No
 
 
 def stamp(lut: str | Path | None) -> str:
-    return hashlib.sha256(Path(lut).expanduser().read_bytes()).hexdigest()[:16] if lut else ""
+    """What a finish is made of, for the grade's cache: the recipes as they are written now, and the bytes of a user's LUT."""
+    return f"looks{VERSION}:" + (hashlib.sha256(Path(lut).expanduser().read_bytes()).hexdigest()[:16] if lut else "")
+
+
+def removes_colour(finish: Finish) -> bool:
+    """Is this finish black and white, or close to it?
+
+    Asked of the look and not of one clip's skin: a hard look can crush a dark face until little colour is left in it,
+    and that face needs the guard most. So every clip of a film gets the same answer.
+    """
+    bare, after = rgb_to_lab(SKIN_PROBE), rgb_to_lab(finish.render(SKIN_PROBE))
+    return bool(np.hypot(after[..., 1], after[..., 2]).sum() < GREY_SKIN * np.hypot(bare[..., 1], bare[..., 2]).sum())
 
 
 def fit(finish: Finish, skin: np.ndarray | None) -> Finish:
     """Size a finish to one clip. `skin` is that clip's skin after its correction, or None."""
     if finish.is_identity or skin is None or not len(skin):
         return finish
-    bare = rgb_to_lab(skin)
-    after = rgb_to_lab(finish.render(skin))
-    colour = np.hypot(np.median(bare[..., 1]), np.median(bare[..., 2]))
-    if np.hypot(np.median(after[..., 1]), np.median(after[..., 2])) < GREY_SKIN * colour:
+    if removes_colour(finish):
         return finish  # Black and white with coloured skin would be a mistake, not protection.
-    center = tuple(bare.mean(axis=0).tolist())
+    center = tuple(rgb_to_lab(skin).mean(axis=0).tolist())
     for guard in SKIN_GUARDS:  # A colourist tightens the key on skin before turning the whole grade down.
         guarded = replace(finish, skin_center=center, guard=guard)
         share = back_off(guarded, skin)[0]

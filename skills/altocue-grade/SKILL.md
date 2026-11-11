@@ -26,16 +26,29 @@ altocue grade --lut ~/luts/show.cube
 | Look | What it does |
 |---|---|
 | `natural` | Correction only. The default |
-| `warm`, `cool`, `punchy`, `filmic` | A small taste on the correction |
+| `warm`, `cool`, `punchy`, `filmic` | A small taste on the correction. `punchy` lifts weak colour most and holds strong colour |
+| `neutral_show` | One quiet curve for a series, with no colour opinion |
+| `clean_commercial` | Crisp and neutral: true whites, clean blacks, weak colour lifted, strong colour held |
+| `product_white` | A white background goes white, greys stay grey, the product keeps its colour |
+| `warm_lifestyle` | Bright and golden, a soft top, greens toward olive |
+| `airy_bright` | Lifted shadows, gentle colour, a little warmth |
+| `soft_pastel` | Open mids, low contrast, gentle colour |
+| `earthy_doc` | Natural contrast, olive greens, slate blues |
 | `warm_film` | Soft shoulder, warm mids and highlights, greenish shadows |
 | `cool_film` | Steel shadows, cooler mids, neutral highlights |
+| `print_film` | Toe and shoulder, dense colour, cool shadows, a warm top |
+| `vintage_print` | An old print: cream whites, blue in the blacks, reds toward orange |
+| `teal_orange` | Cool hues lean teal and warm hues keep their own. Greys, whites and lips are left alone |
+| `moody_low` | Dark mids, capped whites, quiet colour, cool green shadows |
 | `faded_matte` | Lifted blacks, capped whites, less colour |
-| `mono_contrast` | Black and white with a hard curve |
 | `bleach_bypass` | Hard contrast, drained colour |
-| `teal_orange` | Warm hues lean orange, the others teal, cool shadows |
-| `soft_pastel` | Open mids, low contrast, gentle colour |
-| `neutral_show` | One quiet curve for a series, with no colour opinion |
+| `night_blue` | Darker mids and cool shadows. Lamps and skin stay warm |
+| `neon_night` | Violet shadows, magenta and cyan pushed, warm skin kept |
+| `mono_contrast` | Black and white with a hard curve. It takes a dark face down a long way, so look at faces |
+| `mono_silver` | A softer black and white that keeps the whole tonal range |
 
+- **Match the look to the job.** Product and software: `clean_commercial` or `product_white`. Lifestyle: `warm_lifestyle` or `airy_bright`. Brand film: `print_film` or `teal_orange`. Documentary: `earthy_doc`. Night: `night_blue` or `neon_night`.
+- **Brand colours beat looks.** If a logo or product colour must be exact, use `natural`, `neutral_show`, `clean_commercial` or `product_white`.
 - **Flags are for trying.** To keep a choice through `altocue run`, set `look`, `look_strength` or `lut` under `[grade]` in `altocue.toml`. A relative `lut` path starts at the project.
 - **A LUT replaces the look.** Asking for both is refused.
 - **Strength runs from 0 to 1.** Start around 0.6 for anything strong. Most films want less than the full recipe.

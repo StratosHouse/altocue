@@ -499,7 +499,9 @@ def apply_look(rgb: np.ndarray, look: str) -> np.ndarray:
         lab[..., 2] -= 3.0 * mid
     elif look == "punchy":
         lab[..., 0] = 100 * np.clip(light + 0.16 * (light - 0.5) * mid, 0, 1)
-        lab[..., 1:] *= 1.08
+        chroma = np.hypot(lab[..., 1], lab[..., 2])[..., None]
+        lifted = chroma * (1 + 0.12 * 40 / (chroma + 40))  # weak colour gains most, so skin and strong colour are not pushed
+        lab[..., 1:] *= np.where(lifted <= 57, lifted, 57 + 38 * np.tanh((lifted - 57) / 38)) / np.maximum(chroma, 1e-6)  # and a ceiling of 95
     elif look == "filmic":
         lab[..., 1:] *= (1 - 0.12 * light)[..., None]
         lab[..., 1] += 0.5 * (light - 0.5) * mid
