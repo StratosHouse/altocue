@@ -209,7 +209,7 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         caption.build(project)
         timeline = timelines.build(project, draft=draft)
         credits.write_txt(project)
-        layer = motion.render_layers(project, renderer=renderer, draft=draft)
+        layer = motion.render_layers(project, renderer=renderer, draft=draft, timeline=timeline)  # built once: placing graphics reads the plate
         c = plate.canvas(project, draft=draft)
         if (project.root / "studio.json").is_file():
             from .studio import attach

@@ -186,7 +186,7 @@ def test_render_records_the_cut_it_was_made_from(tmp_path, monkeypatch):
     monkeypatch.setattr(render.plate, "build", lambda project, draft: (tmp_path / "p.mp4", tmp_path / "v.wav"))
     monkeypatch.setattr(render.caption, "build", lambda project: [])
     monkeypatch.setattr(render.timelines, "build", lambda project, **_: {"tail": 0, "items": [], "inserts": [], "total": 1.0, "sfx": False})
-    monkeypatch.setattr(render.motion, "render_layers", lambda project, renderer, draft: None)
+    monkeypatch.setattr(render.motion, "render_layers", lambda project, renderer, draft, timeline: None)
     monkeypatch.setattr(render.mix, "mix_bed", lambda *args, **kwargs: None)
     monkeypatch.setattr(render, "compose_args", lambda *args: [])
     monkeypatch.setattr(render.ffmpeg, "run", lambda args: None)
