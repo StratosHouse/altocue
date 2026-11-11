@@ -29,7 +29,11 @@ jobs:
           ALTOCUE_RENDERER_DIR: ${{ github.workspace }}/src/altocue/data/renderer
       - name: Check the source addresses
         run: uv run python scripts/build_library.py --check-links >> "$GITHUB_STEP_SUMMARY"
-      - run: uv run pytest tests/test_library.py -q
+      - name: Report what moved upstream
+        run: uv run python scripts/sweep.py >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: uv run pytest tests/test_library.py tests/test_sweep.py -q
       - run: uv run python scripts/check_repo.py
         env:
           ALTOCUE_BLOCKLIST: ${{ secrets.ALTOCUE_BLOCKLIST }}

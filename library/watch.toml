@@ -1,0 +1,170 @@
+# What the weekly sweep watches. `uv run python scripts/sweep.py` reports what moved. Nothing here installs anything.
+#
+# role = "used"       Altocue runs it today. A pinned one is measured against its pin.
+# role = "candidate"  Worth a look, not adopted. Measured against `seen`, the release a person last read.
+# pin                 An exact pin that lives outside pyproject.toml and the renderer's package.json.
+# seen                The release a person last read the notes and licence of. Update it when you have.
+# licence             The licence a person read in the project's own files. The sweep says when upstream states another.
+#
+# Add an entry only after reading the licence file itself. A package page is not the licence.
+
+# Speech to text
+
+[[watch]]
+name = "parakeet-mlx"
+where = "pypi"
+id = "parakeet-mlx"
+role = "used"
+licence = "Apache-2.0"
+why = "Default speech engine on Apple Silicon"
+
+[[watch]]
+name = "faster-whisper"
+where = "pypi"
+id = "faster-whisper"
+role = "used"
+licence = "MIT"
+why = "Default speech engine everywhere else"
+
+[[watch]]
+name = "mlx-whisper"
+where = "pypi"
+id = "mlx-whisper"
+role = "used"
+licence = "MIT"
+why = "Optional speech engine on Apple Silicon"
+
+[[watch]]
+name = "onnx-asr"
+where = "pypi"
+id = "onnx-asr"
+role = "candidate"
+licence = "MIT"
+seen = "0.12.0"
+why = "Could run the default Mac speech model on Linux and NVIDIA machines"
+
+[[watch]]
+name = "mlx-audio"
+where = "pypi"
+id = "mlx-audio"
+role = "candidate"
+licence = "MIT"
+seen = "0.6.5"
+why = "One Mac package for newer speech, alignment and clean-up models"
+
+[[watch]]
+name = "whisper.cpp"
+where = "github"
+id = "ggml-org/whisper.cpp"
+role = "candidate"
+licence = "MIT"
+seen = "v1.8.7"
+why = "A speech engine with no Python stack"
+
+# Speakers, voice activity and clean-up
+
+[[watch]]
+name = "sherpa-onnx"
+where = "pypi"
+id = "sherpa-onnx"
+role = "used"
+licence = "Apache-2.0"
+why = "Runs the speaker models"
+
+[[watch]]
+name = "silero-vad"
+where = "pypi"
+id = "silero-vad"
+role = "candidate"
+licence = "MIT"
+seen = "6.2.3"
+why = "A second opinion on where speech is, for music, wind and crowds"
+
+[[watch]]
+name = "DeepFilterNet"
+where = "github"
+id = "Rikorose/DeepFilterNet"
+role = "used"
+seen = "v0.5.6"
+why = "The noise remover fetched by setup. Its releases have been rare, so a new one matters"
+
+[[watch]]
+name = "demucs"
+where = "pypi"
+id = "demucs"
+role = "used"
+licence = "MIT"
+seen = "4.1.0"
+why = "Optional: takes music off a voice"
+
+# Picture
+
+[[watch]]
+name = "opencv-python-headless"
+where = "pypi"
+id = "opencv-python-headless"
+role = "used"
+seen = "5.0.0.93"
+why = "Face boxes, frames and measurements"
+
+[[watch]]
+name = "mediapipe"
+where = "pypi"
+id = "mediapipe"
+role = "used"
+licence = "Apache-2.0"
+why = "Optional: gaze and blink"
+
+[[watch]]
+name = "scenedetect"
+where = "pypi"
+id = "scenedetect"
+role = "candidate"
+licence = "BSD-3-Clause"
+seen = "0.7.3"
+why = "Shot changes in edited sources and long recordings"
+
+[[watch]]
+name = "rapidocr"
+where = "pypi"
+id = "rapidocr"
+role = "candidate"
+licence = "Apache-2.0"
+seen = "3.10.0"
+why = "A text reader that installs with pip, for the text gates on Linux"
+
+[[watch]]
+name = "FFmpeg"
+where = "github"
+id = "FFmpeg/FFmpeg"
+role = "used"
+why = "Every encode, filter and measurement. New filters and encoders arrive here"
+
+# Graphics and transitions
+
+[[watch]]
+name = "hyperframes"
+where = "npm"
+id = "hyperframes"
+role = "used"
+licence = "Apache-2.0"
+why = "The graphics renderer, pinned exactly"
+
+[[watch]]
+name = "gl-transitions"
+where = "npm"
+id = "gl-transitions"
+role = "used"
+licence = "MIT"
+pin = "2.2.0"           # the same number as SHADER_VERSION in scripts/build_library.py
+why = "The transition shaders the catalog lists"
+
+# Timelines
+
+[[watch]]
+name = "OpenTimelineIO"
+where = "pypi"
+id = "opentimelineio"
+role = "candidate"
+licence = "Apache-2.0"
+why = "Would let a cut be handed to a desktop editor"
