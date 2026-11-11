@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -565,6 +567,22 @@ def test_validate_flags_a_removed_word_that_still_plays(tmp_path):
     assert any("marked as removed" in p for p in validate(project, edl))
 
 
+def test_a_clip_saved_again_in_the_same_second_gets_a_fresh_envelope(tmp_path):
+    """Some filesystems keep whole seconds. A re-clean inside one was read through the sound it replaced."""
+    clip = add_clip(tmp_path, "a", 2.0, [(0.4, 0.9)])
+    path, second = Path(clip.path), 1_700_000_000 * 10**9
+    os.utime(path, ns=(second, second))
+    first = cut.envelope_of(clip)
+    assert cut.envelope_of(clip) is first
+    ffmpeg.write_wav(path, speech(2.0, [(1.2, 1.7)]), RATE)
+    os.utime(path, ns=(second + 1000, second + 1000))
+    moved = cut.envelope_of(clip)
+    assert moved is not first and moved.has_speech(1.3, 1.6) and not first.has_speech(1.3, 1.6)
+    ffmpeg.write_wav(path, speech(3.0, [(2.2, 2.7)]), RATE)
+    os.utime(path, ns=(second + 1000, second + 1000))  # the same instant, and only the size tells
+    assert cut.envelope_of(clip).has_speech(2.3, 2.6)
+
+
 def test_validate_flags_overlapping_segments(tmp_path):
     words = timed("one two", step=0.5)
     project, edl = handmade(words, (0.0, 1.0), tmp_path)
@@ -576,6 +594,33 @@ def test_validate_flags_a_segment_off_the_frame_grid(tmp_path):
     words = timed("one two", step=0.5)
     project, edl = handmade(words, (0.0, 1.015), tmp_path)
     assert any("whole number of frames" in p for p in validate(project, edl))
+
+
+def test_validate_refuses_a_segment_of_no_frames(tmp_path):
+    """Too short to round to a frame, and too short for the grid check to see. Every stage would count it differently."""
+    words = timed("one two", step=0.5)
+    project, edl = handmade(words, (0.0, 1.0), tmp_path)
+    edl.segments.append(Segment(id="s002", clip="a", start=1.2, end=1.2001))
+    problems = validate(project, edl)
+    assert any("s002" in p and "shorter than one frame" in p and "delete the segment" in p for p in problems)
+    with pytest.raises(AltocueError, match="shorter than one frame") as refused:
+        map_words(project, edl)
+    assert refused.value.fix
+
+
+def test_a_shot_becomes_frames_in_one_place_only():
+    """`snap.frame_count` is the rule. A second copy can round another way, and then sound and picture disagree."""
+    retyped = re.compile(r"round\(\(.*\)\s*\*\s*(?:\w+\.)*fps\)")
+    source = Path(cut.__file__).parents[1]
+    found = [
+        f"{path.relative_to(source)}:{number}: {line.strip()}"
+        for path in sorted(source.rglob("*.py"))
+        if path.relative_to(source).as_posix() != "cut/snap.py"
+        for number, line in enumerate(path.read_text().splitlines(), 1)
+        if retyped.search(line)
+    ]
+    assert found == [], "Call snap.frame_count instead of retyping it:\n" + "\n".join(found)
+    assert retyped.search("    return round((end - start) * fps)") and retyped.search("x = max(1, round((s.end - s.start) * edl.fps))")
 
 
 def test_validate_flags_a_segment_past_the_clip(tmp_path):

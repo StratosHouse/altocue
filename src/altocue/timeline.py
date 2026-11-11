@@ -8,6 +8,7 @@ from typing import Any
 
 from . import brand as brands
 from . import cut, ffmpeg, mix, overlays, platforms, track, transitions
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .models import Edl
 from .motion import compositions, formats, placement
@@ -40,7 +41,7 @@ def resolve_time(value: Any, words: list[dict[str, Any]], what: str = "Graphic")
 def resolve_transitions(raw: list[dict[str, Any]], words: list[dict[str, Any]], edl: Edl) -> list[dict[str, Any]]:
     """Each transition lands on the cut nearest its anchor. A dissolve with no cut under it blends a shot with itself."""
     fps = edl.fps
-    lengths = [max(1, round((s.end - s.start) * fps)) for s in edl.segments]
+    lengths = [frame_count(s.start, s.end, fps) for s in edl.segments]  # the cut is validated before this, so none is zero
     cuts = [sum(lengths[:index]) for index in range(1, len(lengths))]
     found: dict[int, dict[str, Any]] = {}
     for entry in raw:
@@ -215,7 +216,7 @@ def build(project: Project, *, draft: bool = False) -> dict[str, Any]:
     captions = made_captions(project)
     motion_file = project.root / "motion.json"
     motion = json.loads(motion_file.read_text()) if motion_file.exists() else {}
-    duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
+    duration = round(sum(frame_count(s.start, s.end, edl.fps) for s in edl.segments) / edl.fps, 6)
     edits = picture_edits(project, edl, words=words)
     items, tail = resolve_items(motion.get("items", []), words, duration)
     items = [compositions.resolve(project, item) if item["type"] == "composition" else formats.place_images(project.root, item) for item in items]

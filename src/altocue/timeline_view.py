@@ -98,7 +98,7 @@ def _shots(edl: Edl, stage: Path, picture: Path) -> list[str]:
     clips, played = [], 0
     for segment in edl.segments:
         start = played / edl.fps
-        played += max(1, frame_count(segment.start, segment.end, edl.fps))
+        played += frame_count(segment.start, segment.end, edl.fps)
         clips.append(
             f'<video id="shot-{escape(segment.id)}" class="clip" src="{FOOTAGE}" {_span(start, played / edl.fps)} data-media-start="{round(start, 3):.3f}" '
             f'data-track-index="0" muted playsinline style="{FILL}"></video>'

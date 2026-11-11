@@ -13,8 +13,8 @@ import pytest
 from altocue import clean, ffmpeg, mouth
 from altocue.cli import main
 from altocue.errors import AltocueError
-from altocue.models import Clip
-from altocue.project import Project
+from altocue.models import Clip, Word
+from altocue.project import Project, write_json
 
 RATE = 48000
 
@@ -690,6 +690,41 @@ def test_clean_project_reuses_finished_clips_unless_forced(project):
     assert again["clips"]["noisy"]["status"] == "reused" and wav.stat().st_mtime_ns == stamp
     forced = clean.clean_project(project, force=True)
     assert forced["clips"]["noisy"]["status"] == "cleaned" and wav.stat().st_mtime_ns != stamp
+
+
+def say(project: Project, times: list[tuple[float, float]]) -> None:
+    record = {"engine": "test", "source_clock": ffmpeg.SOURCE_CLOCK, "words": [Word(text="word", start=a, end=b).to_dict() for a, b in times]}
+    write_json(project.words_dir / "noisy.json", record)
+
+
+def test_new_word_times_redo_the_sound(project):
+    """Phrase levelling, the click guard and the noise reading all follow the words. Sound cleaned around the old ones was kept."""
+    say(project, [(0.2, 0.9), (1.4, 2.2)])
+    first = clean.clean_project(project)["clips"]["noisy"]
+    wav = project.audio_dir / "noisy.wav"
+    stamp = wav.stat().st_mtime_ns
+    assert first["status"] == "cleaned" and first["words"] == clean.words_mark([(0.2, 0.9), (1.4, 2.2)])
+    assert clean.clean_project(project)["clips"]["noisy"]["status"] == "reused"
+    say(project, [(0.2, 0.9), (1.4004, 2.2)])  # the same hundredth of a second is the same word
+    kept = clean.clean_project(project)["clips"]["noisy"]
+    assert kept["status"] == "reused" and kept["words"] == first["words"] and wav.stat().st_mtime_ns == stamp
+    say(project, [(0.2, 0.9), (1.7, 2.5)])
+    again = clean.clean_project(project)["clips"]["noisy"]
+    assert again["status"] == "cleaned" and again["words"] != first["words"] and wav.stat().st_mtime_ns != stamp
+    assert json.loads((project.audio_dir / "report.json").read_text())["clips"]["noisy"]["words"] == again["words"]
+
+
+def test_sound_cleaned_before_word_times_were_recorded_is_redone(project):
+    clean.clean_project(project)
+    path = project.audio_dir / "report.json"
+    saved = json.loads(path.read_text())
+    del saved["clips"]["noisy"]["words"]
+    path.write_text(json.dumps(saved))
+    assert clean.clean_project(project)["clips"]["noisy"]["status"] == "cleaned"
+
+
+def test_a_missing_transcript_and_an_empty_one_are_not_the_same_words():
+    assert clean.words_mark(None) != clean.words_mark([])
 
 
 def test_cli_clean(project, capsys):

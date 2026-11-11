@@ -43,6 +43,12 @@ class Clip(Model):
     sample_rate: int = 0
     variable_frame_rate: bool = False
     input: str = ""  # A log curve from `[grade] input`, set by the grade while it works. ffprobe cannot see one, so it is never probed.
+    video_duration: float = 0.0  # where the picture ends, counted from the file's start. 0 when the file does not say, or media.json is older
+
+    @property
+    def picture_duration(self) -> float:
+        """How long there is picture. Sound often outlasts it on a phone, so the file's own length proves nothing."""
+        return min(self.video_duration, self.duration) if self.video_duration > 0 else self.duration
 
     @property
     def is_hdr(self) -> bool:

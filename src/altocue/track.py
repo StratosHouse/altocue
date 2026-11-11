@@ -34,6 +34,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from . import ffmpeg, frame
 from .brand import Brand
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .project import Project, write_json
 
@@ -195,7 +196,7 @@ def track_item(picture: Path, item: dict[str, Any], fps: int) -> list[tuple[floa
         boxes = follow_face(frames, "largest" if target == "face" else str(target["face"]))
     else:
         height, width = frames[0].shape[:2]
-        at = min(max(round((float(target.get("at", item["start"])) - item["start"]) * fps), 0), len(frames) - 1)
+        at = min(max(frame_count(item["start"], float(target.get("at", item["start"])), fps), 0), len(frames) - 1)
         x, y, w, h = (float(v) for v in target["box"])
         boxes = follow_box(frames, at, (x * width, y * height, w * width, h * height))  # type: ignore[assignment]
     smooth = fill_and_smooth(boxes, fps)

@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw
 
 from . import cut, ffmpeg, grade, stock
 from . import timeline as timelines
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .generate import http
 from .project import Project, write_json
@@ -41,6 +42,7 @@ STATIC_AFTER = 3.5  # seconds with no cut before a stretch reads as static
 DEFAULT_SHARE = 0.3
 PHRASE_GAP = 0.35
 OPTIONS_PER_SPOT = 4
+TRUE_COLOUR = frozenset({"screen", "screencast", "screenshot", "screenrecording", "ui"})  # tags of a picture that must keep its own colour
 
 PEXELS_SEARCH = pexels_source.VIDEOS
 PIXABAY_SEARCH = pixabay_source.VIDEOS
@@ -109,7 +111,7 @@ def cut_points(project: Project) -> list[float]:
     edl = project.edl()
     points, at = [], 0.0
     for segment in edl.segments[:-1]:
-        at += round((segment.end - segment.start) * edl.fps) / edl.fps
+        at += frame_count(segment.start, segment.end, edl.fps) / edl.fps
         points.append(at)
     return points
 
@@ -145,7 +147,7 @@ def find_spots(project: Project, share: float | None = None) -> list[dict[str, A
     words = [word for word in cut.map_words(project, edl) if word.get("kind", "word") == "word"]
     if not words:
         return []
-    duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
+    duration = round(sum(frame_count(s.start, s.end, edl.fps) for s in edl.segments) / edl.fps, 6)
     cuts = cut_points(project)
     busy, placed = busy_spans(project, words, duration)
     budget = duration * float(share if share is not None else project.setting("broll", "share", DEFAULT_SHARE)) - placed
@@ -189,14 +191,28 @@ def library_clips(folders: list[str]) -> list[dict[str, Any]]:
             note = path.with_suffix(".txt")
             written = note.read_text(errors="ignore") if note.exists() else ""
             words = f"{path.stem} {path.parent.name} {written}".replace("_", " ").replace("-", " ")
-            clips.append({"path": str(path.resolve()), "terms": set(re.findall(r"[a-z]{3,}", words.lower()))})
+            clips.append({"path": str(path.resolve()), "terms": set(re.findall(r"[a-z]{3,}", words.lower())), "tags": colour_tags(words)})
     return clips
+
+
+def colour_tags(text: str) -> list[str]:
+    """What your own names and notes say about a clip's colour. A stock title is never read this way: "phone screen" is a subject."""
+    return sorted(TRUE_COLOUR & set(re.findall(r"[a-z]+", text.lower().replace("_", " ").replace("-", " "))))
+
+
+def takes_look(spot: dict[str, Any], option: dict[str, Any]) -> bool:
+    """`"look": false` on the spot or the option wins. A screen recording or an interface keeps its own colour unless told otherwise."""
+    for holder in (spot, option):
+        if isinstance(holder.get("look"), bool):
+            return holder["look"]
+    return not TRUE_COLOUR & {str(tag).lower() for tag in [*option.get("tags", []), option.get("kind", "")]}
 
 
 def match_library(spot: dict[str, Any], clips: list[dict[str, Any]]) -> list[dict[str, Any]]:
     wanted = set(spot["query"].lower().split()) | set(keywords(spot["phrase"]))
     hits = sorted(((len(wanted & clip["terms"]), clip) for clip in clips), key=lambda item: -item[0])
-    return [{"source": "library", "file": clip["path"], "title": Path(clip["path"]).name} for overlap, clip in hits if overlap][:OPTIONS_PER_SPOT]
+    found = [{"source": "library", "file": clip["path"], "title": Path(clip["path"]).name, "tags": clip.get("tags", [])} for overlap, clip in hits if overlap]
+    return [{key: value for key, value in option.items() if value != []} for option in found][:OPTIONS_PER_SPOT]
 
 
 def orientation(project: Project) -> str:
@@ -350,7 +366,7 @@ def resolve_choice(project: Project, spot: dict[str, Any], choice: str) -> dict[
     if choice.startswith("file:"):
         path = Path(choice[5:]).expanduser()
         path = path if path.is_absolute() else project.root / path
-        return {"source": "file", "file": str(path), "title": path.name}
+        return {"source": "file", "file": str(path), "title": path.name, "tags": colour_tags(f"{path.stem} {path.parent.name}")}
     if choice.startswith("shot:"):
         from . import generate
 
@@ -412,35 +428,70 @@ def fetch_option(project: Project, option: dict[str, Any], source: Path) -> None
 
 def prepare(project: Project, spot: dict[str, Any], option: dict[str, Any]) -> Path:
     """Cut the insert to length and to the canvas, so the final render only has to lay it in."""
-    folder = project.work / "broll"
     source = source_path(project, option)
     if option.get("url"):
         fetch_option(project, option, source)
     if not source.exists():
         raise AltocueError(f"No clip at {source}.", fix="Check the path, or pick another option.")
-    length = spot["end"] - spot["start"]
-    if is_still(source, option):
-        return stills.push_in(source, folder / f"{spot['id']}.mp4", project.size, project.fps, max(1, round(length * project.fps)))
+    return encode_insert(project, spot["id"], spot["end"] - spot["start"], source, still=is_still(source, option), look=takes_look(spot, option))
+
+
+def encode_insert(project: Project, spot_id: str, length: float, source: Path, *, still: bool, look: bool) -> Path:
+    """The insert as the render lays it in: on the canvas, the right length, and in the project's look unless it keeps its own colour."""
+    folder = project.work / "broll"
+    if still:
+        lut = grade.insert_lut(project, None, folder / f"{spot_id}.cube", look=look)
+        return stills.push_in(source, folder / f"{spot_id}.mp4", project.size, project.fps, max(1, round(length * project.fps)), lut=lut)
     clip = ffmpeg.probe_clip(source)
     if clip.duration < length:
-        raise AltocueError(f"{clip.id} lasts {clip.duration:.1f} s, and {spot['id']} needs {length:.1f} s.", fix="Pick a longer clip.")
+        raise AltocueError(f"{clip.id} lasts {clip.duration:.1f} s, and {spot_id} needs {length:.1f} s.", fix="Pick a longer clip.")
     width, height = project.size
     fps = project.fps
-    lut = None
-    if clip.is_hdr:
-        lut = grade.write_cube(folder / f"{spot['id']}.cube", grade.hdr_lut(clip.transfer), "HDR to SDR")
+    lut = grade.insert_lut(project, clip, folder / f"{spot_id}.cube", look=look)  # HDR comes down to SDR first, and the look goes on that
     fill = f"scale={width}:{height}:force_original_aspect_ratio=increase:flags=lanczos,crop={width}:{height}"
     chain = f"{grade.video_filter(clip, lut, geometry=fill)},fps={fps},setsar=1"
     begin = max(0.0, (clip.duration - length) / 2)
-    dest = folder / f"{spot['id']}.mp4"
+    dest = folder / f"{spot_id}.mp4"
     frames = max(1, round(length * fps))
     encode = ["-c:v", "libx264", "-crf", "17", "-preset", "medium", "-pix_fmt", "yuv420p"]
     ffmpeg.run(["-ss", f"{begin:.3f}", "-i", str(source), "-an", "-vf", chain, "-frames:v", str(frames), *encode, str(dest)])
     video = next((s for s in ffmpeg.probe_json(dest).get("streams", []) if s.get("codec_type") == "video"), {})
     if int(video.get("nb_frames", 0)) < frames:  # sound can outlast picture, so the file's length proves nothing
         dest.unlink()
-        raise AltocueError(f"{clip.id} has too little picture for {spot['id']}.", fix="Pick a longer clip.")
+        raise AltocueError(f"{clip.id} has too little picture for {spot_id}.", fix="Pick a longer clip.")
     return dest
+
+
+def match_look(project: Project) -> list[str]:
+    """Prepare again every chosen insert that was made under another look, so the film is one picture. Returns the spots redone.
+
+    Each pick records the look it was prepared in. That mark is the key: a new look, or none, makes the insert again from its source.
+    """
+    path = project.root / CHOSEN_FILE
+    chosen = json.loads(path.read_text()) if path.exists() else {}
+    if not chosen.get("inserts") or chosen.get("cut") != project.cut_mark():
+        return []  # nothing chosen, or chosen for another cut, which the timeline refuses in its own words
+    mark = grade.look_mark(project)
+    redone, unknown = [], []
+    for insert in chosen["inserts"]:
+        if insert.get("look") is False or insert.get("look") == mark:
+            continue
+        if "look" not in insert or not insert.get("prepared_from"):
+            unknown += [insert["id"]] if mark else []
+            continue
+        source = project.root / insert["prepared_from"]  # an absolute path stands as it is
+        if not source.exists():
+            fix = f"Pick it again: `altocue broll --pick {insert['id']}=...`."
+            raise AltocueError(f"{insert['id']} was prepared under another look, and its source {source} is gone.", fix=fix)
+        encode_insert(project, insert["id"], insert["end"] - insert["start"], source, still=bool(insert.get("still")), look=True)
+        insert["look"] = mark
+        redone.append(insert["id"])
+    if redone:
+        write_json(path, chosen)
+        print(f"The look changed, so {', '.join(redone)} {'was' if len(redone) == 1 else 'were'} prepared again in it.")
+    if unknown:
+        print(f"{', '.join(unknown)}: picked before inserts took the project's look. Pick again with `altocue broll --pick` to give it the look.")
+    return redone
 
 
 def apply_picks(project: Project, picks: list[str], rights_checked: bool = False) -> list[dict[str, Any]]:
@@ -463,8 +514,12 @@ def apply_picks(project: Project, picks: list[str], rights_checked: bool = False
             require_clear(option, rights_checked)
         file = prepare(project, spot, option)
         credit = {key: option[key] for key in ("source", "title", "page", "author", "licence", "licence_url", "credit") if option.get(key)}
+        source = source_path(project, option)
         if option.get("url"):
-            credit["source_file"] = str(source_path(project, option).relative_to(project.root))
+            credit["source_file"] = str(source.relative_to(project.root))
+        inside = source.resolve().is_relative_to(project.root.resolve())
+        credit["prepared_from"] = str(source.resolve().relative_to(project.root.resolve()) if inside else source.resolve())
+        credit |= {"still": is_still(source, option), "look": grade.look_mark(project) if takes_look(spot, option) else False}
         chosen[spot_id] = {"id": spot_id, "file": str(file.relative_to(project.root)), "start": spot["start"], "end": spot["end"], "under": spot["phrase"], **credit}
     inserts = sorted(chosen.values(), key=lambda item: item["start"])
     write_json(chosen_path, {"cut": mark, "inserts": inserts})

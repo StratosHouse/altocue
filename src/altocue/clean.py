@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -522,15 +523,26 @@ def clean_clip(
     return report
 
 
-def _words(project: Project, clip: Clip) -> list[tuple[float, float]] | None:
+def word_times(project: Project, clip: Clip) -> list[tuple[float, float]] | None:
+    """Where each word sits, or None with no transcript yet."""
     try:
-        words = project.words(clip.id)
+        return [(word.start, word.end) for word in project.words(clip.id)]
     except AltocueError:
         return None
-    record = json.loads((project.words_dir / f"{clip.id}.json").read_text())
-    if words and record.get("source_clock") != ffmpeg.SOURCE_CLOCK:
+
+
+def words_mark(times: list[tuple[float, float]] | None) -> str:
+    """Changes when the word times do. Phrase levelling, the click guard and the noise reading all follow the words,
+    so sound cleaned around one transcript is not the sound for another."""
+    rounded = None if times is None else [(round(start, 2), round(end, 2)) for start, end in times]
+    return hashlib.sha1(json.dumps(rounded).encode(), usedforsecurity=False).hexdigest()
+
+
+def _words(project: Project, clip: Clip) -> list[tuple[float, float]] | None:
+    words = word_times(project, clip)
+    if words and json.loads((project.words_dir / f"{clip.id}.json").read_text()).get("source_clock") != ffmpeg.SOURCE_CLOCK:
         raise AltocueError(f"The transcript for {clip.id} has an unverified source clock.", fix=ffmpeg.SOURCE_CLOCK_FIX)
-    return [(word.start, word.end) for word in words]
+    return words
 
 
 def clean_project(
@@ -577,7 +589,10 @@ def clean_project(
                 "noise_floor_after": None,
                 "warnings": ["This clip has no audio track."],
             }
-        elif not force and clip.id in earlier and dest.exists() and dest.stat().st_mtime >= Path(clip.path).stat().st_mtime:
+            continue
+        mark = words_mark(word_times(project, clip))
+        fresh = dest.exists() and dest.stat().st_mtime >= Path(clip.path).stat().st_mtime
+        if not force and fresh and earlier.get(clip.id, {}).get("words") == mark:  # new word times redo the sound, as a new source does
             entries[clip.id] = {**earlier[clip.id], "status": "reused"}
         else:
             words = _words(project, clip)
@@ -596,6 +611,7 @@ def clean_project(
                 echo=settings["echo"],
                 declick=settings["declick"],
             )
+            entries[clip.id]["words"] = mark
     report = {**settings, "target_lufs": VOICE_LUFS, "warnings": notes, "clips": entries}
     write_json(path, report)
     return report

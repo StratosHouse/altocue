@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from . import ffmpeg, grade, locks, mix, transitions
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .models import Clip, Edl, Segment
 from .project import Project
@@ -214,7 +215,7 @@ def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *,
     if slide:
         parts.append(slide)
     if segment.zoom_from != segment.zoom_to:
-        frames = max(1, round((segment.end - segment.start) * c.fps))
+        frames = segment_frames(segment, c.fps)
         parts.append(push_filter(c, frames, segment.zoom_from / steady, segment.zoom_to / steady, first, origin=origin, ease=segment.ease))
     if finish:
         parts.append(finish)
@@ -228,7 +229,11 @@ def encode_args(c: Canvas) -> list[str]:
 
 
 def segment_frames(segment: Segment, fps: int) -> int:
-    return max(1, round((segment.end - segment.start) * fps))
+    """The cut's own count. A shot of no frames is refused, never padded to one, so no stage counts it differently."""
+    frames = frame_count(segment.start, segment.end, fps)
+    if frames < 1:
+        raise AltocueError(f"Segment {segment.id} is shorter than one frame at {fps} fps.", fix="Lengthen or delete it in edl.json, or run `altocue cut`.")
+    return frames
 
 
 def _pad(seek: float, frames: int, clip: Clip, fps: int) -> tuple[float, int, str]:
@@ -236,7 +241,7 @@ def _pad(seek: float, frames: int, clip: Clip, fps: int) -> tuple[float, int, st
     lead = max(0, math.ceil(-seek * fps - 1e-6))
     begin = max(seek, 0.0)
     pads = [f"tpad=start_mode=clone:start={lead}"] if lead else []
-    if begin + (frames - lead) / fps > clip.duration - 1 / fps:
+    if begin + (frames - lead) / fps > clip.picture_duration - 1 / fps:  # the picture's own end: sound can outlast it, and then no frame comes
         pads.append("tpad=stop_mode=clone:stop=-1")
     return begin, lead, ",".join(pads)
 

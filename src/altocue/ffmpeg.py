@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -223,6 +224,26 @@ def _rate(value: str | None) -> float:
     return float(Fraction(value))
 
 
+def _seconds(value: Any) -> float:
+    """A stream's time as ffprobe prints it: plain seconds, or Matroska's 00:00:01.500000000. 0 when it says nothing usable."""
+    try:
+        hours, minutes, seconds = ([0.0, 0.0] + [float(part) for part in str(value).split(":")])[-3:]
+    except ValueError:
+        return 0.0
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def picture_seconds(video: dict[str, Any], rate: float, origin: float = 0.0) -> float:
+    """Where the video stream's last frame ends, read from the stream and never from the file, or 0 when it cannot be told.
+
+    `origin` is the file's own start time. A seek counts from there, so the answer does too.
+    """
+    length = _seconds(video.get("duration") or 0) or _seconds(video.get("tags", {}).get("DURATION") or 0)
+    if length <= 0 and rate > 0 and str(video.get("nb_frames", "")).isdigit():
+        length = int(video["nb_frames"]) / rate
+    return round(max(_seconds(video.get("start_time") or 0) - origin + length, 0.0), 6) if length > 0 else 0.0
+
+
 def probe_clip(path: str | Path, clip_id: str | None = None) -> Clip:
     """Read one source file. A file with no video stream is an error."""
     info = probe_json(path)
@@ -247,6 +268,7 @@ def probe_clip(path: str | Path, clip_id: str | None = None) -> Clip:
         has_audio=audio is not None,
         sample_rate=int(audio.get("sample_rate", 0)) if audio else 0,
         variable_frame_rate=bool(avg and real and abs(avg - real) > 0.5),
+        video_duration=picture_seconds(video, avg or real, _seconds(info.get("format", {}).get("start_time") or 0)),
     )
 
 
@@ -296,12 +318,13 @@ def read_wav(path: str | Path) -> tuple[np.ndarray, int]:
 
 
 def write_wav(path: str | Path, samples: np.ndarray, rate: int) -> Path:
+    """16 bit mono. Rounded to the nearest step, because cutting toward zero took a step off every sample at every stage."""
     pcm = np.clip(samples, -1.0, 1.0)
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(2)
         handle.setframerate(rate)
-        handle.writeframes((pcm * 32767).astype("<i2").tobytes())
+        handle.writeframes(np.rint(pcm * 32767).astype("<i2").tobytes())
     return Path(path)
 
 

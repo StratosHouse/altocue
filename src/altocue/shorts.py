@@ -205,7 +205,7 @@ def project_takes(project: Project, run: Path, until: float = 0.0) -> list[dict[
     lengths = [frame_count(segment.start, segment.end, edl.fps) for segment in edl.segments]
     if until:
         kept = [w for w in words if w["end"] <= until] or words[:1]
-        stop = min(sum(lengths), round((kept[-1]["end"] + 0.4) * edl.fps))
+        stop = min(sum(lengths), frame_count(0.0, kept[-1]["end"] + 0.4, edl.fps))
         words, total, cut_lengths = kept, 0, []
         for length in lengths:
             if total >= stop:

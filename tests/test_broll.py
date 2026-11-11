@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from threading import Thread
 
+import numpy as np
 import pytest
 
-from altocue import broll, cut
+from altocue import broll, cut, grade
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.models import Edl, Segment, Word
@@ -191,6 +193,114 @@ def test_a_pick_is_cut_to_length_and_reaches_the_timeline(project, clip):
     out = subprocess.run(probe, capture_output=True, text=True)
     assert out.stdout.strip().startswith("1080,1920,60")
     assert build_timeline(project)["inserts"][0]["file"] == inserts[0]["file"]
+
+
+def grey_clip(path, seconds: float = 3.0):
+    """A flat mid grey, so any colour in the insert made from it came from a look."""
+    source = ["-f", "lavfi", "-i", f"color=c=0x808080:s=320x568:r=30:d={seconds}"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *source, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
+    return path
+
+
+def colour_of(path) -> np.ndarray:
+    """The mean red, green and blue of a film's first frame, from 0 to 255."""
+    grab = ["ffmpeg", "-v", "error", "-i", str(path), "-frames:v", "1", "-vf", "scale=32:32", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    return np.frombuffer(subprocess.run(grab, capture_output=True, check=True).stdout, np.uint8).reshape(-1, 3).mean(axis=0)
+
+
+def look_of(project: Project, look: str) -> str:
+    """Bake a look as `altocue grade --look` does, and say which look the inserts now owe."""
+    grade.grade_project(project, look=look)
+    return grade.look_mark(project)
+
+
+def pick(project: Project, source, **spot) -> dict:
+    spots = [{"id": "b1", "start": 4.0, "end": 6.0, "phrase": "the desk", "query": "desk", "why": [], "options": [], **spot}]
+    write_json(project.work / broll.SPOTS_FILE, {"cut": project.cut_mark(), "spots": spots})
+    return broll.apply_picks(project, [f"b1=file:{source}"])[0]
+
+
+def test_the_look_reaches_an_insert(project, tmp_path):
+    """The speaker was graded and every cutaway was not, so a film in a look was two pictures."""
+    mark = look_of(project, "warm")
+    insert = pick(project, grey_clip(tmp_path / "desk.mp4"))
+    red, _, blue = colour_of(project.root / insert["file"])
+    assert red > blue + 4, "a warm look leans grey toward red and away from blue"
+    assert mark and insert["look"] == mark and insert["still"] is False and insert["prepared_from"] == str(tmp_path / "desk.mp4")
+
+
+def test_a_natural_look_leaves_an_insert_as_it_was(project, tmp_path):
+    assert look_of(project, "natural") == "" and grade.look_cube(project) is None  # natural is the identity, so there is nothing to bake
+    insert = pick(project, grey_clip(tmp_path / "desk.mp4"))
+    red, green, blue = colour_of(project.root / insert["file"])
+    assert abs(red - blue) < 1.5 and abs(red - green) < 1.5 and insert["look"] == ""
+
+
+def test_a_screen_recording_keeps_its_colour(project, tmp_path):
+    """A recording of a screen or an interface must stay true to what the screen showed."""
+    look_of(project, "warm")
+    insert = pick(project, grey_clip(tmp_path / "screen-recording.mp4"))
+    red, _, blue = colour_of(project.root / insert["file"])
+    assert abs(red - blue) < 1.5 and insert["look"] is False
+    asked = pick(project, grey_clip(tmp_path / "screen-recording.mp4"), look=True)  # the spot can ask for the look all the same
+    assert asked["look"] == grade.look_mark(project) and colour_of(project.root / asked["file"])[0] > colour_of(project.root / asked["file"])[2] + 4
+    product = pick(project, grey_clip(tmp_path / "bottle.mp4"), look=False)  # and any spot can refuse it
+    assert product["look"] is False and abs(float(np.ptp(colour_of(project.root / product["file"])))) < 1.5
+
+
+def test_what_counts_as_a_screen_recording_comes_from_your_own_words(tmp_path):
+    folder = tmp_path / "clips"
+    folder.mkdir()
+    for name in ("dashboard_UI.mp4", "sunscreen-beach.mp4", "settings.mov"):
+        (folder / name).write_bytes(b"x")
+    (folder / "settings.txt").write_text("a screen recording of the settings page")
+    tags = {Path(clip["path"]).name: clip["tags"] for clip in broll.library_clips([str(folder)])}
+    assert tags == {"dashboard_UI.mp4": ["ui"], "sunscreen-beach.mp4": [], "settings.mov": ["screen"]}
+    clips = broll.library_clips([str(folder)])
+    (hit,) = broll.match_library({"query": "settings", "phrase": "open the settings"}, clips)
+    assert hit["tags"] == ["screen"] and not broll.takes_look({}, hit)
+    assert broll.takes_look({}, {"source": "pexels", "title": "Phone screen close up"})  # a stock title is a subject, not a tag
+    assert broll.takes_look({"look": True}, hit) and not broll.takes_look({"look": False}, {"source": "library"})
+
+
+def test_a_changed_look_prepares_the_insert_again(project, tmp_path, capsys):
+    """The look an insert was prepared in is its key. Under another look, or none, it is made again from its source."""
+    look_of(project, "warm")
+    insert = pick(project, grey_clip(tmp_path / "desk.mp4"))
+    made = project.root / insert["file"]
+    assert broll.match_look(project) == []
+    stamp = made.stat().st_mtime_ns
+    cool = look_of(project, "cool")
+    assert broll.match_look(project) == ["b1"] and "prepared again" in capsys.readouterr().out
+    red, _, blue = colour_of(made)
+    assert blue > red + 4 and made.stat().st_mtime_ns != stamp
+    assert json.loads((project.root / broll.CHOSEN_FILE).read_text())["inserts"][0]["look"] == cool
+    stamp = made.stat().st_mtime_ns
+    assert broll.match_look(project) == [] and made.stat().st_mtime_ns == stamp
+    assert build_timeline(project)["inserts"][0]["file"] == insert["file"]
+    look_of(project, "natural")
+    assert broll.match_look(project) == ["b1"] and abs(float(np.ptp(colour_of(made)))) < 1.5
+
+
+def test_an_insert_that_keeps_its_colour_is_left_alone_when_the_look_changes(project, tmp_path):
+    look_of(project, "warm")
+    insert = pick(project, grey_clip(tmp_path / "screen-capture.mp4"))
+    stamp = (project.root / insert["file"]).stat().st_mtime_ns
+    look_of(project, "cool")
+    assert broll.match_look(project) == [] and (project.root / insert["file"]).stat().st_mtime_ns == stamp
+
+
+def test_a_pick_from_before_inserts_took_the_look_is_named_not_guessed(project, clip, capsys):
+    spot_ready(project, [{"source": "library", "file": str(clip), "title": "take"}])
+    broll.apply_picks(project, ["b1=c1"])
+    path = project.root / broll.CHOSEN_FILE
+    chosen = json.loads(path.read_text())
+    for key in ("look", "prepared_from", "still"):
+        del chosen["inserts"][0][key]
+    write_json(path, chosen)
+    look_of(project, "warm")
+    assert broll.match_look(project) == []
+    assert "b1: picked before inserts took the project's look" in capsys.readouterr().out
 
 
 def test_too_short_a_clip_is_refused(project, tmp_path):

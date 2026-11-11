@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 
 from .. import ffmpeg
+from ..cut.snap import frame_count
 
 REACH = 5  # frames either side of an edge
 SETTLED = 2  # the outermost frames each side, which stand for the two shots
@@ -28,7 +29,7 @@ EARLY, LATE, FOREIGN = "the next shot arrives early", "the last shot runs late",
 def frame_edges(insert: dict[str, Any], fps: float) -> tuple[int, int]:
     """The first frame of an insert and the first frame after it, rounded as `render.compose_args` rounds them."""
     first = round(float(insert["start"]) * fps)
-    return first, first + round((float(insert["end"]) - float(insert["start"])) * fps)
+    return first, first + frame_count(float(insert["start"]), float(insert["end"]), fps)
 
 
 def read_edge(file: Path, frame: int, fps: float) -> list[np.ndarray]:
