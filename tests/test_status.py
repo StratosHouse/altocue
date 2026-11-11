@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from conftest import make_clip
 
-from altocue import frame, grade, qa, render, status
+from altocue import clean, frame, grade, qa, render, status
 from altocue.cli import main
 from altocue.ingest import ingest
 from altocue.models import Edl, Removed, Segment, Word
@@ -34,6 +34,7 @@ def complete(tmp_path: Path) -> Project:
     ingest(project)
     project.save_words("take", [Word("hello", 0.1, 0.4)], "test")
     (project.audio_dir / "take.wav").write_bytes(b"sound")
+    write_json(project.audio_dir / "report.json", {"clips": {"take": {"words": clean.words_mark([(0.1, 0.4)])}}})
     project.save_edl(Edl(fps=30, segments=[Segment(id="s001", clip="take", start=0.0, end=0.9)]))
     grade.grade_project(project)
     frame.frame_project(project, force=True)
@@ -75,6 +76,20 @@ def test_a_changed_source_makes_the_words_stale_and_says_force(complete):
 def test_a_missing_transcript_is_not_run(complete):
     (complete.words_dir / "take.json").unlink()
     assert states(complete)["transcribe"] == "not run"
+
+
+def test_new_word_times_make_the_clean_sound_stale(complete):
+    """`altocue clean` redoes sound whose words moved, so status must not call it done."""
+    assert status.check_clean(complete).state == status.DONE
+    complete.save_words("take", [Word("hello", 0.3, 0.6)], "test")
+    look = status.check_clean(complete)
+    assert look.state == status.STALE and "word times of take" in look.detail
+    assert states(complete)["clean"] == "stale"
+
+
+def test_sound_with_no_record_of_its_words_is_stale(complete):
+    (complete.audio_dir / "report.json").unlink()
+    assert status.check_clean(complete).state == status.STALE
 
 
 def test_a_new_cut_makes_the_framing_and_render_stale_by_the_cut_mark(complete):

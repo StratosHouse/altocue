@@ -180,12 +180,13 @@ def read_wav(path: str | Path) -> tuple[np.ndarray, int]:
 
 
 def write_wav(path: str | Path, samples: np.ndarray, rate: int) -> Path:
+    """16 bit mono. Rounded to the nearest step, because cutting toward zero took a step off every sample at every stage."""
     pcm = np.clip(samples, -1.0, 1.0)
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(2)
         handle.setframerate(rate)
-        handle.writeframes((pcm * 32767).astype("<i2").tobytes())
+        handle.writeframes(np.rint(pcm * 32767).astype("<i2").tobytes())
     return Path(path)
 
 

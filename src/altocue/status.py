@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import frame, grade
+from . import clean, frame, grade
 from .errors import AltocueError
 from .project import Project
 from .qa import sha256
@@ -107,7 +107,13 @@ def check_clean(project: Project) -> Look:
     if missing:
         return Look(STALE, f"no clean sound yet for {', '.join(missing)}")
     changed = [clip.id for clip in voiced if _older_than(files[clip.id], [Path(clip.path)])]
-    return Look(STALE, f"{', '.join(changed)} changed after it was cleaned") if changed else Look(DONE)
+    if changed:
+        return Look(STALE, f"{', '.join(changed)} changed after it was cleaned")
+    report = project.audio_dir / "report.json"
+    entries = json.loads(report.read_text()).get("clips", {}) if report.exists() else {}
+    # the same test `altocue clean` makes before it reuses a file
+    reworded = [clip.id for clip in voiced if entries.get(clip.id, {}).get("words") != clean.words_mark(clean.word_times(project, clip))]
+    return Look(STALE, f"the word times of {', '.join(reworded)} are not the ones the sound was cleaned around") if reworded else Look(DONE)
 
 
 def check_grade(project: Project) -> Look:

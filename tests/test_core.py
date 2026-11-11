@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import tomllib
+import wave
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -56,6 +57,17 @@ def test_wav_round_trip(tmp_path):
     path = ffmpeg.write_wav(tmp_path / "a.wav", samples, 48000)
     back, rate = ffmpeg.read_wav(path)
     assert rate == 48000 and np.allclose(back, samples, atol=1e-3)
+
+
+def test_a_wav_is_rounded_to_the_nearest_step_not_cut_toward_zero(tmp_path):
+    """Cutting toward zero lost a step from every sample each time a stage wrote its sound."""
+    steps = np.array([0.6, -0.6, 0.4, -0.4, 100.7, -100.7, 5.0], dtype=np.float64) / 32767
+    with wave.open(str(ffmpeg.write_wav(tmp_path / "a.wav", steps, 16000)), "rb") as handle:
+        written = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2")
+    assert written.tolist() == [1, -1, 0, 0, 101, -101, 5]
+    quiet = np.arange(-2000, 2000, dtype=np.float32) / 32768  # what `read_wav` hands back for these steps
+    back, _ = ffmpeg.read_wav(ffmpeg.write_wav(tmp_path / "b.wav", quiet, 16000))
+    assert np.array_equal(back, quiet)  # a quiet voice survives any number of stages unchanged
 
 
 def test_loudness_measures(tmp_path, clip):
