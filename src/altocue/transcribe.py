@@ -247,6 +247,17 @@ class MlxWhisper(LocalEngine):
 class FasterWhisper(LocalEngine):
     english = "small.en"
     multilingual = "large-v3-turbo"
+    host = "huggingface.co"
+
+    def first_model(self, language: str = "en") -> str:
+        """The model a first transcription loads on this machine."""
+        return self.model or (self.multilingual if self.device() == "cuda" or language != "en" else self.english)
+
+    def fetch(self, name: str, *, offline: bool = False) -> None:
+        """The engine's own downloader, with no model loaded. `offline` only looks on disk, and raises when the model is not there."""
+        from faster_whisper import download_model  # pyright: ignore[reportMissingImports]
+
+        download_model(name, local_files_only=offline)
 
     def device(self) -> str:
         """An Nvidia card when there is one, unless ALTOCUE_WHISPER_DEVICE=cpu says otherwise."""

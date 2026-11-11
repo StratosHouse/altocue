@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import hashlib
 import math
-import urllib.request
 from pathlib import Path
 from statistics import median
 from typing import Any
@@ -50,9 +49,10 @@ def model() -> Path:
     if MODEL_PATH.exists() and hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest() == MODEL_SHA256:
         return MODEL_PATH
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    from .setup import download
+
     try:
-        with urllib.request.urlopen(MODEL_URL, timeout=60) as response:
-            data = response.read()
+        data = download(MODEL_URL, "the face landmarker model", timeout=60)
     except OSError as error:
         raise AltocueError(
             f"Could not download the face landmarker model: {error}", fix=f"Check this machine can reach the web, or put the file at {MODEL_PATH}."
