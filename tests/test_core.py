@@ -417,3 +417,37 @@ def test_a_path_that_is_not_there_never_opens_the_project_around_it(tmp_path):
     with pytest.raises(AltocueError, match="No folder at") as caught:
         Project.open(project.root / "typo")
     assert "Check the path" in caught.value.fix
+
+
+# Small things
+
+
+def test_every_renderer_flag_in_reach_explains_itself():
+    """`--renderer` had no help text on five commands. motion's own lives in a file this change does not touch."""
+    for command in ("run", "render", "deliver", "demo"):
+        parser = cli.Parser(prog=command)
+        __import__(cli.STAGES[command][0], fromlist=["add_arguments"]).add_arguments(command, parser)
+        action = next(action for action in parser._actions if action.dest == "renderer")
+        assert action.help and "hyperframes" in action.help and "basic" in action.help and "auto" in action.help, command
+
+
+def test_the_render_says_which_file_is_the_one_to_share(tmp_path, monkeypatch, capsys):
+    from altocue import render
+
+    project = Project.create(tmp_path / "video")
+    monkeypatch.setattr(render, "build", lambda project, draft, renderer: project.out / ("draft.mp4" if draft else "render.mp4"))
+    assert main(["render", "-p", str(project.root)]) == 0
+    out = capsys.readouterr().out
+    assert "render.mp4" in out and "`altocue master` makes out/final.mp4, and that is the file to share" in out
+    assert main(["render", "-p", str(project.root), "--draft"]) == 0
+    assert "final.mp4" not in capsys.readouterr().out
+
+
+def test_one_colour_is_one_colour(tmp_path):
+    from altocue import brand
+
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    (kit / "colours.txt").write_text("Ink #101820")
+    done = brand.ingest(Project.create(tmp_path / "video"), kit)
+    assert "1 colour from the kit" in done["read"]

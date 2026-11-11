@@ -12,6 +12,7 @@ from typing import Any
 from . import brand as brands
 from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
 from . import timeline as timelines
+from .cli import RENDERER_HELP
 from .errors import AltocueError
 from .motion import formats
 from .project import Project, write_json
@@ -21,7 +22,7 @@ from .stock import credits
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--draft", action="store_true", help="Half size, quick encode, no mastering")
-    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
+    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto", help=RENDERER_HELP)
 
 
 def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
@@ -229,4 +230,6 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
 def run(args: argparse.Namespace) -> int:
     dest = build(Project.open(args.project), draft=args.draft, renderer=args.renderer)
     print(f"Rendered {dest}")
+    if not args.draft:
+        print("That is the film before mastering. `altocue master` makes out/final.mp4, and that is the file to share.")
     return 0

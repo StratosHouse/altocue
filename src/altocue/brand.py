@@ -234,7 +234,7 @@ def ingest(project: Project, kit: Path | None, *, house: bool = False) -> dict[s
         found = kit_colours(folder)
         made["colors"], kept_colours = assign_colours(found, default["colors"])
         if found:
-            read.append(f"{len(found)} colours from the kit")
+            read.append(f"{len(found)} colour{'' if len(found) == 1 else 's'} from the kit")
         kept += [f"{name} colour" for name in kept_colours]
     font_value = (data.get("font") or {}).get("file")
     font = (folder / font_value) if font_value else _pick(folder, FONT_TYPES, "bold")

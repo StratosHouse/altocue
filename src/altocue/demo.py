@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from . import doctor, ffmpeg, locks, motion, qa
-from .cli import stage_args
+from .cli import RENDERER_HELP, stage_args
 from .errors import AltocueError
 from .generate import http, import_asset, store
 from .project import CONFIG, Project, write_json
@@ -55,7 +55,7 @@ PLAN = {
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--keep", nargs="?", const="altocue-demo", metavar="FOLDER", help="Keep the film, the pack and the review page in this folder")
-    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
+    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto", help=RENDERER_HELP)
 
 
 def fetch_sample(folder: Path) -> Path:

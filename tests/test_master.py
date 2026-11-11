@@ -238,11 +238,12 @@ def test_cli_input_needs_an_output(tmp_path, film, capsys):
     assert "--output" in capsys.readouterr().err
 
 
-def test_cli_defaults_to_the_project_render(tmp_path, film):
+def test_cli_defaults_to_the_project_render(tmp_path, film, capsys):
     project = Project.create(tmp_path / "video")
     (project.out / "render.mp4").write_bytes(film.read_bytes())
     assert main(["master", "--project", str(project.root)]) == 0
     assert (project.out / "final.mp4").exists()
+    assert "out/final.mp4 is the file to share" in capsys.readouterr().out, "two films sit side by side in out/, and nothing said which"
     report = json.loads((project.audio_dir / "master.json").read_text())
     assert report["integrated"] == pytest.approx(-14, abs=0.5)
 
