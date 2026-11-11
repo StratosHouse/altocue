@@ -42,7 +42,7 @@ class Clip(Model):
     has_audio: bool = True
     sample_rate: int = 0
     variable_frame_rate: bool = False
-    video_duration: float = 0.0  # where the picture ends on the file's clock. 0 when the file does not say, or media.json is older
+    video_duration: float = 0.0  # where the picture ends, counted from the file's start. 0 when the file does not say, or media.json is older
 
     @property
     def picture_duration(self) -> float:

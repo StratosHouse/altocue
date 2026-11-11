@@ -117,12 +117,15 @@ def _seconds(value: Any) -> float:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def picture_seconds(video: dict[str, Any], rate: float) -> float:
-    """Where the video stream's last frame ends, read from the stream and never from the file, or 0 when it cannot be told."""
+def picture_seconds(video: dict[str, Any], rate: float, origin: float = 0.0) -> float:
+    """Where the video stream's last frame ends, read from the stream and never from the file, or 0 when it cannot be told.
+
+    `origin` is the file's own start time. A seek counts from there, so the answer does too.
+    """
     length = _seconds(video.get("duration") or 0) or _seconds(video.get("tags", {}).get("DURATION") or 0)
     if length <= 0 and rate > 0 and str(video.get("nb_frames", "")).isdigit():
         length = int(video["nb_frames"]) / rate
-    return round(max(_seconds(video.get("start_time") or 0), 0.0) + length, 6) if length > 0 else 0.0
+    return round(max(_seconds(video.get("start_time") or 0) - origin + length, 0.0), 6) if length > 0 else 0.0
 
 
 def probe_clip(path: str | Path, clip_id: str | None = None) -> Clip:
@@ -149,7 +152,7 @@ def probe_clip(path: str | Path, clip_id: str | None = None) -> Clip:
         has_audio=audio is not None,
         sample_rate=int(audio.get("sample_rate", 0)) if audio else 0,
         variable_frame_rate=bool(avg and real and abs(avg - real) > 0.5),
-        video_duration=picture_seconds(video, avg or real),
+        video_duration=picture_seconds(video, avg or real, _seconds(info.get("format", {}).get("start_time") or 0)),
     )
 
 

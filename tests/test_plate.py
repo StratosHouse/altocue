@@ -70,6 +70,13 @@ def test_the_picture_of_a_clip_ends_where_its_video_stream_does():
     assert old.video_duration == 0 and old.picture_duration == 10.3
     assert Clip(id="a", path="a.mov", duration=10.3, fps=30, width=64, height=64, video_duration=10.0).picture_duration == 10.0
     assert Clip(id="a", path="a.mov", duration=10.0, fps=30, width=64, height=64, video_duration=10.02).picture_duration == 10.0
+    from altocue.ffmpeg import picture_seconds
+
+    assert picture_seconds({"duration": "10.000000", "start_time": "0.000000"}, 30.0) == 10.0
+    assert picture_seconds({"tags": {"DURATION": "00:00:10.500000000"}}, 30.0) == 10.5  # Matroska keeps it in a tag
+    assert picture_seconds({"nb_frames": "300"}, 30.0) == 10.0 and picture_seconds({}, 30.0) == 0.0
+    assert picture_seconds({"duration": "10.0", "start_time": "1.4"}, 30.0, 1.4) == 10.0  # a seek counts from where the file starts
+    assert picture_seconds({"duration": "10.0", "start_time": "0.5"}, 30.0, 0.0) == 10.5  # picture that starts late ends late
 
 
 def test_a_shot_that_ends_after_the_picture_does_holds_the_last_frame(tmp_path):
