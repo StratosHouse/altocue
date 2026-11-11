@@ -65,6 +65,7 @@ enabled = true          # off still converts HDR, so nothing goes out washed out
 look = "natural"        # natural, warm, cool, punchy, filmic, or a film look: `altocue grade --compare`
 look_strength = 1.0     # how much of the look or LUT, from 0 to 1
 lut = ""                # your own .cube file, in place of a look
+input = "auto"          # auto reads the file's own tags. Log footage needs its curve named: apple_log, slog3, vlog, clog3, flog2 or dlog. video means not log
 
 [frame]
 enabled = true

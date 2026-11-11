@@ -42,6 +42,7 @@ class Clip(Model):
     has_audio: bool = True
     sample_rate: int = 0
     variable_frame_rate: bool = False
+    input: str = ""  # A log curve from `[grade] input`, set by the grade while it works. ffprobe cannot see one, so it is never probed.
 
     @property
     def is_hdr(self) -> bool:
