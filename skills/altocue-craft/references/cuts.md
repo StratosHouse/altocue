@@ -84,4 +84,4 @@ A cut that is true to the feeling and breaks continuity is usually right. A cut 
 
 ## Reading your own cut
 
-After each pass, ask in this order: does it still feel right, does it still say the point, does it move. Then the smaller things: where the eye lands at each cut, whether any frame is a stray. `references/passes.md` has the full set of passes.
+After each pass, ask in this order: does it still feel right, does it still say the point, does it move. Then the smaller things: where the eye lands at each cut, whether any frame is a stray. [The passes](passes.md) has the full set.
