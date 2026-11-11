@@ -122,6 +122,59 @@ def test_run_stops_at_a_stage_that_fails(tmp_path, monkeypatch):
     assert ran == ["master", "qa"]
 
 
+def run_with_fakes(tmp_path, monkeypatch, **options):
+    """`altocue run` with stages that only leave their file behind, as the real ones do."""
+    from altocue import run
+
+    project = Project.create(tmp_path / "video")
+    ran = []
+
+    def stage(name):
+        ran.append(name)
+        path = run.made(project, name, draft=options.get("draft", False))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.mkdir(exist_ok=True) if not path.suffix else path.write_text("made")
+
+    monkeypatch.setattr(run, "stages", lambda project, args: {name: (lambda n=name: stage(n)) for name in run.ORDER})
+    args = argparse.Namespace(**{"project": str(project.root), "start": "ingest", "end": "qa", "draft": False, **options})
+    return project, ran, run.run(args)
+
+
+@pytest.mark.parametrize("options", [{"start": "qa", "end": "cut"}, {"start": "master", "draft": True}, {"start": "qa", "end": "cut", "draft": True}])
+def test_run_refuses_a_from_that_comes_after_its_to(tmp_path, monkeypatch, capsys, options):
+    """It ran no stage and printed Done with the path of a film it never made."""
+    with pytest.raises(AltocueError, match="no stage would run") as refused:
+        run_with_fakes(tmp_path, monkeypatch, **options)
+    assert "altocue run --from" in refused.value.fix
+    assert "Done" not in capsys.readouterr().out
+
+
+def test_run_names_what_it_made_and_not_a_film_it_did_not(tmp_path, monkeypatch, capsys):
+    project, ran, code = run_with_fakes(tmp_path, monkeypatch, end="cut")
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert code == 0 and ran == ["ingest", "transcribe", "cut"]
+    assert str(project.edl_path) in done and "final.mp4" not in done
+
+
+def test_run_closes_on_the_film_and_the_report_of_a_whole_run(tmp_path, monkeypatch, capsys):
+    project, _, code = run_with_fakes(tmp_path, monkeypatch)
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert code == 0 and str(project.out / "final.mp4") in done and str(project.review_dir / "qa.json") in done
+
+
+def test_a_draft_run_closes_on_the_draft(tmp_path, monkeypatch, capsys):
+    project, ran, code = run_with_fakes(tmp_path, monkeypatch, draft=True, end="qa")
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert code == 0 and ran[-1] == "render" and done == f"Done: {project.out / 'draft.mp4'}"
+
+
+def test_a_check_alone_does_not_claim_the_film(tmp_path, monkeypatch, capsys):
+    """`--from qa` measures a film an earlier run made. This run made the report."""
+    project, ran, _ = run_with_fakes(tmp_path, monkeypatch, start="qa")
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert ran == ["qa"] and done == f"Done: {project.review_dir / 'qa.json'}"
+
+
 def test_run_keeps_an_existing_cut_and_its_rulings(tmp_path, capsys):
     from altocue import run
 
