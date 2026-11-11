@@ -46,11 +46,20 @@ def plain_clip(path: Path, frames: int = 30, colour: str = "0x808080") -> Path:
     return path
 
 
-def drawn(tmp_path: Path, raw: dict, *, colour: str = "0x808080") -> np.ndarray:
+def patch_clip(path: Path, frames: int = 30) -> Path:
+    """Black, mid grey and white side by side, each a third of the frame."""
+    colours = ("black", "0x808080", "white")
+    patches = ";".join(f"color=c={colour}:s=60x320:r=30:d={frames / 30}[p{index}]" for index, colour in enumerate(colours))
+    args = ["-v", "error", "-y", "-filter_complex", f"{patches};[p0][p1][p2]hstack=inputs=3[out]", "-map", "[out]"]
+    subprocess.run(["ffmpeg", *args, *encode_args(C), str(path)], check=True)
+    return path
+
+
+def drawn(tmp_path: Path, raw: dict, *, colour: str = "0x808080", patches: bool = False) -> np.ndarray:
     """Run one overlay through the same graph the render uses, and read the frames back."""
     tmp_path.mkdir(exist_ok=True)
     project = Project.create(tmp_path / "video")
-    base = plain_clip(tmp_path / "base.mp4", colour=colour)
+    base = patch_clip(tmp_path / "base.mp4") if patches else plain_clip(tmp_path / "base.mp4", colour=colour)
     items = overlays.prepare(project, overlays.parse(raw), C)
     inputs, graph, label = overlays.graph(items, "b", C, 1)
     filters = ";".join(["[0:v]null[b]", *graph])
@@ -67,6 +76,31 @@ def test_grain_moves_every_frame_and_leaves_the_level_alone(tmp_path):
     assert len(frames) == 30
     assert abs(frames.mean() - plain.mean()) < 1.5
     assert frames[0].std() > 1 and np.abs(frames[0] - frames[1]).mean() > 0.5
+
+
+def test_grain_is_strongest_in_the_mids_and_gone_in_black_and_white(tmp_path):
+    """Film grain fades into pure black and paper white. Laid on at one strength everywhere, it lifts black and dims white."""
+    frames = drawn(tmp_path, {"type": "grain", "amount": 0.4}, patches=True)
+    plain = drawn(tmp_path / "plain", {"type": "grain", "amount": 0.0}, patches=True)
+    black, mid, white = (frames[:, :, left : left + 44] for left in (8, 68, 128))  # clear of the edges between patches
+    amplitude = [float((patch - patch.mean(axis=0)).std()) for patch in (black, mid, white)]  # what moves from frame to frame
+    assert amplitude[1] > 2.0 and amplitude[1] > 5 * amplitude[0] and amplitude[1] > 5 * amplitude[2]
+    assert amplitude[0] < 0.6 and amplitude[2] < 0.6
+    shift = [float(patch.mean() - plain[:, :, left : left + 44].mean()) for patch, left in ((black, 8), (mid, 68), (white, 128))]
+    assert abs(shift[0]) < 0.5 and abs(shift[1]) < 1.5 and abs(shift[2]) < 0.5  # black is not lifted and white is not dimmed
+    assert np.abs(mid[0] - mid[1]).mean() > 0.5  # new grain on every frame
+
+
+def test_grain_at_mid_grey_is_as_strong_as_it_was(tmp_path):
+    """`amount` keeps its meaning: at mid grey the overlay blend and the hardlight blend it replaced are the same."""
+    new = drawn(tmp_path, {"type": "grain", "amount": 0.4})
+    assert overlays.GRAIN_BLEND == "overlay"
+    try:
+        overlays.GRAIN_BLEND = "hardlight"
+        old = drawn(tmp_path / "old", {"type": "grain", "amount": 0.4})
+    finally:
+        overlays.GRAIN_BLEND = "overlay"
+    assert new.std() == pytest.approx(old.std(), rel=0.15)
 
 
 def test_amount_zero_changes_nothing(tmp_path):
@@ -110,7 +144,7 @@ def test_overlays_sit_under_the_graphics_in_the_composite(tmp_path):
     plan = {"tail": 0, "inserts": [], "total": 2.0, "overlay": items}
     args = render.compose_args(project, tmp_path / "p.mp4", tmp_path / "a.wav", layer, plan, C, tmp_path / "o.mp4")
     graph = args[args.index("-filter_complex") + 1]
-    assert graph.index("hardlight") < graph.index("[gfx]overlay")
+    assert graph.index("blend=c0_mode=overlay") < graph.index("[gfx]overlay")
 
 
 def test_an_insert_with_edges_is_one_clip_with_the_plate_blended_in(tmp_path):
