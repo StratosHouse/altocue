@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import io
 import json
 import math
@@ -726,6 +727,7 @@ def fake_whisper(monkeypatch, gpus: int, cuda_fails: bool = False) -> list[tuple
 
     monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=Model))
     monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: gpus))
+    monkeypatch.setattr(transcribe, "load_faster_whisper", functools.lru_cache(maxsize=2)(transcribe.load_faster_whisper.__wrapped__))  # no model kept from another test
     monkeypatch.setattr(ffmpeg, "read_wav", lambda *_: (np.zeros(16000, dtype=np.float32), 16000))
     monkeypatch.delenv("ALTOCUE_WHISPER_DEVICE", raising=False)
     return made
@@ -752,7 +754,33 @@ def test_faster_whisper_stays_on_the_cpu_without_a_card_or_when_told(monkeypatch
     monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: 1))
     monkeypatch.setenv("ALTOCUE_WHISPER_DEVICE", "cpu")
     transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
-    assert made == [("small.en", "cpu", "int8"), ("small.en", "cpu", "int8")]
+    assert made == [("small.en", "cpu", "int8")] and len(seen) == 2  # both ran on the CPU, on the one model
+
+
+def test_the_whisper_model_is_built_once_for_every_piece_of_a_long_recording(monkeypatch, tmp_path):
+    """It was built again for each 60 second piece, so a half hour recording loaded it about thirty times."""
+    made = fake_whisper(monkeypatch, gpus=0)
+    monkeypatch.setattr(ffmpeg, "extract_wav", lambda source, dest, **_: dest)
+    envelope = Envelope.of_levels(np.full(int(200 / transcribe.HOP), -30.0))
+    marks = transcribe.quiet_marks(envelope, 200.0)
+    engine = transcribe.ENGINES["faster-whisper"]
+    words = transcribe.in_pieces(engine, tmp_path / "a.wav", envelope, 200.0, language="en", prompt="")
+    assert len(marks) >= 2 and len(seen) == len(marks) + 1
+    assert made == [("small.en", "cpu", "int8")]
+    assert [word.start for word in words] == [0.0, *marks]  # each piece's words still land at that piece's own start
+    engine.transcribe(tmp_path / "b.wav", language="en", prompt="")
+    assert made == [("small.en", "cpu", "int8")]  # the next clip in the run uses it too
+
+
+def test_a_whisper_model_is_kept_by_name_device_and_precision(monkeypatch, tmp_path):
+    made = fake_whisper(monkeypatch, gpus=1, cuda_fails=True)
+    engine = transcribe.ENGINES["faster-whisper"]
+    engine.transcribe(tmp_path / "a.wav", language="en", prompt="")
+    engine.transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("large-v3-turbo", "cuda", "float16"), ("small.en", "cpu", "int8")]  # the fallback does not rebuild either
+    assert transcribe.load_faster_whisper("small.en", "cpu", "int8") is transcribe.load_faster_whisper("small.en", "cpu", "int8")
+    transcribe.load_faster_whisper("small.en", "cpu", "float32")
+    assert made[-1] == ("small.en", "cpu", "float32")
 
 
 def test_a_finished_render_is_read_back_with_speech_detection(monkeypatch, tmp_path):

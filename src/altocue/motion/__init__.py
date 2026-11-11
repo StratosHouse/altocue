@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import copy
+from typing import Any
 
 from .. import brand as brands
 from ..errors import AltocueError
@@ -34,10 +36,11 @@ def pick(name: str = "auto") -> Renderer:
     raise AltocueError("No renderer is available.", fix="Run `altocue doctor`.")
 
 
-def render_layers(project: Project, *, renderer: str = "auto", draft: bool = False) -> Layer:
+def render_layers(project: Project, *, renderer: str = "auto", draft: bool = False, timeline: dict[str, Any] | None = None) -> Layer:
+    """`timeline` is one the caller has just built. The render built it twice, and placing graphics reads the plate each time."""
     from .. import timeline as timelines
 
-    timeline = timelines.build(project, draft=draft)
+    timeline = copy.deepcopy(timeline) if timeline is not None else timelines.build(project, draft=draft)  # a renderer never shares the caller's copy
     chosen = pick(renderer)
     return chosen.render(timeline, brands.load(project), project.layers_dir, draft=draft)
 

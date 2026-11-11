@@ -15,10 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import frame, grade
 from .errors import AltocueError
 from .project import Project
-from .qa import sha256
 
 DONE, STALE, NOT_RUN = "done", "stale", "not run"
 PAGE_FILM = re.compile(r'name="altocue-film" content="([0-9a-f]{64})"')
@@ -113,6 +111,8 @@ def check_clean(project: Project) -> Look:
 def check_grade(project: Project) -> Look:
     if not (project.lut_dir / "report.json").exists() or not project.media_path.exists():
         return Look(NOT_RUN)
+    from . import grade  # here and below: these load NumPy and OpenCV, which `altocue status --help` should never wait for
+
     return Look(DONE) if grade.up_to_date(project) else Look(STALE, "the cut, the look or a source changed")
 
 
@@ -121,6 +121,8 @@ def check_frame(project: Project) -> Look:
         return Look(DONE, "off in altocue.toml")
     if not project.edl_path.exists() or not (project.work / "frame.json").exists():
         return Look(NOT_RUN)
+    from . import frame
+
     return Look(DONE) if frame.up_to_date(project) else Look(STALE, "the cut, the aspect or a frame setting changed")
 
 
@@ -188,7 +190,11 @@ def check_master(project: Project) -> Look:
 
 def _final_hash(project: Project) -> str:
     file = project.out / "final.mp4"
-    return sha256(file) if file.exists() else ""
+    if not file.exists():
+        return ""
+    from .qa import sha256
+
+    return sha256(file)
 
 
 def check_qa(project: Project) -> Look:

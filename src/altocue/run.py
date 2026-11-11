@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib
+import time
 from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from .cli import stage_args
-from .project import Project
+from .project import Project, write_json
 
 ORDER = ("ingest", "transcribe", "cut", "clean", "grade", "frame", "render", "master", "qa", "review")
 
@@ -54,7 +58,7 @@ def stages(project: Project, args: argparse.Namespace) -> dict[str, Callable[[],
         )
         return load("review").run(chosen)
 
-    return {
+    table: dict[str, Callable[[], object]] = {
         "ingest": lambda: load("ingest").ingest(project),
         "transcribe": lambda: load("transcribe").transcribe_project(project),
         "cut": do_cut,
@@ -66,8 +70,50 @@ def stages(project: Project, args: argparse.Namespace) -> dict[str, Callable[[],
         "qa": do_qa,
         "review": do_review,
     }
+    spent = vars(args).setdefault("spent", [])
+    return {name: timed(project, name, call, spent) for name, call in table.items()}
 
 
+def timed(project: Project, name: str, call: Callable[[], object], spent: list[dict[str, Any]]) -> Callable[[], object]:
+    """Time one stage. work/timings.json is written as each stage ends, so a run that stops still says where its time went."""
+
+    def stage() -> object:
+        started, began = datetime.now(UTC).isoformat(timespec="seconds"), time.perf_counter()
+        try:
+            return call()
+        finally:
+            spent.append({"stage": name, "seconds": round(time.perf_counter() - began, 3), "started": started})
+            write_json(project.work / "timings.json", {"stages": spent, "total": round(sum(row["seconds"] for row in spent), 3)})
+
+    return stage
+
+
+def clock(seconds: float) -> str:
+    return f"{seconds:.1f} s" if seconds < 60 else f"{int(seconds // 60)} min {int(seconds % 60)} s"
+
+
+def time_line(spent: list[dict[str, Any]]) -> str:
+    """One line, slowest stage first."""
+    rows = sorted(spent, key=lambda row: row["seconds"], reverse=True)
+    total = sum(row["seconds"] for row in spent)
+    return f"Time: {clock(total)}. " + ", ".join(f"{row['stage']} {clock(row['seconds'])}" for row in rows) + ". Kept in work/timings.json."
+
+
+def with_times(command: Callable[[argparse.Namespace], int]) -> Callable[[argparse.Namespace], int]:
+    """Say where the time went once the run is over, whether it finished, stopped at a stage or failed."""
+
+    @functools.wraps(command)
+    def wrapper(args: argparse.Namespace) -> int:
+        try:
+            return command(args)
+        finally:
+            if getattr(args, "spent", None):
+                print(time_line(args.spent), flush=True)
+
+    return wrapper
+
+
+@with_times
 def run(args: argparse.Namespace) -> int:
     project = Project.open(args.project)
     from . import brand as brands

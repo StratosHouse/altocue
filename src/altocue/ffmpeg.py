@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import contextvars
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
+import threading
+import time
 import wave
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from fractions import Fraction
 from functools import lru_cache
 from pathlib import Path
@@ -32,10 +39,119 @@ def require(tool: str = "ffmpeg") -> str:
     return found
 
 
+PROGRESS_AFTER = 5.0  # seconds a job runs before its first line, so a short job says nothing
+PROGRESS_EVERY = 5.0  # seconds between lines
+
+
+@dataclass
+class Progress:
+    """How far a long encode has got: lines on stderr and, with `file`, the same numbers as JSON for an agent to poll.
+
+    `seconds` is the length of picture the whole job encodes. Several ffmpeg calls can share one job, and each adds
+    the picture it encoded. A sound mix or a stream copy inside the job encodes no picture, so it does not move it.
+    """
+
+    label: str
+    seconds: float
+    file: Path | None = None
+    encoded: float = 0.0  # picture finished by calls that are over
+    began: float = field(default_factory=lambda: time.monotonic())
+    said: float | None = None  # when the last line went out
+
+    def at(self, encoded: float) -> None:
+        """A call is `encoded` seconds into its own picture. Says so, unless the job is young or spoke a moment ago."""
+        now = time.monotonic()
+        if now - self.began < PROGRESS_AFTER or (self.said is not None and now - self.said < PROGRESS_EVERY):
+            return
+        self.said = now
+        record = self.record(self.encoded + encoded, now, running=True)
+        spent = int(now - self.began)
+        print(f"{self.label}: {record['percent']}% after {spent // 60}:{spent % 60:02d}", file=sys.stderr, flush=True)  # never stdout: `altocue mcp` and pipes own it
+        self.write(record)
+
+    def record(self, encoded: float, now: float, *, running: bool) -> dict[str, object]:
+        share = min(max(encoded / self.seconds, 0.0), 1.0)
+        times = {"encoded": round(min(encoded, self.seconds), 3), "seconds": round(self.seconds, 3), "elapsed": round(now - self.began, 1)}
+        return {"label": self.label, "percent": int(share * 100), **times, "running": running}
+
+    def write(self, record: dict[str, object]) -> None:
+        if self.file is None:
+            return
+        try:
+            self.file.parent.mkdir(parents=True, exist_ok=True)
+            part = self.file.with_name(self.file.name + ".part")
+            part.write_text(json.dumps(record) + "\n")
+            part.replace(self.file)
+        except OSError:
+            pass  # progress is a courtesy, and a full disk must stop the encode in ffmpeg's own words
+
+    def close(self) -> None:
+        """A file that says "running" must not outlive the job. A job that never spoke leaves no file."""
+        if self.said is not None:
+            self.write(self.record(self.encoded, time.monotonic(), running=False))
+
+
+_JOB: contextvars.ContextVar[Progress | None] = contextvars.ContextVar("altocue_ffmpeg_progress", default=None)
+
+
+@contextmanager
+def progress(label: str, seconds: float, file: Path | None = None) -> Iterator[None]:
+    """Every picture `run` encodes inside this block reports to one job, `seconds` of picture long.
+
+    Opt-in: outside a block `run` is as quiet as ever. With no length to measure against, nothing is reported.
+    """
+    if seconds <= 0:
+        yield
+        return
+    job = Progress(label, seconds, file)
+    token = _JOB.set(job)
+    try:
+        yield
+    finally:
+        _JOB.reset(token)
+        job.close()
+
+
+def _reports(args: list[str]) -> bool:
+    """False for a stream copy, which encodes nothing, and for a call that writes to stdout, where progress would land in its output."""
+    copies = any(option in {"-c", "-c:v", "-codec", "-codec:v", "-vcodec"} and value == "copy" for option, value in zip(args, args[1:], strict=False))
+    return not copies and not any(arg == "-" or arg.startswith("pipe:") for arg in args)
+
+
+def _watched(cmd: list[str], job: Progress) -> subprocess.CompletedProcess[str]:
+    """Run ffmpeg with its progress on stdout. Its log is still captured whole, so the result is the one a plain run gives."""
+    watch = [*cmd[:4], "-progress", "pipe:1", "-nostats", *cmd[4:]]
+    process = subprocess.Popen(watch, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace")
+    log: list[str] = []
+    reader = threading.Thread(target=lambda: log.append(process.stderr.read()), daemon=True)  # type: ignore[union-attr]
+    reader.start()
+    encoded, picture = 0.0, False
+    try:
+        for line in process.stdout:  # type: ignore[union-attr]
+            key, _, value = line.strip().partition("=")
+            picture = picture or key == "frame"  # a call with no picture never names a frame
+            if picture and key == "out_time_us" and value.isdecimal():
+                encoded = max(encoded, int(value) / 1e6)
+                job.at(encoded)
+        code = process.wait()
+    except BaseException:
+        process.kill()
+        process.wait()
+        raise
+    finally:
+        reader.join()
+        job.encoded += encoded
+    return subprocess.CompletedProcess(cmd, code, "", "".join(log))
+
+
 def run(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess[str]:
-    """Run ffmpeg quietly. On failure the error carries the end of its log."""
+    """Run ffmpeg quietly. On failure the error carries the end of its log. Inside a `progress` block, a long encode says how far it is."""
     cmd = [require("ffmpeg"), "-hide_banner", "-nostdin", "-y", *args]
-    done = subprocess.run(cmd, capture_output=capture, text=True, errors="replace")
+    job = _JOB.get()
+    if job is not None and capture and _reports(args):
+        done = _watched(cmd, job)
+    else:
+        done = subprocess.run(cmd, capture_output=capture, text=True, errors="replace")
     if done.returncode != 0:
         tail = "\n".join((done.stderr or "").strip().splitlines()[-8:])
         raise AltocueError(f"ffmpeg failed:\n{tail}")

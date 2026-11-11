@@ -205,11 +205,13 @@ def bake_edges(project: Project, timeline: dict[str, Any], picture: Path, c: pla
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:
     with locks.heavy("rendering"):
         frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
-        picture, voice = plate.build(project, draft=draft)
+        said = project.work / "progress.json"  # the same numbers the lines carry, for an agent that polls
+        with ffmpeg.progress("Building the picture", project.edl().duration if project.edl_path.exists() else 0.0, said):
+            picture, voice = plate.build(project, draft=draft)
         caption.build(project)
         timeline = timelines.build(project, draft=draft)
         credits.write_txt(project)
-        layer = motion.render_layers(project, renderer=renderer, draft=draft)
+        layer = motion.render_layers(project, renderer=renderer, draft=draft, timeline=timeline)  # built once: placing graphics reads the plate
         c = plate.canvas(project, draft=draft)
         if (project.root / "studio.json").is_file():
             from .studio import attach
@@ -219,7 +221,8 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         dest = project.out / ("draft.mp4" if draft else "render.mp4")
         dest.parent.mkdir(parents=True, exist_ok=True)
         timeline = bake_edges(project, timeline, picture, c, draft=draft)
-        ffmpeg.run(compose_args(project, picture, audio, layer, timeline, c, dest))
+        with ffmpeg.progress("Compositing", timeline["total"], said):
+            ffmpeg.run(compose_args(project, picture, audio, layer, timeline, c, dest))
     if not draft:
         write_json(project.work / "render.json", {"cut": project.cut_mark(), "studio": (project.root / "studio.json").is_file()})
     return dest

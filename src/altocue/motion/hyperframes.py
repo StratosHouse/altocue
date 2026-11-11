@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -36,6 +38,37 @@ def font_tool() -> Path:
 def quiet_env() -> dict[str, str]:
     """Every call to the renderer, setup included, runs with telemetry and update checks off."""
     return {**os.environ, "HYPERFRAMES_NO_TELEMETRY": "1", "HYPERFRAMES_NO_UPDATE_CHECK": "1", "DO_NOT_TRACK": "1"}
+
+
+def renderer_version() -> str:
+    """The HyperFrames that is installed, or the one pinned when that cannot be read. A new renderer may draw the same page another way."""
+    folder = install_dir()
+    for path, keys in ((folder / "node_modules" / "hyperframes" / "package.json", ("version",)), (folder / "package.json", ("dependencies", "hyperframes"))):
+        try:
+            found: Any = json.loads(path.read_text())
+            for key in keys:
+                found = found[key]
+            return str(found)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return ""
+
+
+def layer_key(stage: Path, **settings: Any) -> str:
+    """Everything a layer is drawn from: every file on the stage, byte for byte, and what the renderer is asked to make of it."""
+    digest = hashlib.sha256(json.dumps(settings, sort_keys=True).encode())
+    for path in sorted(found for found in stage.rglob("*") if found.is_file()):
+        digest.update(path.relative_to(stage).as_posix().encode() + b"\0" + hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def kept_layer(output: Path, key: str) -> bool:
+    """True when the layer beside this note was drawn from the same key and is still the file that render wrote."""
+    try:
+        note = json.loads(output.with_suffix(".json").read_text())
+        return note["key"] == key and output.stat().st_size == note["bytes"] > 0
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
 
 
 def install_assets(timeline: dict[str, Any], brand: Brand, stage: Path) -> None:
@@ -81,11 +114,20 @@ class HyperFramesRenderer:
         (stage / "index.html").write_text(compose(timeline, brand))
         output = dest / ("overlay-draft.mov" if draft else "overlay.mov")
         fps = 15 if draft else timeline["fps"]
+        quality = "draft" if draft else "delivery"
+        size = [timeline.get("width"), timeline.get("height"), timeline.get("total")]
+        key = layer_key(stage, fps=fps, quality=quality, format="mov", size=size, renderer=renderer_version())
+        if kept_layer(output, key):  # a new music bed or insert, or the same edit rendered again, changes nothing the layer shows
+            print("The graphics have not changed, so the last layer is used.", flush=True)
+            return Layer(path=output, renderer=self.id)
+        note = output.with_suffix(".json")
+        note.unlink(missing_ok=True)  # a render that stops halfway must not leave the old key beside a new file
         cmd = [str(binary()), "render", str(stage), "--format", "mov", "--output", str(output), "--fps", str(fps), "--quiet"]
-        cmd += ["--quality", "draft" if draft else "delivery", "--workers", str(render_workers())]
+        cmd += ["--quality", quality, "--workers", str(render_workers())]
         with heavy("rendering the graphics"):
             done = subprocess.run(cmd, check=False, capture_output=True, text=True, env=quiet_env())
         if done.returncode != 0 or not output.exists():
             tail = "\n".join((done.stdout + done.stderr).strip().splitlines()[-10:])
             raise AltocueError(f"HyperFrames could not render the graphics:\n{tail}", fix="Run `altocue doctor`, or use `--renderer basic`.")
+        note.write_text(json.dumps({"key": key, "bytes": output.stat().st_size}) + "\n")
         return Layer(path=output, renderer=self.id)
