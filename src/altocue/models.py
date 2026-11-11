@@ -80,6 +80,8 @@ class Segment(Model):
     label: str = ""
     crop: list[float] | None = None
     path: list[list[float]] | None = None  # [seconds into the segment, x, y] keyframes when the crop moves. `crop` holds its size
+    origin: list[float] | None = None  # [x, y] in display pixels: the point a zoom holds still, the eyes when `frame` found them. None is mid crop, 42 percent down
+    ease: list[float] | None = None  # [seconds into a push at this segment's first frame, seconds the whole push lasts]. None moves at an even speed
     no_snap_in: bool = False
     no_snap_out: bool = False
     held: list[str] = field(default_factory=list)  # gain, crop or zoom set by hand: `frame` leaves these, and a re-cut carries them

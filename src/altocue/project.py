@@ -69,8 +69,10 @@ input = "auto"          # auto reads the file's own tags. Log footage needs its 
 
 [frame]
 enabled = true
-punch_in = 1.12         # zoom used to hide jump cuts
-push_in = 0.0           # slow zoom added per shot, such as 0.04
+punch_in = 1.12         # the tighter shot size. The size changes only where a new beat opens on a jump cut
+# min_hold = 2.0        # seconds a shot size stays before it may change. Left out, [cut] pace sets it: tight 1.2, natural 2.0, relaxed 3.0
+push_rate = 0.0         # slow push per second over each held shot, such as 0.008. It eases in and out and stops 0.06 up
+# emphasis = ["the line that matters"]   # spoken phrases whose beat plays at the tighter size
 follow = "auto"         # auto moves the crop only when a still one fails: a walk, or a wide shot of people taking turns. on, off
 
 [broll]
