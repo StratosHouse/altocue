@@ -27,9 +27,22 @@ NAME = "altocue"
 PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 REPO = "https://github.com/StratosHouse/altocue"
 UV_INSTALLER = "https://astral.sh/uv/install.sh"
-# Commands light enough to run beside a render. Anything else waits for the running job, because two heavy jobs at once
-# have crashed a 16 GB Mac.
-LIGHT = {"doctor", "start", "status", "recipes", "credits", "library", "--help", "-h", "--version"}
+# Commands light enough to run beside a render: each reads, lists, or changes one small file. Anything else waits for the
+# running job, because two heavy jobs at once have crashed a 16 GB Mac. This is only what the server refuses to start.
+# The command's own lock still makes a render, a transcription or a film wait its turn, whatever is listed here.
+LIGHT = {
+    "doctor", "start", "status", "recipes", "credits", "library", "brand", "new", "ingest", "caption", "music", "sfx", "learn", "launch",
+    "--help", "-h", "--version",
+}  # fmt: skip
+# Light for these sub-actions only. `film render` is heavy, and `film types` is a list.
+LIGHT_ACTIONS = {"film": {"types", "new", "check", "approve"}, "studio": {"catalog", "example", "validate"}, "stageshow": {"doctor"}}
+# Light when one of these flags is given. A fresh `cut` reads every clip's sound, and `cut --apply-review` only applies rulings.
+LIGHT_FLAGS = {
+    "cut": {"--apply-review", "--remove", "--write-script", "--from-script"},
+    "generate": {"--report", "--dry-run", "--reserve", "--release", "--cancel"},
+    "broll": {"--search"},
+    "timeline": {"--stop"},
+}
 MAX_WAIT = 600
 OUTPUT_CHARS = 16000
 
@@ -301,6 +314,18 @@ def tool_install(args: dict) -> dict:
     return found
 
 
+def weight(argv: list) -> str:
+    """`light` when the command may start beside a running job, judged by its sub-action and flags. Anything unknown is `heavy`."""
+    command, rest = argv[0], argv[1:]
+    if command in LIGHT or "--help" in rest or "-h" in rest:
+        return "light"
+    if rest and rest[0] in LIGHT_ACTIONS.get(command, ()):
+        return "light"
+    if any(piece.split("=", 1)[0] in LIGHT_FLAGS.get(command, ()) for piece in rest):
+        return "light"
+    return "heavy"
+
+
 def tool_run(args: dict) -> dict:
     argv = args.get("args")
     if not isinstance(argv, list) or not argv or not all(isinstance(piece, str) and "\x00" not in piece for piece in argv):
@@ -313,12 +338,13 @@ def tool_run(args: dict) -> dict:
     cwd = args.get("cwd") or os.getcwd()
     if not os.path.isdir(cwd):
         raise ToolError(f"cwd {cwd} is not a folder. Pass the project folder or the folder that holds the footage, as an absolute path.")
-    kind = "light" if argv[0] in LIGHT else "heavy"
+    kind = weight(argv)
     running = busy() if kind == "heavy" else None
     if running:
         raise ToolError(
             f"Job {running.id} ({running.report(1)['command']}) is still running, and heavy jobs run one at a time. "
-            "Follow it with altocue_job, or stop it with altocue_stop."
+            "Follow it with altocue_job, or stop it with altocue_stop. Quick commands still run beside it, such as status, brand, new, "
+            "sfx list, film types and cut --apply-review."
         )
     job = start([exe] + argv, cwd, kind)
     job.wait(wait_seconds(args, 60))
@@ -504,6 +530,7 @@ TOOLS = [
             'Runs one altocue command, given as its arguments without "altocue", such as ["new", "my-video", "--input", "/abs/take.mov", "--aspect", "9:16"], '
             '["run", "-p", "/abs/my-video"], ["status", "-p", "/abs/my-video"] or ["demo"]. Use absolute paths, or set cwd. '
             "A long command keeps running and returns a job id for altocue_job. Heavy commands run one at a time. "
+            "Quick ones, such as status, brand, new, sfx list, film types and cut --apply-review, still run while one is going. "
             "Never add a flag that spends money, uploads footage or installs software, such as --yes, --upload, --paid-key or --allow-upload, "
             "unless the user agreed to that exact step."
         ),

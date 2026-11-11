@@ -249,6 +249,79 @@ def test_heavy_jobs_run_one_at_a_time_and_stop_cleanly(fake_altocue, tmp_path):
     assert mcp.tool_run({"args": ["clean"], "cwd": str(tmp_path), "wait_seconds": 20})["state"] == "finished"
 
 
+LIGHT_BESIDE_A_RENDER = (
+    ["sfx", "list"],
+    ["brand", "show", "-p", "third"],
+    ["cut", "--apply-review", "rulings.json"],
+    ["cut", "-p", "third", "--remove", "s003", "--reason", "off topic"],
+    ["film", "types"],
+    ["film", "check", "-p", "launch"],
+    ["status", "--json"],
+    ["start", "--show", "--json"],
+    ["new", "third", "--input", "take.mov"],
+    ["caption"],
+    ["music", "search", "calm piano"],
+    ["generate", "--report"],
+    ["timeline", "--stop"],
+    ["render", "--help"],
+    ["doctor"],
+)
+HEAVY = (
+    ["render", "--draft"],
+    ["run"],
+    ["transcribe"],
+    ["clean"],
+    ["grade"],
+    ["frame"],
+    ["qa"],
+    ["cut"],
+    ["film", "render"],
+    ["film", "stills"],
+    ["sfxx", "list"],
+    ["generate"],
+    ["timeline"],
+    ["clips", "cut"],
+    ["demo"],
+)
+
+
+def test_a_command_is_weighed_by_what_it_does_not_by_its_first_word():
+    """Over MCP `sfx list` and `brand show` were refused for the length of a render, because only the first word was read."""
+    assert [mcp.weight(argv) for argv in LIGHT_BESIDE_A_RENDER] == ["light"] * len(LIGHT_BESIDE_A_RENDER)
+    assert [mcp.weight(argv) for argv in HEAVY] == ["heavy"] * len(HEAVY)
+
+
+def test_every_light_name_is_a_real_command_or_sub_action():
+    from altocue import cli
+
+    commands = set(cli.STAGES)
+    assert {name for name in mcp.LIGHT if not name.startswith("-")} <= commands
+    assert set(mcp.LIGHT_ACTIONS) | set(mcp.LIGHT_FLAGS) <= commands
+    for command, flags in mcp.LIGHT_FLAGS.items():
+        parser = cli.Parser(prog=command)
+        __import__(cli.STAGES[command][0], fromlist=["add_arguments"]).add_arguments(command, parser)
+        known = {option for action in parser._actions for option in action.option_strings}
+        assert flags <= known, (command, flags - known)
+    for command, actions in mcp.LIGHT_ACTIONS.items():
+        parser = cli.Parser(prog=command)
+        __import__(cli.STAGES[command][0], fromlist=["add_arguments"]).add_arguments(command, parser)
+        known = {choice for action in parser._actions for choice in (action.choices or ())}
+        assert actions <= known, (command, actions - known)
+
+
+def test_quick_commands_run_while_a_render_is_going(fake_altocue, tmp_path):
+    render = mcp.tool_run({"args": ["render"], "cwd": str(tmp_path), "wait_seconds": 0})
+    assert render["state"] == "running"
+    for argv in (["sfx", "list"], ["brand", "show", "-p", "third"], ["cut", "--apply-review", "rulings.json"], ["film", "types"]):
+        found = mcp.tool_run({"args": argv, "cwd": str(tmp_path), "wait_seconds": 20})
+        assert found["state"] == "finished" and f"ran {' '.join(argv)}" in found["output"], argv
+    with pytest.raises(mcp.ToolError, match="one at a time") as refused:
+        mcp.tool_run({"args": ["cut"], "cwd": str(tmp_path), "wait_seconds": 0})
+    assert "cut --apply-review" in str(refused.value), "the refusal says what still runs"
+    with pytest.raises(mcp.ToolError, match="one at a time"):
+        mcp.tool_run({"args": ["film", "render"], "cwd": str(tmp_path), "wait_seconds": 0})
+
+
 @pytest.fixture
 def this_altocue(tmp_path, monkeypatch):
     """This checkout's altocue as a command, for a tool that reads what the real one prints."""
