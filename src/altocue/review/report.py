@@ -25,6 +25,7 @@ GATE_ACTIONS = {
     "duration": "Re-render. A mismatch means the render and the EDL have drifted apart.",
     "cut_sound": "Move the cut to where speech starts, or label the shot as b-roll.",
     "word_starts": "Move the shot's in point back to the quiet before its first word, or run `altocue cut` again so the guard places it.",
+    "word_ends": "Move the shot's out point on to the quiet after its last word, or run `altocue cut` again so the guard places it.",
     "silence": "Close the gap in the cut, or label the shot as b-roll.",
     "words": "Compare the render with the expected words, then fix the cut.",
     "doubled_phrase": "Remove the repeat, or allow it under `allow_repeats` in rules.json.",

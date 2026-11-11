@@ -371,6 +371,32 @@ def test_fix_words_times_a_missed_first_word_and_closes_a_false_pause(tmp_path):
     assert not measured.exists()
 
 
+@needs_ffmpeg
+def test_fix_words_lets_a_takes_edge_words_follow_the_sound(tmp_path):
+    """A Reel played "doll" for "dollars": the recognizer ended the take's last word 0.4 s before the sound did."""
+    run = tmp_path / "run"
+    sound(run / "media" / "takes" / "take-01.wav", [(0.1, 2.4)], 3.0)
+    words = [{"word": "Anyone", "start": 0.4, "end": 0.8}, {"word": "dollars.", "start": 1.5, "end": 2.0}]
+    measured = run / "takes" / "take-01.json"
+    measured.parent.mkdir(parents=True)
+    measured.write_text(json.dumps({"caption_words": words, "source_from": 0.0, "source": "media/takes/take-01.wav"}))
+    lines = shorts.fix_words(run)
+    assert "'Anyone' starts" in lines[0] and "'dollars.' ends" in lines[0]
+    fixed = json.loads((run / "transcripts" / "take-01.json").read_text())
+    assert fixed["words"][0]["start"] == pytest.approx(0.1, abs=0.03)
+    assert fixed["words"][1]["end"] == pytest.approx(2.4, abs=0.04)
+
+
+def test_a_beat_whose_cue_is_no_longer_said_is_named(tmp_path):
+    """After a re-cut, "Booking in the app?" became "Bookings and hours," and the beat cued on it quietly moved."""
+    run = tmp_path / "run"
+    (run / "transcripts").mkdir(parents=True)
+    (run / "transcripts" / "take-01.json").write_text(json.dumps({"words": [{"word": w} for w in " Bookings and hours, sorted.".split(" ") if w]}))
+    (run / "edit-plan.md").write_text('Beat: line-01\nCue: take-01 "Bookings and hours,"\n\nBeat: line-02\nCue: take-01 "Booking in the app?"\n')
+    problems = shorts.check_plan_cues(run)
+    assert len(problems) == 1 and "line-02" in problems[0]
+
+
 def test_frames_writes_timestamped_contact_sheets(tmp_path):
     from PIL import Image
 
