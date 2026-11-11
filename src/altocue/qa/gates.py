@@ -545,6 +545,40 @@ def gate_word_starts(c: Context) -> GateResult:
     return GateResult(id="word_starts", passed=not clipped, value=len(clipped), threshold=0, detail=detail)
 
 
+def gate_word_ends(c: Context) -> GateResult:
+    """No shot closes inside the last sound of a word. Recognisers end words early, so only the sound can tell."""
+    if is_film(c) and not c.edl:
+        return not_applicable("word_ends", "A film from a storyboard has no spoken cuts.")
+    if not c.edl:
+        return skipped("word_ends", "No edl.json, so the cuts are unknown.")
+    try:
+        from altocue.cut import envelope_of
+        from altocue.cut.snap import TAIL_MAX, TAIL_MIN, clipped_tail
+    except ImportError:
+        return skipped("word_ends", "The speech tools are not installed, so the cuts cannot be read against the sound.")
+    clips = {clip.id: clip for clip in c.project.clips() if clip.has_audio and Path(clip.path).exists()}
+    if not any(segment.clip in clips for segment in c.edl.segments):
+        return not_applicable("word_ends", "No source footage with sound is on disk, so there is nothing after each cut to read.")
+    clipped, read = [], 0
+    segments = list(c.edl.segments)
+    for index, (segment, shot) in enumerate(zip(segments, c.shots, strict=False)):
+        clip = clips.get(segment.clip)
+        envelope = envelope_of(clip) if clip else None
+        if envelope is None or not envelope.reliable or shot.marked(SILENT_LABELS):
+            continue
+        after = segments[index + 1] if index + 1 < len(segments) else None
+        if after is not None and after.clip == segment.clip and abs(after.start - segment.end) < 1e-3:
+            continue  # the next shot carries on from the same frame, so the sound is not cut
+        read += 1
+        tail = clipped_tail(envelope, segment.end)
+        if TAIL_MIN <= tail <= TAIL_MAX:
+            clipped.append(f"{stamp(shot.end)} ({segment.id}, {tail:.2f} s of the word is cut off)")
+    if not read:
+        return not_applicable("word_ends", "The source sound is steady noise or wall-to-wall, so speech cannot be told from the quiet after a cut.")
+    detail = f"shots close inside a word at {', '.join(clipped)}" if clipped else f"{read} shot endings, none inside a word"
+    return GateResult(id="word_ends", passed=not clipped, value=len(clipped), threshold=0, detail=detail)
+
+
 def gate_silence(c: Context) -> GateResult:
     if c.audio is None:
         return not_applicable("silence", "The file has no audio stream.")
@@ -1485,6 +1519,7 @@ def plan() -> list[tuple[tuple[str, ...], Callable[[Context], GateResult | list[
         (("duration",), gate_duration),
         (("cut_sound",), gate_cut_sound),
         (("word_starts",), gate_word_starts),
+        (("word_ends",), gate_word_ends),
         (("silence",), gate_silence),
         (("words", "doubled_phrase", "captions_match"), word_gates),
         (("caption_speed",), gate_caption_speed),

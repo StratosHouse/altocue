@@ -31,7 +31,9 @@ Removal is the wrong tool when the job is choosing. A long talk that must become
 - **Delete words**, or put `~~` around them, to trim inside a line. Take the `~~` off to bring back anything the cut removed.
 - **Then run `altocue cut --from-script`.** Your last cut is saved to `work/edl-previous.json`.
 
-The lines choose the words. The edges come from the same code as every other cut, so they still land on real speech and never inside a word. `~~struck~~` means out, whether the cut took it or you did.
+The lines choose the words. The edges come from the same code as every other cut, so they still land on real speech and never inside a word: the in point backs off to the quiet before a word's first sound, and the out point runs on to the quiet after its last, since recognisers end soft words early.
+
+- **Keep whole lines.** When a viewer heard a clipped or strange sound at a join, the cut was built from pieces of lines. Choose whole sentences, from their first word to their last, and let the script place the edges. Never hand-write segment edges a few frames inside a line in `edl.json`. `~~struck~~` means out, whether the cut took it or you did.
 
 - **You cannot add a word.** A word the recording does not hold is refused, by line number. Fix a spelling in `[transcribe.fix]`, then `altocue cut --write-script`.
 - **A word plays once.** A line in the script twice is refused.
