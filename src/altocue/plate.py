@@ -177,7 +177,7 @@ def _pad(seek: float, frames: int, clip: Clip, fps: int) -> tuple[float, int, st
     lead = max(0, math.ceil(-seek * fps - 1e-6))
     begin = max(seek, 0.0)
     pads = [f"tpad=start_mode=clone:start={lead}"] if lead else []
-    if begin + (frames - lead) / fps > clip.duration - 1 / fps:
+    if begin + (frames - lead) / fps > clip.picture_duration - 1 / fps:  # the picture's own end: sound can outlast it, and then no frame comes
         pads.append("tpad=stop_mode=clone:stop=-1")
     return begin, lead, ",".join(pads)
 

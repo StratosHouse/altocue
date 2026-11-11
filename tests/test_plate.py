@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
+from altocue.errors import AltocueError
 from altocue.models import Clip, Segment
-from altocue.plate import Canvas, fit_crop, push_filter, segment_filter, zoomed
+from altocue.plate import Canvas, fit_crop, push_filter, segment_filter, segment_frames, zoomed
 
 CANVAS = Canvas(1080, 1920, 30, 16, "medium")
 
@@ -51,6 +54,43 @@ def test_an_odd_source_never_asks_for_more_than_it_has():
     clip = Clip(id="c", path="c.mp4", duration=2.0, fps=30.0, width=1079, height=1919)
     chain = segment_filter(clip, Segment(id="s", clip="c", start=0, end=1), Canvas(1080, 1920, 30, 16, "medium"), None)
     assert "crop=1078:" in chain
+
+
+def test_a_shot_of_no_frames_is_refused_and_never_padded_to_one():
+    """The plate used to make one frame of it while the duration gate and the timeline counted none."""
+    assert segment_frames(Segment(id="s1", clip="a", start=1.0, end=2.0), 30) == 30
+    assert segment_frames(Segment(id="s1", clip="a", start=1.0, end=1.0 + 1 / 30), 30) == 1
+    with pytest.raises(AltocueError, match="shorter than one frame") as refused:
+        segment_frames(Segment(id="s1", clip="a", start=1.0, end=1.01), 30)
+    assert "edl.json" in refused.value.fix
+
+
+def test_the_picture_of_a_clip_ends_where_its_video_stream_does():
+    old = Clip.from_dict({"id": "a", "path": "a.mov", "duration": 10.3, "fps": 30, "width": 64, "height": 64})  # a media.json from before the field
+    assert old.video_duration == 0 and old.picture_duration == 10.3
+    assert Clip(id="a", path="a.mov", duration=10.3, fps=30, width=64, height=64, video_duration=10.0).picture_duration == 10.0
+    assert Clip(id="a", path="a.mov", duration=10.0, fps=30, width=64, height=64, video_duration=10.02).picture_duration == 10.0
+
+
+def test_a_shot_that_ends_after_the_picture_does_holds_the_last_frame(tmp_path):
+    """Sound often outlasts picture on a phone. The file's length said there were frames, none came, and every later shot arrived early."""
+    from altocue import ffmpeg, plate
+    from altocue.project import Project
+
+    source = tmp_path / "phone.mp4"
+    picture, sound = ["-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=1"], ["-f", "lavfi", "-i", "sine=f=300:r=48000:d=1.3"]
+    ffmpeg.run([*picture, *sound, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", str(source)])
+    found = ffmpeg.probe_clip(source, clip_id="a")
+    assert found.duration == pytest.approx(1.3, abs=0.03) and found.video_duration == pytest.approx(1.0, abs=0.01)
+    project = Project.create(tmp_path / "video")
+    folder = tmp_path / "parts"
+    folder.mkdir()
+    canvas = Canvas(180, 320, 30, 30, "ultrafast")
+    part = plate.build_segment(project, found, Segment(id="s1", clip="a", start=0.6, end=1.2), canvas, folder)
+    assert int(probe(part, "-count_packets", "-select_streams", "v:0", "-show_entries", "stream=nb_read_packets")) == 18
+    blind = Clip.from_dict({**found.to_dict(), "video_duration": 0.0})  # what an older media.json says: only the file's length
+    short = plate.build_segment(project, blind, Segment(id="s2", clip="a", start=0.6, end=1.2), canvas, folder)
+    assert int(probe(short, "-count_packets", "-select_streams", "v:0", "-show_entries", "stream=nb_read_packets")) < 18, "the fixture no longer shows the fault"
 
 
 def probe(path, *fields: str) -> str:

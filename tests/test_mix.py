@@ -168,7 +168,7 @@ def test_join_at_the_start_of_a_clip_still_fades(project, tmp_path):
 
 def test_a_segment_shorter_than_the_fade(project, tmp_path):
     cleaned(project, "a", noise(4))
-    parts = [("a", 0.1, 1.0), ("a", 1.5, 1.51), ("a", 2.0, 3.0)]
+    parts = [("a", 0.1, 1.0), ("a", 1.5, 1.52), ("a", 2.0, 3.0)]  # 20 ms is under the 30 ms fade and still rounds to one frame
     voice, _ = ffmpeg.read_wav(mix.mix_voice(project, edl(*parts), tmp_path / "voice.wav"))
     assert len(voice) == round((27 + 1 + 30) / 30 * RATE)
 

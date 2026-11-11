@@ -42,6 +42,12 @@ class Clip(Model):
     has_audio: bool = True
     sample_rate: int = 0
     variable_frame_rate: bool = False
+    video_duration: float = 0.0  # where the picture ends on the file's clock. 0 when the file does not say, or media.json is older
+
+    @property
+    def picture_duration(self) -> float:
+        """How long there is picture. Sound often outlasts it on a phone, so the file's own length proves nothing."""
+        return min(self.video_duration, self.duration) if self.video_duration > 0 else self.duration
 
     @property
     def is_hdr(self) -> bool:
