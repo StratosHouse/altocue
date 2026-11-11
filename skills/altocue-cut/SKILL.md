@@ -52,6 +52,7 @@ The lines choose the words. The edges come from the same code as every other cut
 - **Cut a filler only when the sentence survives.** "So" that starts a story can stay.
 - **Moving a line can change what it means.** Read the new order aloud. Keep the speaker's meaning intact, and ask the user if a move changes it.
 - **Ask the user** when two takes say different things. That is a choice about the message.
+- **Let the last word finish.** A cut where the waveform ends still clips the word's decay, which a viewer hears as a lost ending. Keep the decay and a beat of a few frames before the next shot or the end of the take, never enough to drag. Where there is no room, run the sound on under the next shot (a split edit).
 
 ## Changing the cut
 
