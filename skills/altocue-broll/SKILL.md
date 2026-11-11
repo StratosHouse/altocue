@@ -12,7 +12,7 @@ B-roll covers the picture while the voice keeps playing. Use it to show what is 
 ## Rules
 
 - **Show what is said.** An insert illustrates its phrase. Never use one as decoration. Show a detail as the narrator names it, and hold it long enough to inspect. [source] Weak support: 61% of sampled interaction peaks in online course videos sat at visual transitions (Kim et al., 2014). Learners, not scrollers.
-- **Meet the speaker first.** Spots start after 3 seconds. QA fails anything before 2 seconds.
+- **Meet the speaker first.** Spots start after 3 seconds, and QA fails any insert that starts before then, hand-placed ones too.
 - **Keep the speaker on screen.** `[broll] share` defaults to 0.3 of the runtime. QA fails anything over 0.4.
 - **Real footage beats stock.** Search the user's own clips first.
 - **Own footage by default.** Stock and the user's clips sit inside an edit they made. [evidence] Someone else's show, or shorts from other sites, stay reused content on YouTube even with permission. See [the platform rules](../altocue/references/platform-rules.md).
@@ -43,6 +43,11 @@ B-roll covers the picture while the voice keeps playing. Use it to show what is 
 A clip must be at least as long as its spot. Altocue takes the middle of it, removes its sound, converts HDR to SDR and fills the frame. Text in a clip can sit under your captions, so check it.
 
 A photo fills a spot too. Altocue crops it to the canvas around any faces, then makes a slow push-in of exactly the right length. It never stretches. Your own stills work the same way, with `b1=file:photo.jpg`.
+
+Every insert takes the project's look, so the film is one picture. The look alone goes on, never the speaker's correction. If the look changes after you pick, the next `altocue render` prepares the inserts again.
+
+- **A screen recording or product shot must stay true to colour.** Set `"look": false` on its spot in `work/broll/spots.json` before you pick.
+- **Your own clips tagged as a screen or an interface default to that.** The tag is the word `screen`, `screencast`, `screenshot` or `ui` in the file name, its folder or its `.txt` note. `"look": true` on the spot overrides it.
 
 ## Which source suits which subject
 

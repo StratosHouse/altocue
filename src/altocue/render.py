@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
+from . import broll, caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
 from . import timeline as timelines
 from .cut.snap import frame_count
 from .errors import AltocueError
@@ -208,6 +208,7 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
         picture, voice = plate.build(project, draft=draft)
         caption.build(project)
+        broll.match_look(project)  # an insert prepared under another look is made again before it is laid in
         timeline = timelines.build(project, draft=draft)
         credits.write_txt(project)
         layer = motion.render_layers(project, renderer=renderer, draft=draft)
