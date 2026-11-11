@@ -99,6 +99,15 @@ def test_a_new_cut_makes_the_framing_and_render_stale_by_the_cut_mark(complete):
     found = states(complete)
     assert found["frame"] == "stale" and found["render"] == "stale"
     assert "cut changed" in next(s.detail for s in status.collect(complete) if s.name == "render")
+    assert found["grade"] == "done"  # a trim does not ask for new colour, which would re-encode every shot of the plate
+    assert status.next_command(status.collect(complete), "video") == "altocue frame -p video"
+
+
+def test_a_cut_that_keeps_a_very_different_part_of_a_clip_makes_the_grade_stale(complete):
+    edl = complete.edl()
+    edl.segments[0].end = 0.3  # a third of what the grade was measured on
+    complete.save_edl(edl)
+    assert states(complete)["grade"] == "stale"
     assert status.next_command(status.collect(complete), "video") == "altocue grade -p video"
 
 

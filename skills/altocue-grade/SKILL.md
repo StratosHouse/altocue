@@ -10,8 +10,16 @@ compatibility: Requires the altocue CLI.
 ## Steps
 
 1. `altocue grade` measures each clip and writes one `.cube` per clip to `work/luts/` plus `report.json`.
-2. Read the report: what moved, and by how much. Corrections are capped on purpose.
+2. Read the report: what moved, and by how much. Corrections are capped on purpose. Read any `warnings` too.
 3. Render a draft and look at frames with skin in them.
+
+## After a re-cut
+
+The grade stands through a re-cut. Each clip is read at fixed times over all of it, and the frames the cut keeps count for more. Trimming a word changes no colour, so the plate keeps the shots it has already encoded.
+
+- **A clip cut very differently is measured again by itself,** once its kept share has moved by more than 30 percent. `altocue status` shows the grade as stale when that is due.
+- **`altocue grade --resample` measures again on request.** A result that barely moved keeps the LUT it had, byte for byte, and the report lists that clip under `held`.
+- **`--force` solves afresh and keeps nothing.** Use it only when you want new colour.
 
 ## Looks
 
@@ -41,6 +49,7 @@ altocue grade --lut ~/luts/show.cube
 - **Strength runs from 0 to 1.** Start around 0.6 for anything strong. Most films want less than the full recipe.
 - **Bring your own LUT as a `.cube`,** 1D or 3D. Altocue bundles none, and these looks are generated in code, so nothing here is a third party's LUT.
 - **A LUT made for log footage will look wrong here.** The correction hands it display-referred BT.709.
+- **The look reaches inserts.** The grade also writes `work/luts/look.cube`: the look alone, with no correction and no skin fit. B-roll, stills and generated shots picked with `altocue broll --pick` take it, after the HDR conversion where one is needed. Change the look and the next `altocue render` prepares them again. `natural` writes no such file and leaves inserts as they are. A screen recording keeps its own colour: see `altocue-broll`.
 
 ## Rules
 
@@ -52,4 +61,5 @@ altocue grade --lut ~/luts/show.cube
 - **Two people with very different skin share one clip's guard.** Check both faces in the draft.
 - **One correction per clip.** Per-frame correction flickers.
 - **If nothing changed,** the clip probably needed nothing, or there was no face to anchor on. Check the report.
+- **A face left dark is said out loud.** Exposure moves by 8 percent at most. When a face is still well outside the band after that, the report and the stage output carry a warning that names the clip. The fix is light or exposure at the shoot. Tell the user, and never work around the limit with a look.
 - **HDR phone footage is handled.** Never ask the user to convert it first.
