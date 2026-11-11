@@ -94,6 +94,51 @@ def test_a_failed_fetch_has_no_fallback(monkeypatch, tmp_path, capsys):
     assert "stops here" in capsys.readouterr().out and ran == []
 
 
+def test_behind_a_proxy_the_fix_names_the_proxy_and_the_host(tmp_path, monkeypatch):
+    def down(*_, **__):
+        raise demo.http.Unreachable("Could not download the take through the proxy at proxy.test: 403 Forbidden")
+
+    monkeypatch.setattr(demo.http, "download", down)
+    monkeypatch.setattr(demo.http, "proxy_for", lambda url: "proxy.test")
+    with pytest.raises(AltocueError) as caught:
+        demo.fetch_sample(tmp_path)
+    assert "proxy" in caught.value.fix and demo.SAMPLE_HOST in caught.value.fix
+    monkeypatch.setattr(demo.http, "proxy_for", lambda url: "")
+    with pytest.raises(AltocueError) as caught:
+        demo.fetch_sample(tmp_path)
+    assert "proxy" not in caught.value.fix
+
+
+def test_a_demo_that_failed_never_names_a_film_that_is_not_there(monkeypatch, tmp_path, capsys):
+    """It printed "The film is at .../out/final.mp4" under a failed download, when nothing had been made."""
+    quiet_steps(monkeypatch, failing="cut")
+    kept = tmp_path / "kept"
+    assert demo.run(args(keep=str(kept))) == 1
+    last = capsys.readouterr().out.strip().splitlines()[-1]
+    assert "did not pass" in last and str(kept) in last and "there is no film" in last
+    assert "final.mp4" not in last and "page.html" not in last and "Kept in" not in last
+
+
+def test_a_demo_that_failed_a_gate_names_only_what_it_made(monkeypatch, tmp_path, capsys):
+    quiet_steps(monkeypatch)
+    monkeypatch.setattr(demo, "outcome", lambda project: ("Verdict: FIX, as code decided it.", False))
+    kept = tmp_path / "kept"
+    film = kept / "altocue-demo" / "out" / "final.mp4"
+    film.parent.mkdir(parents=True)
+    film.write_bytes(b"film")
+    assert demo.run(args(keep=str(kept))) == 1
+    last = capsys.readouterr().out.strip().splitlines()[-1]
+    assert "did not pass" in last and str(film) in last and "page.html" not in last
+
+
+def test_a_failed_demo_that_removed_its_files_offers_no_film(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(demo.tempfile, "mkdtemp", lambda prefix: str(tmp_path / "x"))
+    (tmp_path / "x").mkdir()
+    quiet_steps(monkeypatch, failing="cut")
+    assert demo.run(args()) == 1
+    assert capsys.readouterr().out.strip().splitlines()[-1] == "Removed the demo files."
+
+
 def test_a_different_file_at_the_address_is_refused(tmp_path, monkeypatch):
     serve(monkeypatch)
     monkeypatch.setattr(demo, "SAMPLE_SHA256", "0" * 64)

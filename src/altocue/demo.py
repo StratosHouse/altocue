@@ -61,6 +61,8 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
 def fetch_sample(folder: Path) -> Path:
     """One file, checked against the hash this version ships with. There is no fallback, so a failure stops the demo here."""
     again = "Check this machine can reach the web, then run `altocue demo` again."
+    if http.proxy_for(SAMPLE_URL):
+        again = f"This machine reaches the web through a proxy. Ask whoever runs it to allow {SAMPLE_HOST}, then run `altocue demo` again."
     try:
         take = http.download(SAMPLE_URL, folder / SAMPLE_NAME, timeout=60, limit=SAMPLE_MOST, headers={"User-Agent": http.AGENT})
     except AltocueError as error:
@@ -282,8 +284,16 @@ def run(args: argparse.Namespace) -> int:
     finally:
         if not args.keep:
             shutil.rmtree(root, ignore_errors=True)
-    if args.keep:
-        print(f"Kept in {root}. The film is at {root / 'altocue-demo' / 'out' / 'final.mp4'}, and the review page at {root / 'altocue-demo' / 'review' / 'page.html'}.")
-    else:
-        print("Removed the demo files. Run `altocue demo --keep` to look at the film and its review page.")
+    print(closing(root, kept=bool(args.keep), passed=passed))
     return 0 if passed else 1
+
+
+def closing(root: Path, *, kept: bool, passed: bool) -> str:
+    """The last line names a film only when there is one. A demo that stopped says so, and lists what it did leave."""
+    if not kept:
+        return "Removed the demo files." + (" Run `altocue demo --keep` to look at the film and its review page." if passed else "")
+    film, page = root / "altocue-demo" / "out" / "final.mp4", root / "altocue-demo" / "review" / "page.html"
+    if passed:
+        return f"Kept in {root}. The film is at {film}, and the review page at {page}."
+    made = [str(path) for path in (film, page) if path.is_file()]
+    return f"The demo did not pass. What it made before it stopped is in {root}" + (f": {', '.join(made)}." if made else ", and there is no film.")
