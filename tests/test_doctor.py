@@ -124,12 +124,152 @@ def test_the_printout_carries_the_matrix(monkeypatch, capsys):
     stub_machine(monkeypatch, ok=False)
     monkeypatch.setattr(doctor, "check_disk", lambda: doctor.Check("disk", True, False, "20 GB free"))
     with pytest.raises(doctor.AltocueError):
-        main_args = doctor.argparse.Namespace(json=False)
+        main_args = doctor.argparse.Namespace(json=False, all=True)
         doctor.run(main_args)
     out = capsys.readouterr().out
     assert "What this machine can run" in out
     assert re.search(r"^no\s+Editor in Chief through Gemini", out, re.MULTILINE)
     assert "fix: export GEMINI_API_KEY=" in out
+
+
+def working_machine(monkeypatch, *, missing: tuple[str, ...] = (), keys: tuple[str, ...] = ()) -> None:
+    """A machine that can edit, with the named optional parts missing and only the named keys set."""
+    stub_machine(monkeypatch, ok=True)
+    results = [doctor.Check(c.id, c.id not in missing, c.required, c.detail, "Do this." if c.id in missing else "") for c in doctor.core_checks()]
+    monkeypatch.setattr(doctor, "core_checks", lambda: results)
+    monkeypatch.setattr(doctor, "check_disk", lambda: doctor.Check("disk", True, False, "20 GB free"))
+    monkeypatch.setattr(doctor, "check_memory", lambda: doctor.Check("memory", True, False, "16 GB"))
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: None)
+    for name in keys_the_code_reads():
+        monkeypatch.delenv(name, raising=False)
+    for name in keys:
+        monkeypatch.setenv(name, "x")
+
+
+def test_doctor_leads_with_the_answer(monkeypatch, capsys):
+    """It printed 60 lines with no verdict, 15 of them "no" rows for paid services nobody needs to edit."""
+    from altocue import __version__
+
+    working_machine(monkeypatch, missing=("speakers",), keys=("PEXELS_API_KEY",))
+    assert main(["doctor"]) == 0
+    out = capsys.readouterr().out
+    first = out.splitlines()[0]
+    assert first.startswith(f"altocue {__version__}. Ready: this machine can transcribe, cut, clean, grade, frame, caption, render and master, and run QA.")
+    assert "Optional and not set up, with a fix below: speakers." in first
+    assert "10 hosted services have no key or tool, which is fine: `altocue doctor --all` lists them." in first
+    assert "GEMINI_API_KEY" not in out and "codex" not in out and "Higgsfield" not in out, "an unset hosted service is not listed by default"
+    assert "PEXELS_API_KEY set" in out and re.search(r"^yes\s+Stock from Pexels", out, re.MULTILINE), "one that is set up still shows"
+    assert re.search(r"^-- speakers", out, re.MULTILINE) and "fix: Do this." in out
+    assert len(out.splitlines()) < 30
+
+
+def test_all_lists_the_hosted_services_too(monkeypatch, capsys):
+    working_machine(monkeypatch)
+    assert main(["doctor", "--all"]) == 0
+    out = capsys.readouterr().out
+    assert re.search(r"^no\s+Editor in Chief through Gemini", out, re.MULTILINE) and "fix: export GEMINI_API_KEY=your-key" in out
+    assert re.search(r"^-- codex", out, re.MULTILINE)
+
+
+def test_a_machine_that_cannot_edit_says_so_first(monkeypatch, capsys):
+    stub_machine(monkeypatch, ok=False)
+    monkeypatch.setattr(doctor, "check_disk", lambda: doctor.Check("disk", True, False, "20 GB free"))
+    assert main(["doctor"]) == 1
+    captured = capsys.readouterr()
+    assert "Not ready: ffmpeg and transcriber are missing, so nothing can be edited yet." in captured.out.splitlines()[0]
+    assert re.search(r"^!! ffmpeg", captured.out, re.MULTILINE) and "Required tools are missing" in captured.err
+
+
+def test_no_text_reader_is_part_of_the_answer_because_it_blocks_ship(monkeypatch):
+    working_machine(monkeypatch, missing=("ocr",))
+    ready, said = doctor.verdict(doctor.checks(doctor.core_checks()), doctor.capabilities(doctor.core_checks()))
+    assert ready and "and run QA." not in said
+    assert "without ocr some gates skip, and a skipped gate blocks SHIP" in said
+
+
+def test_json_says_the_version_and_whether_the_machine_is_ready(monkeypatch, capsys):
+    """commands/setup.md says "if doctor reports an older Altocue", and the report had no version to read."""
+    from altocue import __version__
+
+    working_machine(monkeypatch, missing=("renderer",))
+    assert main(["doctor", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["version"] == __version__ and data["ready"] is True and data["ok"] is True
+    assert data["verdict"].startswith("Ready:") and "renderer" in data["verdict"]
+    assert sum(1 for row in data["capabilities"] if row["hosted"]) == 11, "the report itself leaves nothing out"
+    assert {check["id"] for check in data["checks"] if check["hosted"]} >= {"gemini", "codex"}
+    stub_machine(monkeypatch, ok=False)
+    assert main(["doctor", "--json"]) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert data["ready"] is False and data["verdict"].startswith("Not ready:")
+
+
+def test_the_speakers_row_keeps_the_second_step_of_its_fix(monkeypatch):
+    working_machine(monkeypatch)
+    check = doctor.Check("speakers", False, False, "not installed: words will have no speakers", "x")
+    assert "altocue setup --speakers" in doctor.speakers_how(check)
+    fetched = doctor.Check("speakers", False, False, "models not fetched: words will have no speakers", "x")
+    assert doctor.speakers_how(fetched) == fetched.detail and doctor.speakers_fix(fetched) == "altocue setup --speakers"
+
+
+# `altocue setup`
+
+
+def setup_args(**given) -> doctor.argparse.Namespace:
+    return doctor.argparse.Namespace(**{"yes": False, "skip_denoiser": False, "deep_filter": False, "skip_renderer": False, "speakers": False, "plugin": False, **given})
+
+
+def bare_machine(monkeypatch, tmp_path, *, terminal: bool, answer: str = "n"):
+    """Nothing installed yet, npm present, and no network: a download would fail the test."""
+    from altocue import clean, setup
+
+    monkeypatch.setattr(setup, "HOME", tmp_path / "home")
+    monkeypatch.setattr(setup.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(doctor, "check_ffmpeg", lambda: doctor.Check("ffmpeg", True, True, "ffmpeg"))
+    monkeypatch.setattr(clean, "find_isolator", lambda: None)
+    monkeypatch.setattr(clean, "find_deep_filter", lambda: None)
+    monkeypatch.setattr(setup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(setup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(setup.sys.stdin, "isatty", lambda: terminal, raising=False)
+    monkeypatch.setattr("builtins.input", lambda prompt: answer)
+    monkeypatch.setattr(setup.subprocess, "run", lambda *a, **k: pytest.fail("installed without a yes"))
+    monkeypatch.setattr(setup.urllib.request, "urlopen", lambda *a, **k: pytest.fail("downloaded without a yes"))
+    return setup
+
+
+def test_setup_that_could_not_ask_says_nothing_was_installed(monkeypatch, tmp_path, capsys):
+    """With no terminal it printed two Skipped lines, then "Run `altocue doctor` to confirm", and an agent read that as done."""
+    setup = bare_machine(monkeypatch, tmp_path, terminal=False)
+    assert setup.run(setup_args()) == 0, "the extras are optional, and the skills run a plain `altocue setup` after the install"
+    last = capsys.readouterr().out.strip().splitlines()[-1]
+    assert last.startswith("Nothing was installed: there is no terminal to ask at") and "altocue setup --yes" in last and "Ask the user" in last
+    assert "confirm" not in last
+
+
+def test_setup_that_was_told_no_says_so_without_calling_it_a_failure(monkeypatch, tmp_path, capsys):
+    setup = bare_machine(monkeypatch, tmp_path, terminal=True, answer="n")
+    assert setup.run(setup_args()) == 0
+    last = capsys.readouterr().out.strip().splitlines()[-1]
+    assert last.startswith("Nothing was installed, as you chose.")
+
+
+def test_setup_with_nothing_left_to_install_says_that(monkeypatch, tmp_path, capsys):
+    from altocue import clean
+
+    setup = bare_machine(monkeypatch, tmp_path, terminal=False)
+    monkeypatch.setattr(clean, "find_deep_filter", lambda: tmp_path / "deep-filter")
+    (tmp_path / "home" / "renderer" / "node_modules" / ".bin").mkdir(parents=True)
+    (tmp_path / "home" / "renderer" / "node_modules" / ".bin" / "hyperframes").write_text("")
+    assert setup.run(setup_args()) == 0
+    assert capsys.readouterr().out.strip().splitlines()[-1].startswith("Nothing was installed, because nothing was missing")
+
+
+def test_setup_that_installed_something_points_at_doctor(monkeypatch, tmp_path, capsys):
+    setup = bare_machine(monkeypatch, tmp_path, terminal=False)
+    monkeypatch.setattr(setup, "install_renderer", lambda yes: setup.INSTALLED)
+    monkeypatch.setattr(setup, "install_denoiser", lambda yes, even_on_a_mac=False: setup.UNAVAILABLE)
+    assert setup.run(setup_args(yes=True)) == 0
+    assert capsys.readouterr().out.strip().splitlines()[-1] == "Run `altocue doctor` to confirm."
 
 
 def test_json_carries_the_matrix(monkeypatch, capsys):
