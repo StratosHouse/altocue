@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..brand import Brand
 from ..errors import AltocueError
-from . import formats
+from . import breaks, formats
 from .html import layout
 from .layer import Layer
 
@@ -61,20 +61,22 @@ def caption_frame(size: tuple[int, int], page: dict[str, Any], active: int, bran
     draw = ImageDraw.Draw(paint)
     space = px * 0.26
     area = width - 2 * geo["gutter"] - geo["rail"]
-    lines = _wrap(draw, texts, font, int(area), space)
+    # The lines a page carries were chosen when the captions were built. Any other page is balanced here, never wrapped greedily.
+    counts = breaks.given(page) or breaks.split([draw.textlength(text, font=font) for text in texts], space, area)
+    rows = breaks.rows(counts)
     line_height = px * 1.14
     if style["style"] == "boxed":
-        longest = max(sum(draw.textlength(texts[i], font=font) for i in line) + space * (len(line) - 1) for line in lines)
+        longest = max(sum(draw.textlength(texts[i], font=font) for i in line) + space * (len(line) - 1) for line in rows)
         pad_x, pad_y = px * 0.6, px * 0.34
         left = geo["gutter"] + (area - longest) / 2 - pad_x
-        box = (left, geo["cap_y"] - pad_y, left + longest + 2 * pad_x, geo["cap_y"] + line_height * len(lines) + pad_y)
+        box = (left, geo["cap_y"] - pad_y, left + longest + 2 * pad_x, geo["cap_y"] + line_height * len(rows) + pad_y)
         draw.rounded_rectangle(box, radius=px * 0.42, fill=_rgba(brand.colors["panel"], 214), outline=(255, 255, 255, 26), width=2)
     y = float(geo["cap_y"])
     plain = page.get("colour") or brand.colors["ink"]
     if page.get("name"):
         small = _font(brand, px // 2, 600)
         draw.text((geo["gutter"] + (area - draw.textlength(page["name"], font=small)) / 2, y - px * 0.66), page["name"], font=small, fill=plain)
-    for line in lines:
+    for line in rows:
         used = sum(draw.textlength(texts[i], font=font) for i in line) + space * (len(line) - 1)
         x = geo["gutter"] + (area - used) / 2
         for index in line:

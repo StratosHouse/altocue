@@ -411,7 +411,8 @@ def test_the_help_for_new_states_the_default_shape(capsys):
     with pytest.raises(SystemExit):
         main(["new", "--help"])
     out = " ".join(capsys.readouterr().out.split())
-    assert "The default is 9:16 (vertical)" in out and "vertical, portrait, square, wide" in out and "--platform {reels,tiktok,shorts,youtube,linkedin,square}" in out
+    assert "The default is 9:16 (vertical)" in out and "vertical, portrait, square, wide" in out
+    assert "--platform {reels,tiktok,shorts,youtube,linkedin,square,vertical}" in out
 
 
 def test_new_says_when_the_film_is_not_the_shape_of_the_footage(tmp_path, clip, capsys):

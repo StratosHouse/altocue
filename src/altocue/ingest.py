@@ -10,7 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import ffmpeg
+from . import ffmpeg, platforms
 from .errors import AltocueError
 from .models import Clip
 from .project import CONFIG, Project, size_for
@@ -25,7 +25,7 @@ RETRY = "Nothing was made, so the same command can run again."
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     if name == "new":
-        from . import platforms, start
+        from . import start
 
         parser.add_argument("folder", help="Project folder to create")
         parser.add_argument("--input", "-i", nargs="+", required=True, help="Source video files")
@@ -138,7 +138,7 @@ def new_project(args: argparse.Namespace) -> tuple[Project, list[Clip], list[str
     A failed `altocue new` used to leave a project behind, and the retry then stopped on "already an Altocue project".
     """
     from . import brand as brands
-    from . import platforms, start
+    from . import start
 
     inputs = [Path(p).expanduser().resolve() for p in args.input]
     missing = [str(p) for p in inputs if not p.is_file()]
@@ -185,7 +185,7 @@ def new_project(args: argparse.Namespace) -> tuple[Project, list[Clip], list[str
     before = set(root.iterdir()) if root.is_dir() else None
     links: list[Path] = []
     try:
-        project = Project.create(root, aspect=aspect)
+        project = Project.create(root, aspect=aspect, platform=platforms.default_for(size_for(aspect)))
         if changes:  # with no kind, no platform and no profile the file stays exactly as `create` wrote it
             (project.root / CONFIG).write_text(set_keys((project.root / CONFIG).read_text(), changes))
             project = Project.open(project.root)

@@ -185,6 +185,13 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Pixels are counted.** A source enlarged past 1.5 times is named as soft. Past 2.0 with the punch-in, that clip plays without one.
 - **Any aspect.** Any W:H up to 4:1 each way. Past that there is no room for a face, a caption or a safe zone.
 
+## Captions
+
+- **Pages break by phrase.** Hard breaks fall at a segment, a speaker, a sentence end and a gap over 0.6 s. Inside a run the page ends are chosen together, by cost, so no page ends on a word that binds forward. The words that bind are listed by language, and an unknown language still pages.
+- **A reading floor.** A page shows for at least `min_show` or its characters at 20 a second, whichever is longer: it merges, holds into silence or starts up to 0.12 s early, and never crosses a cut.
+- **Lines are chosen in Python.** `src/altocue/motion/breaks.py` balances two lines and stores them on the page, so both renderers draw the same break.
+- **`vertical` is a computed zone.** It is the overlap of the vertical platforms' safe zones, used when a tall project names no platform.
+
 ## Motion and the library
 
 - **Formats are original CSS.** Each lives in `src/altocue/motion/formats/`, is pure in time so any frame can be sought, and declares its slots and copy limits. Copy longer than a slot fits is an error before the render.

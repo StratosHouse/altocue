@@ -547,7 +547,10 @@ def test_a_file_it_cannot_change_safely_is_refused_with_a_fix(text, changes):
 def test_new_with_no_profile_writes_todays_file_byte_for_byte(clip, tmp_path, capsys):
     assert start.saved() is None
     assert main(["new", str(tmp_path / "plain"), "--input", str(clip)]) == 0
-    assert (tmp_path / "plain" / CONFIG).read_bytes() == default_file().encode()
+    # a tall film with no platform named starts in the built-in vertical safe zone, and nothing else differs
+    made = project.Project.create(tmp_path / "made", aspect="9:16", platform="vertical")
+    assert (tmp_path / "plain" / CONFIG).read_bytes() == (made.root / CONFIG).read_bytes()
+    assert settings_of(tmp_path / "plain")["output"]["platform"] == "vertical"
     assert main(["new", str(tmp_path / "wide"), "--input", str(clip), "--aspect", "16:9"]) == 0
     assert (tmp_path / "wide" / CONFIG).read_bytes() == default_file("16:9").encode()
     out = capsys.readouterr().out

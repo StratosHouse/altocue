@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import broll, caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
+from . import broll, caption, ffmpeg, frame, locks, mix, motion, overlays, plate, platforms, track, transitions
 from . import timeline as timelines
 from .cli import RENDERER_HELP
 from .cut.snap import frame_count
@@ -237,8 +237,12 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
 
 
 def run(args: argparse.Namespace) -> int:
-    dest = build(Project.open(args.project), draft=args.draft, renderer=args.renderer)
+    project = Project.open(args.project)
+    dest = build(project, draft=args.draft, renderer=args.renderer)
     print(f"Rendered {dest}")
     if not args.draft:
         print("That is the film before mastering. `altocue master` makes out/final.mp4, and that is the file to share.")
+    note = platforms.note(project)
+    if note:
+        print(note)
     return 0

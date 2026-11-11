@@ -21,6 +21,7 @@ OUTPUT_RATES = (24, 25, 30, 50, 60)
 LONG_SIDE, SHORT_SIDE = 1920, 1080
 WIDEST = 4.0  # Past 4:1 each way there is no room for a face, a caption or a safe zone.
 ASPECT = re.compile(r"(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)")
+PLATFORM_EXAMPLE = '# platform = "reels"   '  # the line of DEFAULT_CONFIG that a named platform replaces
 
 DEFAULT_CONFIG = """\
 # Altocue project settings. Every value here can be changed and re-run.
@@ -28,7 +29,7 @@ DEFAULT_CONFIG = """\
 [output]
 aspect = "{aspect}"     # any W:H, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9
 fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
-# platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
+# platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin, square, or vertical for every tall app
 
 [brand]
 name = ""               # empty until `altocue brand ingest` reads your kit. "default" is the house look, on purpose
@@ -49,6 +50,11 @@ pace = "natural"        # tight, natural or relaxed: how much of each longer pau
 max_pause = 0.4         # a pause inside a clause is left whole up to this many seconds. Longer ones are shortened, never below it. tight starts at 0.2
 fillers = "clean"       # clean cuts an "um" only where it lifts out cleanly and leaves no shot under 0.6 s. all cuts every one, none keeps them
 # end_hold = 0.5        # seconds of picture after the last word. Without it: 0.25 tight, 0.5 natural, 0.8 relaxed. 0 turns it off
+
+[caption]
+max_words = 0           # the most words on a caption page. 0 follows the shape: 3 on a tall canvas, 4 otherwise
+max_chars = 0           # the most characters on a page before a break is forced. 0 follows the shape: 22 tall or square, 32 wide
+min_show = 0.4          # seconds a page stays up at least, or a twentieth of a second per character if that is longer. 0 turns it off
 
 [audio]
 denoise = true
@@ -168,13 +174,17 @@ class Project:
         return cls(root=root, config=tomllib.loads((root / CONFIG).read_text()))
 
     @classmethod
-    def create(cls, path: str | Path, *, aspect: str = "9:16") -> Project:
+    def create(cls, path: str | Path, *, aspect: str = "9:16", platform: str = "") -> Project:
+        """`platform`, when given, is written under `[output]` in place of the commented example."""
         size_for(aspect)
         root = Path(path).resolve()
         if (root / CONFIG).exists():
             raise AltocueError(f"{root} is already an Altocue project.")
         root.mkdir(parents=True, exist_ok=True)
-        (root / CONFIG).write_text(DEFAULT_CONFIG.format(aspect=aspect))
+        text = DEFAULT_CONFIG.format(aspect=aspect)
+        if platform:
+            text = text.replace(PLATFORM_EXAMPLE, f"{f'platform = {json.dumps(platform)}':<{len(PLATFORM_EXAMPLE)}}", 1)
+        (root / CONFIG).write_text(text)
         project = cls.open(root)
         for folder in (project.sources, project.words_dir, project.audio_dir, project.lut_dir, project.layers_dir, project.out, project.review_dir):
             folder.mkdir(parents=True, exist_ok=True)

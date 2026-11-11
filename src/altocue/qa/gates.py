@@ -78,7 +78,7 @@ BAKED_LETTERS_PER_EDIT = 5  # a misread of planned text may be one letter off in
 LIP_SHEET = 12
 LIP_WIDTH = 270
 
-TALL_ZONE = {"left": 0.05, "right": 0.92, "top": 0.09, "bottom": 0.82}
+TALL_ZONE = {"left": 0.05, "right": 0.92, "top": 0.09, "bottom": 0.82}  # 4:5, and a film from a storyboard. A taller project gets a platform's zone
 FLAT_ZONE = {"left": 0.04, "right": 0.96, "top": 0.05, "bottom": 0.95}
 
 
@@ -806,7 +806,7 @@ def gate_brief_coverage(c: Context) -> GateResult:
 def zone_for(c: Context) -> dict[str, float]:
     if c.rules and c.rules.safe_zone:
         return c.rules.safe_zone
-    named = platforms.zone_of(c.project)
+    named = platforms.zone_of(c.project)  # a tall project that names no platform gets the built-in vertical zone
     if named:
         return named
     width, height = c.project.size
