@@ -20,7 +20,7 @@ Altocue turns raw footage, a long recording or a brief into a finished video fro
 
 ## Non-goals
 
-- **Not a timeline editor.** `altocue timeline` shows the edit in the HyperFrames studio as a view. `edl.json` and `motion.json` stay the truth. `altocue review --page` writes one file to watch and check a film in. Nothing in it edits.
+- **Not a timeline editor.** `altocue timeline` shows the edit in the HyperFrames studio as a view. `edl.json` and `motion.json` stay the truth. `altocue review --page` writes one file to watch and check a film in, and `altocue versions page` one to compare versions and leave notes in. Nothing in either edits.
 - **Not a posting tool.** Altocue delivers files.
 - **Not a hosted service.** Everything runs where the user runs it.
 
@@ -124,6 +124,11 @@ my-video/
     report.json
     REPORT.md
     page.html         the film beside its gates, notes and captions, in one file
+  versions/
+    v001/             version.json, a copy of every decision file, and film.mp4, a small review copy
+    notes.json        the user's timed notes, with drawings as normalised points
+    notes/            one picture per open note with a drawing: the frame with the strokes on it
+    index.html        every version to watch, compare and note, in one file
 ```
 
 ## Key contracts
@@ -255,6 +260,20 @@ A reviewer that did not make the edit.
 - **Gate canaries.** Clips with planted faults prove each fact gate fires, and clean controls prove it stays quiet. They run in the test suite, on generated clips with a faked transcriber. They say nothing about any reviewer.
 - **Reviewer canaries.** Our demo take edited by the real stages, so every film passes every gate, each with one fault only judgement can find, plus one clean film. A fresh reviewer gets only the pack, and a note counts if it names the right dimension at the right moment. A run proves what that one reviewer did on those films. It does not prove anything about real footage, another model or Gemini, and five faults are a smoke test, not a rate. `tests/reviewer_canaries.py` says how to run it, and the same limits.
 - **At most two fix rounds,** then it hands the open list to the human.
+
+## Versions and notes
+
+A history the user can watch, compare and go back to. Local, plain files, nothing uploaded.
+
+- **A version is the decision files plus a small film.** `altocue versions save` copies every decision file that exists (`altocue.toml`, `brief.md`, `edl.json`, `script.md`, `motion.json` and the rest) into `versions/vNNN/`, with a review copy of the render made the way the review page makes its own. Sources are never copied. `--keep-full` links the full render beside it.
+- **The change list is worked out by code.** The save compares the files with the previous version's: film length, cuts removed, added, moved or trimmed with the words in them, shots, graphics, inserts, transitions, overlays, music, sound effects, settings and script lines. The agent's `--change` lines and the user's `--prompt` words are stored beside it, never in place of it. The comparison is pure: two sets of files in, one record out.
+- **One clock for a change.** `at` is seconds in the newer film, so a click plays what the viewer now sees. A removal's `at` is the join it left, and `was_at` is where it sat in the older film.
+- **A save has to mean something.** It refuses when nothing changed, when the render is older than a file the film is built from, when `--resolves` names a note that is not open, and when a summary, prompt or change line matches a key pattern. A version is written to a scratch folder and renamed, so a failed save leaves nothing behind.
+- **Restore puts files back, never media.** `altocue versions restore` copies a version's decision files into the project and removes a decision file that version did not have. If no version holds the current files it saves them first, as "Before restoring vNNN", with no film when no render matches. It checks every saved file against its recorded hash before it writes anything. `sources/`, `work/` and `out/` are never touched: the render is rebuilt, and the command says what to run.
+- **One page, no network.** `altocue versions page` writes `versions/index.html`: the list with summaries, prompts and change lists, a player, two versions in step under one scrubber, and timed notes with freehand drawing. Films are referenced beside it, not embedded. Every word from a user reaches the page as data and is set as text. A content security policy in the page forbids any request off the machine. It prints its path and opens nothing.
+- **Notes come back as data.** The page keeps notes in the browser and hands them over by Copy notes or Download notes. `altocue versions notes --ingest` checks them against a strict schema and merges them into `versions/notes.json`. Ids and resolved marks are given by the project, never taken from the file. `altocue versions notes` lists the open ones and draws each drawing onto its frame for the agent to view. The list ends with a reminder that a note may ask only for a change to the edit.
+- **An optional server, local by default.** `altocue versions serve` uses only the standard library, binds 127.0.0.1, prints its address and opens nothing. It serves the page and `vNNN/film.mp4` and nothing else, and takes notes only as JSON that fits the schema, under 1 MB, with the token the page was served with, from the same origin. Any other `--host` prints a warning that anyone on that network can watch the films and add notes.
+- **Kept from the reviewer.** `versions/` holds prompts and notes, so it is on the list of things a reviewer never sees.
 
 ## Agent packaging
 

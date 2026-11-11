@@ -317,10 +317,15 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    stages = collect(Project.open(args.project))
+    from . import versions
+
+    project = Project.open(args.project)
+    stages = collect(project)
     width = max(len(stage.name) for stage in stages)
     for stage in stages:
         print(f"{stage.name:<{width}}  {stage.state:<7}  {stage.detail}".rstrip())
+    for line in versions.status_lines(project):  # only a project that keeps versions has these
+        print(line)
     command = next_command(stages, args.project)
     print(f"\nNext: {command}" if command else "\nNext: nothing. This film is done and delivered.")
     return 0

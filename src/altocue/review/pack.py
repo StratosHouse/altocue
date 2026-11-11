@@ -30,7 +30,7 @@ HOOK_STEP = 0.25
 HOOK_SECONDS = qa_gates.HOOK_SECONDS
 TRANSCRIPT_LINE = 10
 FORBIDDEN = (
-    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/, out/, bench/ or results/, "
+    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/, out/, bench/, results/ or versions/, "
     "director-notes.md, review/REPORT.md, review/report.json, review/page.html, review/rounds.json, review/facts.json, review/facts.md or review/history/"
 )
 
