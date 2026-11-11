@@ -172,7 +172,7 @@ def test_the_handshake_names_altocue_and_its_tools():
     assert first["serverInfo"]["name"] == "altocue" and first["serverInfo"]["version"] == __version__
     assert "altocue_doctor" in first["instructions"]
     tools = {tool["name"] for tool in replies[1]["result"]["tools"]}
-    assert tools == {"altocue_doctor", "altocue_install", "altocue_run", "altocue_job", "altocue_stop", "altocue_guide"}
+    assert tools == {"altocue_doctor", "altocue_install", "altocue_profile", "altocue_run", "altocue_job", "altocue_stop", "altocue_guide"}
     skills = {path.parent.name for path in (ROOT / "skills").glob("*/SKILL.md")}
     assert {prompt["name"] for prompt in replies[2]["result"]["prompts"]} == skills
     assert replies[3]["result"]["protocolVersion"] == mcp.PROTOCOLS[0]
@@ -247,6 +247,49 @@ def test_heavy_jobs_run_one_at_a_time_and_stop_cleanly(fake_altocue, tmp_path):
     stopped = mcp.tool_stop({"job": render["job"]})
     assert stopped["state"] == "stopped"
     assert mcp.tool_run({"args": ["clean"], "cwd": str(tmp_path), "wait_seconds": 20})["state"] == "finished"
+
+
+@pytest.fixture
+def this_altocue(tmp_path, monkeypatch):
+    """This checkout's altocue as a command, for a tool that reads what the real one prints."""
+    script = tmp_path / "altocue"
+    script.write_text(f'#!/bin/sh\nPYTHONPATH="{ROOT / "src"}" exec "{sys.executable}" -m altocue.cli "$@"\n')
+    script.chmod(0o755)
+    monkeypatch.setenv("ALTOCUE_BIN", str(script))
+    monkeypatch.setenv("ALTOCUE_MCP_HOME", str(tmp_path / "state"))
+    return script
+
+
+def test_the_profile_tool_reads_the_questions_and_saves_only_checked_answers(this_altocue):
+    found = mcp.tool_profile({})
+    assert found["answered"] is False and len(found["questions"]) == 8
+    saved = mcp.tool_profile({"answers": {"kind": "long", "online": "paid", "spend_cap_usd": 15}})
+    assert saved["answered"] is True and saved["answers"]["kind"] == "long" and saved["answers"]["spend_cap_usd"] == 15.0
+    again = mcp.tool_profile({})
+    assert again["answered"] is True and again["questions"][0]["answer"] == "long"
+    with pytest.raises(mcp.ToolError, match="short, long, tutorial"):
+        mcp.tool_profile({"answers": {"kind": "vlog"}})
+    assert mcp.tool_profile({})["questions"][0]["answer"] == "long", "a refused answer changes nothing"
+    for bad in ({}, {"kind": True}, {"kind": ["short"]}, "kind=short"):
+        with pytest.raises(mcp.ToolError, match="question id"):
+            mcp.tool_profile({"answers": bad})
+    answer = mcp.call({"name": "altocue_profile", "arguments": {"answers": {"checks": "never"}}})
+    assert answer["isError"] and "every, cut, draft, end" in answer["structuredContent"]["error"]
+
+
+def test_the_profile_tool_says_when_altocue_is_too_old_or_missing(fake_altocue, monkeypatch, tmp_path):
+    with pytest.raises(mcp.ToolError, match="too old"):
+        mcp.tool_profile({})
+    monkeypatch.delenv("ALTOCUE_BIN")
+    monkeypatch.setattr(mcp, "bin_dirs", lambda: [str(tmp_path / "empty")])
+    with pytest.raises(mcp.ToolError, match="not installed"):
+        mcp.tool_profile({})
+
+
+def test_reading_the_profile_never_waits_for_a_render(fake_altocue, tmp_path):
+    render = mcp.tool_run({"args": ["render"], "cwd": str(tmp_path), "wait_seconds": 0})
+    assert mcp.tool_run({"args": ["start", "--show", "--json"], "cwd": str(tmp_path), "wait_seconds": 20})["state"] == "finished"
+    mcp.tool_stop({"job": render["job"]})
 
 
 def test_the_server_never_runs_itself_or_a_missing_folder(fake_altocue, tmp_path):

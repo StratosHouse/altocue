@@ -13,6 +13,7 @@ from .errors import AltocueError
 STAGES: dict[str, tuple[str, str]] = {
     "setup": ("altocue.setup", "Install what is missing, with your consent"),
     "doctor": ("altocue.doctor", "Check this machine"),
+    "start": ("altocue.start", "Answer eight questions once, so every project starts the way you work"),
     "new": ("altocue.ingest", "Start a project from one or more clips"),
     "brand": ("altocue.brand", "Read your brand kit first: logo, faces and colours, before any asset"),
     "ingest": ("altocue.ingest", "Probe clips: rotation, frame rate, HDR, audio"),

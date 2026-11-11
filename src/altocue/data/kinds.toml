@@ -1,0 +1,123 @@
+# The kinds of video a project can start as. `altocue start` asks which one you make most, and
+# `altocue new --kind <name>` starts one project as another kind.
+#
+# Every value here is an editor's starting point, chosen by judgement. None of them is measured, and none
+# promises how a film will do. Change any of them in the project's own altocue.toml and run again.
+#
+# `playbook` is the heading in skills/altocue-craft/references/playbooks.md that says how the kind is built.
+# Each table under a kind is a table of altocue.toml, and each key in it is set in a new project of that kind.
+#   cut.pace            how much air stays between phrases: tight, natural or relaxed
+#   frame.punch_in      the zoom used to hide a jump cut. 1.0 leaves the frame alone
+#   broll.share         the most of the runtime that B-roll may cover
+#   caption.max_words   the most words on one caption page
+#   audio.music_under   how far under the voice a music bed sits
+
+[short]
+label = "Short talking video"
+about = "One idea to camera, vertical, under ninety seconds"
+playbook = "Short talking video (vertical, under ninety seconds)"
+output = { aspect = "9:16", platform = "vertical" }
+cut = { pace = "tight" }
+frame = { punch_in = 1.15 }
+broll = { share = 0.3 }
+caption = { max_words = 3 }
+audio = { music_under = 15 }
+
+[long]
+label = "Long talking video"
+about = "Horizontal and minutes long, for someone who chose to watch"
+playbook = "Long talking video (horizontal, minutes)"
+output = { aspect = "16:9", platform = "youtube" }
+cut = { pace = "natural" }
+frame = { punch_in = 1.12 }
+broll = { share = 0.3 }
+caption = { max_words = 4 }
+audio = { music_under = 18 }
+
+[tutorial]
+label = "Tutorial or screen recording"
+about = "The viewer can do the thing afterwards. The screen is the subject"
+playbook = "Tutorial and screen recording"
+output = { aspect = "16:9", platform = "youtube" }
+cut = { pace = "natural" }
+frame = { punch_in = 1.0 }
+broll = { share = 0.5 }
+caption = { max_words = 4 }
+audio = { music_under = 22 }
+
+[interview]
+label = "Interview or conversation"
+about = "Two or more people talking, a podcast included, with room to think"
+playbook = "Interview and conversation"
+output = { aspect = "16:9", platform = "youtube" }
+cut = { pace = "relaxed" }
+frame = { punch_in = 1.0 }
+broll = { share = 0.15 }
+caption = { max_words = 4 }
+audio = { music_under = 22 }
+
+[clip]
+label = "Clip from a long recording"
+about = "One moment that makes sense to someone who never saw the rest"
+playbook = "Clip from a long recording"
+output = { aspect = "9:16", platform = "vertical" }
+cut = { pace = "natural" }
+frame = { punch_in = 1.12 }
+broll = { share = 0.1 }
+caption = { max_words = 3 }
+audio = { music_under = 18 }
+
+[launch]
+label = "Product demo or launch film"
+about = "The viewer sees the product do the thing, and believes it"
+playbook = "Product demo and launch film"
+output = { aspect = "16:9", platform = "youtube" }
+cut = { pace = "tight" }
+frame = { punch_in = 1.12 }
+broll = { share = 0.5 }
+caption = { max_words = 4 }
+audio = { music_under = 15 }
+
+[ad]
+label = "Advert or creator-style product video"
+about = "One person recognises their own problem and takes one step"
+playbook = "Advert and creator-style product video"
+output = { aspect = "9:16", platform = "vertical" }
+cut = { pace = "tight" }
+frame = { punch_in = 1.15 }
+broll = { share = 0.3 }
+caption = { max_words = 3 }
+audio = { music_under = 15 }
+
+[testimonial]
+label = "Testimonial"
+about = "A real person vouches, in their own way of speaking"
+playbook = "Testimonial"
+output = { aspect = "9:16", platform = "vertical" }
+cut = { pace = "natural" }
+frame = { punch_in = 1.12 }
+broll = { share = 0.2 }
+caption = { max_words = 4 }
+audio = { music_under = 20 }
+
+[event]
+label = "Event recap or montage"
+about = "The feeling of having been there, cut to music"
+playbook = "Event recap and montage"
+output = { aspect = "9:16", platform = "vertical" }
+cut = { pace = "tight" }
+frame = { punch_in = 1.0 }
+broll = { share = 0.5 }
+caption = { max_words = 3 }
+audio = { music_under = 15 }
+
+[story]
+label = "Story or documentary piece"
+about = "The viewer cares what happens to someone"
+playbook = "Story and documentary piece"
+output = { aspect = "16:9", platform = "youtube" }
+cut = { pace = "relaxed" }
+frame = { punch_in = 1.0 }
+broll = { share = 0.3 }
+caption = { max_words = 4 }
+audio = { music_under = 20 }
