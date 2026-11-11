@@ -53,8 +53,21 @@ def complete(tmp_path: Path) -> Project:
 
 def test_a_new_project_starts_at_ingest(tmp_path, capsys):
     project = Project.create(tmp_path / "video")
-    assert set(states(project).values()) == {"not run"}
+    found = states(project)
+    assert found.pop("brand") == "done"  # tests start on the house look, chosen. test_brand_kit tests the row without one
+    assert set(found.values()) == {"not run"}
     assert status.next_command(status.collect(project), ".") == "altocue ingest -p ."
+
+
+def test_a_missing_brand_holds_the_render_and_nothing_before_it(complete):
+    from altocue import brand as brands
+
+    brands.set_brand(complete, "")
+    found = {stage.name: stage for stage in status.collect(Project.open(complete.root))}
+    assert found["brand"].state == "not run"
+    assert all(found[name].state == "done" for name in ("ingest", "transcribe", "cut", "clean", "grade", "frame"))
+    assert found["render"].state == "stale" and found["render"].detail == "waits on brand"
+    assert status.next_command(list(found.values()), ".") == "altocue brand ingest <kit folder> -p ."
 
 
 def test_a_finished_project_is_all_done(complete):

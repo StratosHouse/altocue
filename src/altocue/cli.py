@@ -56,6 +56,12 @@ STAGES: dict[str, tuple[str, str]] = {
 }
 
 
+# "Your brand kit comes first." These stages make a caption, a graphic or a render, so each stops on a missing brand
+# before it does any slow work. The stages before them need no brand, and end by saying it comes next.
+BRAND_FIRST = frozenset({"caption", "motion", "render", "timeline", "run"})
+BEFORE_BRAND = frozenset({"transcribe", "cut", "clean", "grade", "frame"})
+
+
 class Parser(argparse.ArgumentParser):
     """No abbreviated options at any depth. Older Pythons, such as Ubuntu 24.04's 3.12.3, read `learn pair --a`
     as an abbreviation of learn's own --age or --as-of. Subcommand parsers are made from this class too."""
@@ -105,6 +111,33 @@ def forget_expired_data(args: argparse.Namespace) -> None:
         print(f"altocue: could not check for expired YouTube data: {error}", file=sys.stderr)
 
 
+def brand_first(args: argparse.Namespace) -> None:
+    """Stop a stage that would make an asset while the project has no brand, before it loads or measures anything."""
+    if args.command not in BRAND_FIRST or getattr(args, "stop", False):
+        return
+    from . import brand as brands
+    from .project import Project
+
+    project = Project.open(args.project)
+    if not (project.root / "storyboard.json").exists():  # a film from a storyboard may take its brand from the brief
+        brands.load(project)
+
+
+def brand_next(args: argparse.Namespace) -> None:
+    """After a stage that needs no brand: say the brand comes next, so no closing hint leads into the gate."""
+    if args.command not in BEFORE_BRAND:
+        return
+    from . import brand as brands
+    from .project import Project
+
+    try:
+        project = Project.open(args.project)
+    except AltocueError:
+        return
+    if not brands.chosen_brand(project) and not (project.root / "storyboard.json").exists():
+        print(f"This project has no brand yet, so `altocue run` and `altocue render` stop until it has one. {brands.ways_out()}")
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     args = build_parser(argv).parse_args(argv)
@@ -112,7 +145,11 @@ def main(argv: list[str] | None = None) -> int:
     with contextlib.redirect_stdout(sys.stderr) if args.module == "altocue.mcp" else contextlib.nullcontext():
         forget_expired_data(args)
     try:
-        return importlib.import_module(args.module).run(args) or 0
+        brand_first(args)
+        code = importlib.import_module(args.module).run(args) or 0
+        if code == 0:
+            brand_next(args)
+        return code
     except AltocueError as error:
         print(f"altocue: {error}", file=sys.stderr)
         return 1

@@ -203,6 +203,7 @@ def bake_edges(project: Project, timeline: dict[str, Any], picture: Path, c: pla
 
 
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:
+    brands.load(project)  # the brand kit comes first: stop here, before the framing and the plate spend any time
     with locks.heavy("rendering"):
         frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
         picture, voice = plate.build(project, draft=draft)

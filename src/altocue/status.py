@@ -62,6 +62,21 @@ def _clip_sources(project: Project) -> list[Path]:
     return [Path(clip.path) for clip in project.clips()]
 
 
+def check_brand(project: Project) -> Look:
+    """The brand kit comes first, so it is the first row. Its command is never the house look: that is the owner's choice to make."""
+    from . import brand as brands
+
+    read = "altocue brand ingest <kit folder> -p {folder}"
+    chosen = brands.chosen_brand(project)
+    if not chosen:
+        return Look(NOT_RUN, "no brand chosen, so nothing is captioned or rendered. With none of your own: `altocue brand ingest --house`", command=read)
+    try:
+        brands.load(project)
+    except AltocueError as error:
+        return Look(STALE, str(error).splitlines()[0], command=read)
+    return Look(DONE, "the house look, chosen on purpose" if chosen == "default" else chosen)
+
+
 def check_ingest(project: Project) -> Look:
     if not project.media_path.exists():
         return Look(NOT_RUN)
@@ -158,8 +173,8 @@ def render_inputs(project: Project) -> list[Path]:
         from .studio.plan import load
 
         inputs.extend(Path(v) for v in load(project.root)["_assets"].values())
-    brand = str(project.setting("brand", "name", "default"))
-    return [*inputs, project.root / brand] if brand != "default" else inputs
+    brand = str(project.setting("brand", "name", "default")).strip()
+    return [*inputs, project.root / brand] if brand not in ("default", "") else inputs  # no brand is no file, and never the folder itself
 
 
 def check_render(project: Project) -> Look:
@@ -242,7 +257,11 @@ def check_page(project: Project) -> Look | None:
     return Look(DONE)
 
 
+BRAND = "brand"
+NEEDS_BRAND = "render"  # the first stage that makes an asset. Everything before it runs without a brand
+
 CHECKS: tuple[tuple[str, Callable[[Project], Look | None]], ...] = (
+    (BRAND, check_brand),
     ("ingest", check_ingest),
     ("transcribe", check_transcribe),
     ("cut", check_cut),
@@ -293,6 +312,7 @@ def collect(project: Project) -> list[Stage]:
         return collect_film(project)
     stages: list[Stage] = []
     behind = ""
+    no_brand = False
     for name, check in CHECKS:
         try:
             found = check(project)
@@ -300,10 +320,15 @@ def collect(project: Project) -> list[Stage]:
             found = Look(NOT_RUN, str(error).splitlines()[0])
         if found is None:
             continue
+        if name == NEEDS_BRAND and no_brand:
+            behind = behind or BRAND
         if behind and found.state == DONE:
             found = Look(STALE, f"waits on {behind}")
         stages.append(Stage(name, found.state, found.detail, found.command or f"altocue {name} -p {{folder}}" + (f" {found.flags}" if found.flags else "")))
-        behind = behind or (name if found.state != DONE else "")
+        if name == BRAND:
+            no_brand = found.state != DONE  # the stages before the render do not wait on it
+        else:
+            behind = behind or (name if found.state != DONE else "")
     return stages
 
 

@@ -74,3 +74,74 @@ def test_the_house_look_is_a_choice_and_new_can_read_the_kit(tmp_path, clip):
     folder = kit(tmp_path)
     assert main(["new", str(tmp_path / "q"), "--input", str(clip), "--brand", str(folder)]) == 0
     assert brands.load(Project.open(tmp_path / "q")).colors["accent"] == "#ff5a1f"
+
+
+def test_new_names_both_ways_past_the_gate(tmp_path, clip, capsys, monkeypatch):
+    from altocue import project as projects
+
+    monkeypatch.setattr(projects, "DEFAULT_CONFIG", projects.DEFAULT_CONFIG.replace('name = "default"        #', 'name = ""               #', 1))
+    assert main(["new", str(tmp_path / "first"), "--input", str(clip)]) == 0
+    out = capsys.readouterr().out
+    assert "altocue brand ingest <kit folder>" in out and "altocue brand ingest --house" in out and "--brand house" in out
+    assert f"-p {tmp_path / 'first'}" in out
+
+
+def test_a_render_stops_on_the_gate_before_any_work(tmp_path, monkeypatch, capsys):
+    from altocue import render
+
+    project = blank(tmp_path)
+    worked = []
+    monkeypatch.setattr(render.frame, "frame_project", lambda project: worked.append("frame"))
+    monkeypatch.setattr(render.plate, "build", lambda project, draft: worked.append("plate"))
+    with pytest.raises(AltocueError, match="no brand kit yet"):
+        render.build(project, draft=True)
+    for command in (["render", "--draft"], ["caption"], ["motion"], ["run"]):
+        assert main([*command, "--project", str(project.root)]) == 1
+        said = capsys.readouterr().err
+        assert "no brand kit yet" in said and "altocue brand ingest --house" in said
+    assert worked == []
+
+
+def test_status_has_a_brand_row_and_next_never_points_past_it(tmp_path, capsys):
+    from altocue import status
+
+    project = blank(tmp_path)
+    stages = status.collect(project)
+    assert (stages[0].name, stages[0].state) == ("brand", "not run")
+    assert "--house" in stages[0].detail
+    assert status.next_command(stages, ".") == "altocue brand ingest <kit folder> -p ."
+    brands.ingest(project, None, house=True)
+    stages = status.collect(Project.open(project.root))
+    assert (stages[0].state, stages[0].detail) == ("done", "the house look, chosen on purpose")
+    assert "brand" not in status.next_command(stages, ".")
+
+
+def test_the_house_look_message_names_no_file_that_was_not_written(tmp_path, capsys):
+    project = blank(tmp_path)
+    assert main(["brand", "ingest", "--house", "--project", str(project.root)]) == 0
+    out = capsys.readouterr().out
+    assert "house look, chosen on purpose" in out and "brand/brand.json" not in out
+    assert not (project.root / "brand").exists()
+
+
+def test_a_kit_that_is_not_there_says_what_to_give(tmp_path):
+    project = blank(tmp_path)
+    with pytest.raises(AltocueError) as caught:
+        brands.ingest(project, tmp_path / "nowhere")
+    assert caught.value.fix and "house" in caught.value.fix
+
+
+def test_the_cut_ends_by_saying_the_brand_comes_before_a_run(tmp_path, capsys, monkeypatch):
+    from altocue import cut
+    from altocue.models import Edl, Segment
+
+    project = blank(tmp_path)
+    edl = Edl(fps=30, segments=[Segment(id="s001", clip="a", start=0.0, end=1.0)])
+    monkeypatch.setattr(cut, "run", lambda args: print("Next: `altocue run` rebuilds the film from this cut.") or project.save_edl(edl) and 0)
+    assert main(["cut", "--project", str(project.root)]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith("Next: `altocue run`")
+    assert "no brand yet" in out[1] and "altocue brand ingest --house" in out[1] and "<kit folder>" in out[1]
+    brands.ingest(project, None, house=True)
+    assert main(["cut", "--project", str(project.root)]) == 0
+    assert "no brand yet" not in capsys.readouterr().out

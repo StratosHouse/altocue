@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -110,6 +111,11 @@ def run(args: argparse.Namespace) -> int:
     print(f"Project ready at {project.root}")
     for note in notes:
         print(note)
-    if not str(project.setting("brand", "name", "default")).strip():
-        print("Next: `altocue brand ingest <kit folder>`. Altocue reads your logo, faces and colours before it makes any asset.")
+    from . import brand as brands
+
+    if not brands.chosen_brand(project):
+        folder = shlex.quote(args.folder if args.command == "new" else args.project)
+        print(f"Next: choose the look, because Altocue makes no caption, graphic or render before it has one. {brands.ways_out('' if folder == '.' else folder)}")
+        if args.command == "new":
+            print("`altocue new` takes either too: `--brand <kit folder>` or `--brand house`.")
     return 0

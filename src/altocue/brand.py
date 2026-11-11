@@ -70,15 +70,32 @@ class Brand:
         return asset(self.root, value, LOGO_TYPES, "logo") if value else None
 
 
+NO_BRAND = "This project has no brand kit yet, and Altocue makes no asset before it reads one."
+WAYS_OUT = "Run `altocue brand ingest <kit folder>` with the logo, fonts and colours. With no brand of your own, `altocue brand ingest --house`."
+HOUSE_CHOSEN = "Altocue's house look, chosen on purpose. To use your own logo, faces and colours later, run `altocue brand ingest <kit folder>`."
+NO_KIT_FIX = "Give the folder that holds the logo, fonts and colours, or a brand.json. With no brand of your own, use `house`."
+
+
+def chosen_brand(project: Project) -> str:
+    """What `[brand] name` says: empty until the owner chooses, `default` for the house look, else a brand file."""
+    return str(project.setting("brand", "name", "default")).strip()
+
+
+def ways_out(folder: str = "") -> str:
+    """Both ways past the gate, as commands to paste. Neither is run for the owner: the house look is never applied silently."""
+    at = f" -p {folder}" if folder else ""
+    return (
+        f"With a brand kit, `altocue brand ingest <kit folder>{at}` reads your logo, faces and colours. "
+        f"With no brand of your own, `altocue brand ingest --house{at}` chooses Altocue's house look on purpose."
+    )
+
+
 def load(project: Project) -> Brand:
     """Read the project's brand. A partial file only overrides what it names."""
     default = json.loads(data_path("brands", "default.json").read_text())
-    chosen = str(project.setting("brand", "name", "default")).strip()
+    chosen = chosen_brand(project)
     if not chosen:
-        raise AltocueError(
-            "This project has no brand kit yet, and Altocue makes no asset before it reads one.",
-            fix="Run `altocue brand ingest <kit folder>` with the logo, fonts and colours. With no brand of your own, `altocue brand ingest --house`.",
-        )
+        raise AltocueError(NO_BRAND, fix=WAYS_OUT)
     if chosen == "default":
         return Brand(default, data_path("brands"))
     path = (project.root / chosen).resolve()
@@ -177,6 +194,27 @@ def _copy(source: Path, target_dir: Path) -> str:
     return name
 
 
+def read_kit(kit: Path) -> tuple[Path, dict[str, Any], Path]:
+    """The kit's own path, what its brand.json says, and the folder its files sit in. Nothing is written, so `altocue new` can ask this first."""
+    kit = kit.expanduser().resolve()
+    if not kit.exists():
+        raise AltocueError(f"No brand kit at {kit}.", fix=NO_KIT_FIX)
+    written = kit if kit.is_file() and kit.suffix.lower() == ".json" else kit / "brand.json"
+    folder = kit.parent if written == kit else kit
+    if not folder.is_dir():
+        raise AltocueError(f"{kit} is neither a kit folder nor a brand.json.", fix=NO_KIT_FIX)
+    if not written.is_file():
+        return kit, {}, folder
+    try:
+        data = json.loads(written.read_text())
+    except (ValueError, UnicodeDecodeError) as error:
+        fix = "Mend the file. Without a brand.json, Altocue reads the colours, font and logo from the rest of the folder."
+        raise AltocueError(f"The brand file {written} does not parse: {error}.", fix=fix) from error
+    if not isinstance(data, dict):
+        raise AltocueError(f"The brand file {written} is not a JSON object.", fix='Write it as {"name": "...", "colors": {}}. `altocue brand show` prints a whole one.')
+    return kit, data, folder
+
+
 def ingest(project: Project, kit: Path | None, *, house: bool = False) -> dict[str, Any]:
     """Read a kit into `brand/` in the project and point [brand] at it. Returns what was read and what fell back."""
     default = json.loads(data_path("brands", "default.json").read_text())
@@ -185,19 +223,8 @@ def ingest(project: Project, kit: Path | None, *, house: bool = False) -> dict[s
         return {"brand": "default", "read": [], "kept": ["everything: the house look, chosen on purpose"]}
     if kit is None:
         raise AltocueError("Name the brand kit.", fix="Pass a kit folder or a brand.json, or --house to use Altocue's house look on purpose.")
-    kit = kit.expanduser().resolve()
-    if not kit.exists():
-        raise AltocueError(f"No brand kit at {kit}.")
+    kit, data, folder = read_kit(kit)
     target = project.root / BRAND_DIR
-    if kit.is_file() and kit.suffix.lower() == ".json":
-        data = json.loads(kit.read_text())
-        folder = kit.parent
-    elif (kit / "brand.json").is_file():
-        data, folder = json.loads((kit / "brand.json").read_text()), kit
-    else:
-        data, folder = {}, kit
-    if not folder.is_dir():
-        raise AltocueError(f"{kit} is neither a kit folder nor a brand.json.")
     read, kept = [], []
     made: dict[str, Any] = {"name": data.get("name") or (kit.stem if kit.is_file() else kit.name)}
     if data.get("colors"):
@@ -257,6 +284,9 @@ def run(args: argparse.Namespace) -> int:
         print(json.dumps({"brand": project.setting("brand", "name"), **brand.data}, indent=2))
         return 0
     done = ingest(project, Path(args.kit) if args.kit else None, house=args.house)
+    if args.house:
+        print(f"Brand: {HOUSE_CHOSEN}")  # no brand/brand.json is written for the house look, so nothing here says to edit one
+        return 0
     print(f"Brand: {done['brand']}")
     if done["read"]:
         print("Read: " + "; ".join(done["read"]))
