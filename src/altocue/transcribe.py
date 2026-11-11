@@ -270,9 +270,7 @@ class FasterWhisper(LocalEngine):
         return self._run(samples, self.model or (self.english if language == "en" else self.multilingual), "cpu", "int8", language=language, prompt=prompt)
 
     def _run(self, samples: Any, name: str, device: str, compute: str, *, language: str, prompt: str) -> list[Word]:
-        from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
-
-        segments, _ = WhisperModel(name, device=device, compute_type=compute).transcribe(
+        segments, _ = load_faster_whisper(name, device, compute).transcribe(
             samples,
             vad_filter=READING_BACK.get(),  # music alone read as speech: "We'll be right back." in a film with no voice
             word_timestamps=True,
@@ -282,6 +280,17 @@ class FasterWhisper(LocalEngine):
             temperature=0.0,
         )
         return [Word(text=w.word.strip(), start=float(w.start), end=float(w.end), confidence=float(w.probability)) for segment in segments for w in segment.words or []]
+
+
+@functools.lru_cache(maxsize=2)
+def load_faster_whisper(name: str, device: str, compute: str) -> Any:
+    """One load serves every piece of a recording and every clip in a run. It was built again for each 60 second piece.
+
+    Two are kept, so a card whose libraries are missing does not push out the CPU model it falls back to.
+    """
+    from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
+
+    return WhisperModel(name, device=device, compute_type=compute)
 
 
 class Parakeet(LocalEngine):
