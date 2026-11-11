@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw
 
 from . import cut, ffmpeg, grade, stock
 from . import timeline as timelines
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .generate import http
 from .project import Project, write_json
@@ -109,7 +110,7 @@ def cut_points(project: Project) -> list[float]:
     edl = project.edl()
     points, at = [], 0.0
     for segment in edl.segments[:-1]:
-        at += round((segment.end - segment.start) * edl.fps) / edl.fps
+        at += frame_count(segment.start, segment.end, edl.fps) / edl.fps
         points.append(at)
     return points
 
@@ -145,7 +146,7 @@ def find_spots(project: Project, share: float | None = None) -> list[dict[str, A
     words = [word for word in cut.map_words(project, edl) if word.get("kind", "word") == "word"]
     if not words:
         return []
-    duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
+    duration = round(sum(frame_count(s.start, s.end, edl.fps) for s in edl.segments) / edl.fps, 6)
     cuts = cut_points(project)
     busy, placed = busy_spans(project, words, duration)
     budget = duration * float(share if share is not None else project.setting("broll", "share", DEFAULT_SHARE)) - placed

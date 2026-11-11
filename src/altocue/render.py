@@ -12,6 +12,7 @@ from typing import Any
 from . import brand as brands
 from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
 from . import timeline as timelines
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .motion import formats
 from .project import Project, write_json
@@ -76,7 +77,7 @@ def insert_frames(insert: dict[str, Any], fps: int) -> tuple[int, int]:
         start, end = float(insert["start"]), float(insert["end"])
     except (KeyError, TypeError, ValueError) as error:
         raise AltocueError(f"The insert {name} has no usable start and end.", fix="Give it a start and an end in seconds.") from error
-    first, frames = round(start * fps), round((end - start) * fps)
+    first, frames = round(start * fps), frame_count(start, end, fps)
     if first < 0 or frames < 1:
         fix = "Start it at 0 seconds or later, and end it after it starts."
         raise AltocueError(f"The insert {name} runs from {start:g}s to {end:g}s, which is not a span of the film.", fix=fix)

@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 
 from . import clean, ffmpeg
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .models import Edl
 from .project import Project, write_json
@@ -126,6 +127,9 @@ def _pieces(project: Project, edl: Edl) -> list[Piece]:
     for segment in edl.segments:
         if segment.end <= segment.start:
             raise AltocueError(f"Segment {segment.id} ends before it starts.", fix="Fix edl.json, or run `altocue cut`.")
+        length = frame_count(segment.start, segment.end, edl.fps)
+        if length < 1:  # the cut refuses this too. A piece of no frames would leave the sound a shot behind the picture
+            raise AltocueError(f"Segment {segment.id} is shorter than one frame at {edl.fps} fps.", fix="Lengthen or delete it in edl.json, or run `altocue cut`.")
         if segment.clip not in loaded:
             path = project.audio_dir / f"{segment.clip}.wav"
             if segment.clip in clips and not clips[segment.clip].has_audio:
@@ -137,7 +141,7 @@ def _pieces(project: Project, edl: Edl) -> list[Piece]:
             else:
                 raise AltocueError(f"No cleaned audio for clip {segment.clip}.", fix="Run `altocue clean`.")
         start = round(frames / edl.fps * RATE)
-        frames += max(1, round((segment.end - segment.start) * edl.fps))
+        frames += length
         end = round(frames / edl.fps * RATE)
         pieces.append(Piece(segment.clip, loaded[segment.clip], round(segment.start * RATE), start, end, segment.gain))
     return pieces

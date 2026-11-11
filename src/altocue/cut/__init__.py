@@ -48,7 +48,8 @@ LABEL_WORDS = 5
 
 
 @lru_cache(maxsize=64)
-def _envelope(path: str, modified: float) -> Envelope:
+def _envelope(path: str, modified: int, size: int) -> Envelope:
+    """Keyed on nanoseconds and size. Whole seconds of mtime would serve the old sound to a re-clean inside the same second."""
     with tempfile.TemporaryDirectory() as folder:
         return Envelope.from_wav(ffmpeg.extract_wav(path, Path(folder) / "audio.wav", rate=RATE))
 
@@ -57,7 +58,10 @@ def envelope_of(clip: Clip) -> Envelope | None:
     if not clip.has_audio:
         return None
     path = Path(clip.path)
-    return _envelope(str(path), path.stat().st_mtime) if path.exists() else None
+    if not path.exists():
+        return None
+    info = path.stat()
+    return _envelope(str(path), info.st_mtime_ns, info.st_size)
 
 
 def bounds(run: list[int], words: list[Word], clip: Clip, envelope: Envelope | None, fps: int, walls: tuple[Removed, ...] = ()) -> tuple[float, float]:
@@ -270,6 +274,10 @@ def validate(project: Project, edl: Edl) -> list[str]:
             continue
         if segment.end > clip.duration + TIME_SLACK:
             problems.append(f"{segment.id}: ends at {segment.end:.3f} s, past the end of {clip.id} at {clip.duration:.3f} s.")
+        if frame_count(segment.start, segment.end, edl.fps) < 1:  # every stage counts frames one way, and none may invent a frame for this
+            length, frame = segment.end - segment.start, 1 / edl.fps
+            problems.append(f"{segment.id}: {length:.6f} s is shorter than one frame at {edl.fps} fps. Lengthen it to {frame:.6f} s or more, or delete the segment.")
+            continue
         if abs((segment.end - segment.start) * edl.fps - frame_count(segment.start, segment.end, edl.fps)) > 0.01:
             problems.append(f"{segment.id}: {segment.end - segment.start:.6f} s is not a whole number of frames at {edl.fps} fps.")
         for other in spans.setdefault(clip.id, []):

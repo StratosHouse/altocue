@@ -68,6 +68,14 @@ def edl(*parts: tuple[str, float, float] | tuple[str, float, float, float]) -> E
     return Edl(fps=30, segments=segments)
 
 
+def test_a_segment_of_no_frames_is_refused_and_never_given_one(project, tmp_path):
+    """The sound gave it a frame and the duration gate gave it none, so the two disagreed about every shot after it."""
+    cleaned(project, "a", noise(4, seed=1))
+    with pytest.raises(AltocueError, match="shorter than one frame") as refused:
+        mix.mix_voice(project, edl(("a", 0.5, 1.5), ("a", 2.0, 2.01)), tmp_path / "voice.wav")
+    assert "edl.json" in refused.value.fix
+
+
 def test_voice_is_sample_accurate_through_the_edl(project, tmp_path):
     a = cleaned(project, "a", noise(4, seed=1))
     b = cleaned(project, "b", noise(4, seed=2))

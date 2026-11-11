@@ -117,7 +117,7 @@ class Case:
         return not self.gate
 
 
-INSERT = {"file": "broll.mp4", "start": 2.0, "end": 4.0}  # frames 60 to 119 at 30 fps
+INSERT = {"file": "broll.mp4", "start": 3.0, "end": 5.0}  # frames 90 to 149 at 30 fps, clear of the hook
 
 CANARIES = [
     Case("black flash, two frames", "black_frames", Recipe(vf="drawbox=color=black:t=fill:enable='between(n,90,91)'")),
@@ -140,9 +140,9 @@ CANARIES = [
     Case("a line the brief requires is never said", "brief_coverage", Recipe(brief=f"# Brief\n\n{MUST_SAY}- the free plan never expires\n")),
     Case("five flashes a second across the picture", "flash_rate", Recipe(vf=strobe(6))),
     Case("five saturated red flashes a second", "flash_rate", Recipe(vf=strobe(6, "0xff0000"))),
-    Case("the next shot a frame early at the end of an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(60, 118))),
-    Case("the last shot a frame late into an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(61, 119))),
-    Case("a frame of something else at an insert edge", "stray_frames", Recipe(inserts=[INSERT], vf=f"{fill(60, 119)},{fill(59, 59, '0xff3322')}")),
+    Case("the next shot a frame early at the end of an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(90, 148))),
+    Case("the last shot a frame late into an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(91, 149))),
+    Case("a frame of something else at an insert edge", "stray_frames", Recipe(inserts=[INSERT], vf=f"{fill(90, 149)},{fill(89, 89, '0xff3322')}")),
     Case("CC BY music with no credits file", "credits", Recipe(assets=[OWED])),
     Case(
         "banned word in a graphic",
@@ -226,9 +226,9 @@ CONTROLS = [
     Case("clean, a real speaker may say what they tried", "", Recipe(expected=CLAIMING, heard=CLAIMING)),
     Case("clean, three flashes a second", "", Recipe(vf=strobe(10))),
     Case("clean, a small corner blinking fast", "", Recipe(vf=strobe(6, box="x=0:y=0:w=150:h=150:"))),
-    Case("clean, an insert with hard edges", "", Recipe(inserts=[INSERT], vf=fill(60, 119))),
+    Case("clean, an insert with hard edges", "", Recipe(inserts=[INSERT], vf=fill(90, 149))),
     Case("clean, an insert that matches its neighbours", "", Recipe(inserts=[INSERT])),
-    Case("clean, an insert that arrives by a dissolve", "", Recipe(inserts=[{**INSERT, "in": {"type": "dissolve", "duration": 0.2}}], vf=fill(61, 119))),
+    Case("clean, an insert that arrives by a dissolve", "", Recipe(inserts=[{**INSERT, "in": {"type": "dissolve", "duration": 0.2}}], vf=fill(91, 149))),
     Case("clean, the brief's lines are all said", "", Recipe(brief=f"# Brief\n\n{MUST_SAY}- you need a plan\n- a reason to keep going\n")),
     Case(
         "clean, graphic held long enough to read",
