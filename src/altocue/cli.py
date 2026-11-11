@@ -48,6 +48,7 @@ STAGES: dict[str, tuple[str, str]] = {
     "benchmark": ("altocue.benchmark", "Compare against real videos from a CSV or your own key"),
     "learn": ("altocue.learn", "Learn from your own published results"),
     "clips": ("altocue.clips", "Find and cut short clips from a long video"),
+    "watch": ("altocue.watch", "Look at the recordings or a render as frames: every line, every cut, every graphic"),
     "status": ("altocue.status", "Show what is done, stale and next"),
     "demo": ("altocue.demo", "Prove this machine works on a sample clip"),
     "mcp": ("altocue.mcp", "Serve Altocue to any MCP client over stdio"),
