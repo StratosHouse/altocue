@@ -53,7 +53,23 @@ altocue grade --lut ~/luts/show.cube
 - **A LUT replaces the look.** Asking for both is refused.
 - **Strength runs from 0 to 1.** Start around 0.6 for anything strong. Most films want less than the full recipe.
 - **Bring your own LUT as a `.cube`,** 1D or 3D. Altocue bundles none, and these looks are generated in code, so nothing here is a third party's LUT.
-- **A LUT made for log footage will look wrong here.** The correction hands it display-referred BT.709.
+- **A LUT made for log footage will look wrong here.** The correction hands it display-referred BT.709, and log footage is converted first.
+
+## Log footage
+
+Log footage looks flat and grey until its curve is undone, and no tag in the file proves which curve it is. So Altocue never guesses one.
+
+```toml
+[grade]
+input = "slog3"            # every clip the tags do not settle
+input = { a = "vlog" }     # or by clip id, for a mixed shoot
+```
+
+- **`auto` is the default.** It converts only what the file's own tags prove, which is HDR.
+- **Name the curve:** `apple_log`, `slog3`, `vlog`, `clog3`, `flog2` or `dlog`. Each assumes the camera's usual wide gamut. The conversion is baked ahead of the correction, in the clip's one cube.
+- **Read the summary.** `may be log footage` means a 10 bit clip looks flat or is tagged the way Apple Log is. Ask the user which camera and picture profile, then set `input`. If it is not log, `input = "video"` ends the note.
+- **Do not name a curve on a guess.** The wrong curve gives wrong colour that no correction repairs.
+- **Look at the draft.** A log clip should come out with ordinary contrast and believable skin. If it is still flat, or harsh, the curve is the wrong one.
 
 ## Rules
 

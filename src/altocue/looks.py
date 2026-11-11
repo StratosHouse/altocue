@@ -536,10 +536,10 @@ def sheet(project: Project, dest: str | Path | None = None) -> Path:
     """Every look on one real frame, sized and skin-guarded as the grade would, to choose from."""
     from PIL import Image, ImageDraw
 
-    from . import grade
+    from . import grade, logs
     from .frame import read_rgb
 
-    clips = project.clips()
+    clips = logs.tagged(project, project.clips())
     clip = max(clips, key=lambda c: c.duration)
     spans = grade._kept_ranges(project).get(clip.id)
     stats = grade._read_clip(clip, spans)
@@ -548,7 +548,7 @@ def sheet(project: Project, dest: str | Path | None = None) -> Path:
     raw = read_rgb(clip, times[0], max(SHEET_CELL * 2, 640))
     if raw is None:
         raise AltocueError(f"Could not read a frame of {clip.id}.", fix=f"Check that {clip.path} plays.")
-    frame = correction.apply(grade.hdr_to_sdr(raw, clip.transfer) if clip.is_hdr else raw)
+    frame = correction.apply(grade.to_sdr(raw, clip))
     skin = correction.apply(stats.skin) if stats.has_skin else None
     names = ALL
     height, width = frame.shape[:2]

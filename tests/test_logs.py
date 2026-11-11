@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
 import numpy as np
 import pytest
-from test_grade import scene, to_yuv10
+from test_grade import make_project, scene, to_yuv10
 
-from altocue import grade, logs
+from altocue import grade, logs, looks
+from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.ffmpeg import probe_clip
 from altocue.models import Clip
@@ -263,6 +265,41 @@ def test_how_ffmpeg_reads_the_range_comes_from_the_file(tmp_path):
     assert logs.full_range(clip(pix_fmt="yuvj420p", path=str(tmp_path / "tv.mkv")))
 
 
+def log_project(tmp_path: Path, name: str = "slog3") -> Project:
+    return make_project(tmp_path, [write_log(tmp_path / "a.mkv", log_scene(name))])
+
+
+def test_a_log_clip_left_on_auto_is_not_converted_and_the_summary_says_why(tmp_path, capsys):
+    project = log_project(tmp_path)
+    assert main(["grade", "--project", str(project.root)]) == 0
+    printed = capsys.readouterr().out
+    entry = json.loads((project.lut_dir / "report.json").read_text())["clips"]["a"]
+    assert entry["changes"]["input"] is None and "may be log footage" in entry["input_hint"]
+    assert "a: may be log footage" in printed and "input under [grade]" in printed and "slog3" in printed
+    table = grade.read_cube(project.lut_dir / "a.cube")
+    assert len(table) == grade.LUT_SIZE**3 and np.abs(table - grade.identity_grid(grade.LUT_SIZE)).max() < 0.12  # corrected at most, never decoded
+
+
+def test_a_named_curve_is_decoded_ahead_of_the_correction_in_the_clips_one_cube(tmp_path, capsys):
+    project = set_input(log_project(tmp_path), '"slog3"')
+    assert main(["grade", "--project", str(project.root)]) == 0
+    printed = capsys.readouterr().out
+    report = json.loads((project.lut_dir / "report.json").read_text())
+    entry = report["clips"]["a"]
+    assert entry["changes"]["input"] == "slog3" and entry["input_hint"] is None
+    assert "log to SDR as slog3" in printed and "may be log" not in printed
+    assert sorted(path.name for path in project.lut_dir.glob("*.cube")) == ["a.cube"]
+
+    ordinary = grade.measure_frames("x", [scene().astype(np.float32) / 255])
+    assert entry["faces"]["rate"] == 1.0  # the face is found in the picture, not in the log signal
+    assert entry["before"]["face_luma"] == pytest.approx(grade.median_luma(ordinary.skin), abs=0.02)  # and measured as the picture it becomes
+    table = grade.read_cube(project.lut_dir / "a.cube")
+    assert len(table) == grade.HDR_LUT_SIZE**3
+    correction = np.abs(grade.apply_lut(table, log_scene()) - scene().astype(np.float64) / 255)
+    assert correction.mean() < 0.05  # the scene again, give or take a bounded correction
+    assert np.abs(log_scene() - scene().astype(np.float64) / 255).mean() > 2 * correction.mean()
+
+
 def test_the_render_chain_turns_a_log_file_into_the_picture(tmp_path):
     from test_grade import first_frame_rgb, render
 
@@ -273,3 +310,41 @@ def test_the_render_chain_turns_a_log_file_into_the_picture(tmp_path):
     wanted = scene().astype(np.float64) / 255
     for y, x in ((60, 60), (400, 600), (230, 320), (250, 280)):  # wall, wall, and two places on the face
         assert np.abs(got[y, x] - wanted[y, x]).max() < 0.03
+
+
+def test_changing_the_setting_solves_again_and_grade_off_still_converts(tmp_path):
+    project = log_project(tmp_path)
+    first = grade.grade_project(project)
+    assert grade.up_to_date(project)
+    project = set_input(project, '"slog3"')
+    assert not grade.up_to_date(project)
+    second = grade.grade_project(project)
+    assert first["stamp"] != second["stamp"] and grade.up_to_date(project)
+    assert grade.grade_project(set_input(project, '{ a = "slog3" }'))["clips"]["a"]["changes"]["input"] == "slog3"
+
+    text = (project.root / "altocue.toml").read_text()
+    (project.root / "altocue.toml").write_text(text.replace("enabled = true          # off still converts HDR", "enabled = false         # off still converts HDR", 1))
+    off = grade.grade_project(set_input(Project.open(project.root), '"slog3"'))
+    assert off["clips"]["a"]["changes"]["input"] == "slog3"
+    plain = logs.log_to_sdr(grade.identity_grid(grade.HDR_LUT_SIZE), "slog3")
+    assert np.allclose(grade.read_cube(project.lut_dir / "a.cube"), plain, atol=2e-6)  # the conversion and nothing else
+
+
+def test_a_wrong_setting_stops_the_grade_with_a_fix(tmp_path, capsys):
+    project = set_input(log_project(tmp_path), '"s-log"')
+    assert main(["grade", "--project", str(project.root)]) != 0
+    assert "slog3" in capsys.readouterr().err
+
+
+def test_an_ordinary_clip_gets_no_hint_and_the_look_sheet_reads_log_too(tmp_path):
+    from test_frame import write_clip
+
+    ordinary = make_project(tmp_path / "plain", [write_clip(tmp_path / "b.mp4", [scene()] * 8)])
+    assert grade.grade_project(ordinary)["clips"]["b"]["input_hint"] is None
+    project = set_input(log_project(tmp_path), '"slog3"')
+    sheet = looks.sheet(project)
+    from PIL import Image
+
+    with Image.open(sheet.parent / "looks" / "natural.jpg") as natural, Image.open(sheet.parent / "looks" / "raw.jpg") as raw:
+        graded, flat = np.asarray(natural, np.float64) / 255, np.asarray(raw, np.float64) / 255
+    assert graded.std() > 1.3 * flat.std()  # the graded frame has the contrast the log frame lacks
