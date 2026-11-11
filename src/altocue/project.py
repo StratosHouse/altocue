@@ -44,8 +44,10 @@ show = ""               # on captions: colour, name or both. Empty shows nothing
 # S1 = "Ada"            # the name to show
 
 [cut]
-max_pause = 0.4         # seconds of silence kept between words at most
-remove_fillers = true
+pace = "natural"        # tight, natural or relaxed: how much of each longer pause stays, by clause, comma, sentence and topic
+max_pause = 0.4         # a pause inside a clause is left whole up to this many seconds. Longer ones are shortened, never below it. tight starts at 0.2
+fillers = "clean"       # clean cuts an "um" only where it lifts out cleanly and leaves no shot under 0.6 s. all cuts every one, none keeps them
+# end_hold = 0.5        # seconds of picture after the last word. Without it: 0.25 tight, 0.5 natural, 0.8 relaxed. 0 turns it off
 
 [audio]
 denoise = true
@@ -55,6 +57,7 @@ deess = "light"         # off, light, normal or strong: the most taken off sharp
 declick = true          # turn mouth clicks and lip smacks down. Nothing is cut
 breaths = 0             # dB to turn breaths down. They are never cut
 music = "auto"          # take music off the voice: auto when measured under speech, on, off. Needs Demucs: `altocue doctor`
+music_under = 18        # dB the music in the mix sits under the voice while someone speaks, from 6 to 30
 echo = "off"            # light or strong takes a little room echo off. The ring is measured either way
 room_tone = true        # fill what cuts leave with the clip's own room, so nothing drops to digital silence
 loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast

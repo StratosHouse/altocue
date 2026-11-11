@@ -355,12 +355,41 @@ def test_voice_alone_passes_through_as_stereo(tmp_path):
 
 
 def test_music_ducks_under_speech_and_comes_back(tmp_path):
+    voice = ffmpeg.write_wav(tmp_path / "voice.wav", speech_bursts(12, 0.15, every=6, length=2), RATE)
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tone(12, 9000, 0.2), RATE)
+    out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", music=music))[:, 0]
+    during = band_rms_db(out[int(1.0 * RATE) : int(1.5 * RATE)], 9000)
+    after = band_rms_db(out[int(4.0 * RATE) : int(4.5 * RATE)], 9000)  # a 4 s break, and the next line's ramp starts at 5.75 s
+    assert after - during >= 6
+
+
+def test_music_stays_down_between_lines_a_second_apart(tmp_path):
     voice, _ = voice_file(tmp_path, 12)
     music = ffmpeg.write_wav(tmp_path / "music.wav", tone(12, 9000, 0.2), RATE)
     out = stereo(mix.mix_bed(voice, tmp_path / "mix.wav", music=music))[:, 0]
     during = band_rms_db(out[int(4.4 * RATE) : int(4.9 * RATE)], 9000)
-    after = band_rms_db(out[int(5.62 * RATE) : int(5.74 * RATE)], 9000)  # the next line's ramp starts at 5.75 s
-    assert after - during >= 6
+    between = band_rms_db(out[int(5.3 * RATE) : int(5.7 * RATE)], 9000)
+    assert between - during == pytest.approx(0, abs=1.5)
+
+
+def test_the_mix_report_gives_the_target_and_what_was_measured(tmp_path):
+    voice, _ = voice_file(tmp_path, 12)
+    music = ffmpeg.write_wav(tmp_path / "music.wav", tone(12, 300, 0.2), RATE)  # low, where loudness and level agree
+    reports = {}
+    for under in (12, 18):
+        out = mix.mix_bed(voice, tmp_path / f"mix{under}.wav", music=music, music_under=under)
+        reports[under] = json.loads(out.with_suffix(".json").read_text())["music"]
+    assert reports[18]["under_target_db"] == 18 and reports[12]["under_target_db"] == 12
+    assert reports[18]["under_voice_db"] == pytest.approx(18, abs=1.5)
+    assert reports[12]["under_voice_db"] <= reports[18]["under_voice_db"] - 2  # the least dip the ear can hear already takes this music past 12
+
+
+@pytest.mark.parametrize("under", [5.9, 31, True, "deep"])
+def test_a_music_level_outside_the_range_is_refused(tmp_path, under):
+    voice, _ = voice_file(tmp_path, 2)
+    with pytest.raises(AltocueError) as error:
+        mix.mix_bed(voice, tmp_path / "mix.wav", music_under=under)
+    assert "music_under" in error.value.fix
 
 
 def test_music_sits_under_the_voice_even_for_short_lines(tmp_path):
@@ -371,7 +400,7 @@ def test_music_sits_under_the_voice_even_for_short_lines(tmp_path):
     music = ffmpeg.write_wav(tmp_path / "music.wav", tone(10, 9000, 0.3), RATE)
     out = mix.mix_bed(voice, tmp_path / "mix.wav", music=music)
     report = json.loads(out.with_suffix(".json").read_text())
-    assert report["music"]["under_voice_db"] >= 9.5
+    assert report["music"]["under_voice_db"] >= 15.5
 
 
 def test_word_tails_do_not_pump_the_music(tmp_path):
@@ -460,6 +489,66 @@ def test_the_music_stays_down_across_a_breath_between_words():
 def test_the_music_comes_back_in_a_real_pause():
     gain = bed_gain_db(lines(12, (2, 4), (7, 9)))
     assert gain[int(5.5 * 100)] == pytest.approx(0, abs=0.1)
+
+
+def test_the_music_stays_down_across_a_pause_inside_the_talk():
+    gain = bed_gain_db(lines(12, (2, 4), (5.0, 7)))
+    assert gain[int(4.5 * 100)] == pytest.approx(gain[int(3.5 * 100)], abs=1)
+    assert gain[int(4.5 * 100)] < -6
+
+
+def test_the_music_rises_only_a_little_in_a_pause_too_short_to_be_a_break():
+    gain = bed_gain_db(lines(14, (2, 4), (6, 8)))
+    down, between = gain[int(3.5 * 100)], gain[int(5.3 * 100)]
+    assert between - down == pytest.approx(mix.DUCK_PARTIAL_DB, abs=0.7)
+    assert gain[int(4.9 * 100) : int(5.7 * 100)].max() <= down + mix.DUCK_PARTIAL_DB + 0.7
+    assert np.abs(np.diff(gain) * 100).max() < 80
+
+
+def test_the_bridge_and_the_return_are_the_measured_ones():
+    assert (mix.DUCK_UNDER_VOICE_DB, mix.DUCK_BRIDGE, mix.DUCK_RETURN, mix.DUCK_PARTIAL_DB, mix.DUCK_AFTER) == (18.0, 1.2, 2.5, 4.0, 0.8)
+    speaking = np.zeros(1200, dtype=bool)
+    for start, end in ((100, 200), (300, 400), (600, 700), (1000, 1100)):
+        speaking[start:end] = True
+    shape, partial = mix._duck_shape(speaking)
+    assert shape[250] == 1 and not partial[250]  # 1.0 s: bridged
+    assert partial[400:600].all() and shape[500] == 0  # 2.0 s: the rider holds it part of the way down
+    assert not partial[700:1000].any() and shape[850] == 0  # 3.0 s: all the way back
+
+
+def test_a_deeper_setting_takes_the_music_further_down():
+    voice, bed = lines(12, (5, 7)), np.full((12 * RATE, 2), 0.2)
+    shallow, _ = mix._ride(bed, voice, -45.0, 12.0)
+    deep, _ = mix._ride(bed, voice, -45.0, 18.0)
+    assert 20 * np.log10(shallow[6 * RATE, 0] / deep[6 * RATE, 0]) == pytest.approx(6, abs=0.5)
+
+
+def test_the_carved_bed_is_heard_only_under_speech():
+    voice, bed = lines(12, (5, 7)), np.full((12 * RATE, 2), 0.1)
+    plain, _ = mix._ride(bed, voice, -45.0)
+    carved, _ = mix._ride(bed, voice, -45.0, carved=bed * 0.5)
+    assert np.allclose(carved[: 4 * RATE], plain[: 4 * RATE]) and np.allclose(carved[9 * RATE :], plain[9 * RATE :])
+    assert carved[6 * RATE, 0] == pytest.approx(plain[6 * RATE, 0] * 0.5, rel=0.01)
+    assert (np.abs(np.diff(carved[:, 0])) < 1e-4).all()
+
+
+def test_the_carve_takes_the_consonant_band_and_leaves_the_rest(tmp_path):
+    for hz, loss in ((mix.CARVE_HZ, mix.CARVE_DB), (200.0, 0.0), (9000.0, 0.0)):
+        bed = np.repeat(tone(2, hz, 0.2)[:, None], 2, axis=1)
+        carved = mix._carved(bed, tmp_path)
+        assert carved.shape == bed.shape
+        assert rms_db(bed[RATE // 2 :, 0]) - rms_db(carved[RATE // 2 :, 0]) == pytest.approx(loss, abs=0.6)
+
+
+def test_a_film_with_no_tail_fades_out_over_its_last_frames(tmp_path):
+    voice = ffmpeg.write_wav(tmp_path / "voice.wav", noise(3, 0.05), RATE)
+    hard = stereo(mix.mix_bed(voice, tmp_path / "hard.wav"))[:, 0]
+    soft = stereo(mix.mix_bed(voice, tmp_path / "soft.wav", end_fade=0.2))[:, 0]
+    assert np.array_equal(soft[: int(2.8 * RATE)], hard[: int(2.8 * RATE)])
+    assert rms_db(soft[-480:]) < rms_db(hard[-480:]) - 15
+    assert rms_db(soft[int(2.8 * RATE) : int(2.85 * RATE)]) > rms_db(soft[int(2.95 * RATE) :])
+    held = stereo(mix.mix_bed(voice, tmp_path / "held.wav", end_fade=0.2, tail=0.4))[:, 0]
+    assert np.array_equal(held[: 3 * RATE], hard)  # a tail has its own fade, and the voice is left as it is
 
 
 def test_no_speech_leaves_the_bed_alone():

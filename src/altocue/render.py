@@ -59,7 +59,11 @@ def mix_film(project: Project, timeline: dict[str, Any], voice: Path, dest: Path
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
     room = voice.with_name(f"{voice.stem}-room.wav")
     music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
-    return mix.mix_bed(voice, dest, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end, stems=stems)
+    under = project.setting("audio", "music_under", mix.DUCK_UNDER_VOICE_DB)
+    fade = float(timeline.get("end_fade", 0.0))
+    return mix.mix_bed(
+        voice, dest, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end, stems=stems, music_under=under, end_fade=fade
+    )
 
 
 def write_stems(project: Project, timeline: dict[str, Any], voice: Path, folder: Path) -> list[Path]:

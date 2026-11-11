@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import cut, ffmpeg, mix, overlays, platforms, track, transitions
+from . import cut, ffmpeg, mix, overlays, pace, platforms, track, transitions
 from .errors import AltocueError
 from .models import Edl
 from .motion import compositions, formats, placement
@@ -16,6 +16,8 @@ from .project import Project, write_json
 END_HOLD_TYPES = {"endcard"}
 DEFAULT_LENGTHS = {"hook": 2.6, "chip": 2.4, "lower_third": 3.2, "stat": 2.8, "quote": 3.6, "steps": 6.0, "title": 2.4, "endcard": 2.6, "composition": 3.0}
 STILL_TYPES = {".png", ".jpg", ".jpeg", ".webp"}
+END_TAIL_MOST = 0.4  # a held last frame this short stays under the frozen picture check
+END_FADE_CLEAR = 0.1  # the fade never starts closer than this to the last word
 CUT_REACH = 0.75  # A word starts a little after the cut it follows, by up to the pause the cut kept.
 
 
@@ -208,6 +210,24 @@ def made_captions(project: Project) -> list[dict[str, Any]]:
     return made["pages"]
 
 
+def ending(project: Project, edl: Edl, words: list[dict[str, Any]], duration: float) -> tuple[float, float]:
+    """How a film that ends on speech leaves: seconds of held last frame, and seconds of fade on the room.
+
+    The cut keeps `[cut] end_hold` of real picture after the last word when the clip has it. When the
+    clip ran out first, the last frame is held for what is missing, never for long. A film that
+    ends on something other than its last word, such as a kept silent shot, is left as it is.
+    """
+    if not words or not edl.segments or words[-1]["segment"] != edl.segments[-1].id:
+        return 0.0, 0.0
+    fps, last = edl.fps, edl.segments[-1]
+    cold = max(duration - words[-1]["end"], 0.0)
+    short = pace.end_hold_of(project.config) - cold
+    fade = min(mix.END_FADE_FRAMES / fps, max(cold - END_FADE_CLEAR, 0.0))
+    if short <= 1 / fps or project.clip(last.clip).duration - last.end >= 2 / fps:
+        return 0.0, round(fade, 6)
+    return round(min(short, END_TAIL_MOST) * fps) / fps, 0.0
+
+
 def build(project: Project, *, draft: bool = False) -> dict[str, Any]:
     """`draft` says which plate the graphics are placed on. A final plate left from an earlier render is an older cut."""
     edl = project.edl()
@@ -218,6 +238,8 @@ def build(project: Project, *, draft: bool = False) -> dict[str, Any]:
     duration = round(sum(round((s.end - s.start) * edl.fps) for s in edl.segments) / edl.fps, 6)
     edits = picture_edits(project, edl, words=words)
     items, tail = resolve_items(motion.get("items", []), words, duration)
+    held, end_fade = ending(project, edl, words, duration)
+    tail, end_fade = (tail, 0.0) if tail else (held, end_fade)
     items = [compositions.resolve(project, item) if item["type"] == "composition" else formats.place_images(project.root, item) for item in items]
     width, height = project.size
     brand = brands.load(project)
@@ -234,6 +256,7 @@ def build(project: Project, *, draft: bool = False) -> dict[str, Any]:
         "duration": duration,
         "tail": tail,
         "total": round(duration + tail, 6),
+        "end_fade": end_fade,
         "brand": brand.data,
         "captions": captions,
         "items": items,

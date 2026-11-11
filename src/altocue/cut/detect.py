@@ -9,8 +9,10 @@ from functools import lru_cache
 
 import numpy as np
 
+from ..errors import AltocueError
 from ..models import Clip, Decision, RemovalKind, Removed, Word
-from ..transcribe import HOP, Envelope, core
+from ..pace import DEFAULT_PACE, SENTENCE_END, classify, curve
+from ..transcribe import HOP, REACTIONS, Envelope, core
 
 VOICED = 0.3  # seconds of speech energy that make a pause worth a second look
 WORD_DRIFT = 0.15  # word edges drift this far, so the ends of a pause can hold a word's own tail
@@ -32,7 +34,12 @@ VOICED_PAUSE = "pause with speech the transcript missed"
 QUIET_LINE_DB = 16.0  # this far under the clip's speech level reads as someone off-mic
 QUIET_LINE_WORDS = 3
 QUIET_LINE_GAP = 0.5
-SENTENCE_END = ".?!"
+FILLER_MODES = ("all", "clean", "none")
+DIP_DB = 9.0  # a filler that can be lifted out falls this far under its own peak at each edge
+DIP_REACH = 0.06  # seconds either side of an edge where that dip is looked for
+SHORT_RUN = 0.6  # seconds. A kept run shorter than this between two cuts is a shot too brief to read
+REACTION_PAUSE = 0.25  # a reaction with this much quiet on both sides stands alone
+STUTTER_COPY, STUTTER_BEAT = 0.35, 0.15  # a stutter's copies are shorter than this and closer than this
 CUT_OFF = ("-", "\u2014", "\u2013", "...", "\u2026")
 
 STOPWORDS = frozenset(
@@ -85,8 +92,27 @@ def quote(words: list[Word]) -> str:
     return f'"{text}"' if len(text) <= 70 else f'"{text[:67]}..."'
 
 
-def certain(clip: Clip, words: list[Word], *, max_pause: float, remove_fillers: bool, envelope: Envelope | None) -> list[Candidate]:
-    """Layer 1: pauses over the limit, filler tokens and spoken cues."""
+def filler_mode(settings: dict[str, object]) -> str:
+    """`[cut] fillers`. A project from before that key has `remove_fillers`: true is `clean`, false is `none`."""
+    if "fillers" not in settings:
+        return "clean" if settings.get("remove_fillers", True) else "none"
+    chosen = settings["fillers"]
+    if chosen not in FILLER_MODES:
+        raise AltocueError(f"Unknown fillers setting {chosen!r}.", fix=f"Set fillers under [cut] in altocue.toml to one of {', '.join(FILLER_MODES)}.")
+    return str(chosen)
+
+
+def certain(
+    clip: Clip,
+    words: list[Word],
+    *,
+    max_pause: float,
+    envelope: Envelope | None,
+    pace: str = DEFAULT_PACE,
+    fillers: str = "clean",
+    language: str = "en",
+) -> list[Candidate]:
+    """Layer 1: pauses past the knee of their class, filler tokens and spoken cues."""
     found: list[Candidate] = []
     if not words:
         return [
@@ -118,8 +144,9 @@ def certain(clip: Clip, words: list[Word], *, max_pause: float, remove_fillers: 
         )
     for left, right in zip(words, words[1:], strict=False):
         gap = right.start - left.end
-        if gap > max_pause:
-            found.append(pause(clip.id, left, right, gap, max_pause, envelope))
+        knee, _ = curve(classify(left.text, right.text, gap, language=language), pace, max_pause)
+        if gap > knee:
+            found.append(pause(clip.id, left, right, gap, knee, envelope))
     index = 0
     while index < len(words):
         kind = words[index].kind
@@ -128,14 +155,101 @@ def certain(clip: Clip, words: list[Word], *, max_pause: float, remove_fillers: 
             stop += 1
         if kind == "cue":
             found.append(Candidate(clip.id, words[index].start, words[stop - 1].end, "cue", "spoken cue", quote(words[index:stop]), 1.0, "auto"))
-        elif kind == "filler" and remove_fillers:
-            found.append(Candidate(clip.id, words[index].start, words[index].end, "filler", "filler", quote(words[index:stop]), 1.0, "auto"))
+        elif kind == "filler" and fillers != "none":
+            found.append(filler(clip.id, words, index, envelope, fillers))
         index = stop
     return found
 
 
-def pause(clip: str, left: Word, right: Word, gap: float, max_pause: float, envelope: Envelope | None) -> Candidate:
-    evidence = f"{gap:.2f} s between {quote([left])} and {quote([right])}, limit {max_pause:.2f} s"
+def filler(clip: str, words: list[Word], index: int, envelope: Envelope | None, mode: str) -> Candidate:
+    """A filler goes on its own only when it can be lifted out clean. A reaction that stands alone may be an answer, so it waits."""
+    word = words[index]
+    said = quote([word])
+    if mode == "all":
+        return Candidate(clip, word.start, word.end, "filler", "filler", said, 1.0, "auto")
+    if core(word.text) in REACTIONS:
+        before = word.start - words[index - 1].end if index else math.inf
+        after = words[index + 1].start - word.end if index + 1 < len(words) else math.inf
+        whole_turn = bool(word.speaker) and all(words[at].speaker != word.speaker for at in (index - 1, index + 1) if 0 <= at < len(words))
+        if whole_turn:
+            return Candidate(clip, word.start, word.end, "filler", "reaction", f"{said} is all {word.speaker} says here, so it may be an answer", 0.5, "review")
+        if before >= REACTION_PAUSE and after >= REACTION_PAUSE:
+            return Candidate(clip, word.start, word.end, "filler", "reaction", f"{said} stands alone between pauses, so it may be an answer", 0.5, "review")
+    if envelope is None:
+        return Candidate(clip, word.start, word.end, "filler", "filler", said, 1.0, "auto")  # no sound, so nothing for it to run into
+    if not envelope.reliable:
+        return Candidate(clip, word.start, word.end, "filler", "filler", f"{said}, and the sound is too even to tell where it starts and stops", 0.6, "review")
+    joined = runs_into(envelope, word)
+    if joined:
+        return Candidate(clip, word.start, word.end, "filler", "filler", f"{said} runs into {joined}", 0.6, "review")
+    return Candidate(clip, word.start, word.end, "filler", "filler", said, 1.0, "auto")
+
+
+def runs_into(envelope: Envelope, word: Word) -> str:
+    """Which neighbour a filler is slurred into, or nothing when the sound dips at both of its edges."""
+    levels = envelope.db
+    first, last = int(word.start / HOP), max(int(word.start / HOP) + 1, math.ceil(word.end / HOP))
+    body = levels[first:last]
+    if not len(body):
+        return ""
+    reach = round(DIP_REACH / HOP)
+    sides = []
+    for edge, name in ((first, "the word before"), (last, "the next word")):
+        near = levels[max(edge - reach, 0) : edge + reach]
+        if len(near) and float(near.min()) > float(body.max()) - DIP_DB:
+            sides.append(name)
+    return " and ".join(sides)
+
+
+def spare_short_shots(words: list[Word], found: list[Candidate]) -> None:
+    """A filler waits when taking it out would leave a run under `SHORT_RUN` between two cuts.
+
+    Only a filler that touches the short run counts, because keeping it is what makes the run longer.
+    """
+    cuts = sorted((c for c in found if c.decision == "auto"), key=lambda c: c.start)
+    starts = [c.start for c in cuts]
+    reach = list(np.maximum.accumulate([c.end for c in cuts])) if cuts else []
+    ends = {word.end: at for at, word in enumerate(words)}
+
+    def gone(word: Word) -> bool:
+        middle = (word.start + word.end) / 2
+        before = int(np.searchsorted(starts, middle, side="right"))
+        return bool(before) and reach[before - 1] >= middle
+
+    out = [gone(word) for word in words]
+    split = set()  # a cut pause after this word
+    for item in cuts:
+        at = ends.get(item.start)
+        if item.kind == "silence" and at is not None and at + 1 < len(words) and item.end <= words[at + 1].start + 1e-6:
+            split.add(at)
+    place = {(word.start, word.end): at for at, word in enumerate(words)}
+    for item in cuts:
+        at = place.get((item.start, item.end))
+        if item.kind != "filler" or at is None:
+            continue
+        low = high = None
+        if at and not out[at - 1] and at - 1 not in split:
+            low = at - 1
+            while low and not out[low - 1] and low - 1 not in split:
+                low -= 1
+        if at + 1 < len(words) and not out[at + 1] and at not in split:
+            high = at + 1
+            while high + 1 < len(words) and not out[high + 1] and high not in split:
+                high += 1
+        shots = []
+        if low is not None and low > 0:
+            shots.append(words[at - 1].end - words[low].start)
+        if high is not None and high < len(words) - 1:
+            shots.append(words[high].end - words[at + 1].start)
+        short = min(shots, default=SHORT_RUN)
+        if short < SHORT_RUN - 1e-6:
+            item.decision, item.score = "review", 0.6
+            item.evidence += f", and cutting it would leave a {short:.2f} s shot"
+            out[at] = False
+
+
+def pause(clip: str, left: Word, right: Word, gap: float, limit: float, envelope: Envelope | None) -> Candidate:
+    evidence = f"{gap:.2f} s between {quote([left])} and {quote([right])}, limit {limit:.2f} s"
     if envelope is not None and envelope.reliable:
         voiced = envelope.speech_seconds(left.end + WORD_DRIFT, right.start - WORD_DRIFT)
         evidence += f", {voiced:.2f} s of speech energy"
@@ -213,10 +327,12 @@ def doubled(run: list[Token]) -> Candidate:
         decision, score, reason = "keep", 0.3, "repeat that reads as emphasis"
     elif first.norm in GRAMMAR_DOUBLES and len(run) == 2:
         decision, score, reason = "review", 0.5, "repeat that can be correct grammar"
-    elif first.norm not in STOPWORDS and len(run) == 2:
-        decision, score, reason = "review", 0.6, "repeated content word"
-    else:
+    elif first.norm not in STOPWORDS:
+        decision, score, reason = "review", 0.6, "repeated content word"  # three in a row is rhetoric far more often than a stutter
+    elif all(t.word.end - t.word.start < STUTTER_COPY for t in run[:-1]) and all(b.word.start - a.word.end < STUTTER_BEAT for a, b in zip(run, run[1:], strict=False)):
         decision, score, reason = "auto", 0.9, "stutter"
+    else:
+        decision, score, reason = "review", 0.5, "repeat said at an even pace"
     return Candidate(first.clip, first.word.start, last.word.start, "stutter", reason, evidence, score, decision)  # type: ignore[arg-type]
 
 

@@ -62,7 +62,8 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 
 ## Music
 
-- **Ducking is automatic.** The music is down before the first word lands, stays down through a breath, and comes back slowly.
+- **Ducking is automatic.** The music is down before the first word lands and stays down through any pause under 1.2 s. In a pause up to 2.5 s it rises 4 dB at most. In a longer one it comes all the way back, slowly. Under speech it also gives up a little of the band where consonants sit.
+- **`[audio] music_under` is how far under the voice the music sits while someone speaks:** 18 dB by default, from 6 to 30. About 12 suits a montage with a line over it. The mix report beside `work/mix.wav` gives the measured figure as `under_voice_db`.
 - **`"music": { "path": "...", "end": "land" }` is the default.** The track is backtimed so its own end falls on the last frame. Silence at the end of the file does not count.
 - **`"end": "fade"`** starts at the top of the track and fades out.
 - **`"end": "own"`** is for a score that ends itself: no loop, no backtiming, no fade.

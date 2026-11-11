@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from altocue import cut, ffmpeg
+from altocue import cut, ffmpeg, pace, timeline
 from altocue.cli import main
 from altocue.cut import expected_words, map_words, propose, removal_id, validate
 from altocue.cut.detect import candidates, same, stream, stutters
@@ -196,7 +196,7 @@ def test_filler_is_cut(tmp_path):
 
 
 def test_fillers_can_be_kept(tmp_path):
-    project = silent_project(tmp_path, timed("well um that works"), remove_fillers=False)
+    project = silent_project(tmp_path, timed("well um that works"), fillers="none")
     assert spoken(project, propose(project)) == "well um that works"
 
 
@@ -452,7 +452,7 @@ def test_in_point_never_earlier_than_first_word_lead(tmp_path):
 
 def test_edges_never_touch_a_removed_neighbour(tmp_path):
     words = timed("well um that works", step=0.3)
-    project = voiced_project(tmp_path, words)
+    project = voiced_project(tmp_path, words, fillers="all")
     edl = propose(project)
     first, second = edl.segments
     assert first.end <= 0.3 + 1e-6 and second.start >= 0.6 - 1e-6
@@ -633,7 +633,7 @@ def test_output_times_close_the_gap_a_cut_removes(tmp_path):
     mapped = map_words(project, edl)
     assert mapped[2]["segment"] == "s002"
     gap = mapped[2]["start"] - mapped[1]["end"]
-    assert 0 <= gap < 0.4
+    assert 0.8 - 0.002 <= gap <= 0.8 + 2 / 30 + 0.002  # a pause this long starts something new, and keeps the most a natural film keeps
 
 
 def test_times_match_the_frame_total_after_every_segment(tmp_path):
@@ -668,7 +668,7 @@ def test_a_word_cut_at_a_rounded_segment_end_still_fits(tmp_path):
 
 
 def test_map_words_carries_kind_for_captions(tmp_path):
-    project = silent_project(tmp_path, timed("hello um there"), remove_fillers=False)
+    project = silent_project(tmp_path, timed("hello um there"), fillers="none")
     mapped = map_words(project, propose(project))
     assert [w["kind"] for w in mapped] == ["word", "filler", "word"]
 
@@ -889,3 +889,323 @@ def test_a_cut_word_with_an_early_transcript_end_keeps_its_last_sound(tmp_path):
     words = [Word(text="dollars", start=0.9, end=1.15), Word(text="Next", start=3.0, end=3.6)]
     _, end = bounds([0], words, clip, cut.envelope_of(clip), 30)
     assert end >= 1.6
+
+
+# Pace: what each pause keeps.
+
+
+@pytest.mark.parametrize("speed", pace.PACES)
+@pytest.mark.parametrize("kind", pace.CLASSES)
+def test_a_longer_pause_never_keeps_less_and_the_curve_has_no_step(speed, kind):
+    gaps = np.arange(0.0, 6.0, 0.01)
+    kept = np.array([pace.kept_pause(gap, kind, speed) for gap in gaps])
+    assert (np.diff(kept) >= -1e-12).all()
+    assert (np.diff(kept) <= 0.01 + 1e-9).all()
+    assert (kept <= gaps + 1e-12).all()
+
+
+@pytest.mark.parametrize(("speed", "keeps"), [("tight", [0.2, 0.26, 0.36, 0.5]), ("natural", [0.4, 0.4, 0.5, 0.8]), ("relaxed", [0.4, 0.4, 0.65, 1.0])])
+def test_each_class_keeps_its_own_longest_pause(speed, keeps):
+    assert [round(pace.kept_pause(5.0, kind, speed), 3) for kind in pace.CLASSES] == keeps
+
+
+def test_max_pause_is_the_clause_knee():
+    assert pace.curve("clause", "natural", 0.7) == (0.7, 0.7)
+    assert pace.curve("sentence", "natural", 0.7) == (0.7, 0.7)
+    assert pace.curve("topic", "natural", 0.7) == (0.7, 0.8)
+    assert pace.curve("clause", "tight", 0.7)[0] == 0.2
+
+
+def test_a_join_is_classed_by_its_punctuation_its_pause_and_the_word_after():
+    assert pace.classify("and", "then", 0.5) == "clause"
+    assert pace.classify("first,", "then", 0.5) == "comma"
+    assert pace.classify("done.", "We", 0.5) == "sentence"
+    assert pace.classify("done", "we", 1.3) == "sentence"
+    assert pace.classify("done.", "Next", 0.5) == "topic"
+    assert pace.classify("done", "we", 2.6) == "topic"
+    assert pace.classify("done", "we", new_clip=True) == "sentence"
+    assert pace.classify("Dr.", "Lee", 0.5) == "clause"
+    assert pace.classify("listo.", "Ahora", 0.5, language="es") == "topic"
+
+
+@pytest.mark.parametrize("word", ["好。", "吗？", "好！", "wait…", "ماذا؟", "है।", 'done."'])
+def test_a_sentence_can_end_in_any_script(word):
+    assert pace.ends_sentence(word)
+    assert not pace.ends_sentence(word.rstrip('"')[:-1])
+
+
+def test_a_word_shared_across_a_sentence_break_in_another_script_is_no_stutter():
+    assert detect(timed("对。 对 了", step=0.2)) == []
+
+
+def test_the_tail_never_outgrows_the_pad_the_snap_was_proven_at():
+    assert pace.TAIL_MOST == POST
+    for keep in np.arange(0.0, 1.2, 0.01):
+        tail, lead = pace.split(float(keep))
+        assert tail <= POST + 1e-9 or lead == pytest.approx(pace.LEAD_MOST)
+        assert tail + lead == pytest.approx(keep) and tail >= 0 and lead >= 0
+
+
+def joined(tmp_path: Path, left: str, right: str, gap: float, **options) -> tuple[Project, Edl, Removed]:
+    words = timed(f"one {left}", step=0.3) + timed(f"{right} four", start=0.6 + gap, step=0.3)
+    project = silent_project(tmp_path, words, fps=30, **options)
+    edl = propose(project)
+    return project, edl, next(r for r in edl.removed if r.kind == "silence" and r.start == 0.6)
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "gap", "kind", "keeps"),
+    [
+        ("two", "three", 1.0, "clause", 0.4),
+        ("two,", "three", 1.0, "comma", 0.4),
+        ("two.", "three", 1.0, "sentence", 0.49),
+        ("two.", "Next", 1.0, "topic", 0.575),
+        ("two", "three", 3.0, "topic", 0.8),
+    ],
+)
+def test_a_cut_pause_keeps_what_its_class_gives_and_says_so(tmp_path, left, right, gap, kind, keeps):
+    project, edl, item = joined(tmp_path, left, right, gap)
+    assert item.pause == kind
+    assert keeps - 1e-3 <= item.kept <= keeps + 2 / 30 + 1e-3
+    mapped = map_words(project, edl)
+    assert mapped[2]["start"] - mapped[1]["end"] == pytest.approx(item.kept, abs=0.003)
+    assert validate(project, edl) == []
+
+
+def test_longer_pauses_in_the_recording_are_never_shorter_in_the_film(tmp_path):
+    kept = [joined(tmp_path / f"g{index}", "two.", "three", gap)[2].kept for index, gap in enumerate(np.arange(0.45, 4.0, 0.25))]
+    assert all(later >= earlier - 2 / 30 - 1e-6 for earlier, later in zip(kept, kept[1:], strict=False))
+    assert kept[0] < kept[-1]
+
+
+def test_a_tight_film_shortens_a_pause_a_natural_one_leaves_whole(tmp_path):
+    words = timed("one two", step=0.3) + timed("three four", start=0.9, step=0.3)
+    assert len(propose(silent_project(tmp_path, words, fps=30)).segments) == 1
+    edl = propose(silent_project(tmp_path / "tight", words, fps=30, pace="tight"))
+    assert len(edl.segments) == 2
+    assert next(r for r in edl.removed if r.start == 0.6).kept == pytest.approx(0.2, abs=2 / 30)
+
+
+@pytest.mark.parametrize("setting", [{"pace": "brisk"}, {"fillers": "some"}, {"end_hold": -1}, {"end_hold": "long"}, {"max_pause": 0}])
+def test_a_setting_nobody_knows_is_refused_with_a_fix(tmp_path, setting):
+    with pytest.raises(AltocueError) as error:
+        propose(silent_project(tmp_path, timed("well um that works"), **setting))
+    assert error.value.fix and "[cut]" in error.value.fix
+
+
+def test_a_project_from_before_these_settings_cuts_as_the_defaults_do(tmp_path):
+    words = timed("well um that works.", step=0.3) + timed("Next it ships", start=3.0, step=0.3)
+    new, old = silent_project(tmp_path, words, seconds=6.0), silent_project(tmp_path / "old", words, seconds=6.0)
+    for key in ("pace", "fillers", "max_pause"):
+        del old.config["cut"][key]
+    assert propose(old).to_dict() == propose(new).to_dict()
+    old.config["cut"]["remove_fillers"] = False
+    assert "um" in spoken(old, propose(old))
+
+
+# Breaths. The envelope here has a room, speech, and a burst between the two that is neither.
+
+
+def breathy(tmp_path: Path, breath: tuple[float, float], **options) -> tuple[Project, Edl]:
+    words = timed("one two.", start=0.5, step=0.4) + timed("three four", start=3.0, step=0.4)
+    samples = speech(4.5, spans_of(words), noise=0.001)
+    first, last = int(breath[0] * RATE), int(breath[1] * RATE)
+    samples[first:last] += np.random.default_rng(7).normal(0, 0.004, last - first).astype(np.float32)
+    wav = ffmpeg.write_wav(tmp_path / "a.wav", samples, RATE)
+    clip = Clip(id="a", path=str(wav), duration=4.5, fps=30, width=1080, height=1920)
+    project = make_project(tmp_path, {"a": (clip, words)}, fps=30, **options)
+    env = cut.envelope_of(clip)
+    assert env.reliable and cut.joins.breaths(env, 0, len(env.db)) == [(round(breath[0] / HOP), round(breath[1] / HOP))]
+    return project, propose(project)
+
+
+def test_a_breath_the_lead_has_room_for_stays_whole(tmp_path):
+    project, edl = breathy(tmp_path, (2.70, 2.92))
+    assert 2.56 <= edl.segments[1].start <= 2.70 - 0.04 + 1e-6
+    assert validate(project, edl) == []
+
+
+def test_a_breath_the_lead_would_cut_through_goes_whole(tmp_path):
+    project, edl = breathy(tmp_path, (2.50, 2.80))
+    assert 2.80 - 1e-6 <= edl.segments[1].start <= 2.80 + 1 / 30 + 1e-6
+    assert validate(project, edl) == []
+
+
+def test_a_breath_that_runs_into_the_word_stays_whole_even_in_a_tight_film(tmp_path):
+    project, edl = breathy(tmp_path, (2.74, 2.98), pace="tight")
+    assert 2.60 <= edl.segments[1].start <= 2.74 - 0.04 + 1e-6
+    assert validate(project, edl) == []
+
+
+def test_a_word_fading_out_is_not_taken_for_a_breath():
+    samples = speech(4.0, [(0.5, 1.5), (3.0, 3.6)], noise=0.001)
+    first, last = int(1.5 * RATE), int(1.8 * RATE)
+    samples[first:last] += np.random.default_rng(7).normal(0, 0.004, last - first).astype(np.float32)
+    env = Envelope.measure(samples, RATE)
+    assert cut.joins.breaths(env, 0, len(env.db)) == []
+
+
+# Fillers and repeats that wait.
+
+
+def test_a_filler_slurred_into_its_neighbours_waits(tmp_path):
+    project = voiced_project(tmp_path, timed("well um that works", step=0.3))
+    edl = propose(project)
+    item = next(r for r in edl.removed if r.kind == "filler")
+    assert item.decision == "review" and "runs into the word before and the next word" in item.evidence
+    assert spoken(project, edl) == "well um that works" and len(edl.segments) == 1
+
+
+def test_a_filler_with_a_dip_on_both_sides_is_cut(tmp_path):
+    words = [Word("well", 0.0, 0.3), Word("um", 0.4, 0.7), Word("that", 0.8, 1.1), Word("works", 1.1, 1.4)]
+    project = make_project(tmp_path, {"a": (add_clip(tmp_path, "a", 2.0, [(0.0, 0.3), (0.4, 0.7), (0.8, 1.4)]), words)})
+    edl = propose(project)
+    assert next(r for r in edl.removed if r.kind == "filler").decision == "auto"
+    assert spoken(project, edl) == "well that works" and validate(project, edl) == []
+
+
+def test_a_filler_stays_when_cutting_it_would_leave_a_shot_too_short_to_read(tmp_path):
+    words = timed("so", step=0.3) + timed("yes um that works fine", start=1.3, step=0.3)
+    project = silent_project(tmp_path, words)
+    edl = propose(project)
+    item = next(r for r in edl.removed if r.kind == "filler")
+    assert item.decision == "review" and "would leave a 0.30 s shot" in item.evidence
+    assert "um" in spoken(project, edl)
+    everything = propose(silent_project(tmp_path / "all", words, fillers="all"))
+    assert next(r for r in everything.removed if r.kind == "filler").decision == "auto"
+
+
+def test_a_filler_at_the_start_of_a_clip_is_cut_however_short_the_word_before(tmp_path):
+    project = silent_project(tmp_path, timed("yes um that works fine", step=0.3))
+    assert spoken(project, propose(project)) == "yes that works fine"
+
+
+def test_a_content_word_said_three_times_waits():
+    found = detect(timed("it was easy easy easy to use", step=0.2))
+    assert [(c.kind, c.decision, c.reason) for c in found] == [("stutter", "review", "repeated content word")]
+
+
+def test_a_small_word_repeated_at_an_even_pace_waits():
+    assert [(c.decision, c.reason) for c in detect(timed("give it to to them", step=0.4))] == [("review", "repeat said at an even pace")]
+    assert [(c.decision, c.reason) for c in detect(timed("give it to to them", step=0.2, gap=0.2))] == [("review", "repeat said at an even pace")]
+    assert [(c.decision, c.reason) for c in detect(timed("give it to to them", step=0.2))] == [("auto", "stutter")]
+
+
+def test_a_reaction_alone_between_pauses_waits(tmp_path):
+    words = timed("Did it work?", step=0.3) + timed("Mhm.", start=1.25) + timed("Then we shipped it.", start=1.9, step=0.3)
+    project = silent_project(tmp_path, words)
+    edl = propose(project)
+    item = next(r for r in edl.removed if r.kind == "filler")
+    assert item.decision == "review" and "may be an answer" in item.evidence
+    assert "Mhm." in expected_words(project, edl)
+
+
+def test_a_reaction_inside_a_line_is_cut(tmp_path):
+    project = silent_project(tmp_path, timed("well mm that works"))
+    assert spoken(project, propose(project)) == "well that works"
+
+
+def test_a_reaction_that_is_a_speakers_whole_turn_waits(tmp_path):
+    words = [Word("ready", 0.0, 0.3, speaker="S1"), Word("Mhm", 0.3, 0.6, speaker="S2"), Word("good", 0.6, 0.9, speaker="S1")]
+    project = silent_project(tmp_path, words)
+    item = next(r for r in propose(project).removed if r.kind == "filler")
+    assert item.decision == "review" and "is all S2 says here" in item.evidence
+
+
+def test_hesitations_and_reactions_are_both_fillers_and_do_not_overlap():
+    from altocue.transcribe import FILLERS, HESITATIONS, REACTIONS
+
+    assert HESITATIONS | REACTIONS == FILLERS and not HESITATIONS & REACTIONS
+    assert {"um", "uh", "erm"} <= HESITATIONS and {"mhm", "hmm", "ah"} <= REACTIONS
+
+
+# The ending.
+
+
+@pytest.mark.parametrize(("options", "hold"), [({}, 0.5), ({"pace": "tight"}, 0.25), ({"pace": "relaxed"}, 0.8), ({"end_hold": 1.0}, 1.0), ({"end_hold": 0}, POST)])
+def test_the_film_holds_after_its_last_word(tmp_path, options, hold):
+    project = silent_project(tmp_path, timed("hello there", start=1.0), seconds=4.0, fps=30, **options)
+    edl = propose(project)
+    assert 1.6 + hold - 1e-6 <= edl.segments[-1].end <= 1.6 + hold + 1 / 30 + 1e-6
+    item = next(r for r in edl.removed if "after the last word" in r.evidence)
+    assert (item.pause, item.kept) == (("end", pytest.approx(edl.segments[-1].end - 1.6, abs=1e-3)) if hold != POST else ("", None))
+    assert validate(project, edl) == []
+
+
+def test_the_end_hold_stops_at_the_last_full_frame_of_the_clip(tmp_path):
+    project = silent_project(tmp_path, timed("hello there", start=1.0), seconds=1.8, fps=30)
+    edl = propose(project)
+    assert edl.segments[-1].end == pytest.approx(1.8, abs=1e-6) and validate(project, edl) == []
+
+
+def test_the_end_hold_stops_short_of_speech_nobody_transcribed(tmp_path):
+    words = timed("hello there", start=1.0)
+    clip = add_clip(tmp_path, "a", 4.0, [*spans_of(words), (2.0, 2.8)])
+    edl = propose(make_project(tmp_path, {"a": (clip, words)}, fps=30))
+    assert 1.6 + POST - 1 / 30 <= edl.segments[-1].end <= 2.0 - 0.06 + 1 / 30 + 1e-6
+
+
+def test_only_the_last_run_of_the_film_gets_the_hold(tmp_path):
+    words = timed("one two.", step=0.3) + timed("three four", start=3.0, step=0.3)
+    edl = propose(silent_project(tmp_path, words, seconds=6.0, fps=30))
+    assert edl.segments[0].end <= 0.6 + POST + 1 / 30 + 1e-6
+    assert edl.segments[-1].end >= 3.6 + 0.5 - 1e-6
+
+
+@pytest.mark.parametrize(
+    ("seconds", "options", "held", "fade"),
+    [(4.0, {}, 0.0, 0.2), (1.7, {}, 0.4, 0.0), (1.7, {"end_hold": 0.3}, 0.2, 0.0), (4.0, {"end_hold": 0}, 0.0, 1 / 30), (1.7, {"end_hold": 0}, 0.0, 0.0)],
+)
+def test_a_clip_that_ran_out_holds_its_last_frame_and_one_that_did_not_fades(tmp_path, seconds, options, held, fade):
+    project = silent_project(tmp_path, timed("hello there", start=1.0), seconds=seconds, fps=30, **options)
+    edl = propose(project)
+    duration = sum(frame_count(s.start, s.end, 30) for s in edl.segments) / 30
+    tail, faded = timeline.ending(project, edl, map_words(project, edl), duration)
+    assert tail == pytest.approx(held, abs=1 / 30 + 1e-6) and tail <= timeline.END_TAIL_MOST
+    assert faded == pytest.approx(fade, abs=1 / 30 + 1e-6)
+    assert not (tail and faded)
+
+
+def test_a_film_that_ends_on_a_shot_with_no_speech_is_left_alone(tmp_path):
+    clips = {"a": (add_clip(tmp_path, "a", 1.0, None), timed("hello there")), "b": (add_clip(tmp_path, "b", 3.0, None), [])}
+    project = make_project(tmp_path, clips, fps=30)
+    edl = propose(project)
+    duration = sum(frame_count(s.start, s.end, 30) for s in edl.segments) / 30
+    assert timeline.ending(project, edl, map_words(project, edl), duration) == (0.0, 0.0)
+    assert edl.segments[0].end <= 0.6 + POST + 1 / 30 + 1e-6
+
+
+# What the reports say about pauses and short shots.
+
+
+def test_the_review_and_the_report_say_what_each_pause_kept(tmp_path):
+    words = timed("one two.", step=0.3) + timed("three four", start=1.8, step=0.3)
+    project = silent_project(tmp_path, words, seconds=4.0, fps=30)
+    assert main(["cut", "--project", str(project.root)]) == 0
+    item = next(r for r in project.edl().removed if r.start == 0.6)
+    pauses = (project.work / "cut-review.md").read_text().split("## Pauses")[1].split("## Transcript")[0]
+    assert f"`{removal_id(item)}` a 0.60 s: sentence pause 1.20 s, kept {item.kept:.2f} s" in pauses
+    assert "end of the film, held" in pauses
+    assert f"sentence pause 1.20 s, kept {item.kept:.2f} s" in (project.work / "cut-report.md").read_text()
+
+
+def test_a_pause_can_be_ruled_whole(tmp_path):
+    words = timed("one two.", step=0.3) + timed("three four", start=1.8, step=0.3)
+    project = silent_project(tmp_path, words, seconds=4.0, fps=30)
+    assert main(["cut", "--project", str(project.root)]) == 0
+    item = next(r for r in project.edl().removed if r.start == 0.6)
+    rulings = tmp_path / "decisions.json"
+    rulings.write_text(json.dumps({removal_id(item): {"decision": "keep", "reason": "the beat before the line"}}))
+    assert main(["cut", "--project", str(project.root), "--apply-review", str(rulings)]) == 0
+    mapped = map_words(project, project.edl())
+    assert mapped[2]["start"] - mapped[1]["end"] == pytest.approx(1.2, abs=0.003)
+
+
+def test_the_report_lists_a_shot_too_short_to_read(tmp_path, capsys):
+    words = timed("so", step=0.3) + timed("yes um that works fine", start=1.3, step=0.3)
+    project = silent_project(tmp_path, words, fps=30, pace="tight", fillers="all")
+    assert main(["cut", "--project", str(project.root)]) == 0
+    short = [s for s in project.edl().segments if s.end - s.start < 0.5]
+    line = next(row for row in (project.work / "cut-report.md").read_text().splitlines() if row.startswith("- **Short shots:**"))
+    assert short and all(s.id in line for s in short)
+    assert "under 0.5 s" in capsys.readouterr().out
