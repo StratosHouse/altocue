@@ -320,6 +320,14 @@ def test_a_full_graphic_near_a_join_lands_on_it():
     assert shorts.check_joins(scene("hidden", 5.0, 1.0), JOINED, {}, house) == []  # no join near
 
 
+def test_a_scene_over_ten_seconds_is_split_on_a_word():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    timeline = {"fps": 30, "master_duration": 14.0, "caption_words": [{"start": float(t), "end": t + 0.4} for t in range(14)]}
+    problems = shorts.check_timing(scene("hidden", 0.0, 12.0) + scene("base", 12.0, 1.5), timeline, house)
+    assert len(problems) == 1 and "runs 12.0 s" in problems[0] and "near 6.00 s" in problems[0]
+    assert shorts.check_timing(scene("cutout", 0.0, 12.0), timeline, house) == []  # the face carries a long line
+
+
 def test_a_graphic_never_snaps_onto_a_join_inside_another_look_away():
     house = dict(shorts.HOUSE_DEFAULTS)
     takes = [{"id": "take-01", "from": 0.0, "to": 4.0}, {"id": "take-02", "from": 4.0, "to": 7.0}, {"id": "take-03", "from": 7.0, "to": 10.0}]
