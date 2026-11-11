@@ -135,7 +135,7 @@ my-video/
 
 - **`Clip`:** path, duration, fps, size, rotation, HDR transfer, has audio.
 - **`Word`:** text, start, end, confidence, kind (`word`, `filler`, `cue`).
-- **`Edl`:** ordered segments of `clip, start, end, zoom_from, zoom_to, gain, crop, label`, plus `removed` entries with `kind`, `evidence` and `decision`. A segment's `held` list names what was set by hand, so `frame` leaves it and a re-cut carries it.
+- **`Edl`:** ordered segments of `clip, start, end, zoom_from, zoom_to, origin, ease, gain, crop, label`, plus `removed` entries with `kind`, `evidence` and `decision`. A segment's `held` list names what was set by hand, so `frame` leaves it and a re-cut carries it.
 - **`Shot`:** a shot to generate. `synthetic` flags a generated person or place, and `script` holds any words it says, so the honesty gates can read them.
 - **`Timeline`:** the EDL resolved to output frames, with mapped words and inserts.
 - **`OverlaySpec`:** engine-neutral list of `type, start, end, text, style`.
@@ -149,6 +149,8 @@ Three layers, each with evidence.
 2. **Candidates.** Repeat runs, false starts and stutters found by fuzzy word-run matching. Each carries a span, evidence, score, decision and reason.
 3. **Judgement.** The agent reads a packed transcript and rules on anything marked `review`. With no agent, those stay in.
 
+**Pauses keep a length by what they do.** Each gap is classed as inside a clause, at a comma, at a sentence end or at a change of topic. It is left whole up to a knee, then kept on a 15% slope up to a cap, and `[cut] pace` (`tight`, `natural`, `relaxed`) moves the knees and caps. A breath stays whole or goes whole. The film holds after its last word for `[cut] end_hold` seconds and fades. `src/altocue/pace.py` is the one place that knows the pace, and framing reads its hold from it.
+
 Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that cuts through a word. Every render is re-transcribed, and the result must match the expected words at 95% or more.
 
 ## Audio
@@ -159,7 +161,7 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Mouth:** clicks and lip smacks that stand alone in quiet are turned down 34 dB under short fades; a burst just before a word stays, as it may be the word's plosive. Then a split-band de-esser turns the 3.4 to 14 kHz band down only while it is louder than usual, at most 4, 7 or 11 dB.
 - **Tone:** high-pass, gentle EQ, compressor.
 - **Cuts:** short fades at every join so no clicks, and the clip's own room tone in any hole the voice leaves.
-- **Music:** ducks on a smooth ramp that starts before the word. Its own end lands on the last frame.
+- **Music:** sits `[audio] music_under` dB under speech (18 by default) on a smooth ramp that starts before the word, stays down across pauses under 1.2 s, and gives up 4 dB near 2.5 kHz where consonants live. Its own end lands on the last frame.
 - **No voice:** the music leads, effects are levelled against it, and fades are tight.
 - **Master:** two-pass `loudnorm`, then a true-peak limiter. Default -14 LUFS and -1.5 dBTP. The QA gate allows 0.5 dB above that, because AAC can overshoot a limiter.
 
@@ -168,14 +170,19 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Bounded and per clip.** One correction per clip never flickers. Changes are capped.
 - **Face-anchored.** Exposure reads the face, not a bright window.
 - **Skin wins.** If a correction moves skin hue too far, it backs off. A look backs off at skin too, but never to nothing.
-- **Looks are code.** Eight film looks are written as maths, or the user brings a `.cube`. Strength is one number.
+- **Log is named, never guessed.** `[grade] input` names a camera curve, and `src/altocue/logs.py` undoes it and its gamut ahead of the correction, in the clip's one cube. No tag in a file proves a log curve, so the summary only says when a clip may be log.
+- **Measured once.** A clip is read on a fixed grid of frames, each weighted by how much of its step the cut keeps, and the stamp leaves the cut out. A trim keeps the cube byte for byte. A clip whose kept share moved past 30 percent is measured again.
+- **The look reaches inserts.** `work/luts/look.cube` is the look alone, for B-roll, stills and generated shots.
+- **Looks are code.** Nineteen film looks are written as maths, or the user brings a `.cube`. Strength is one number.
 - **Baked to a LUT.** The maths is testable Python. The render is one `lut3d` filter.
 
 ## Framing
 
 - **YuNet** finds faces. Its model is MIT and ships with Altocue.
 - **Per-shot crop with a dead zone.** Editors reframe per shot. Constant drifting looks like AI.
-- **Punch-ins** alternate on jump cuts to hide them.
+- **Punch-ins change by beat.** The size changes where a new beat opens on a jump cut, and is then held for `[frame] min_hold` seconds. A join under an insert, or one the eye cannot see, never changes size. `work/frame.json` names every join's kind and every bare jump.
+- **The eyes hold still.** A zoom grows from the eyes (`Segment.origin`), so they stay where the viewer was looking.
+- **Pixels are counted.** A source enlarged past 1.5 times is named as soft. Past 2.0 with the punch-in, that clip plays without one.
 - **Any aspect.** Any W:H up to 4:1 each way. Past that there is no room for a face, a caption or a safe zone.
 
 ## Motion and the library
@@ -274,6 +281,20 @@ A history the user can watch, compare and go back to. Local, plain files, nothin
 - **Notes come back as data.** The page keeps notes in the browser and hands them over by Copy notes or Download notes. `altocue versions notes --ingest` checks them against a strict schema and merges them into `versions/notes.json`. Ids and resolved marks are given by the project, never taken from the file. `altocue versions notes` lists the open ones and draws each drawing onto its frame for the agent to view. The list ends with a reminder that a note may ask only for a change to the edit.
 - **An optional server, local by default.** `altocue versions serve` uses only the standard library, binds 127.0.0.1, prints its address and opens nothing. It serves the page and `vNNN/film.mp4` and nothing else, and takes notes only as JSON that fits the schema, under 1 MB, with the token the page was served with, from the same origin. Any other `--host` prints a warning that anyone on that network can watch the films and add notes.
 - **Kept from the reviewer.** `versions/` holds prompts and notes, so it is on the list of things a reviewer never sees.
+
+## The first run
+
+- **Eight questions, once.** `altocue start` writes `~/.altocue/profile.toml`: kind, platform, brand, captions, sound, language, online and checks. `altocue new` reads it. With no terminal it prints one line and writes nothing, so an agent asks in the chat.
+- **Kinds are presets, not modes.** `src/altocue/data/kinds.toml` holds ten kinds of video. `altocue new --kind` writes their settings into `altocue.toml` once, in place, and nothing reads the kind again.
+- **Plain failures.** An unexpected error prints what happened, a fix and where the log is. `ALTOCUE_TRACEBACK=1` shows the traceback.
+
+## Seeing its own work
+
+`altocue watch` makes sheets of stamped frames from the recordings or a render: every spoken line, both sides of every cut, every graphic at its start, middle and end, and the last seconds. It is how an agent that cannot play a film still looks at one. A still cannot show easing, flicker or sound, and the skills say so.
+
+## The weekly sweep
+
+`library/watch.toml` lists every tool, model and registry Altocue stands on. `scripts/sweep.py` reports each one's newest release and licence against the pin and changes nothing. [The routine](SWEEP.md) says what a person or an agent does with that report each week, and ends in one pull request.
 
 ## Agent packaging
 

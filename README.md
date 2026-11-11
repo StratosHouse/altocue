@@ -136,7 +136,13 @@ Ask your agent:
 Edit take.mov into a 45 second reel for first-time founders.
 ```
 
-Or drive it yourself:
+Or drive it yourself. The first time, answer eight questions once, and every project after that starts the way you work:
+
+```bash
+altocue start
+```
+
+It asks what kind of video you make, where it goes, your brand kit, captions, sound, language, whether anything may go online and how often to stop for a check. `altocue start --show` prints your answers. Then:
 
 <div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/terminal.gif" alt="A terminal running every Altocue stage, ending in SHIP" width="100%"></div>
 
@@ -150,6 +156,9 @@ altocue run
 
 `altocue run` stops before review. Read `work/cut-review.md`, rule on anything it could not decide with `altocue cut --apply-review decisions.json`, then run `altocue run` again. When QA passes, run `altocue review`.
 
+- **Start from the kind of video.** `altocue new --kind` sets a project up for a short talking video, a long one, a tutorial, an interview, a clip, a product demo, an advert, a testimonial, an event or a story. `altocue start --kinds` lists them.
+- **An editor's judgement, written down.** The `altocue-craft` skill is what your agent reads before it decides anything: a playbook for each kind of video, where and why to cut, shots, colour, sound, motion, directing a shoot and the passes to run on a finished cut.
+- **It watches its own film.** `altocue watch` turns a render into sheets of stamped frames: every line, both sides of every cut, every graphic and the ending. Your agent checks them before you do.
 - **Edit by transcript.** `script.md` holds every sentence. Keep, remove or reorder them, then run `altocue cut --from-script`. Gain, crops, zooms and order you set by hand survive a re-cut, and anything lost is reported.
 - **See the edit on a timeline.** `altocue timeline -p .` shows the cut, captions, every graphic, the inserts and the voice, music and effects in the HyperFrames studio, at a local address it prints. Nothing else opens. The studio is a view: change `edl.json` or `motion.json`, then run it again. Stop it with `altocue timeline --stop`.
 - **Check it anywhere.** `altocue review --page` writes one file you open yourself, with no server: the film beside every gate, note and caption. A click on a note jumps there. It prints the path and opens nothing.
