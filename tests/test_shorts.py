@@ -320,6 +320,14 @@ def test_a_full_graphic_near_a_join_lands_on_it():
     assert shorts.check_joins(scene("hidden", 5.0, 1.0), JOINED, {}, house) == []  # no join near
 
 
+def test_a_scene_over_ten_seconds_is_split_on_a_word():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    timeline = {"fps": 30, "master_duration": 14.0, "caption_words": [{"start": float(t), "end": t + 0.4} for t in range(14)]}
+    problems = shorts.check_timing(scene("hidden", 0.0, 12.0) + scene("base", 12.0, 1.5), timeline, house)
+    assert len(problems) == 1 and "runs 12.0 s" in problems[0] and "near 6.00 s" in problems[0]
+    assert shorts.check_timing(scene("cutout", 0.0, 12.0), timeline, house) == []  # the face carries a long line
+
+
 def test_a_graphic_never_snaps_onto_a_join_inside_another_look_away():
     house = dict(shorts.HOUSE_DEFAULTS)
     takes = [{"id": "take-01", "from": 0.0, "to": 4.0}, {"id": "take-02", "from": 4.0, "to": 7.0}, {"id": "take-03", "from": 7.0, "to": 10.0}]
@@ -369,6 +377,32 @@ def test_fix_words_times_a_missed_first_word_and_closes_a_false_pause(tmp_path):
     assert fixed["words"][0]["start"] == pytest.approx(0.12, abs=0.03) and fixed["words"][0]["end"] <= fixed["words"][1]["start"] + 1e-6
     assert fixed["words"][1]["end"] == pytest.approx(1.58)
     assert not measured.exists()
+
+
+@needs_ffmpeg
+def test_fix_words_lets_a_takes_edge_words_follow_the_sound(tmp_path):
+    """A Reel played "doll" for "dollars": the recognizer ended the take's last word 0.4 s before the sound did."""
+    run = tmp_path / "run"
+    sound(run / "media" / "takes" / "take-01.wav", [(0.1, 2.4)], 3.0)
+    words = [{"word": "Anyone", "start": 0.4, "end": 0.8}, {"word": "dollars.", "start": 1.5, "end": 2.0}]
+    measured = run / "takes" / "take-01.json"
+    measured.parent.mkdir(parents=True)
+    measured.write_text(json.dumps({"caption_words": words, "source_from": 0.0, "source": "media/takes/take-01.wav"}))
+    lines = shorts.fix_words(run)
+    assert "'Anyone' starts" in lines[0] and "'dollars.' ends" in lines[0]
+    fixed = json.loads((run / "transcripts" / "take-01.json").read_text())
+    assert fixed["words"][0]["start"] == pytest.approx(0.1, abs=0.03)
+    assert fixed["words"][1]["end"] == pytest.approx(2.4, abs=0.04)
+
+
+def test_a_beat_whose_cue_is_no_longer_said_is_named(tmp_path):
+    """After a re-cut, "Booking in the app?" became "Bookings and hours," and the beat cued on it quietly moved."""
+    run = tmp_path / "run"
+    (run / "transcripts").mkdir(parents=True)
+    (run / "transcripts" / "take-01.json").write_text(json.dumps({"words": [{"word": w} for w in " Bookings and hours, sorted.".split(" ") if w]}))
+    (run / "edit-plan.md").write_text('Beat: line-01\nCue: take-01 "Bookings and hours,"\n\nBeat: line-02\nCue: take-01 "Booking in the app?"\n')
+    problems = shorts.check_plan_cues(run)
+    assert len(problems) == 1 and "line-02" in problems[0]
 
 
 def test_frames_writes_timestamped_contact_sheets(tmp_path):

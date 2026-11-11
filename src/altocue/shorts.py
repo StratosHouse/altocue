@@ -62,6 +62,7 @@ HOUSE_DEFAULTS = {
     "change_window": 4.0,
     "max_sounds": 2,  # sound effects allowed inside any one second
     "join_reach": 0.7,  # a full graphic edge this close to a join in the footage belongs on the join
+    "max_scene": 10.0,  # a full graphic longer than this loses the viewer: split it on a spoken word
 }
 SECTION = re.compile(r"(<section\b[^>]*\bdata-layout\s*=\s*\"[a-z]+\"[^>]*>)(.*?)</section>", re.IGNORECASE | re.DOTALL)
 ATTR = re.compile(r'([a-z-]+)\s*=\s*"([^"]*)"', re.IGNORECASE)
@@ -72,6 +73,12 @@ SPEECH_UNDER_PEAK_DB = 26.0  # sound within this of the voice's loudest 20 ms is
 REAL_PAUSE = 0.25  # a gap between word times with less quiet than this in the sound is not a pause
 MISSED_WORD = 0.03  # a caption word shorter than this was not heard: the recognizer gave it no time
 FALSE_PAUSE = 0.45  # fix-words listens to any gap between word times longer than this
+# A take's first and last word follow the sound, not the recognizer, which cuts soft edges short ("dollars" heard as
+# "doll", a soft "Anyone" lost). The take is trimmed to these words, so a short edge is a lost sound in the Reel.
+EDGE_UNDER_PEAK_DB = 34.0  # softer than speech: a word's quiet start or trailing "s" still counts
+EDGE_SLACK = 0.06  # an edge this close to the sound is left alone
+EDGE_LEAD = 0.6  # the first word moves at most this much earlier
+EDGE_TAIL = 1.2  # the last word runs on at most this much later ("million dollars" at the end of a take)
 FRAME_SLACK = 1.0  # frames a cover may start late or end early and still count
 
 
@@ -648,6 +655,26 @@ def on_screen_words(inner: str) -> int:
     return len(re.findall(r"[A-Za-z0-9][\w'%$.,/]*", re.sub(r"<[^>]+>", " ", text)))
 
 
+def check_timing(html: str, timeline: dict[str, Any], house: dict[str, Any]) -> list[str]:
+    """A full graphic short enough to hold attention. A longer one is split on a spoken word near its middle.
+
+    Scenes that show the speaker are left alone: a face carries a long line.
+
+    From six Reels: graphics over 10 s lost the viewer, and splitting them, each half keeping only its own parts, fixed it.
+    """
+    problems = []
+    words = sorted(float(w["start"]) for w in timeline.get("caption_words") or timeline.get("words") or [] if "start" in w)
+    for layout, a, b in scenes_in(html):
+        if layout == "hidden" and b - a > house["max_scene"] + 1e-3:
+            inside = [s for s in words if a + 1.0 < s < b - 1.0]
+            middle = (a + b) / 2
+            at = min(inside, key=lambda s: abs(s - middle)) if inside else middle
+            problems.append(
+                f"The full graphic at {a:.2f} s runs {b - a:.1f} s. Split it in two near {at:.2f} s, on a spoken word, each half keeping only its own parts."
+            )
+    return problems
+
+
 def check_pacing(html: str, house: dict[str, Any]) -> list[str]:
     """Strong graphics, at a pace a viewer can take in: time to read each one, and not too many changes or sounds at once."""
     problems = []
@@ -745,6 +772,38 @@ def check_cues(run: Path, timeline: dict[str, Any]) -> list[str]:
     return problems
 
 
+PLAN_BEAT = re.compile(r"^Beat:\s*(\S+)\s*\nCue:\s*(take-\d+)\s+\"([^\"]+)\"", re.MULTILINE)
+
+
+def _bare(text: str) -> str:
+    return re.sub(r"[^\w']+", "", text.lower())
+
+
+def check_plan_cues(run: Path) -> list[str]:
+    """Every beat's cue phrase is still said, word for word, in its take.
+
+    Beats are timed by finding their phrase in the take. After a re-cut or a corrected transcript, a phrase that is
+    gone no longer lands, and nothing else says so: the graphic quietly moves or vanishes.
+    """
+    plan = run / "edit-plan.md"
+    if not plan.exists():
+        return []
+    problems = []
+    said: dict[str, list[str]] = {}
+    for beat, take, phrase in PLAN_BEAT.findall(plan.read_text(errors="replace")):
+        if take not in said:
+            path = run / "transcripts" / f"{take}.json"
+            words = json.loads(path.read_text()).get("words", []) if path.exists() else None
+            said[take] = [_bare(str(w.get("word", ""))) for w in words] if words else []
+        heard = [w for w in said[take] if w]
+        wanted = [w for w in (_bare(t) for t in phrase.split()) if w]
+        if not heard or not wanted:
+            continue
+        if not any(heard[i : i + len(wanted)] == wanted for i in range(len(heard) - len(wanted) + 1)):
+            problems.append(f'Beat {beat} cues "{phrase}" in {take}, and {take} no longer says it. Run `altocue shorts prepare` again, or fix the cue.')
+    return problems
+
+
 def check_dashes(run: Path) -> list[str]:
     problems = []
     for path in sorted(p for p in (run / "composition").rglob("*") if p.is_file() and p.suffix in TEXT_FILES and p.name not in KIT_FILES):
@@ -831,13 +890,39 @@ def _span_times(words: list[dict[str, Any]], missed: set[int], times: dict[int, 
     return notes
 
 
+def _edge_times(words: list[dict[str, Any]], times: dict[int, tuple[float, float]], level: np.ndarray, step: float, base: float, length: float) -> list[str]:
+    """Move the first word back to where the sound starts and the last word on to where it stops, within limits.
+
+    Only inside the measured part of the source: sound before `base` belongs to another take. Changes `times` in place.
+    """
+    soft = level > level.max() * 10 ** (-EDGE_UNDER_PEAK_DB / 20)
+    steady = [i for i in range(len(soft) - 1) if soft[i] and soft[i + 1]]
+    if not steady or not times:
+        return []
+    notes = []
+    first, last = min(times), max(times)
+    on = max(base, steady[0] * step)
+    later = [i for i in steady if i * step >= times[last][0]]
+    off = (later[-1] + 2) * step if later else 0.0
+    s0, e0 = times[first]
+    if on < s0 - EDGE_SLACK and s0 - on <= EDGE_LEAD:
+        times[first] = (round(on, 3), e0)
+        notes.append(f"{str(words[first].get('word', '')).strip()!r} starts {s0 - on:.2f} s earlier, with the sound")
+    s1, e1 = times[last]
+    if off > e1 + EDGE_SLACK and off - e1 <= EDGE_TAIL:
+        times[last] = (s1, round(min(length, off), 3))
+        notes.append(f"{str(words[last].get('word', '')).strip()!r} ends {off - e1:.2f} s later, with the sound")
+    return notes
+
+
 def fix_words(run: Path, dry: bool = False) -> list[str]:
     """Correct the measured word times of each take by its sound. Returns one line per take it changed.
 
     A word the recognizer did not hear has no length, and when it opens a take, Shorts Studio's measure trims the
     take from the first word it did hear, cutting the missed one off. Such a word gets a time from the sound: from
     where the sound starts, to where it stops, or across the gap between its heard neighbours. A gap between two
-    words over the house's silent-face limit with no quiet stretch of REAL_PAUSE in the sound is closed. A changed
+    words over the house's silent-face limit with no quiet stretch of REAL_PAUSE in the sound is closed. The first and
+    last word follow the sound at the take's edges (`_edge_times`), since the take is trimmed to them. A changed
     take's transcript is rewritten and its measured file deleted, so the next measure trims it again.
     """
     lines = []
@@ -859,6 +944,7 @@ def fix_words(run: Path, dry: bool = False) -> list[str]:
         on, off = (steady[0] * step, (steady[-1] + 2) * step) if steady else (0.0, len(level) * step)
         times = {i: (float(w["start"]) + base, float(w["end"]) + base) for i, w in enumerate(words) if i not in missed}
         notes = _span_times(words, missed, times, on, off, len(level) * step)
+        notes += _edge_times(words, times, level, step, base, len(level) * step)
         for k in range(len(words) - 1):
             (s0, e0), (s1, _) = times[k], times[k + 1]
             if s1 - e0 <= FALSE_PAUSE:
@@ -955,9 +1041,10 @@ def check(run: Path, render: Path | None, gaze_lens: float | None = None) -> lis
         + check_video_tags(html)
         + check_dashes(run)
         + check_cues(run, timeline)
+        + check_plan_cues(run)
     )
     problems += check_joins(html, timeline, record, house)
-    problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_grain(html, house)
+    problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_timing(html, timeline, house) + check_grain(html, house)
     problems += check_house(html, reel, scenes, length, house)
     final = render or run / "renders" / "final.mp4"
     if gaze_lens is not None:

@@ -844,6 +844,25 @@ def test_an_in_point_never_opens_inside_a_words_first_sound():
     assert guard_in(env, 1.08, floor=1.06) == 1.06  # never back past the word before
 
 
+def test_an_out_point_never_closes_inside_a_words_last_sound():
+    """A Reel's "dollars" played as "doll": the recogniser ended the word 0.2 s early. The sound after the cut puts the edge back."""
+    from altocue.cut.snap import TAIL_LEAD, clipped_tail, guard_out
+
+    env = envelope(4.0, [(1.0, 1.6)])
+    assert clipped_tail(env, 1.4) == pytest.approx(0.2, abs=HOP)
+    assert guard_out(env, 1.4, 4.0) == pytest.approx(1.4 + clipped_tail(env, 1.4) + TAIL_LEAD, abs=1e-3)
+    assert guard_out(env, 1.7, 4.0) == 1.7  # closes on quiet: nothing to restore
+    assert guard_out(env, 1.4, ceiling=1.5) == 1.5  # never on past the word after
+
+
+def test_running_speech_after_a_cut_is_left_alone():
+    """Speech that runs on for a second after the out point is the next line, which the edit removed on purpose."""
+    from altocue.cut.snap import guard_out
+
+    env = envelope(4.0, [(1.0, 2.6)])
+    assert guard_out(env, 1.2, 4.0) == 1.2
+
+
 def test_running_speech_before_a_cut_is_left_alone():
     """Half a second of sound into the cut is a retake the edit removed on purpose, not a clipped word."""
     from altocue.cut.snap import guard_in
@@ -860,3 +879,13 @@ def test_a_cut_word_with_a_late_transcript_start_keeps_its_first_sound(tmp_path)
     words = [Word(text="Um", start=0.2, end=0.6), Word(text="One", start=1.85, end=2.4)]
     start, _ = bounds([1], words, clip, cut.envelope_of(clip), 30)
     assert start <= 1.6
+
+
+def test_a_cut_word_with_an_early_transcript_end_keeps_its_last_sound(tmp_path):
+    """The recogniser ended "dollars" 0.3 s before the sound did, and the Reel played "doll". The shot now closes after it."""
+    from altocue.cut import bounds
+
+    clip = add_clip(tmp_path, "a", 4.0, [(0.5, 1.6), (3.0, 3.6)])
+    words = [Word(text="dollars", start=0.9, end=1.15), Word(text="Next", start=3.0, end=3.6)]
+    _, end = bounds([0], words, clip, cut.envelope_of(clip), 30)
+    assert end >= 1.6
