@@ -22,6 +22,12 @@ FRAME_SLACK = 1e-3  # edges are stored to the microsecond, so frame maths needs 
 HEAD_MIN, HEAD_MAX = 0.03, 0.30
 HEAD_GAP = 2  # envelope frames of dip allowed inside the sound, walking back
 HEAD_LEAD = 0.03  # quiet kept ahead of the restored sound
+# A word's last sound after an out point. Recognisers end words early ("dollars" heard as "doll"), so the sound,
+# not the transcript, says where a word stops. Over TAIL_MAX is the next line running on, which the cut keeps out.
+# Tuned on the six film-day Reels (Nov 2026), where every clipped ending was 0.05 to 0.4 s.
+TAIL_MIN, TAIL_MAX = 0.03, 0.45
+TAIL_GAP = 2  # envelope frames of dip allowed inside the sound, walking forward
+TAIL_LEAD = 0.04  # quiet kept after the restored sound
 
 
 def snap(
@@ -85,6 +91,35 @@ def guard_in(envelope: Envelope, start: float, floor: float = 0.0) -> float:
     if HEAD_MIN <= head <= HEAD_MAX:
         return max(floor, 0.0, round(start - head - HEAD_LEAD, 3))
     return start
+
+
+def clipped_tail(envelope: Envelope, at: float) -> float:
+    """Seconds of speech-level sound that run straight on from `at`. 0 when the shot closes on quiet.
+
+    The mirror of `clipped_head`: a cut a few frames before a word really ends loses its last sound.
+    """
+    speech = envelope.speech
+    index = int(round(at / HOP))
+    if index <= 0 or index >= len(speech) or not speech[max(0, index - 3) : index].any():
+        return 0.0
+    count, missed = 0, 0
+    for frame in range(index, len(speech)):
+        if speech[frame]:
+            count += 1 + missed
+            missed = 0
+        else:
+            missed += 1
+            if missed > TAIL_GAP:
+                break
+    return round(count * HOP, 3)
+
+
+def guard_out(envelope: Envelope, end: float, ceiling: float) -> float:
+    """Move an out point on to the quiet after a word it would clip. Running speech after it is left alone."""
+    tail = clipped_tail(envelope, end)
+    if TAIL_MIN <= tail <= TAIL_MAX:
+        return min(ceiling, round(end + tail + TAIL_LEAD, 3))
+    return end
 
 
 def to_grid(start: float, end: float, fps: int, *, floor: float, ceiling: float) -> tuple[float, float]:
