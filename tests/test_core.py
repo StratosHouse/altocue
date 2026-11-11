@@ -369,3 +369,51 @@ def test_a_shape_is_named_as_people_name_it():
         "16:9", "9:16", "16:9", "4:5", "16:9", "1:1",
     ]  # fmt: skip
     assert ingest.shape_of(1000, 700) == "10:7"
+
+
+# The project is found from inside it
+
+
+def test_a_command_run_from_inside_the_project_finds_it(tmp_path, monkeypatch, capsys):
+    project = Project.create(tmp_path / "first")
+    assert Project.open(project.work).root == project.root
+    assert Project.open(project.words_dir).root == project.root
+    monkeypatch.chdir(project.work)
+    assert Project.open().root == project.root
+    assert main(["status"]) == 0
+    assert "ingest" in capsys.readouterr().out
+
+
+def test_the_nearest_project_above_wins(tmp_path):
+    outer = Project.create(tmp_path / "outer")
+    inner = Project.create(outer.root / "clips" / "one")
+    assert Project.open(inner.work).root == inner.root
+    assert Project.open(outer.root / "clips").root == outer.root
+
+
+def test_a_folder_that_holds_projects_lists_them(tmp_path, monkeypatch, capsys):
+    for name in ("second", "first", "my video"):
+        Project.create(tmp_path / "work" / name)
+    (tmp_path / "work" / "notes").mkdir()
+    with pytest.raises(AltocueError) as caught:
+        Project.open(tmp_path / "work")
+    assert "It holds projects: first, my video, second." in str(caught.value) and "`-p first`" in caught.value.fix
+    monkeypatch.chdir(tmp_path / "work")
+    assert main(["status"]) == 1
+    err = capsys.readouterr().err
+    assert "first, my video, second" in err and "Fix: Name one with `-p first`" in err
+
+
+def test_a_folder_with_no_project_near_it_says_how_to_start_or_where_to_go(tmp_path):
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(AltocueError) as caught:
+        Project.open(tmp_path / "empty")
+    assert "or any folder above it" in str(caught.value) and "-p <folder>" in caught.value.fix and "altocue new" in caught.value.fix
+
+
+def test_a_path_that_is_not_there_never_opens_the_project_around_it(tmp_path):
+    """`-p typo` from inside a project must not quietly act on that project."""
+    project = Project.create(tmp_path / "first")
+    with pytest.raises(AltocueError, match="No folder at") as caught:
+        Project.open(project.root / "typo")
+    assert "Check the path" in caught.value.fix
