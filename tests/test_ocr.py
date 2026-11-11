@@ -37,3 +37,24 @@ def test_one_pass_writes_the_same_images_as_five(tmp_path, monkeypatch, size):
     assert times["full_00001.jpg"] == 0.0 and times["br_00004.jpg"] == 1.5 and all(times[name] == at for name, at in cuts.items())
     assert all((after / name).stat().st_size > 0 for name in cuts)
     assert len(calls) == 1 + len(cuts)  # the film is decoded whole once, and each cut is a seek
+
+
+@pytest.mark.skipif(ocr.reader()[0] is None, reason="no text reader on this machine")
+def test_text_in_a_film_is_still_read_from_whole_frames_tiles_and_cuts(tmp_path):
+    from canaries import text_plate
+    from PIL import Image
+
+    still = tmp_path / "frame.png"
+    base = Image.new("RGBA", (1080, 1920), (127, 140, 153, 255))
+    base.alpha_composite(text_plate("HELLO WORLD", 0.1))
+    base.convert("RGB").save(still)
+    film = tmp_path / "film.mp4"
+    encode = ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "30", "-t", "1", "-i", str(still), *encode, str(film)], check=True)
+    frames = tmp_path / "frames"
+    frames.mkdir()
+    hits = [record for record in ocr.read_video(film, 2.0, [0.5], frames) if "HELLO" in record["text"].upper()]
+    kinds = {record["file"].rsplit("/", 1)[-1].split("_")[0] for record in hits}
+    assert {"full", "cut"} <= kinds and kinds & {"tl", "tr"}, kinds
+    assert {record["time"] for record in hits} == {0.0, 0.5}
+    assert all(0.05 < ocr.frame_box(record)[1] < 0.15 for record in hits), hits
