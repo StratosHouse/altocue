@@ -269,3 +269,103 @@ def test_run_takes_the_same_renderers_as_render(capsys):
     with pytest.raises(SystemExit):
         main(["run", "--renderer", "foo"])
     assert "invalid choice: 'foo'" in capsys.readouterr().err
+
+
+# `altocue new` is forgiving
+
+
+def test_a_failed_new_leaves_nothing_so_the_retry_works(tmp_path, clip, capsys):
+    folder = tmp_path / "x4"
+    notes = tmp_path / "truth.json"
+    notes.write_text("{}")
+    for wrong in (["--brand", str(tmp_path / "nonexistent")], ["--aspect", "9:99"], ["--aspect", "wide", "--platform", "reels"]):
+        assert main(["new", str(folder), "--input", str(clip), *wrong]) == 1
+        assert "Fix: " in capsys.readouterr().err and not folder.exists()
+    assert main(["new", str(folder), "--input", str(notes)]) == 1
+    err = capsys.readouterr().err
+    assert "Fix: Give video files" in err and "can run again" in err and not folder.exists()
+    assert main(["new", str(folder), "--input", str(clip), "--brand", "house"]) == 0
+    assert Project.open(folder).clips()
+
+
+def test_every_refusal_from_new_says_what_to_do(tmp_path, clip, capsys):
+    assert main(["new", str(tmp_path / "v"), "--input", str(tmp_path / "nope.mp4")]) == 1
+    assert "Not found" in (err := capsys.readouterr().err) and "Fix: Check the path" in err
+    assert main(["new", str(tmp_path / "v"), "--input", str(clip)]) == 0
+    assert main(["new", str(tmp_path / "v"), "--input", str(clip)]) == 1
+    assert "already an Altocue project" in (err := capsys.readouterr().err) and "Fix: Pick another folder name, or delete" in err
+    assert main(["new", str(clip), "--input", str(clip)]) == 1
+    assert "is a file" in (err := capsys.readouterr().err) and "Fix: " in err
+    assert main(["new", str(tmp_path / "w"), "--input", str(clip), "--aspect", "tall"]) == 1
+    assert "Unknown aspect tall" in (err := capsys.readouterr().err) and "vertical, portrait, square, wide" in err
+
+
+def test_a_new_that_fails_part_way_takes_its_folder_back(tmp_path, clip, monkeypatch):
+    from altocue import brand
+
+    def broken(project, kit, house=False):
+        raise AltocueError("The brand's font cannot be used.", fix="Use a .ttf file.")
+
+    monkeypatch.setattr(brand, "ingest", broken)
+    assert main(["new", str(tmp_path / "gone"), "--input", str(clip), "--brand", "house"]) == 1
+    assert not (tmp_path / "gone").exists()
+    mine = tmp_path / "footage"
+    (mine / "sources").mkdir(parents=True)
+    (mine / "notes.txt").write_text("keep me")
+    (mine / "sources" / "old.txt").write_text("and me")
+    assert main(["new", str(mine), "--input", str(clip), "--brand", "house"]) == 1
+    assert sorted(path.relative_to(mine).as_posix() for path in mine.rglob("*")) == ["notes.txt", "sources", "sources/old.txt"]
+
+
+def test_new_takes_a_platform_and_sets_the_shape_and_the_safe_zone_together(tmp_path, clip, capsys):
+    from altocue import platforms
+
+    wide = make_clip(tmp_path / "wide.mp4", seconds=1.0, size="640x360")
+    assert main(["new", str(tmp_path / "yt"), "--input", str(wide), "--platform", "youtube"]) == 0
+    made = Project.open(tmp_path / "yt")
+    assert made.config["output"]["aspect"] == "16:9" and made.config["output"]["platform"] == "youtube" and platforms.zone_of(made)
+    assert "format" not in made.config, "a platform is not a kind"
+    assert main(["new", str(tmp_path / "feed"), "--input", str(clip), "--platform", "linkedin", "--kind", "interview"]) == 0
+    made = Project.open(tmp_path / "feed")
+    assert (made.config["output"]["aspect"], made.config["output"]["platform"], made.config["format"]["kind"]) == ("4:5", "linkedin", "interview")
+    assert main(["new", str(tmp_path / "same"), "--input", str(clip), "--platform", "reels", "--aspect", "vertical"]) == 0
+    capsys.readouterr()
+    assert main(["new", str(tmp_path / "clash"), "--input", str(clip), "--platform", "reels", "--aspect", "16:9"]) == 1
+    assert "--platform reels plays 9:16, and --aspect asks for 16:9" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        main(["new", str(tmp_path / "bad"), "--input", str(clip), "--platform", "myspace"])
+
+
+@pytest.mark.parametrize(("word", "aspect"), [("vertical", "9:16"), ("portrait", "9:16"), ("square", "1:1"), ("wide", "16:9"), ("Wide", "16:9")])
+def test_new_takes_a_word_for_the_shape(tmp_path, clip, word, aspect):
+    assert main(["new", str(tmp_path / "v"), "--input", str(clip), "--aspect", word]) == 0
+    assert Project.open(tmp_path / "v").config["output"]["aspect"] == aspect
+
+
+def test_the_help_for_new_states_the_default_shape(capsys):
+    with pytest.raises(SystemExit):
+        main(["new", "--help"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert "The default is 9:16 (vertical)" in out and "vertical, portrait, square, wide" in out and "--platform {reels,tiktok,shorts,youtube,linkedin,square}" in out
+
+
+def test_new_says_when_the_film_is_not_the_shape_of_the_footage(tmp_path, clip, capsys):
+    wide = make_clip(tmp_path / "wide.mp4", seconds=1.0, size="640x360")
+    assert main(["new", str(tmp_path / "a"), "--input", str(wide)]) == 0
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.startswith("Shape:")]
+    assert len(lines) == 1
+    assert "the footage is 16:9 and this film is 9:16, the default" in lines[0] and "`--aspect 16:9`" in lines[0] and "cropped" in lines[0]
+    assert main(["new", str(tmp_path / "b"), "--input", str(wide), "--platform", "reels"]) == 0
+    assert "this film is 9:16, from --platform reels" in capsys.readouterr().out
+    assert main(["new", str(tmp_path / "c"), "--input", str(wide), "--kind", "short"]) == 0
+    assert "this film is 9:16, from the kind" in capsys.readouterr().out
+    for quiet in (["--input", str(wide), "--aspect", "9:16"], ["--input", str(wide), "--aspect", "wide"], ["--input", str(clip)]):
+        assert main(["new", str(tmp_path / f"q{len(quiet)}{quiet[-1][-4:]}"), *quiet]) == 0
+        assert "Shape:" not in capsys.readouterr().out, "asked for by name, or already the same shape"
+
+
+def test_a_shape_is_named_as_people_name_it():
+    assert [ingest.shape_of(*size) for size in ((1920, 1080), (1080, 1920), (3840, 2160), (1080, 1350), (1920, 1088), (720, 720))] == [
+        "16:9", "9:16", "16:9", "4:5", "16:9", "1:1",
+    ]  # fmt: skip
+    assert ingest.shape_of(1000, 700) == "10:7"
