@@ -38,7 +38,7 @@ Shorts Studio is the `/shorts` command of the Higgsfield MCP server. It designs 
    ```bash
    altocue shorts check shorts/<slug>
    ```
-   Add `--gaze` to scan the finished render too: it fails any look-away left on screen. It also names any beat whose cue phrase its take no longer says, which happens after a re-cut or a corrected transcript. Fix every failure in the composition and render again. A skipped check is not a pass. Then `altocue shorts frames shorts/<slug>` writes timestamped contact sheets into `review/`: look at every frame yourself before anyone else sees the Reel. A passing check is not a review.
+   Add `--gaze` to scan the finished render too: it fails any look-away left on screen. It also names any beat whose cue phrase its take no longer says, which happens after a re-cut or a corrected transcript, and a full graphic over 10 s fails with where to split it, on a spoken word. Fix every failure in the composition and render again. A skipped check is not a pass. Then `altocue shorts frames shorts/<slug>` writes timestamped contact sheets into `review/`: look at every frame yourself before anyone else sees the Reel. A passing check is not a review.
 7. Master, review and deliver the render with the usual stages.
 
 ## When to use something else

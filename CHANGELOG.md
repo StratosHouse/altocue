@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Long graphics split, not just failed.** `altocue shorts check` fails a full-screen graphic over 10 s (`max_scene` in a kit's house.json) and says where to split it: on a spoken word near its middle, each half keeping only its own parts. Scenes that show the speaker are left alone.
 - **No shot closes inside a word.** The mirror of the in point guard: recognisers end soft words early ("dollars" played as "doll" in a Reel), so `altocue cut` now reads the sound after every out point, and when 0.03 to 0.45 s of speech runs straight on from it, the edge moves on to the quiet after it, never past the next kept word. More than that is the next line, which stays cut. A new fact gate, `word_ends`, holds hand edits to the same rule; a shot that carries on from the same frame in the next one is left alone. The `altocue-cut` skill now says to choose whole lines in `script.md` rather than hand-write edges inside a line.
 - **A take's edge words follow the sound.** `altocue shorts fix-words` now also moves a take's first word back to where its sound starts (up to 0.6 s) and its last word on to where the sound stops (up to 1.2 s), read at a softer level than speech, since the take is trimmed to those two words and a short edge is a lost sound. Run it again after every re-cut.
 - **Stale cues named.** `altocue shorts check` fails any beat in `edit-plan.md` whose cue phrase its take no longer says, word for word. After a re-cut or a corrected transcript such a beat used to move or vanish without a word.

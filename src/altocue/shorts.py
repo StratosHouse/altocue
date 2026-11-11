@@ -62,6 +62,7 @@ HOUSE_DEFAULTS = {
     "change_window": 4.0,
     "max_sounds": 2,  # sound effects allowed inside any one second
     "join_reach": 0.7,  # a full graphic edge this close to a join in the footage belongs on the join
+    "max_scene": 10.0,  # a full graphic longer than this loses the viewer: split it on a spoken word
 }
 SECTION = re.compile(r"(<section\b[^>]*\bdata-layout\s*=\s*\"[a-z]+\"[^>]*>)(.*?)</section>", re.IGNORECASE | re.DOTALL)
 ATTR = re.compile(r'([a-z-]+)\s*=\s*"([^"]*)"', re.IGNORECASE)
@@ -654,6 +655,26 @@ def on_screen_words(inner: str) -> int:
     return len(re.findall(r"[A-Za-z0-9][\w'%$.,/]*", re.sub(r"<[^>]+>", " ", text)))
 
 
+def check_timing(html: str, timeline: dict[str, Any], house: dict[str, Any]) -> list[str]:
+    """A full graphic short enough to hold attention. A longer one is split on a spoken word near its middle.
+
+    Scenes that show the speaker are left alone: a face carries a long line.
+
+    From six Reels: graphics over 10 s lost the viewer, and splitting them, each half keeping only its own parts, fixed it.
+    """
+    problems = []
+    words = sorted(float(w["start"]) for w in timeline.get("caption_words") or timeline.get("words") or [] if "start" in w)
+    for layout, a, b in scenes_in(html):
+        if layout == "hidden" and b - a > house["max_scene"] + 1e-3:
+            inside = [s for s in words if a + 1.0 < s < b - 1.0]
+            middle = (a + b) / 2
+            at = min(inside, key=lambda s: abs(s - middle)) if inside else middle
+            problems.append(
+                f"The full graphic at {a:.2f} s runs {b - a:.1f} s. Split it in two near {at:.2f} s, on a spoken word, each half keeping only its own parts."
+            )
+    return problems
+
+
 def check_pacing(html: str, house: dict[str, Any]) -> list[str]:
     """Strong graphics, at a pace a viewer can take in: time to read each one, and not too many changes or sounds at once."""
     problems = []
@@ -1023,7 +1044,7 @@ def check(run: Path, render: Path | None, gaze_lens: float | None = None) -> lis
         + check_plan_cues(run)
     )
     problems += check_joins(html, timeline, record, house)
-    problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_grain(html, house)
+    problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_timing(html, timeline, house) + check_grain(html, house)
     problems += check_house(html, reel, scenes, length, house)
     final = render or run / "renders" / "final.mp4"
     if gaze_lens is not None:
