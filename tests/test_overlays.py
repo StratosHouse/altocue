@@ -87,7 +87,10 @@ def test_grain_is_strongest_in_the_mids_and_gone_in_black_and_white(tmp_path):
     assert amplitude[1] > 2.0 and amplitude[1] > 5 * amplitude[0] and amplitude[1] > 5 * amplitude[2]
     assert amplitude[0] < 0.6 and amplitude[2] < 0.6
     shift = [float(patch.mean() - plain[:, :, left : left + 44].mean()) for patch, left in ((black, 8), (mid, 68), (white, 128))]
-    assert abs(shift[0]) < 0.5 and abs(shift[1]) < 1.5 and abs(shift[2]) < 0.5  # black is not lifted and white is not dimmed
+    assert abs(shift[0]) < 0.5 and abs(shift[2]) < 0.5  # black is not lifted and white is not dimmed
+    # ffmpeg's blend rounds down in whole steps, so the mids settle a step or two low, by an amount that differs between
+    # ffmpeg versions (1.1 on 6.1, 1.6 on 8.0). Under one part in a hundred of the range is level left alone.
+    assert abs(shift[1]) < 2.55
     assert np.abs(mid[0] - mid[1]).mean() > 0.5  # new grain on every frame
 
 

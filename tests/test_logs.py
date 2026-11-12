@@ -258,9 +258,22 @@ def test_saying_what_the_clip_is_ends_the_hint(tmp_path):
     assert named.input == "apple_log" and logs.hint(set_input(project, '"apple_log"'), named) == ""
 
 
+def flagged(path: Path, span: str) -> Path:
+    """One 10 bit frame whose range is in the picture's own stream, as a camera writes it, so every ffmpeg reads it back.
+
+    10 bit has no full range format of its own, so the flag is all there is to go on. A flag kept only by the container
+    did not survive ffmpeg 8 and 9 on a lossless clip, and no camera file relies on one.
+    """
+    source = ["-f", "lavfi", "-i", "color=c=gray:s=64x64:r=30", "-frames:v", "1"]
+    chain = f"format=yuv420p10le,setparams=range={span}:colorspace=bt709"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *source, "-vf", chain, "-color_range", span, "-c:v", "libx264", "-preset", "ultrafast", str(path)], check=True)
+    return path
+
+
 def test_how_ffmpeg_reads_the_range_comes_from_the_file(tmp_path):
-    limited = probe_clip(write_log(tmp_path / "tv.mkv", log_scene()[:64, :64], frames=1), clip_id="tv")
-    full = probe_clip(write_log(tmp_path / "pc.mkv", log_scene()[:64, :64], tags="range=pc:colorspace=bt709", frames=1), clip_id="pc")
+    limited = probe_clip(flagged(tmp_path / "tv.mkv", "tv"), clip_id="tv")
+    full = probe_clip(flagged(tmp_path / "pc.mkv", "pc"), clip_id="pc")
+    assert limited.pix_fmt == full.pix_fmt == "yuv420p10le"  # the format says nothing, so the flag decides
     assert not logs.full_range(limited) and logs.full_range(full)
     assert logs.full_range(clip(pix_fmt="yuvj420p", path=str(tmp_path / "tv.mkv")))
 
