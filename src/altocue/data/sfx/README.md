@@ -35,11 +35,14 @@ These twenty are the only sounds in the package. The rest of the Kenney packs ab
 
 `sounds.json` also says how `altocue.mix` places each sound. A cue in `motion.json` can override any of these.
 
-- **`align`:** `start` puts the first sample on the time, `peak` puts the loudest one there.
+- **`align`:** `start` puts the onset on the time, the first sample within 20 dB of the peak, so a quiet lead-in plays just before it. `peak` puts the loudest sample there, and `end` the last sample within 20 dB of the peak. By family: a hit, pop, click, tone, faller or foley sound starts on the event, a whoosh peaks on it, and a riser ends on it. `align_why` explains a row that differs from its family.
 - **`offset_ms`:** a stated nudge.
 - **`min_gap_ms`:** a repeat of this sound sooner than this is dropped and reported.
 - **`bed_db`:** with no voice, how far its peak sits over the music.
 - **`dip_db`:** with no voice, how far the music falls before it. 0 is no dip.
+- **`family` and `purposes`:** what kind of sound it is, and what it is for. `altocue sfx for <words>` reads them, with the indexed pack sounds.
+- **`tuned`:** a sound with a pitch. A repeat of an untuned sound may play a little higher or lower; a tuned one only a little quieter.
+- **`onset_ms`, `peak_ms`, `end_ms`:** measured from the file. A test measures them again.
 
 These are starting values, set by role. Nobody has listened to them.
 

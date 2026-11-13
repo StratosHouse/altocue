@@ -129,6 +129,37 @@ def test_all_cues_merges_house_sounds_and_project_cues():
     assert [c["name"] for c in render.all_cues(timeline)] == ["whoosh", "ding"]
 
 
+def test_house_sounds_belong_to_the_picture_and_project_cues_keep_their_own_say():
+    cues = [{"name": "ding", "at": 2.5}, {"name": "pop", "at": 1.0, "sync": "picture"}]
+    timeline = {"items": [{"type": "endcard", "start": 2.0, "end": 3.0}], "sfx": True, "cues": cues}
+    assert [cue.get("sync") for cue in render.all_cues(timeline)] == ["picture", None, "picture"]
+
+
+def test_the_film_mix_is_told_the_frame_rate_and_the_words(tmp_path, monkeypatch):
+    from altocue.project import Project
+
+    project = Project.create(tmp_path / "video")
+    seen: dict = {}
+    monkeypatch.setattr(render.mix, "mix_bed", lambda voice, dest, **kw: seen.update(kw) or dest)
+    monkeypatch.setattr(render, "spoken", lambda project: WORDS)
+    timeline = {"items": [{"type": "endcard", "start": 2.0, "end": 3.0}], "sfx": True, "cues": [], "tail": 0.0, "total": 3.0, "fps": 25}
+    render.mix_film(project, timeline, tmp_path / "voice.wav", tmp_path / "mix.wav")
+    assert seen["fps"] == 25 and seen["words"] == WORDS and seen["sfx"][0]["sync"] == "picture"
+    render.mix_film(project, {**timeline, "sfx": False}, tmp_path / "voice.wav", tmp_path / "mix.wav")
+    assert seen["words"] is None  # no effects, so the words are not read
+
+
+def test_a_cut_with_no_words_to_read_gives_none(tmp_path, monkeypatch):
+    from altocue import cut
+    from altocue.project import Project
+
+    def refuse(project, edl):
+        raise AltocueError("No transcript.", fix="Run `altocue transcribe`.")
+
+    monkeypatch.setattr(cut, "map_words", refuse)
+    assert render.spoken(Project.create(tmp_path / "video")) is None
+
+
 def test_house_off_keeps_project_cues():
     timeline = {"items": [{"type": "endcard", "start": 2.0, "end": 3.0}], "sfx": False, "cues": [{"name": "ding", "at": 2.5}]}
     assert [c["name"] for c in render.all_cues(timeline)] == ["ding"]
@@ -144,5 +175,7 @@ def test_every_effect_is_heard_where_it_was_called(tmp_path):
         left = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2").reshape(-1, 2)[:, 0]
     for cue in cues:
         at = int(cue["at"] * RATE)
-        assert np.abs(left[at : at + RATE // 2]).max() > 300, cue["name"]
-        assert np.abs(left[at - 2400 : at - 480]).max() == 0, cue["name"]
+        heard = np.abs(left[at : at + RATE // 2]).max()
+        assert heard > 300, cue["name"]
+        # A sound with a quiet lead-in starts that much early, by its offset_ms, so its onset is what lands on the time
+        assert np.abs(left[at - 2400 : at - 96]).max() < heard * 10 ** (-mix.ONSET_DB / 20), cue["name"]

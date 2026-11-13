@@ -17,7 +17,16 @@
     "offset_ms": 0,
     "bed_db": 5,
     "min_gap_ms": 100,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "pop",
+    "purposes": [
+      "text on",
+      "emphasis"
+    ],
+    "tuned": false,
+    "onset_ms": 0.0,
+    "peak_ms": 0.5,
+    "end_ms": 35.3
   },
   {
     "name": "click",
@@ -37,7 +46,16 @@
     "offset_ms": 0,
     "bed_db": 5,
     "min_gap_ms": 100,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "click",
+    "purposes": [
+      "click",
+      "step"
+    ],
+    "tuned": false,
+    "onset_ms": 15.2,
+    "peak_ms": 17.6,
+    "end_ms": 25.3
   },
   {
     "name": "tick",
@@ -58,7 +76,17 @@
     "offset_ms": 0,
     "bed_db": 3,
     "min_gap_ms": 80,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "click",
+    "purposes": [
+      "step",
+      "typing",
+      "click"
+    ],
+    "tuned": false,
+    "onset_ms": 0.0,
+    "peak_ms": 0.6,
+    "end_ms": 8.9
   },
   {
     "name": "whoosh",
@@ -78,7 +106,17 @@
     "offset_ms": 0,
     "bed_db": 5,
     "min_gap_ms": 400,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "whoosh",
+    "purposes": [
+      "transition",
+      "text on",
+      "text off"
+    ],
+    "tuned": false,
+    "onset_ms": 16.5,
+    "peak_ms": 303.0,
+    "end_ms": 308.0
   },
   {
     "name": "rise",
@@ -94,11 +132,20 @@
     "author": "Kenney",
     "url": "https://kenney.nl/assets/interface-sounds",
     "licence": "CC0-1.0",
-    "align": "peak",
+    "align": "end",
     "offset_ms": 0,
     "bed_db": 4,
     "min_gap_ms": 300,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "riser",
+    "purposes": [
+      "riser",
+      "reveal"
+    ],
+    "tuned": true,
+    "onset_ms": 22.8,
+    "peak_ms": 246.2,
+    "end_ms": 252.9
   },
   {
     "name": "fall",
@@ -118,7 +165,15 @@
     "offset_ms": 0,
     "bed_db": 4,
     "min_gap_ms": 300,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "faller",
+    "purposes": [
+      "text off"
+    ],
+    "tuned": true,
+    "onset_ms": 0.0,
+    "peak_ms": 0.5,
+    "end_ms": 226.3
   },
   {
     "name": "thud",
@@ -134,11 +189,20 @@
     "author": "Kenney",
     "url": "https://kenney.nl/assets/interface-sounds",
     "licence": "CC0-1.0",
-    "align": "peak",
+    "align": "start",
     "offset_ms": 0,
     "bed_db": 7,
     "min_gap_ms": 300,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "hit",
+    "purposes": [
+      "impact",
+      "error"
+    ],
+    "tuned": false,
+    "onset_ms": 1.0,
+    "peak_ms": 13.3,
+    "end_ms": 106.4
   },
   {
     "name": "ding",
@@ -159,7 +223,16 @@
     "offset_ms": 0,
     "bed_db": 6,
     "min_gap_ms": 300,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "tone",
+    "purposes": [
+      "notification",
+      "success"
+    ],
+    "tuned": true,
+    "onset_ms": 0.0,
+    "peak_ms": 0.1,
+    "end_ms": 89.3
   },
   {
     "name": "punch",
@@ -176,11 +249,21 @@
     "author": "Kenney",
     "url": "https://kenney.nl/assets/impact-sounds",
     "licence": "CC0-1.0",
-    "align": "peak",
+    "align": "start",
     "offset_ms": 0,
     "bed_db": 9,
     "min_gap_ms": 800,
-    "dip_db": 9
+    "dip_db": 9,
+    "family": "hit",
+    "purposes": [
+      "impact",
+      "reveal",
+      "emphasis"
+    ],
+    "tuned": false,
+    "onset_ms": 16.0,
+    "peak_ms": 17.2,
+    "end_ms": 134.9
   },
   {
     "name": "clang",
@@ -197,11 +280,20 @@
     "author": "Kenney",
     "url": "https://kenney.nl/assets/impact-sounds",
     "licence": "CC0-1.0",
-    "align": "peak",
+    "align": "start",
     "offset_ms": 0,
     "bed_db": 8,
     "min_gap_ms": 600,
-    "dip_db": 6
+    "dip_db": 6,
+    "family": "hit",
+    "purposes": [
+      "impact",
+      "emphasis"
+    ],
+    "tuned": true,
+    "onset_ms": 0.1,
+    "peak_ms": 2.3,
+    "end_ms": 50.8
   },
   {
     "name": "bell",
@@ -222,7 +314,16 @@
     "offset_ms": 0,
     "bed_db": 6,
     "min_gap_ms": 600,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "tone",
+    "purposes": [
+      "notification",
+      "emphasis"
+    ],
+    "tuned": true,
+    "onset_ms": 0.0,
+    "peak_ms": 1.4,
+    "end_ms": 123.3
   },
   {
     "name": "chime",
@@ -244,7 +345,16 @@
     "offset_ms": 0,
     "bed_db": 6,
     "min_gap_ms": 600,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "tone",
+    "purposes": [
+      "notification",
+      "success"
+    ],
+    "tuned": true,
+    "onset_ms": 1.8,
+    "peak_ms": 119.6,
+    "end_ms": 475.5
   },
   {
     "name": "powerup",
@@ -266,7 +376,17 @@
     "offset_ms": 0,
     "bed_db": 6,
     "min_gap_ms": 600,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "riser",
+    "purposes": [
+      "success",
+      "reveal"
+    ],
+    "tuned": true,
+    "align_why": "Its sweep tops out a third of the way in and then decays, so its top meets the event.",
+    "onset_ms": 1.9,
+    "peak_ms": 146.7,
+    "end_ms": 223.8
   },
   {
     "name": "boom",
@@ -284,11 +404,20 @@
     "author": "Kenney",
     "url": "https://kenney.nl/assets/sci-fi-sounds",
     "licence": "CC0-1.0",
-    "align": "peak",
+    "align": "start",
     "offset_ms": 0,
     "bed_db": 10,
     "min_gap_ms": 1500,
-    "dip_db": 12
+    "dip_db": 12,
+    "family": "hit",
+    "purposes": [
+      "impact",
+      "reveal"
+    ],
+    "tuned": false,
+    "onset_ms": 0.2,
+    "peak_ms": 1.4,
+    "end_ms": 561.9
   },
   {
     "name": "sub",
@@ -307,11 +436,20 @@
     "author": "Kenney",
     "url": "https://kenney.nl/assets/sci-fi-sounds",
     "licence": "CC0-1.0",
-    "align": "peak",
+    "align": "start",
     "offset_ms": 0,
     "bed_db": 8,
     "min_gap_ms": 1500,
-    "dip_db": 9
+    "dip_db": 9,
+    "family": "hit",
+    "purposes": [
+      "impact",
+      "reveal"
+    ],
+    "tuned": false,
+    "onset_ms": 44.0,
+    "peak_ms": 81.5,
+    "end_ms": 359.0
   },
   {
     "name": "page",
@@ -333,7 +471,16 @@
     "offset_ms": 0,
     "bed_db": 3,
     "min_gap_ms": 300,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "foley",
+    "purposes": [
+      "transition",
+      "text on"
+    ],
+    "tuned": false,
+    "onset_ms": 37.3,
+    "peak_ms": 37.8,
+    "end_ms": 351.4
   },
   {
     "name": "whoosh3",
@@ -353,7 +500,17 @@
     "offset_ms": 0,
     "bed_db": 5,
     "min_gap_ms": 400,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "whoosh",
+    "purposes": [
+      "transition",
+      "text on",
+      "text off"
+    ],
+    "tuned": false,
+    "onset_ms": 201.1,
+    "peak_ms": 245.5,
+    "end_ms": 259.3
   },
   {
     "name": "whoosh4",
@@ -373,7 +530,17 @@
     "offset_ms": 0,
     "bed_db": 5,
     "min_gap_ms": 400,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "whoosh",
+    "purposes": [
+      "transition",
+      "text on",
+      "text off"
+    ],
+    "tuned": false,
+    "onset_ms": 117.9,
+    "peak_ms": 187.2,
+    "end_ms": 264.0
   },
   {
     "name": "whoosh7",
@@ -393,7 +560,17 @@
     "offset_ms": 0,
     "bed_db": 5,
     "min_gap_ms": 400,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "whoosh",
+    "purposes": [
+      "transition",
+      "text on",
+      "text off"
+    ],
+    "tuned": false,
+    "onset_ms": 115.5,
+    "peak_ms": 163.3,
+    "end_ms": 235.2
   },
   {
     "name": "whoosh8",
@@ -413,6 +590,16 @@
     "offset_ms": 0,
     "bed_db": 5,
     "min_gap_ms": 400,
-    "dip_db": 0
+    "dip_db": 0,
+    "family": "whoosh",
+    "purposes": [
+      "transition",
+      "text on",
+      "text off"
+    ],
+    "tuned": false,
+    "onset_ms": 150.0,
+    "peak_ms": 203.9,
+    "end_ms": 257.1
   }
 ]
