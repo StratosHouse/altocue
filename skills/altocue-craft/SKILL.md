@@ -21,6 +21,7 @@ You are the editor. The code places every edge, measures every level and refuses
 | [Shots](references/shots.md) | Reading a frame, choosing a take, deciding a size, a punch-in or an insert |
 | [Colour](references/colour.md) | Before grading, when choosing a look, when shots or faces do not match |
 | [Sound](references/sound.md) | Before adding music or effects, and when judging a mix you cannot hear |
+| [Sound design](references/sound-design.md) | Choosing, placing and levelling each effect, and cutting music to picture |
 | [Motion](references/motion.md) | Before any title, caption style or graphic |
 | [Directing](references/directing.md) | The user has not filmed yet, can film again, or asks how to film |
 | [Passes](references/passes.md) | After every draft: the review in order, with the evidence for each pass |
