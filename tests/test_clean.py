@@ -198,30 +198,209 @@ def test_an_unknown_de_ess_strength_is_refused():
     assert "strong" in caught.value.fix
 
 
-def esses(seconds: float, seed: int = 11) -> np.ndarray:
-    """S sounds as speech has them: short, a few per second at most, some louder than others."""
+def vowel(seconds: float, body_db: float, f0: float = 130.0) -> np.ndarray:
+    """A held vowel: harmonics under two formants, its 200 to 3000 Hz body at `body_db`, with short fades."""
+    n = int(seconds * RATE)
+    t = np.arange(n) / RATE
+    phase = 2 * np.pi * np.cumsum(f0 + 8 * np.sin(2 * np.pi * 3 * t)) / RATE
+    ks = np.arange(1, int(5000 / f0))
+    amps = 1 / (1 + ((ks * f0 - 600) / 500) ** 2) + 0.4 / (1 + ((ks * f0 - 1700) / 500) ** 2) + 0.02
+    body = sum(a**2 / 2 for k, a in zip(ks, amps, strict=True) if 200 <= k * f0 <= 3000)
+    wave = sum(a * np.sin(k * phase) for k, a in zip(ks, amps, strict=True)) * 10 ** (body_db / 20) / np.sqrt(body)
+    fade = np.minimum(1, np.minimum(np.arange(n), np.arange(n)[::-1]) / (0.02 * RATE))
+    return wave * fade
+
+
+def hush_burst(seconds: float, level_db: float, seed: int, low: float = 4500, high: float = 9000) -> np.ndarray:
+    """Band-limited noise at `level_db` RMS with 15 ms fades: an S, or a plosive's burst when it is short."""
     n = int(seconds * RATE)
     freqs = np.fft.rfftfreq(n, 1 / RATE)
-    hissed = np.fft.irfft(np.fft.rfft(np.random.default_rng(seed).normal(0, 1, n)) * ((freqs > 5000) & (freqs < 9000)), n)
-    t = np.arange(n) / RATE
-    envelope = np.zeros(n)
-    for k, start in enumerate(np.arange(0.3, seconds - 0.2, 0.9)):
-        envelope[(t >= start) & (t < start + 0.09)] = 10 ** ((-28 + 2.5 * ((k * 7) % 5)) / 20)
-    return hissed / hissed.std() * np.convolve(envelope, np.ones(240) / 240, mode="same")
+    noise = np.fft.irfft(np.fft.rfft(np.random.default_rng(seed).normal(0, 1, n)) * ((freqs > low) & (freqs < high)), n)
+    edge = min(int(0.015 * RATE), n // 2)
+    ramp = 0.5 - 0.5 * np.cos(np.linspace(0, np.pi, edge))
+    envelope = np.ones(n)
+    envelope[:edge], envelope[n - edge :] = ramp, ramp[::-1]
+    return noise / noise.std() * 10 ** (level_db / 20) * envelope
 
 
-@pytest.mark.parametrize(("strength", "least"), [("light", 3.0), ("normal", 6.0), ("strong", 9.0)])
-def test_the_de_esser_takes_the_sibilants_down_and_more_when_asked(strength, least):
-    voice = (speech(6, 0.1) + esses(6)).astype(np.float32)
-    out, taken = mouth.deess(voice, RATE, clean.DEESS[strength])
-    assert len(out) == len(voice) and 0 < taken["most_db"] <= clean.DEESS[strength]
-    assert band_db(voice, 5000, 9000) - band_db(out, 5000, 9000) >= least
-    assert abs(band_db(voice, 100, 2500) - band_db(out, 100, 2500)) < 0.5  # the voice's body is left alone
+def sibilant_line(s_to_voice: float | list[float], count: int = 6, body_db: float = -26.0) -> tuple[np.ndarray, list[tuple[int, int]]]:
+    """Vowel, S, vowel, S... with each S at `s_to_voice` dB against the vowels' body, or one level per S. Returns where each S sits."""
+    levels = s_to_voice if isinstance(s_to_voice, list) else [s_to_voice] * count
+    parts, where, at = [], [], 0
+    for index, level in enumerate(levels):
+        held, hiss_ = vowel(0.3, body_db), hush_burst(0.12, body_db + level, seed=index + 10)
+        parts += [held, hiss_]
+        where.append((at + len(held), at + len(held) + len(hiss_)))
+        at += len(held) + len(hiss_)
+    parts.append(vowel(0.3, body_db))
+    voice = np.concatenate(parts) + np.random.default_rng(5).normal(0, 10 ** (-75 / 20), at + int(0.3 * RATE))
+    return voice.astype(np.float32), where
 
 
-def test_de_essing_off_returns_the_samples_untouched():
-    voice = (speech(2, 0.1) + esses(2)).astype(np.float32)
-    assert mouth.deess(voice, RATE, clean.DEESS["off"])[0] is voice
+def s_band(samples: np.ndarray, where: list[tuple[int, int]]) -> float:
+    return float(np.mean([band_db(samples[a:b], 3500, 12000) for a, b in where]))
+
+
+@pytest.mark.parametrize("strength", ["light", "normal", "strong"])
+@pytest.mark.parametrize("level", [-10.0, -18.0])
+def test_natural_and_soft_s_sounds_are_left_exactly_alone_on_every_strength(strength, level):
+    """A good wireless lavalier with natural S sounds needs nothing, and a soft S must never be made softer."""
+    voice, _ = sibilant_line(level)
+    out, said = mouth.deess(voice, RATE, strength)
+    assert out is voice
+    assert said["sibilants"] == 6 and said["softened"] == 0 and said["most_db"] == 0
+    assert said["s_to_voice_db"][0] == pytest.approx(level, abs=1.0)  # the measure reads what was built
+    assert said["s_to_voice_db"][0] == said["s_to_voice_db"][1]
+
+
+@pytest.mark.parametrize("strength", ["light", "normal", "strong"])
+def test_natural_s_sounds_are_not_ranked_against_each_other(strength):
+    """The first de-esser turned the louder half of any voice's S sounds down by up to 5 dB, harsh or not. That was the lisp."""
+    voice, _ = sibilant_line([-14.0, -12.0, -10.0, -8.0, -6.0, -10.0, -12.0, -9.0])
+    out, said = mouth.deess(voice, RATE, strength)
+    assert out is voice and said["sibilants"] == 8 and said["softened"] == 0
+
+
+@pytest.mark.parametrize("strength", ["light", "normal", "strong"])
+def test_only_the_harsh_s_sounds_in_a_line_are_softened(strength):
+    levels = [-10.0, 2.0, -12.0, 0.0, -8.0, 3.0]
+    voice, where = sibilant_line(levels)
+    out, said = mouth.deess(voice, RATE, strength)
+    for (a, b), level in zip(where, levels, strict=True):
+        drop = band_db(voice[a:b], 3500, 12000) - band_db(out[a:b], 3500, 12000)
+        if level <= mouth.DEESS_CEILING[strength]:
+            assert drop < 0.1, (level, drop)
+        else:
+            assert 0.5 < drop <= mouth.DEESS_DB[strength] + 0.1, (level, drop)
+    assert said["softened"] == sum(level > mouth.DEESS_CEILING[strength] + mouth.LEAST_DB for level in levels)
+
+
+@pytest.mark.parametrize("strength", ["light", "normal", "strong"])
+def test_a_harsh_s_comes_down_toward_the_ceiling_and_no_further_than_the_cap(strength):
+    voice, where = sibilant_line(0.0)
+    out, said = mouth.deess(voice, RATE, strength)
+    before, after = said["s_to_voice_db"]
+    ceiling, cap = mouth.DEESS_CEILING[strength], mouth.DEESS_DB[strength]
+    assert said["softened"] == 6 and 0 < said["most_db"] <= cap
+    assert after < before - 1.0  # it did come down
+    assert after >= max(ceiling, before - cap) - 0.6  # toward the ceiling, never past it, never more than the cap
+    assert after >= mouth.LISP_FLOOR_DB and said["lowest_softened_db"] >= mouth.LISP_FLOOR_DB
+    assert s_band(voice, where) - s_band(out, where) <= cap + 0.1
+    assert said["held"] == (6 if before - ceiling > cap else 0)
+    assert 3500 <= said["centre_hz"] <= 9500
+
+
+def test_light_is_the_smallest_softening_and_strong_the_most():
+    voice, where = sibilant_line(0.0)
+    drops = [s_band(voice, where) - s_band(mouth.deess(voice, RATE, name)[0], where) for name in ("light", "normal", "strong")]
+    assert 0.5 < drops[0] < drops[1] < drops[2] <= mouth.GUARD_MOST_DB + 0.1
+    assert drops[0] <= mouth.DEESS_DB["light"] + 0.1
+
+
+def test_strong_never_takes_an_s_into_a_lisp():
+    """However harsh the S, strong takes at most its cap. An old project that says strong cannot lisp."""
+    voice, _ = sibilant_line(8.0)
+    _, said = mouth.deess(voice, RATE, "strong")
+    assert said["most_db"] <= mouth.GUARD_MOST_DB
+    assert said["lowest_softened_db"] >= mouth.LISP_FLOOR_DB and said["held"] == 6
+    assert said["loudest_db"][1] > mouth.DEESS_CEILING["strong"]  # still harsh, and the report says so
+
+
+def test_the_lisp_floor_holds_even_when_a_strength_asks_for_more(monkeypatch):
+    monkeypatch.setitem(mouth.DEESS_CEILING, "strong", -30.0)
+    monkeypatch.setitem(mouth.DEESS_DB, "strong", 30.0)
+    monkeypatch.setattr(mouth, "GUARD_MOST_DB", 30.0)
+    voice, _ = sibilant_line(-6.0)
+    _, said = mouth.deess(voice, RATE, "strong")
+    assert said["softened"] == 6 and said["held"] == 6
+    assert said["lowest_softened_db"] >= mouth.LISP_FLOOR_DB - 0.1
+    assert said["s_to_voice_db"][1] >= mouth.LISP_FLOOR_DB - 0.1
+    assert mouth.plan_cut(-6.0, "strong") == (pytest.approx(4.0), True)
+    assert mouth.plan_cut(-11.0, "strong") == (0.0, True)  # already under the floor: never touched
+
+
+def test_vowels_are_unchanged_and_only_the_s_band_moves():
+    voice, where = sibilant_line(0.0)
+    out, _ = mouth.deess(voice, RATE, "strong")
+    reach = mouth.SIZE + mouth.STEP  # an S's frames hear this far either side of it
+    untouched = np.ones(len(voice), bool)
+    for a, b in where:
+        untouched[max(0, a - reach) : b + reach] = False
+    assert np.array_equal(out[untouched], voice[untouched])  # every vowel sample away from an S, bit for bit
+    for (_, b), (a, _) in zip(where, [*where[1:], (len(voice), 0)], strict=True):
+        held = slice(b, a)  # the whole vowel after each S, edges included
+        assert abs(band_db(out[held], 100, 3000) - band_db(voice[held], 100, 3000)) < 0.05
+
+
+def test_softening_eases_in_and_out_with_no_click_at_the_edges():
+    voice, where = sibilant_line(6.0)
+    out, _ = mouth.deess(voice, RATE, "strong")
+    change = (out - voice).astype(np.float64)
+    assert band_db(change, 20, 2500) < band_db(change, 3000, 16000) - 40  # a click would spread down into the voice's body
+    for a, b in where:
+        edge = change[a - 480 : a + 480]
+        assert np.abs(edge).max() < np.abs(change[a:b]).max()  # nothing jumps at the onset
+
+
+def released(burst_seconds: float) -> np.ndarray:
+    """Vowel, a closure of silence, a release burst louder than the voice, vowel: four times over, then a breath in a pause."""
+    parts = []
+    for index in range(4):
+        parts += [vowel(0.3, -26.0), np.zeros(int(0.05 * RATE)), hush_burst(burst_seconds, -22.0, seed=index, low=2500, high=10000)]
+    breath = hush_burst(0.4, -40.0, seed=9, low=300, high=8000)
+    parts += [vowel(0.3, -26.0), np.zeros(RATE // 5), breath, np.zeros(RATE // 5), vowel(0.3, -26.0)]
+    voice = np.concatenate(parts)
+    return (voice + np.random.default_rng(5).normal(0, 10 ** (-75 / 20), len(voice))).astype(np.float32)
+
+
+def test_a_plosive_burst_and_a_breath_are_not_s_sounds():
+    voice = released(0.012)  # a harsh /t/ release
+    found = mouth.find_sibilants(voice, RATE)
+    assert found is not None and found.runs == []
+    out, said = mouth.deess(voice, RATE, "strong")
+    assert out is voice and said["softened"] == 0
+    assert len(mouth.find_sibilants(released(0.1), RATE).runs) == 4  # the same sound held as long as an S is one
+
+
+def test_too_little_voice_to_judge_by_is_left_alone():
+    noise = hush_burst(1.0, -30.0, seed=1).astype(np.float32)
+    out, said = mouth.deess(noise, RATE, "strong")
+    assert out is noise and said["s_to_voice_db"] == [None, None] and mouth.s_to_voice(noise, RATE) is None
+
+
+def test_de_essing_off_returns_the_samples_untouched_and_still_measures():
+    voice, _ = sibilant_line(0.0)
+    out, said = mouth.deess(voice, RATE, "off")
+    assert out is voice and said["softened"] == 0 and said["s_to_voice_db"][0] == pytest.approx(0.0, abs=1.0)
+
+
+def test_an_unknown_strength_is_refused_by_the_de_esser():
+    with pytest.raises(AltocueError) as caught:
+        mouth.deess(sibilant_line(0.0)[0], RATE, "extreme")
+    assert "light" in caught.value.fix
+
+
+def test_the_mouth_report_says_what_the_de_esser_measured_and_held():
+    voice, _ = sibilant_line(8.0)
+    _, report = mouth.clean_mouth(voice, RATE, None, False, "strong")
+    assert report["sibilants"] == 6 and report["sibilants_softened"] == 6 and report["deess_held"] == 6
+    assert report["s_to_voice_db"][1] < report["s_to_voice_db"][0] and report["deess_lowest_db"] >= mouth.LISP_FLOOR_DB
+    assert report["deess_limits"] == {"ceiling_db": -6.0, "most_db": 5.0, "floor_db": mouth.LISP_FLOOR_DB}
+    assert report["sibilance_db"][1] < report["sibilance_db"][0]
+    line = clean.sibilance_note(report)
+    assert "6 of 6 S sounds softened" in line and "lisp guard held back 6" in line
+
+
+def test_the_summary_says_plainly_when_nothing_needed_softening():
+    _, report = mouth.clean_mouth(sibilant_line(-10.0)[0], RATE, None, False, "light")
+    assert clean.sibilance_note(report).startswith(", no S sound needed softening (S to voice -10")
+    assert clean.sibilance_note({"deess_most_db": 7.0}) == ", S sounds down up to 7.0 dB"  # an old report still reads
+
+
+def test_every_strength_keeps_its_name_and_the_caps_are_small():
+    assert list(clean.DEESS) == ["off", "light", "normal", "strong"]
+    assert clean.DEESS["light"] < clean.DEESS["normal"] < clean.DEESS["strong"] == mouth.GUARD_MOST_DB <= 6
+    assert all(ceiling is None or ceiling > mouth.LISP_FLOOR_DB for ceiling in mouth.DEESS_CEILING.values())
 
 
 def clicked(seconds: float = 6.0) -> tuple[np.ndarray, list[float]]:
@@ -272,6 +451,22 @@ def test_afftdn_drops_the_noise_and_keeps_the_speech(tmp_path):
     assert report["noise_drop_db"] >= 6
     assert report["speech_retained_db"] > -3
     assert report["clipped_after"] == 0
+
+
+def test_clipped_speech_is_redrawn_before_the_denoiser_and_reported(tmp_path):
+    clip = source(tmp_path, np.clip(speech(3, 1.4), -1, 1) + hiss(3, -60))
+    report = clean.clean_clip(clip, tmp_path / "out.wav", deep_filter=None)
+    fixed = report["declip"]
+    assert fixed["runs"] > 0 and fixed["repaired"] > 0 and fixed["samples"] >= 3 * fixed["runs"] and fixed["longest_ms"] > 0
+    assert fixed["headroom_db"] < 0 and report["clipped_before"] > 0 and report["clipped_after"] == 0
+    assert "clipped peaks redrawn" in clean.describe(report)
+
+
+def test_a_clip_with_no_flat_tops_goes_through_declipping_exactly_as_it_was(tmp_path):
+    samples = (speech(3, 0.5) + hiss(3, -60)).astype(np.float32)
+    raw = ffmpeg.write_wav(tmp_path / "raw.wav", samples, RATE)
+    path, back, report = clean._declip(raw, samples, tmp_path)
+    assert path == raw and back is samples and report["runs"] == 0 and not (tmp_path / "declipped.wav").exists()
 
 
 def test_afftdn_delay_is_compensated(tmp_path):
