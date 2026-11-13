@@ -65,8 +65,8 @@ An effect is a promise that something happened. Music is a promise about how to 
 
 - **Choose a track longer than the film, with an ending of its own.** `"end": "land"` backtimes it so its own ending falls on the last frame. That is the best ending Altocue makes today.
 - **A loop is a compromise.** A track shorter than the film loops with a blend that does not know the bar. Pick a longer track first.
-- **Cut music by whole phrases.** Remove or repeat whole four or eight bar phrases. [source] Film Editing Pro's advice: cut on the backbeat, mid-measure to mid-measure, just before a transient, so a fill or a reverb tail is not chopped.
-- **End on purpose, never on an arbitrary fade.** [source] Frame.io's music editing advice: join the track's real final hit to where the picture ends, matching the waveform, rather than slapping a crossfade on. In order: the track's own ending on the last frame; the last downbeat on the last cut with its tail left to ring; a hard stop into silence, once, for emphasis.
+- **Cut music by whole phrases.** Remove or repeat whole four or eight bar phrases. [thumb] Cut on the backbeat, mid-measure to mid-measure, just before a transient, so a fill or a reverb tail is not chopped.
+- **End on purpose, never on an arbitrary fade.** [thumb] Join the track's real final hit to where the picture ends, matching the waveform, rather than slapping a crossfade on. In order: the track's own ending on the last frame; the last downbeat on the last cut with its tail left to ring; a hard stop into silence, once, for emphasis.
 - **A hit on the last frame.** The music's final hit on the end card's first frame closes the film; a chord that rings under the card lets it breathe.
 - **Start on purpose.** The first bar sets the pace. Music that fades in under the first word competes with the hook; start it with the voice or after the first line.
 - **Under talk, sparse and steady.** A melody or lyric in the voice's range fights every word. A track that builds and drops makes the speaker sound like they are racing it.

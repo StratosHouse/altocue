@@ -14,7 +14,7 @@ When two layers fight, the answer is almost never to raise one. Lower the other,
 
 ## The voice chain, in order
 
-Each step should hear a signal the earlier steps already made easier. [source] The repair order is the one iZotope publishes: clipping, clicks, hum, broadband noise, then de-essing, and only then level, tone and compression. A later step treats an earlier fault as voice.
+Each step should hear a signal the earlier steps already made easier. [thumb] Repair in this order: clipping, clicks, hum, broadband noise, then de-essing, and only then level, tone and compression. A later step treats an earlier fault as voice.
 
 | Step | What Altocue does | Overdone, it sounds like |
 |---|---|---|
@@ -29,7 +29,7 @@ Each step should hear a signal the earlier steps already made easier. [source] T
 | Master | Two-pass loudness and a true-peak limit on the decoded file | Squashed peaks on plosives |
 
 - **Clean by need, never by habit.** A clean recording left alone sounds better than a clean recording denoised. Lower a noise floor. Do not delete it.
-- **Back off past the artefact.** [source] iZotope's restoration advice: raise noise reduction until artefacts appear, back it off until they go, then back off a little more.
+- **Back off past the artefact.** [thumb] Raise noise reduction until artefacts appear, back it off until they go, then back off a little more.
 - **Never stack two denoisers.** The second works on the first one's artefacts.
 - **Check the words survived.** After any strong clean-up, `altocue qa` re-reads the words from the finished file.
 
@@ -41,7 +41,7 @@ The commonest way to ruin a good voice is too much de-essing. It gives the speak
 - **One step at a time.** `light`, `normal` and `strong` take at most 4, 7 and 11 dB off the S band. Go to `strong` only after a person heard `normal` and still found the S harsh.
 - **Read what it took.** `work/audio/report.json` gives `deess_most_db`, the most taken, and `deess_share`, the share of the clip where it took more than 1 dB. A voice nobody called harsh with the most at the strength's limit, or a share well past a tenth, is being de-essed too hard.
 - **Compare at matched loudness.** [source] The method published for a lispy de-esser (TryUncle, October 2026): loop a line full of S sounds, bypass, match loudness, then compare. If the lisp goes with the bypass, the de-esser did it.
-- **Brightness added later brings the S back.** [source] Sound On Sound's advice: recheck sibilance after any EQ lift or compression. A harsh S after a light de-ess is often a presence lift or a bright compressor, not too little de-essing.
+- **Brightness added later brings the S back.** [thumb] Recheck sibilance after any EQ lift or compression. A harsh S after a light de-ess is often a presence lift or a bright compressor, not too little de-essing.
 
 ## Let every word finish
 
@@ -61,7 +61,7 @@ The commonest way to ruin a good voice is too much de-essing. It gives the speak
 - **Ask whether the film needs it.** Many talking films are better with none, or with music only at the open, the turn and the end.
 - **Choose what leaves the voice room.** [source] Audio Network's guidance (July 2026): the voice lives in the mid range, where lead piano, guitar and synth melodies also live; speed is not the problem, constant builds, drops and swells are. Sparse, steady, and low or high in register.
 - **No lyrics under speech.** Two sets of words at once and the viewer follows neither.
-- **Hold it well under the voice.** A 2019 listening test (Torcoli and others) found listeners want speech at least 10 LU over music and 15 over ambience, and non-experts more. Altocue's `[audio] music_under` is 18 dB by default.
+- **Hold it well under the voice.** [thumb] Listeners who are not sound people want more room between voice and music than an editor does, so err lower. Altocue's `[audio] music_under` is 18 dB by default.
 - **Duck before the word, hold through breaths, return slowly.** A bed that rises in every short pause is the classic automatic mix. The mix already rides this way.
 - **Let music step up in the gaps.** A pause, a section change, the end: that is where music may lift.
 - **Pull it out for the line that matters.** Take music away under the key sentence, or stop it just before. A sudden absence is louder than any swell.
