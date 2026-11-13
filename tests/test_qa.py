@@ -1514,3 +1514,111 @@ def test_no_skill_still_says_these_go_unmeasured():
     for name in ("altocue-review", "altocue-transitions"):
         text = Path(f"skills/{name}/SKILL.md").read_text()
         assert "No gate does this yet" not in text and "No gate measures this yet" not in text
+
+
+# Sound facts: the clean report's de-essing and the mix report's music level
+
+
+def sound_context(tmp_path: Path, clips: dict | None = None, mixed: dict | None = None, used: list[str] | None = None, timeline: dict | None = None):
+    """Only what the two sound gates read: the clean report, the mix report, which clips the edit uses, and the timeline."""
+    work = tmp_path / "work"
+    (work / "audio").mkdir(parents=True, exist_ok=True)
+    if clips is not None:
+        write_json(work / "audio" / "report.json", {"deess": "light", "clips": clips})
+    if mixed is not None:
+        write_json(work / "mix.json", mixed)
+    edl = SimpleNamespace(segments=[SimpleNamespace(clip=name) for name in used]) if used is not None else None
+    return SimpleNamespace(project=SimpleNamespace(audio_dir=work / "audio", work=work), edl=edl, timeline=timeline)
+
+
+def mouthed(level: float, strength: str) -> dict:
+    """A real mouth report from a synthetic voice whose S sounds sit `level` dB against its vowels."""
+    from test_clean import sibilant_line
+
+    from altocue import mouth
+
+    return {"status": "cleaned", "mouth": mouth.clean_mouth(sibilant_line(level)[0], 48000, None, False, strength)[1]}
+
+
+def test_sibilance_has_nothing_to_read_without_a_clean_report_or_a_voice(tmp_path):
+    assert gates.gate_sibilance(sound_context(tmp_path)).value == gates.NOT_APPLICABLE
+    film = {"scenes": [{"id": "a", "start": 0, "end": 2}]}
+    assert gates.gate_sibilance(sound_context(tmp_path, {"a": mouthed(-10.0, "light")}, timeline=film)).value == gates.NOT_APPLICABLE
+    assert gates.gate_sibilance(sound_context(tmp_path, {"a": {"status": "no_speech"}})).value == gates.NOT_APPLICABLE
+
+
+def test_a_natural_voice_passes_and_says_nothing_needed_softening(tmp_path):
+    gate = gates.gate_sibilance(sound_context(tmp_path, {"a": mouthed(-10.0, "light")}))
+    assert gate.passed and not gate.skipped and gate.threshold == -10.0
+    assert "none needed softening" in gate.detail and "Needs a human look" not in gate.detail
+
+
+def test_strong_on_a_harsh_voice_holds_the_lisp_floor_and_names_what_is_still_harsh(tmp_path):
+    gate = gates.gate_sibilance(sound_context(tmp_path, {"a": mouthed(8.0, "strong")}))
+    assert gate.passed and gate.value >= gate.threshold
+    assert "6 of 6 S sounds softened" in gate.detail and "Needs a human look" in gate.detail and "lisp guard held back 6" in gate.detail
+    assert "too-bright EQ" in gate.detail
+
+
+def test_an_old_report_that_took_eleven_db_fails_and_names_the_fix(tmp_path):
+    old = {"status": "cleaned", "mouth": {"clicks": 0, "deess_most_db": 11.0, "deess_share": 0.2, "sibilance_db": [-30.0, -38.0]}}
+    gate = gates.gate_sibilance(sound_context(tmp_path, {"a": old}))
+    assert not gate.passed and not gate.skipped and gate.value == 11.0 and gate.threshold == 5.0
+    assert '`[audio] deess = "light"`' in gate.detail and "`altocue clean --deess light`" in gate.detail
+
+
+def test_an_old_report_inside_the_cap_cannot_be_read_so_it_is_skipped_not_passed(tmp_path):
+    old = {"status": "cleaned", "mouth": {"clicks": 0, "deess_most_db": 4.0, "deess_share": 0.2, "sibilance_db": [-30.0, -34.0]}}
+    gate = gates.gate_sibilance(sound_context(tmp_path, {"a": old}))
+    assert gate.skipped and gate.value != gates.NOT_APPLICABLE and "altocue clean --force" in gate.detail
+
+
+def test_an_s_taken_under_the_lisp_floor_fails(tmp_path):
+    bypassed = mouthed(0.0, "light")
+    bypassed["mouth"].update(deess_lowest_db=-14.0)  # what a bypass of the guard would leave
+    gate = gates.gate_sibilance(sound_context(tmp_path, {"a": bypassed}))
+    assert not gate.passed and gate.value == -14.0 and "lisp" in gate.detail and "--deess light" in gate.detail
+
+
+def test_sibilance_reads_only_the_clips_in_the_edit(tmp_path):
+    old = {"status": "cleaned", "mouth": {"deess_most_db": 11.0}}
+    assert gates.gate_sibilance(sound_context(tmp_path, {"a": mouthed(-10.0, "light"), "b": old}, used=["a"])).passed
+
+
+def test_music_under_voice_has_nothing_to_read_without_music(tmp_path):
+    assert gates.gate_music_under_voice(sound_context(tmp_path)).value == gates.NOT_APPLICABLE
+    assert gates.gate_music_under_voice(sound_context(tmp_path, mixed={"mode": "voice", "music": None})).value == gates.NOT_APPLICABLE
+    no_voice = {"mode": "no voice", "music": {"under_voice_db": 2.0, "under_target_db": 18}}
+    assert gates.gate_music_under_voice(sound_context(tmp_path, mixed=no_voice)).value == gates.NOT_APPLICABLE
+
+
+@pytest.mark.parametrize(("under", "target", "passes"), [(17.2, 18, True), (15.0, 18, True), (14.9, 18, False), (9.5, 12, True), (6.0, 12, False)])
+def test_music_too_close_under_the_voice_fails(tmp_path, under, target, passes):
+    gate = gates.gate_music_under_voice(sound_context(tmp_path, mixed={"mode": "voice", "music": {"under_voice_db": under, "under_target_db": target}}))
+    assert gate.passed is passes and gate.value == under and gate.threshold == target - gates.MUSIC_UNDER_MARGIN_DB
+    assert ("music_under" in gate.detail) is not passes
+
+
+def test_a_mix_report_without_the_measure_is_skipped_not_passed(tmp_path):
+    gate = gates.gate_music_under_voice(sound_context(tmp_path, mixed={"mode": "voice", "music": {"path": "x.mp3"}}))
+    assert gate.skipped and gate.value != gates.NOT_APPLICABLE and "Render again" in gate.detail
+
+
+def test_music_under_voice_reads_what_the_mix_writes(tmp_path):
+    from altocue import ffmpeg, mix
+
+    work = tmp_path / "work"
+    work.mkdir()
+    rate, n = 48000, 8 * 48000
+    t = np.arange(n) / rate
+    speech = 0.15 * np.sin(2 * np.pi * 180 * t) * (np.sin(2 * np.pi * 0.5 * t) > 0)
+    voice = ffmpeg.write_wav(tmp_path / "voice.wav", speech, rate)
+    music = ffmpeg.write_wav(tmp_path / "music.wav", 0.2 * np.sin(2 * np.pi * 300 * t), rate)
+    mix.mix_bed(voice, work / "mix.wav", music=music)
+    gate = gates.gate_music_under_voice(sound_context(tmp_path))
+    assert not gate.skipped and gate.threshold == mix.DUCK_UNDER_VOICE_DB - gates.MUSIC_UNDER_MARGIN_DB
+    assert gate.value == json.loads((work / "mix.json").read_text())["music"]["under_voice_db"]
+
+
+def test_the_sound_gates_run_in_every_normal_qa():
+    assert {"sibilance", "music_under_voice"} <= set(gates.gate_ids())

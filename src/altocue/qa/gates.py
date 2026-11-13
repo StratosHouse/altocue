@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw
 
-from .. import broll, claims, ffmpeg, master, platforms
+from .. import broll, claims, ffmpeg, master, mix, mouth, platforms
 from ..cut.snap import frame_count
 from ..errors import AltocueError
 from ..models import Clip, Edl, GateResult, Word
@@ -77,6 +77,9 @@ BAKED_MATCH = 0.6
 BAKED_LETTERS_PER_EDIT = 5  # a misread of planned text may be one letter off in every five, so "wis plan" is "his plan"
 LIP_SHEET = 12
 LIP_WIDTH = 270
+SIBILANCE_SLACK = 0.5  # dB under the lisp floor forgiven, for the rounding in the report
+SIBILANCE_HARSH_DB = mouth.DEESS_CEILING["light"]  # one rule, one number: an S over what light would leave is still harsh
+MUSIC_UNDER_MARGIN_DB = 3.0  # how much closer under the voice than its target the music may sit. A rule of thumb, not yet heard on real mixes
 
 TALL_ZONE = {"left": 0.05, "right": 0.92, "top": 0.09, "bottom": 0.82}  # 4:5, and a film from a storyboard. A taller project gets a platform's zone
 FLAT_ZONE = {"left": 0.04, "right": 0.96, "top": 0.05, "bottom": 0.95}
@@ -608,6 +611,82 @@ def gate_silence(c: Context) -> GateResult:
         threshold=SILENCE_SECONDS,
         detail=f"unplanned silence at {spans(bad)}" if bad else "no unplanned silence",
     )
+
+
+DEESS_FIX = 'Set `[audio] deess = "light"` in altocue.toml, or run `altocue clean --deess light`, then render again.'
+
+
+def _cleaned_voice(c: Context) -> tuple[list[tuple[str, dict[str, Any]]], str]:
+    """Each cleaned clip in this edit with what its mouth pass measured, or why there is none."""
+    if voiceless(c):
+        return [], "This film has no voice, so there are no S sounds to read."
+    path = c.project.audio_dir / "report.json"
+    if not path.is_file():
+        return [], "No clean report, so the voice was not cleaned here and there is no de-essing to read."
+    clips = json.loads(path.read_text()).get("clips", {})
+    used = list(dict.fromkeys(segment.clip for segment in c.edl.segments)) if c.edl else list(clips)
+    found = [(name, clips[name]["mouth"]) for name in used if isinstance((clips.get(name) or {}).get("mouth"), dict)]
+    return found, "" if found else "No clip in this edit had its voice cleaned, so there is no de-essing to read."
+
+
+def gate_sibilance(c: Context) -> GateResult:
+    """A voice softened into a lisp fails. S sounds still harsh are named for a person to hear, and pass."""
+    floor = mouth.LISP_FLOOR_DB
+    voices, why = _cleaned_voice(c)
+    if not voices:
+        return not_applicable("sibilance", why)
+    over = [f"{name} lost {said['deess_most_db']:g} dB" for name, said in voices if said.get("deess_most_db", 0) > mouth.GUARD_MOST_DB + 0.05]
+    measured = [(name, said) for name, said in voices if "sibilants" in said]
+    if over:
+        detail = f"S sounds over-softened, more than the {mouth.GUARD_MOST_DB:g} dB the lisp guard allows: {'; '.join(over[:5])}. {DEESS_FIX}"
+        return GateResult(id="sibilance", passed=False, value=max(s.get("deess_most_db", 0) for _, s in voices), threshold=mouth.GUARD_MOST_DB, detail=detail)
+    if len(measured) < len(voices):
+        older = ", ".join(name for name, said in voices if "sibilants" not in said)
+        return skipped("sibilance", f"The clean report predates the lisp guard for {older}. Run `altocue clean --force`, then render again.", floor)
+    lowest = [(said["deess_lowest_db"], name) for name, said in measured if said.get("deess_lowest_db") is not None]
+    lisped = [f"{name} at {level:g} dB" for level, name in sorted(lowest) if level < floor - SIBILANCE_SLACK]
+    levels = [said["s_to_voice_db"][1] for _, said in measured if (said.get("s_to_voice_db") or [None, None])[1] is not None]
+    value = min([level for level, _ in lowest] or levels, default=None)  # the softest S the de-esser left, else the softest voice
+    if lisped:
+        detail = f"S sounds taken under {floor:g} dB against the voice, which reads as a lisp: {'; '.join(lisped[:5])}. {DEESS_FIX}"
+        return GateResult(id="sibilance", passed=False, value=value, threshold=floor, detail=detail)
+    harsh = [
+        f"{name} at {said['s_to_voice_loudest_db'][1]:g} dB"
+        for name, said in measured
+        if (said.get("s_to_voice_loudest_db") or [None, None])[1] is not None and said["s_to_voice_loudest_db"][1] > SIBILANCE_HARSH_DB
+    ]
+    softened = sum(said.get("sibilants_softened", 0) for _, said in measured)
+    found = sum(said.get("sibilants", 0) for _, said in measured)
+    detail = f"{softened} of {found} S sounds softened, none under {floor:g} dB against the voice" if softened else f"{found} S sounds, none needed softening"
+    if harsh:
+        held = sum(said.get("deess_held", 0) for _, said in measured)
+        detail += (
+            f". Needs a human look: S sounds still stand over {SIBILANCE_HARSH_DB:g} dB against the voice in {'; '.join(harsh[:5])}"
+            f"{f', and the lisp guard held back {held}' if held else ''}. Listen on a phone. A too-bright EQ or a hot limiter is fixed there, not by more de-essing"
+        )
+    return GateResult(id="sibilance", passed=True, value=value, threshold=floor, detail=detail)
+
+
+def gate_music_under_voice(c: Context) -> GateResult:
+    """Music that sits closer under the voice than the mix aimed for buries the consonants."""
+    path = c.project.work / "mix.json"
+    if not path.is_file():
+        return not_applicable("music_under_voice", "No mix report at work/mix.json, so nothing says music was laid under a voice.")
+    mixed = json.loads(path.read_text())
+    music = mixed.get("music")
+    if not music:
+        return not_applicable("music_under_voice", "No music in this film.")
+    if mixed.get("mode") != "voice":
+        return not_applicable("music_under_voice", "This film has no voice, so the music leads.")
+    target = float(music.get("under_target_db", mix.DUCK_UNDER_VOICE_DB))
+    least = round(target - MUSIC_UNDER_MARGIN_DB, 1)
+    if music.get("under_voice_db") is None:
+        return skipped("music_under_voice", "The mix report predates the measure of music under the voice. Render again.", least)
+    under = float(music["under_voice_db"])
+    detail = f"music sits {under:g} dB under the voice while someone speaks, aiming for {target:g}"
+    if under < least:
+        detail += ". It will bury the consonants. Raise `[audio] music_under` or choose a calmer track, then render again"
+    return GateResult(id="music_under_voice", passed=under >= least, value=under, threshold=least, detail=detail)
 
 
 def norm(words: list[str]) -> list[str]:
@@ -1535,6 +1614,8 @@ def plan() -> list[tuple[tuple[str, ...], Callable[[Context], GateResult | list[
         (("word_starts",), gate_word_starts),
         (("word_ends",), gate_word_ends),
         (("silence",), gate_silence),
+        (("sibilance",), gate_sibilance),
+        (("music_under_voice",), gate_music_under_voice),
         (("words", "doubled_phrase", "captions_match"), word_gates),
         (("caption_speed",), gate_caption_speed),
         (("brief_coverage",), gate_brief_coverage),
