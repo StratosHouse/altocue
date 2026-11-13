@@ -18,6 +18,8 @@ ALWAYS = [
     "Nothing here checks whether what the video claims is true.",
 ]
 GATE_ACTIONS = {
+    "sibilance": 'Set `[audio] deess = "light"`, or run `altocue clean --deess light`, then render again.',
+    "music_under_voice": "Raise `[audio] music_under` or choose a calmer track, then render again.",
     "loudness": "Re-run `altocue master`.",
     "true_peak": "Re-run `altocue master`, and check the limiter ceiling.",
     "black_frames": "Find the black frames in the render and correct the cut or the layer.",

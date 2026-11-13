@@ -37,9 +37,9 @@ Each step should hear a signal the earlier steps already made easier. [thumb] Re
 
 The commonest way to ruin a good voice is too much de-essing. It gives the speaker a lisp, and a viewer hears a lisp as the person, not the processing.
 
-- **A good wireless lavalier needs the smallest softening, or none.** On the chest it sits below the mouth and in the chin's shadow, so it already has fewer highs than a microphone above the mouth. Start with `altocue clean --force --deess off`, and only if a person hears a harsh S on a phone speaker, go to `light`.
-- **One step at a time.** `light`, `normal` and `strong` take at most 4, 7 and 11 dB off the S band. Go to `strong` only after a person heard `normal` and still found the S harsh.
-- **Read what it took.** `work/audio/report.json` gives `deess_most_db`, the most taken, and `deess_share`, the share of the clip where it took more than 1 dB. A voice nobody called harsh with the most at the strength's limit, or a share well past a tenth, is being de-essed too hard.
+- **A good wireless lavalier needs the smallest softening, or none.** On the chest it sits below the mouth and in the chin's shadow, so it already has fewer highs than a microphone above the mouth. `light`, the default, softens only an S that stands near or above the level of the voice, so natural S sounds come through it untouched: start there, not at `off`.
+- **One step at a time.** `light` takes at most 2 dB, `normal` 3.5 and `strong` 5, and no strength ever takes an S under 10 dB below the voice. Go to `strong` only after a person heard `normal` and still found the S harsh.
+- **Read what it took.** `work/audio/report.json` gives `s_to_voice_db` before and after, how many S sounds were softened, and `deess_held`, the ones the lisp guard stopped. The `sibilance` gate fails a film whose S sounds were taken too far.
 - **Compare at matched loudness.** [source] The method published for a lispy de-esser (TryUncle, October 2026): loop a line full of S sounds, bypass, match loudness, then compare. If the lisp goes with the bypass, the de-esser did it.
 - **Brightness added later brings the S back.** [thumb] Recheck sibilance after any EQ lift or compression. A harsh S after a light de-ess is often a presence lift or a bright compressor, not too little de-essing.
 
