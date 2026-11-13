@@ -215,7 +215,8 @@ def test_a_sound_can_be_placed_by_its_peak(tmp_path):
     swell = rising(tmp_path)
     plain = stereo(mix.mix_bed(voice, tmp_path / "a.wav", sfx=[{"file": str(swell), "at": 3.0}]))
     peaked = stereo(mix.mix_bed(voice, tmp_path / "b.wav", sfx=[{"file": str(swell), "at": 3.0, "align": "peak"}]))
-    assert np.argmax(np.abs(high(plain))) == pytest.approx(3.4 * RATE, abs=48)
+    # "start" meets the onset, the first sample within 20 dB of the peak: a tenth of the way up this ramp
+    assert np.argmax(np.abs(high(plain))) == pytest.approx(3.36 * RATE, abs=48)
     assert np.argmax(np.abs(high(peaked))) == pytest.approx(3.0 * RATE, abs=48)
 
 
