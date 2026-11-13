@@ -31,11 +31,11 @@ def speech(seconds: float, level: float = 0.1) -> np.ndarray:
 
 
 def hiss(seconds: float, db: float, seed: int = 7) -> np.ndarray:
-    return np.random.default_rng(seed).normal(0, 10 ** (db / 20), int(seconds * RATE))
+    return np.random.default_rng(seed).normal(0, 10 ** (db / 20), round(seconds * RATE))
 
 
 def tone(seconds: float, hz: float, db: float) -> np.ndarray:
-    t = np.arange(int(seconds * RATE)) / RATE
+    t = np.arange(round(seconds * RATE)) / RATE
     return np.sin(2 * np.pi * hz * t) * 10 ** (db / 20) * np.sqrt(2)
 
 
