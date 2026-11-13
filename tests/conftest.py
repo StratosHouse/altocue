@@ -33,8 +33,20 @@ def no_own_sound_packs(tmp_path_factory: pytest.TempPathFactory, monkeypatch: py
 
 
 @pytest.fixture(autouse=True)
+def no_own_profile(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The answers this machine's owner gave `altocue start` never leak into a test."""
+    monkeypatch.setenv("ALTOCUE_HOME", str(tmp_path_factory.mktemp("altocue-home")))
+
+
+@pytest.fixture(autouse=True)
 def house_brand(monkeypatch: pytest.MonkeyPatch) -> None:
     """A real project reads its brand kit before any asset. Tests start on the house look, chosen, and test_brand_kit tests the gate."""
     from altocue import project
 
     monkeypatch.setattr(project, "DEFAULT_CONFIG", project.DEFAULT_CONFIG.replace('name = ""               #', 'name = "default"        #', 1))
+
+
+@pytest.fixture(autouse=True)
+def show_tracebacks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failure nobody planned for raises through `main`, so a failing test shows where. test_core tests the three plain lines a user sees."""
+    monkeypatch.setenv("ALTOCUE_TRACEBACK", "1")

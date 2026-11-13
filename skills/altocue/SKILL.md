@@ -11,12 +11,13 @@ You are the editor. Use the media tools actually available: original takes, word
 
 ## Before anything else
 
-Run `altocue doctor --json`. With no shell, use the Altocue MCP tools instead: `altocue_doctor` first, then `altocue_install` after the user agrees, and `altocue_run` with the same arguments as each command.
+Run `altocue doctor --json`. With no shell, use the Altocue MCP tools: `altocue_doctor` first, then `altocue_install` after the user agrees, and `altocue_run` with the same arguments as each command.
 
-- If `altocue` is not found, ask the user, then run `uv tool install altocue`, then `altocue setup`.
+- If `altocue` is not found, ask the user, then run `uv tool install altocue`, then `altocue setup --yes` if they want the extras.
 - If `uv` is not found, show `curl -LsSf https://astral.sh/uv/install.sh | sh` and ask first.
-- If doctor reports a missing tool, show its `fix` line and ask before running it. The table under `capabilities` says what this machine can run and gives the one command that closes each gap.
-- After a new install, offer `altocue demo`. It downloads one small demo take, a generated presenter, and edits it through every free stage in about 3 minutes, with no keys and no spending. If the download fails it stops and says so.
+- If doctor reports a missing tool, show its `fix` line and ask before running it. Its `capabilities` table says what this machine can run and the one command that closes each gap.
+- After a new install, offer `altocue demo`: one small demo take through every free stage in about 3 minutes, no keys, no spending.
+- Run `altocue start --show --json`. If `answered` is false, follow `altocue-setup` once. Honour its `checks`, `captions`, `sound`, `brand` and `online`.
 
 ## Hard rules
 
@@ -33,32 +34,33 @@ Run `altocue doctor --json`. With no shell, use the Altocue MCP tools instead: `
 
 ## A launch video goes to `altocue-launch` first
 
-For a product launch or launch film without a supplied presenter take, use the `altocue-launch` skill. It is the dedicated feature for this, needs no footage, and runs through to the finished film. Any other film with no footage goes to `altocue-film`.
+For a product launch or launch film without a supplied presenter take, use the `altocue-launch` skill. It needs no footage and runs through to the finished film. Any other film with no footage goes to `altocue-film`.
 
 ## A filmed product explanation uses the directed Studio workflow
 
-When the user supplies presenter footage and wants product demonstrations above the speaker, use [Directed Studio](../../docs/DIRECTED-STUDIO.md) with `altocue studio catalog`. Select actual source lines first; map each spoken claim to an authentic mark, actual capture or explanatory scene. Author studio.json, validate it, then render through the normal project pipeline. Use one reveal frame per typed character and its tap. Keep important labels away from phone UI. Check the final transcript for the complete promised qualifier and a single CTA keyword; preserve source audio in any repair. The original 3D model, logos and page capture remain inputs, not guessed replacements.
+When the user supplies presenter footage and wants product demonstrations above the speaker, use [Directed Studio](../../docs/DIRECTED-STUDIO.md) with `altocue studio catalog`. Select actual source lines first; map each spoken claim to an authentic mark, actual capture or explanatory scene. Author studio.json, validate it, then render through the normal project pipeline. The original 3D model, logos and page capture remain inputs, not guessed replacements.
 
 ## The workflow
 
-1. **Understand the job.** Get the clips, a one-line brief and the person's brand kit (logo, fonts, colours). Ask if it is missing.
+1. **Understand the job.** Get the clips, a one-line brief and the person's brand kit (logo, fonts, colours). Ask if it is missing. Read `altocue-craft` and its playbook for this kind first.
 2. **Start the project with their brand.**
    ```bash
-   altocue new my-video --input a.mov b.mov --aspect 9:16 --brief "A 45 second reel for first-time founders" --brand ~/their-brand-kit
+   altocue new my-video --input a.mov b.mov --kind short --brief "A 45 second reel for first-time founders" --brand ~/their-brand-kit
    cd my-video
    ```
    No asset before the kit: else `altocue brand ingest <kit>`, then fill gaps in `brand/brand.json`. `--house` only if they have no brand.
-3. **Read every word.** `altocue transcribe`, then see the `altocue-cut` skill. `altocue cut` proposes the edit. Rule on everything in `work/cut-review.md`. Show the user the cut before going further if dialogue is being removed.
+3. **Read every word.** `altocue transcribe`, then follow `altocue-cut`. `altocue cut` proposes the edit. Rule on everything in `work/cut-review.md`. Show the user the cut before going further if dialogue is being removed.
 4. **Fix the raw material.** `altocue clean` for sound (see `altocue-clean`), `altocue grade` for colour (`altocue-grade`), `altocue frame` for aspect and punch-ins (`altocue-frame`).
 5. **Cover it.** If a stretch needs a cutaway, follow `altocue-broll`. If nothing real fits, `altocue-direct` and `altocue-generate` make the shot. Many talking heads need neither.
 6. **Add graphics.** Write `motion.json` from what is actually said (`altocue-motion`). Captions are automatic (`altocue-caption`).
-7. **Draft.** `altocue render --draft`. Check the frames at every cut before spending time on a final.
+7. **Draft.** `altocue render --draft`, then `altocue watch`: check every cut, graphic and the ending before a final.
 8. **Final.** `altocue render`, then `altocue master`, then `altocue qa`.
-9. **Review.** `altocue review` (see `altocue-review`). Make every fix it asks for, as one specific change at a time, with everything else left alone. At most two rounds, then hand the open list to the user.
-10. **Deliver.** Give the path to `out/final.mp4`, the verdict, and anything you could not check. `altocue deliver` makes subtitles, chapters, thumbnails and platform versions (`altocue-deliver`).
-11. **Measure.** `altocue facts` is free and needs no key (see `altocue-data`). The review report carries the same numbers after scoring.
+9. **Review.** `altocue review` (see `altocue-review`). Make every fix it asks for, one specific change at a time, everything else left alone. At most two rounds, then hand the open list to the user.
+10. **Save the version.** `altocue versions save`, then read the user's notes before the next (`altocue-versions`).
+11. **Deliver.** Give the path to `out/final.mp4`, the verdict, and anything you could not check. `altocue deliver` makes subtitles, chapters, thumbnails and platform versions (`altocue-deliver`).
+12. **Measure.** `altocue facts` is free and needs no key (see `altocue-data`).
 
-`altocue run` does steps 3 to 8 with defaults. Use it for a quick first pass, then refine.
+`altocue run` does steps 3 to 8 with defaults, for a quick first pass to refine.
 
 ## Which tool for which job
 
@@ -67,8 +69,10 @@ When the user supplies presenter footage and wants product demonstrations above 
 | A launch video, product launch, SaaS launch, product video or launch film | `altocue-launch` |
 | An explainer, demo, ad cards or any film with no footage | `altocue-film` |
 | One change to your own clip, your clips cut to a song, an invitation or an anniversary film | `altocue-film` |
-| Remove pauses, ums, retakes | `altocue-cut` |
-| Pick or reorder lines, edit by transcript | `altocue-cut` |
+| First run, defaults, "stop asking me that" | `altocue-setup` |
+| How to decide: pace, shots, colour, sound, motion, by kind of video | `altocue-craft` |
+| The film as frames, to check your own work | `altocue watch` |
+| Remove pauses, ums, retakes, pick or reorder lines | `altocue-cut` |
 | Shorts or reels from a long recording | `altocue-clips` |
 | Better sound, less noise, no hum | `altocue-clean` |
 | Better colour, HDR phone footage, matching shots, a film look, your own LUT | `altocue-grade` |
@@ -86,26 +90,27 @@ When the user supplies presenter footage and wants product demonstrations above 
 | A UGC-style ad, a generated host, an AI actor | `altocue-ugc` |
 | A hosted effect or command, and what it costs | `altocue recipes` |
 | A verdict before publishing | `altocue-review` |
-| To watch the film beside its gates and notes | `altocue review --page` |
-| What is done, what is stale, and what comes next | `altocue status` |
-| Proof this machine works | `altocue demo` |
+| The film beside its gates and notes | `altocue review --page` |
+| Version history, compare, undo, the user's timed notes | `altocue-versions` |
+| What is done, stale, or next | `altocue status` (`--json` has `next`) |
 | Facts about the film, benchmarks, learning from results | `altocue-data` |
 | Subtitles, chapters, thumbnails, versions for each app, a dub | `altocue-deliver` |
-| To see the edit on a timeline | `altocue timeline`, in the HyperFrames studio |
+| The edit on a timeline | `altocue timeline`, in the HyperFrames studio |
 | A series, a generated host, or a film on someone else's footage | [the platform rules](references/platform-rules.md) |
-| How to film, cut, sound and review a talking-head Reel end to end | [the Studio recipe](../../docs/STUDIO-RECIPE.md) |
+| Filming, cutting, sound and review for a talking-head Reel | [the Studio recipe](../../docs/STUDIO-RECIPE.md) |
 
 ## Project files
 
 - `altocue.toml`: settings. Change them and re-run.
-- `edl.json`: the cut. You may edit it by hand, and gain, crops and zooms stay through a re-cut.
+- `edl.json`: the cut. Edit it by hand: gain, crops and zooms stay through a re-cut.
 - `script.md`: every sentence. Edit it, then `altocue cut --from-script`.
 - `motion.json`: the graphics. You write this.
-- `studio.json`: optional directed presenter scenes, local artwork, per-character sound cues and final speech checks.
+- `studio.json`: optional directed presenter scenes.
 - `broll.json`: the B-roll you picked. `altocue broll` writes this.
 - `work/`: everything derived. Safe to delete.
 - `out/`: `draft.mp4`, `render.mp4`, `final.mp4`.
 - `review/`: QA and the Editor in Chief's report.
+- `versions/`: saved versions and the user's notes.
 - `deliver/`: subtitles, chapters, thumbnails and platform versions.
 
-Every stage is safe to re-run. Only what changed is rebuilt. `altocue cut` with no flags is the exception: it starts a fresh proposal and saves the old one to `work/edl-previous.json`.
+Every stage is safe to re-run. Only what changed is rebuilt. The exception is `altocue cut` with no flags: a fresh proposal, with the old one saved to `work/edl-previous.json`.

@@ -13,8 +13,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import pace
 from ..errors import AltocueError
 from ..models import Edl, Removed, Word
+from ..pace import SENTENCE_GAP
 from ..project import Project
 from ..transcribe import core
 from .review import covering, midpoint
@@ -23,11 +25,7 @@ from .snap import plays
 Key = tuple[str, int]  # a clip and a word's place in it
 
 NO_SPEECH = -1  # stands for a whole clip with no words, so it can still be moved or dropped
-SENTENCE_GAP = 1.2  # with no punctuation to go on, a pause this long ends a sentence
-SENTENCE_END = ".?!"
-CLOSERS = "\"'”’)"
-TITLES = frozenset("dr mr mrs ms prof mt st vs".split())
-INNER_DOT = re.compile(r"\w\.\w")
+CLOSERS = pace.CLOSERS
 TAG = re.compile(r"\[(L\d+)[^\]]*\]\s*(.*)")
 MARK = re.compile(r"<!-- altocue script (\w+)")
 COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -69,10 +67,7 @@ class Line:
 
 
 def ends_sentence(word: Word) -> bool:
-    text = word.text.rstrip(CLOSERS)
-    if text[-1:] not in SENTENCE_END:
-        return False
-    return text[-1] != "." or (core(text) not in TITLES and not INNER_DOT.search(text))
+    return pace.ends_sentence(word.text)
 
 
 def sentences(words: list[Word]) -> list[tuple[int, int]]:

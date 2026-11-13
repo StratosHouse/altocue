@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import tomllib
+import wave
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -56,6 +58,17 @@ def test_wav_round_trip(tmp_path):
     path = ffmpeg.write_wav(tmp_path / "a.wav", samples, 48000)
     back, rate = ffmpeg.read_wav(path)
     assert rate == 48000 and np.allclose(back, samples, atol=1e-3)
+
+
+def test_a_wav_is_rounded_to_the_nearest_step_not_cut_toward_zero(tmp_path):
+    """Cutting toward zero lost a step from every sample each time a stage wrote its sound."""
+    steps = np.array([0.6, -0.6, 0.4, -0.4, 100.7, -100.7, 5.0], dtype=np.float64) / 32767
+    with wave.open(str(ffmpeg.write_wav(tmp_path / "a.wav", steps, 16000)), "rb") as handle:
+        written = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2")
+    assert written.tolist() == [1, -1, 0, 0, 101, -101, 5]
+    quiet = np.arange(-2000, 2000, dtype=np.float32) / 32768  # what `read_wav` hands back for these steps
+    back, _ = ffmpeg.read_wav(ffmpeg.write_wav(tmp_path / "b.wav", quiet, 16000))
+    assert np.array_equal(back, quiet)  # a quiet voice survives any number of stages unchanged
 
 
 def test_loudness_measures(tmp_path, clip):
@@ -120,6 +133,59 @@ def test_run_stops_at_a_stage_that_fails(tmp_path, monkeypatch):
     args = argparse.Namespace(project=str(project.root), start="master", end="review", draft=False)
     assert run.run(args) == 1
     assert ran == ["master", "qa"]
+
+
+def run_with_fakes(tmp_path, monkeypatch, **options):
+    """`altocue run` with stages that only leave their file behind, as the real ones do."""
+    from altocue import run
+
+    project = Project.create(tmp_path / "video")
+    ran = []
+
+    def stage(name):
+        ran.append(name)
+        path = run.made(project, name, draft=options.get("draft", False))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.mkdir(exist_ok=True) if not path.suffix else path.write_text("made")
+
+    monkeypatch.setattr(run, "stages", lambda project, args: {name: (lambda n=name: stage(n)) for name in run.ORDER})
+    args = argparse.Namespace(**{"project": str(project.root), "start": "ingest", "end": "qa", "draft": False, **options})
+    return project, ran, run.run(args)
+
+
+@pytest.mark.parametrize("options", [{"start": "qa", "end": "cut"}, {"start": "master", "draft": True}, {"start": "qa", "end": "cut", "draft": True}])
+def test_run_refuses_a_from_that_comes_after_its_to(tmp_path, monkeypatch, capsys, options):
+    """It ran no stage and printed Done with the path of a film it never made."""
+    with pytest.raises(AltocueError, match="no stage would run") as refused:
+        run_with_fakes(tmp_path, monkeypatch, **options)
+    assert "altocue run --from" in refused.value.fix
+    assert "Done" not in capsys.readouterr().out
+
+
+def test_run_names_what_it_made_and_not_a_film_it_did_not(tmp_path, monkeypatch, capsys):
+    project, ran, code = run_with_fakes(tmp_path, monkeypatch, end="cut")
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert code == 0 and ran == ["ingest", "transcribe", "cut"]
+    assert str(project.edl_path) in done and "final.mp4" not in done
+
+
+def test_run_closes_on_the_film_and_the_report_of_a_whole_run(tmp_path, monkeypatch, capsys):
+    project, _, code = run_with_fakes(tmp_path, monkeypatch)
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert code == 0 and str(project.out / "final.mp4") in done and str(project.review_dir / "qa.json") in done
+
+
+def test_a_draft_run_closes_on_the_draft(tmp_path, monkeypatch, capsys):
+    project, ran, code = run_with_fakes(tmp_path, monkeypatch, draft=True, end="qa")
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert code == 0 and ran[-1] == "render" and done == f"Done: {project.out / 'draft.mp4'}"
+
+
+def test_a_check_alone_does_not_claim_the_film(tmp_path, monkeypatch, capsys):
+    """`--from qa` measures a film an earlier run made. This run made the report."""
+    project, ran, _ = run_with_fakes(tmp_path, monkeypatch, start="qa")
+    done = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Done"))
+    assert ran == ["qa"] and done == f"Done: {project.review_dir / 'qa.json'}"
 
 
 def test_run_keeps_an_existing_cut_and_its_rulings(tmp_path, capsys):
@@ -193,3 +259,261 @@ def test_loudness_asks_nothing_ffmpeg_five_lacks(monkeypatch):
     monkeypatch.setattr(ffmpeg, "run", fake)
     assert ffmpeg.loudness("x.wav")["integrated"] == -20.0
     assert "framelog=quiet" not in " ".join(seen[0])
+
+
+def broken_stage(monkeypatch, error: BaseException) -> None:
+    from altocue import status
+
+    def boom(args):
+        raise error
+
+    monkeypatch.setattr(status, "run", boom)
+
+
+def test_a_failure_nobody_planned_for_is_three_lines_and_a_log(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    broken_stage(monkeypatch, KeyError("foo"))
+    assert main(["status", "-p", str(tmp_path)]) == 1
+    captured = capsys.readouterr()
+    lines = captured.err.splitlines()
+    assert len(lines) == 3 and "Traceback" not in captured.err + captured.out
+    assert lines[0].startswith("altocue: `altocue status` stopped") and "KeyError" in lines[0] and "foo" in lines[0]
+    assert lines[1].startswith("Fix: ") and cli.ISSUES in lines[1] and "ALTOCUE_TRACEBACK=1" in lines[1]
+    log = Path(lines[2].removeprefix("Log: "))
+    assert log.parent == Path(os.environ["ALTOCUE_HOME"]) / "logs"
+    written = log.read_text()
+    assert "Traceback (most recent call last)" in written and "KeyError: 'foo'" in written and f"Command: altocue status -p {tmp_path}" in written
+
+
+def test_only_the_newest_crash_logs_are_kept(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    folder = Path(os.environ["ALTOCUE_HOME"]) / "logs"
+    folder.mkdir(parents=True)
+    for number in range(cli.LOGS_KEPT + 5):
+        (folder / f"20200101-0000{number:02d}-old.log").write_text("old")
+    broken_stage(monkeypatch, RuntimeError("no"))
+    assert main(["status"]) == 1
+    kept = sorted(path.name for path in folder.glob("*.log"))
+    assert len(kept) == cli.LOGS_KEPT and kept[-1].endswith("-status.log") and "20200101-000000-old.log" not in kept
+
+
+def test_a_developer_can_ask_for_the_traceback(monkeypatch):
+    broken_stage(monkeypatch, KeyError("foo"))  # ALTOCUE_TRACEBACK=1 is set for every test, in conftest
+    with pytest.raises(KeyError):
+        main(["status"])
+
+
+def test_an_interrupt_is_quiet_and_an_exit_is_left_alone(monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    broken_stage(monkeypatch, KeyboardInterrupt())
+    assert main(["status"]) == 130
+    assert capsys.readouterr().err.strip() == "altocue: stopped."
+    broken_stage(monkeypatch, SystemExit(7))
+    with pytest.raises(SystemExit) as left:
+        main(["status"])
+    assert left.value.code == 7
+
+
+def test_an_error_with_a_fix_still_prints_as_it_did(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ALTOCUE_TRACEBACK")
+    broken_stage(monkeypatch, AltocueError("No film here.", fix="Render one."))
+    assert main(["status"]) == 1
+    assert capsys.readouterr().err == "altocue: No film here.\nFix: Render one.\n"
+    assert not (Path(os.environ["ALTOCUE_HOME"]) / "logs").exists()
+
+
+def test_run_takes_the_same_renderers_as_render(capsys):
+    from altocue import motion
+
+    def choices(command: str) -> list[str]:
+        parser = cli.Parser(prog=command)
+        __import__(cli.STAGES[command][0], fromlist=["add_arguments"]).add_arguments(command, parser)
+        return next(action.choices for action in parser._actions if action.dest == "renderer")
+
+    assert choices("run") == choices("render") == [*motion.RENDERERS, "auto"]
+    with pytest.raises(SystemExit):
+        main(["run", "--renderer", "foo"])
+    assert "invalid choice: 'foo'" in capsys.readouterr().err
+
+
+# `altocue new` is forgiving
+
+
+def test_a_failed_new_leaves_nothing_so_the_retry_works(tmp_path, clip, capsys):
+    folder = tmp_path / "x4"
+    notes = tmp_path / "truth.json"
+    notes.write_text("{}")
+    for wrong in (["--brand", str(tmp_path / "nonexistent")], ["--aspect", "9:99"], ["--aspect", "wide", "--platform", "reels"]):
+        assert main(["new", str(folder), "--input", str(clip), *wrong]) == 1
+        assert "Fix: " in capsys.readouterr().err and not folder.exists()
+    assert main(["new", str(folder), "--input", str(notes)]) == 1
+    err = capsys.readouterr().err
+    assert "Fix: Give video files" in err and "can run again" in err and not folder.exists()
+    assert main(["new", str(folder), "--input", str(clip), "--brand", "house"]) == 0
+    assert Project.open(folder).clips()
+
+
+def test_every_refusal_from_new_says_what_to_do(tmp_path, clip, capsys):
+    assert main(["new", str(tmp_path / "v"), "--input", str(tmp_path / "nope.mp4")]) == 1
+    assert "Not found" in (err := capsys.readouterr().err) and "Fix: Check the path" in err
+    assert main(["new", str(tmp_path / "v"), "--input", str(clip)]) == 0
+    assert main(["new", str(tmp_path / "v"), "--input", str(clip)]) == 1
+    assert "already an Altocue project" in (err := capsys.readouterr().err) and "Fix: Pick another folder name, or delete" in err
+    assert main(["new", str(clip), "--input", str(clip)]) == 1
+    assert "is a file" in (err := capsys.readouterr().err) and "Fix: " in err
+    assert main(["new", str(tmp_path / "w"), "--input", str(clip), "--aspect", "tall"]) == 1
+    assert "Unknown aspect tall" in (err := capsys.readouterr().err) and "vertical, portrait, square, wide" in err
+
+
+def test_a_new_that_fails_part_way_takes_its_folder_back(tmp_path, clip, monkeypatch):
+    from altocue import brand
+
+    def broken(project, kit, house=False):
+        raise AltocueError("The brand's font cannot be used.", fix="Use a .ttf file.")
+
+    monkeypatch.setattr(brand, "ingest", broken)
+    assert main(["new", str(tmp_path / "gone"), "--input", str(clip), "--brand", "house"]) == 1
+    assert not (tmp_path / "gone").exists()
+    mine = tmp_path / "footage"
+    (mine / "sources").mkdir(parents=True)
+    (mine / "notes.txt").write_text("keep me")
+    (mine / "sources" / "old.txt").write_text("and me")
+    assert main(["new", str(mine), "--input", str(clip), "--brand", "house"]) == 1
+    assert sorted(path.relative_to(mine).as_posix() for path in mine.rglob("*")) == ["notes.txt", "sources", "sources/old.txt"]
+
+
+def test_new_takes_a_platform_and_sets_the_shape_and_the_safe_zone_together(tmp_path, clip, capsys):
+    from altocue import platforms
+
+    wide = make_clip(tmp_path / "wide.mp4", seconds=1.0, size="640x360")
+    assert main(["new", str(tmp_path / "yt"), "--input", str(wide), "--platform", "youtube"]) == 0
+    made = Project.open(tmp_path / "yt")
+    assert made.config["output"]["aspect"] == "16:9" and made.config["output"]["platform"] == "youtube" and platforms.zone_of(made)
+    assert "format" not in made.config, "a platform is not a kind"
+    assert main(["new", str(tmp_path / "feed"), "--input", str(clip), "--platform", "linkedin", "--kind", "interview"]) == 0
+    made = Project.open(tmp_path / "feed")
+    assert (made.config["output"]["aspect"], made.config["output"]["platform"], made.config["format"]["kind"]) == ("4:5", "linkedin", "interview")
+    assert main(["new", str(tmp_path / "same"), "--input", str(clip), "--platform", "reels", "--aspect", "vertical"]) == 0
+    capsys.readouterr()
+    assert main(["new", str(tmp_path / "clash"), "--input", str(clip), "--platform", "reels", "--aspect", "16:9"]) == 1
+    assert "--platform reels plays 9:16, and --aspect asks for 16:9" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        main(["new", str(tmp_path / "bad"), "--input", str(clip), "--platform", "myspace"])
+
+
+@pytest.mark.parametrize(("word", "aspect"), [("vertical", "9:16"), ("portrait", "9:16"), ("square", "1:1"), ("wide", "16:9"), ("Wide", "16:9")])
+def test_new_takes_a_word_for_the_shape(tmp_path, clip, word, aspect):
+    assert main(["new", str(tmp_path / "v"), "--input", str(clip), "--aspect", word]) == 0
+    assert Project.open(tmp_path / "v").config["output"]["aspect"] == aspect
+
+
+def test_the_help_for_new_states_the_default_shape(capsys):
+    with pytest.raises(SystemExit):
+        main(["new", "--help"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert "The default is 9:16 (vertical)" in out and "vertical, portrait, square, wide" in out
+    assert "--platform {reels,tiktok,shorts,youtube,linkedin,square,vertical}" in out
+
+
+def test_new_says_when_the_film_is_not_the_shape_of_the_footage(tmp_path, clip, capsys):
+    wide = make_clip(tmp_path / "wide.mp4", seconds=1.0, size="640x360")
+    assert main(["new", str(tmp_path / "a"), "--input", str(wide)]) == 0
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.startswith("Shape:")]
+    assert len(lines) == 1
+    assert "the footage is 16:9 and this film is 9:16, the default" in lines[0] and "`--aspect 16:9`" in lines[0] and "cropped" in lines[0]
+    assert main(["new", str(tmp_path / "b"), "--input", str(wide), "--platform", "reels"]) == 0
+    assert "this film is 9:16, from --platform reels" in capsys.readouterr().out
+    assert main(["new", str(tmp_path / "c"), "--input", str(wide), "--kind", "short"]) == 0
+    assert "this film is 9:16, from the kind" in capsys.readouterr().out
+    for quiet in (["--input", str(wide), "--aspect", "9:16"], ["--input", str(wide), "--aspect", "wide"], ["--input", str(clip)]):
+        assert main(["new", str(tmp_path / f"q{len(quiet)}{quiet[-1][-4:]}"), *quiet]) == 0
+        assert "Shape:" not in capsys.readouterr().out, "asked for by name, or already the same shape"
+
+
+def test_a_shape_is_named_as_people_name_it():
+    assert [ingest.shape_of(*size) for size in ((1920, 1080), (1080, 1920), (3840, 2160), (1080, 1350), (1920, 1088), (720, 720))] == [
+        "16:9", "9:16", "16:9", "4:5", "16:9", "1:1",
+    ]  # fmt: skip
+    assert ingest.shape_of(1000, 700) == "10:7"
+
+
+# The project is found from inside it
+
+
+def test_a_command_run_from_inside_the_project_finds_it(tmp_path, monkeypatch, capsys):
+    project = Project.create(tmp_path / "first")
+    assert Project.open(project.work).root == project.root
+    assert Project.open(project.words_dir).root == project.root
+    monkeypatch.chdir(project.work)
+    assert Project.open().root == project.root
+    assert main(["status"]) == 0
+    assert "ingest" in capsys.readouterr().out
+
+
+def test_the_nearest_project_above_wins(tmp_path):
+    outer = Project.create(tmp_path / "outer")
+    inner = Project.create(outer.root / "clips" / "one")
+    assert Project.open(inner.work).root == inner.root
+    assert Project.open(outer.root / "clips").root == outer.root
+
+
+def test_a_folder_that_holds_projects_lists_them(tmp_path, monkeypatch, capsys):
+    for name in ("second", "first", "my video"):
+        Project.create(tmp_path / "work" / name)
+    (tmp_path / "work" / "notes").mkdir()
+    with pytest.raises(AltocueError) as caught:
+        Project.open(tmp_path / "work")
+    assert "It holds projects: first, my video, second." in str(caught.value) and "`-p first`" in caught.value.fix
+    monkeypatch.chdir(tmp_path / "work")
+    assert main(["status"]) == 1
+    err = capsys.readouterr().err
+    assert "first, my video, second" in err and "Fix: Name one with `-p first`" in err
+
+
+def test_a_folder_with_no_project_near_it_says_how_to_start_or_where_to_go(tmp_path):
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(AltocueError) as caught:
+        Project.open(tmp_path / "empty")
+    assert "or any folder above it" in str(caught.value) and "-p <folder>" in caught.value.fix and "altocue new" in caught.value.fix
+
+
+def test_a_path_that_is_not_there_never_opens_the_project_around_it(tmp_path):
+    """`-p typo` from inside a project must not quietly act on that project."""
+    project = Project.create(tmp_path / "first")
+    with pytest.raises(AltocueError, match="No folder at") as caught:
+        Project.open(project.root / "typo")
+    assert "Check the path" in caught.value.fix
+
+
+# Small things
+
+
+def test_every_renderer_flag_in_reach_explains_itself():
+    """`--renderer` had no help text on five commands. motion's own lives in a file this change does not touch."""
+    for command in ("run", "render", "deliver", "demo"):
+        parser = cli.Parser(prog=command)
+        __import__(cli.STAGES[command][0], fromlist=["add_arguments"]).add_arguments(command, parser)
+        action = next(action for action in parser._actions if action.dest == "renderer")
+        assert action.help and "hyperframes" in action.help and "basic" in action.help and "auto" in action.help, command
+
+
+def test_the_render_says_which_file_is_the_one_to_share(tmp_path, monkeypatch, capsys):
+    from altocue import render
+
+    project = Project.create(tmp_path / "video")
+    monkeypatch.setattr(render, "build", lambda project, draft, renderer: project.out / ("draft.mp4" if draft else "render.mp4"))
+    assert main(["render", "-p", str(project.root)]) == 0
+    out = capsys.readouterr().out
+    assert "render.mp4" in out and "`altocue master` makes out/final.mp4, and that is the file to share" in out
+    assert main(["render", "-p", str(project.root), "--draft"]) == 0
+    assert "final.mp4" not in capsys.readouterr().out
+
+
+def test_one_colour_is_one_colour(tmp_path):
+    from altocue import brand
+
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    (kit / "colours.txt").write_text("Ink #101820")
+    done = brand.ingest(Project.create(tmp_path / "video"), kit)
+    assert "1 colour from the kit" in done["read"]

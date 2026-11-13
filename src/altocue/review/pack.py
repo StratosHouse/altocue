@@ -30,7 +30,7 @@ HOOK_STEP = 0.25
 HOOK_SECONDS = qa_gates.HOOK_SECONDS
 TRANSCRIPT_LINE = 10
 FORBIDDEN = (
-    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/, out/, bench/ or results/, "
+    "edl.json, timeline.json, shots.json, motion.json, rules.json, anything under work/, out/, bench/, results/ or versions/, "
     "director-notes.md, review/REPORT.md, review/report.json, review/page.html, review/rounds.json, review/facts.json, review/facts.md or review/history/"
 )
 
@@ -320,7 +320,7 @@ def planned_text(info: dict[str, Any]) -> str:
     """What the plan calls for, so a reviewer judges an end card or a cutaway for what it is."""
     numbers = info.get("numbers", {})
     tail, duration = float(numbers.get("tail", 0) or 0), float(numbers.get("duration", 0) or 0)
-    lines = [f"- The last {tail:.1f} s, from {duration - tail:.1f} s, is an end card: a still picture with no speech."] if tail else []
+    lines = [f"- The last {tail:.1f} s, from {duration - tail:.1f} s, is an end card or a held last frame: a still picture with no speech."] if tail else []
     lines += [f"- B-roll from {i['start']:.1f} to {i['end']:.1f} s. The voice keeps playing under it." for i in numbers.get("inserts", [])]
     return "\n".join(lines) or "Nothing. There is no end card, hold or B-roll."
 

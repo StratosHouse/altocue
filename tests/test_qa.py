@@ -20,7 +20,7 @@ from altocue import claims, qa
 from altocue.cli import main
 from altocue.errors import AltocueError
 from altocue.generate import import_asset
-from altocue.models import Clip, GateResult, Word
+from altocue.models import Clip, Edl, GateResult, Segment, Word
 from altocue.motion import formats
 from altocue.project import Project, write_json
 from altocue.qa import edges, flashes, gates, hands, ocr, proof, rules
@@ -161,6 +161,21 @@ def test_transcriber_failure_skips_with_its_reason(clean, monkeypatch):
         monkeypatch.setattr(sys.modules["altocue.transcribe"], "transcribe_file", boom)
         results = gates.word_gates(gates.Context.open(clean.project, clean.file))
     assert by_id(results, "words").skipped and "No engine installed" in by_id(results, "words").detail
+
+
+def test_a_transcriber_that_breaks_for_any_reason_skips_and_the_run_goes_on(clean, monkeypatch):
+    """A blocked model download raised from deep inside the engine. It ended `altocue qa` with a traceback and no qa.json."""
+
+    def boom(path, **_):
+        raise ConnectionError("403 Forbidden\nfrom the proxy")
+
+    with planted(clean):
+        monkeypatch.setattr(sys.modules["altocue.transcribe"], "transcribe_file", boom)
+        words, why = gates.transcribe(clean.file)
+        results = gates.word_gates(gates.Context.open(clean.project, clean.file))
+    assert words is None and "ConnectionError: 403 Forbidden" in why and "proxy" not in why
+    found = by_id(results, "words")
+    assert found.skipped and not found.passed and "403 Forbidden" in found.detail
 
 
 def test_transcriber_without_any_entry_point_skips(clean, monkeypatch):
@@ -357,9 +372,53 @@ def test_results_are_saved_and_printed(clean, capsys):
     saved = json.loads((clean.project.review_dir / "qa.json").read_text())
     assert [g["id"] for g in saved["gates"]] == [g.id for g in results]
     assert saved["stage"] == "final" and len(saved["sha256"]) == 64
-    qa.print_table(results)
+    qa.print_table(results, everything=True)
     out = capsys.readouterr().out
     assert "PASS" in out and "n/a" in out and "loudness" in out
+
+
+def some_of_each() -> list[GateResult]:
+    return [
+        GateResult(id="loudness", passed=True, value=-14.0, detail="on target"),
+        qa.gates.not_applicable("frame_zero", "Not a film from a storyboard"),
+        GateResult(id="true_peak", passed=False, value=-0.2, threshold=-1.5, detail="over the ceiling"),
+        qa.gates.not_applicable("disclosure", "No synthetic person"),
+        GateResult(id="words", passed=False, skipped=True, detail="no transcriber"),
+        GateResult(id="black_frames", passed=True, value=0, detail="none"),
+    ]
+
+
+def test_the_printout_leads_with_what_needs_doing_and_counts_the_rest(capsys):
+    """An ordinary edit printed 33 rows, 16 of them n/a, with the one failure somewhere in the middle."""
+    qa.print_table(some_of_each())
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("Gate") and lines[1].startswith("true_peak") and "FAIL" in lines[1]
+    assert lines[2].startswith("words") and "SKIP" in lines[2]
+    assert "1 failed, 1 skipped, 2 passed, 2 do not apply. `altocue qa --all` lists every gate." in lines
+    assert lines[-1] == "Not checked: words. A skipped gate is not a pass."
+    assert not any(line.startswith(("loudness", "frame_zero", "disclosure", "black_frames")) for line in lines)
+
+
+def test_a_clean_film_is_one_line(capsys):
+    qa.print_table([gate for gate in some_of_each() if gate.passed or gate.value == qa.gates.NOT_APPLICABLE])
+    assert capsys.readouterr().out == "2 passed, 2 do not apply. `altocue qa --all` lists every gate.\n"
+
+
+def test_all_prints_every_gate_in_the_order_they_ran(capsys):
+    qa.print_table(some_of_each(), everything=True)
+    out = capsys.readouterr().out
+    rows = [line.split()[0] for line in out.splitlines()[1:7]]
+    assert rows == ["loudness", "frame_zero", "true_peak", "disclosure", "words", "black_frames"]
+    assert "1 failed, 1 skipped, 2 passed, 2 do not apply." in out and "--all" not in out
+
+
+def test_the_command_takes_all_and_the_saved_file_always_holds_every_gate(clean, capsys, monkeypatch):
+    monkeypatch.setattr(qa, "run_gates", lambda project, file, stage, **_: some_of_each())
+    assert main(["qa", "-p", str(clean.project.root), "--file", str(clean.file)]) == 1
+    short = capsys.readouterr().out
+    assert main(["qa", "-p", str(clean.project.root), "--file", str(clean.file), "--all"]) == 1
+    full = capsys.readouterr().out
+    assert "frame_zero" not in short and "frame_zero" in full and "black_frames" in full
 
 
 def test_skipped_prints_skip_never_pass(capsys):
@@ -405,6 +464,61 @@ def test_command_exits_one_on_failure_and_zero_when_clean(tmp_path, capsys):
 def test_command_reports_a_missing_file(tmp_path, clean, capsys):
     assert main(["qa", "--project", str(clean.project.root), "--file", str(tmp_path / "nope.mp4")]) == 1
     assert "nope.mp4" in capsys.readouterr().err
+
+
+def shots(frames: list[int], fps: int = 30) -> Edl:
+    """Segments of these lengths, end to end on one clip."""
+    starts = [sum(frames[:index]) for index in range(len(frames))]
+    pairs = enumerate(zip(starts, frames, strict=True))
+    return Edl(fps=fps, segments=[Segment(id=f"s{index + 1}", clip="take", start=start / fps, end=(start + count) / fps) for index, (start, count) in pairs])
+
+
+def test_the_duration_allowance_does_not_grow_with_the_cuts(tmp_path):
+    """Twenty segments used to forgive twenty frames. A 0.6 s drift over 15 joins has happened, and this is the gate for it."""
+    built = build(Case("t", "", Recipe(burn_captions=False)), tmp_path / "t")
+
+    def gate(frames: list[int], **timeline) -> GateResult:
+        built.project.save_edl(shots(frames))
+        write_json(built.project.timeline_path, {**json.loads(built.project.timeline_path.read_text()), **timeline})
+        return gates.gate_duration(gates.Context.open(built.project, built.file))
+
+    assert gate([9] * 20).passed  # 180 frames, as rendered
+    off_by_one = gate([9] * 19 + [10])
+    assert off_by_one.passed and off_by_one.threshold == "181 +/- 1 frames"
+    drifted = gate([9] * 19 + [12])
+    assert not drifted.passed and "180 frames, the edit implies 183" in drifted.detail
+    assert not gate([9] * 19 + [11]).passed
+    blended = gate([9] * 19 + [11], transitions=[{"cut": 1, "frames": 6, "type": "dissolve", "start": 0.2, "end": 0.4}])
+    assert blended.passed and blended.threshold == "182 +/- 2 frames"
+    baked = gate([9] * 19 + [11], transitions=[], inserts=[{**CANARY_INSERT, "in": {"type": "dissolve", "duration": 0.2}}])
+    assert baked.passed
+    assert not gate([9] * 19 + [11], inserts=[CANARY_INSERT]).passed  # an insert that cuts in is laid over, not joined
+    assert not gate([9] * 19 + [12], inserts=[{**CANARY_INSERT, "in": {"type": "dissolve", "duration": 0.2}}]).passed
+
+
+@pytest.mark.parametrize(("pad", "passes"), [(0.03, True), (0.1, False)])
+def test_sound_may_outlast_picture_by_a_frame_and_a_half_at_most(clean, tmp_path, pad, passes):
+    """A quarter of a second used to pass, and the container's length hid the gap, because it is the longer of the two."""
+    longer = tmp_path / "longer.mp4"
+    padded = ["-i", str(clean.file), "-c:v", "copy", "-af", f"apad=pad_dur={pad}", "-c:a", "aac", "-b:a", "256k", str(longer)]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *padded], check=True)
+    gate = gates.gate_duration(gates.Context.open(clean.project, longer))
+    assert gate.passed is passes
+    assert passes or "sound and picture lengths differ by 0.1" in gate.detail
+
+
+def test_the_insert_gate_and_the_placer_share_one_line(tmp_path):
+    """The placer kept inserts out of the first 3 s and the gate allowed them from 2 s, so a hand-placed one could break the rule and pass."""
+    from altocue import broll
+
+    assert gates.INSERT_NOT_BEFORE == broll.AFTER_HOOK
+    built = build(Case("t", "", Recipe(burn_captions=False, inserts=[{"file": "b.mp4", "start": broll.AFTER_HOOK - 0.8, "end": broll.AFTER_HOOK + 1.0}])), tmp_path / "t")
+    gate = gates.gate_inserts(gates.Context.open(built.project, built.file))
+    assert not gate.passed and "opens on B-roll" in gate.detail
+    timeline = json.loads(built.project.timeline_path.read_text())
+    timeline["inserts"][0]["start"] = broll.AFTER_HOOK
+    write_json(built.project.timeline_path, timeline)
+    assert gates.gate_inserts(gates.Context.open(built.project, built.file)).passed
 
 
 def test_picture_shorter_than_the_sound_is_reported_not_a_crash(clean, tmp_path):
@@ -1367,15 +1481,15 @@ def test_edges_of_an_insert_land_where_the_render_puts_them():
 
 def test_a_transition_edge_is_left_alone(tmp_path):
     blended = {**CANARY_INSERT, "in": {"type": "dissolve", "duration": 0.2}, "out": {"type": "dissolve", "duration": 0.2}}
-    built = build(Case("t", "", Recipe(inserts=[blended], vf=fill(61, 118))), tmp_path / "t")
+    built = build(Case("t", "", Recipe(inserts=[blended], vf=fill(91, 148))), tmp_path / "t")
     gate = gates.gate_stray_frames(gates.Context.open(built.project, built.file))
     assert gate.passed and "transition" in gate.detail
 
 
 def test_the_gate_names_the_frame_and_what_is_wrong(tmp_path):
-    built = build(Case("t", "", Recipe(inserts=[CANARY_INSERT], vf=fill(60, 118))), tmp_path / "t")
+    built = build(Case("t", "", Recipe(inserts=[CANARY_INSERT], vf=fill(90, 148))), tmp_path / "t")
     gate = gates.gate_stray_frames(gates.Context.open(built.project, built.file))
-    assert not gate.passed and gate.value == 1 and "00:03.97" in gate.detail and "next shot" in gate.detail
+    assert not gate.passed and gate.value == 1 and "00:04.97" in gate.detail and "next shot" in gate.detail
 
 
 def test_no_inserts_is_not_applicable_and_no_timeline_is_a_skip(tmp_path):

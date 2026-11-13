@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shlex
 import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -20,6 +21,7 @@ OUTPUT_RATES = (24, 25, 30, 50, 60)
 LONG_SIDE, SHORT_SIDE = 1920, 1080
 WIDEST = 4.0  # Past 4:1 each way there is no room for a face, a caption or a safe zone.
 ASPECT = re.compile(r"(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)")
+PLATFORM_EXAMPLE = '# platform = "reels"   '  # the line of DEFAULT_CONFIG that a named platform replaces
 
 DEFAULT_CONFIG = """\
 # Altocue project settings. Every value here can be changed and re-run.
@@ -27,7 +29,7 @@ DEFAULT_CONFIG = """\
 [output]
 aspect = "{aspect}"     # any W:H, such as 9:16, 16:9, 1:1, 4:5, 4:3 or 21:9
 fps = 0                 # 0 follows the sources: 24, 25, 30, 50 or 60
-# platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin or square
+# platform = "reels"    # keep text inside that app's safe zone: reels, tiktok, shorts, youtube, linkedin, square, or vertical for every tall app
 
 [brand]
 name = ""               # empty until `altocue brand ingest` reads your kit. "default" is the house look, on purpose
@@ -44,8 +46,15 @@ show = ""               # on captions: colour, name or both. Empty shows nothing
 # S1 = "Ada"            # the name to show
 
 [cut]
-max_pause = 0.4         # seconds of silence kept between words at most
-remove_fillers = true
+pace = "natural"        # tight, natural or relaxed: how much of each longer pause stays, by clause, comma, sentence and topic
+max_pause = 0.4         # a pause inside a clause is left whole up to this many seconds. Longer ones are shortened, never below it. tight starts at 0.2
+fillers = "clean"       # clean cuts an "um" only where it lifts out cleanly and leaves no shot under 0.6 s. all cuts every one, none keeps them
+# end_hold = 0.5        # seconds of picture after the last word. Without it: 0.25 tight, 0.5 natural, 0.8 relaxed. 0 turns it off
+
+[caption]
+max_words = 0           # the most words on a caption page. 0 follows the shape: 3 on a tall canvas, 4 otherwise
+max_chars = 0           # the most characters on a page before a break is forced. 0 follows the shape: 22 tall or square, 32 wide
+min_show = 0.4          # seconds a page stays up at least, or a twentieth of a second per character if that is longer. 0 turns it off
 
 [audio]
 denoise = true
@@ -55,6 +64,7 @@ deess = "light"         # off, light, normal or strong: the most taken off sharp
 declick = true          # turn mouth clicks and lip smacks down. Nothing is cut
 breaths = 0             # dB to turn breaths down. They are never cut
 music = "auto"          # take music off the voice: auto when measured under speech, on, off. Needs Demucs: `altocue doctor`
+music_under = 18        # dB the music in the mix sits under the voice while someone speaks, from 6 to 30
 echo = "off"            # light or strong takes a little room echo off. The ring is measured either way
 room_tone = true        # fill what cuts leave with the clip's own room, so nothing drops to digital silence
 loudness = -14.0        # integrated LUFS, or a name: streaming, podcast, broadcast
@@ -65,11 +75,14 @@ enabled = true          # off still converts HDR, so nothing goes out washed out
 look = "natural"        # natural, warm, cool, punchy, filmic, or a film look: `altocue grade --compare`
 look_strength = 1.0     # how much of the look or LUT, from 0 to 1
 lut = ""                # your own .cube file, in place of a look
+input = "auto"          # auto reads the file's own tags. Log footage needs its curve named: apple_log, slog3, vlog, clog3, flog2 or dlog. video means not log
 
 [frame]
 enabled = true
-punch_in = 1.12         # zoom used to hide jump cuts
-push_in = 0.0           # slow zoom added per shot, such as 0.04
+punch_in = 1.12         # the tighter shot size. The size changes only where a new beat opens on a jump cut
+# min_hold = 2.0        # seconds a shot size stays before it may change. Left out, [cut] pace sets it: tight 1.2, natural 2.0, relaxed 3.0
+push_rate = 0.0         # slow push per second over each held shot, such as 0.008. It eases in and out and stops 0.06 up
+# emphasis = ["the line that matters"]   # spoken phrases whose beat plays at the tighter size
 follow = "auto"         # auto moves the crop only when a still one fails: a walk, or a wide shot of people taking turns. on, off
 
 [broll]
@@ -119,6 +132,33 @@ def nearest_rate(fps: float) -> int:
     return min(OUTPUT_RATES, key=lambda rate: abs(rate - fps))
 
 
+def find_root(asked: Path) -> Path | None:
+    """The folder that holds `altocue.toml`: `asked` itself, or the nearest folder above it. A folder that is not there finds nothing."""
+    if not asked.is_dir():
+        return None
+    return next((folder for folder in (asked, *asked.parents) if (folder / CONFIG).is_file()), None)
+
+
+def projects_in(folder: Path) -> list[str]:
+    """The projects one level down, for a folder that holds projects in place of being one."""
+    try:
+        return sorted(child.name for child in folder.iterdir() if (child / CONFIG).is_file())
+    except OSError:
+        return []
+
+
+def not_a_project(asked: Path) -> AltocueError:
+    """Why nothing opened, and the way on: the path is wrong, the projects are one level down, or there is none yet."""
+    start = "`altocue new <folder> --input <video>` starts a new one."
+    if not asked.is_dir():
+        return AltocueError(f"No folder at {asked}.", fix=f"Check the path given with -p. {start}")
+    found = projects_in(asked)
+    if found:
+        listed = ", ".join(found[:12]) + (f" and {len(found) - 12} more" if len(found) > 12 else "")
+        return AltocueError(f"{asked} is not a project. It holds projects: {listed}.", fix=f"Name one with `-p {shlex.quote(found[0])}`, or `cd` into it.")
+    return AltocueError(f"No {CONFIG} in {asked} or any folder above it.", fix=f"`cd` into a project, or name one with `-p <folder>`. {start}")
+
+
 @dataclass
 class Project:
     root: Path
@@ -126,20 +166,25 @@ class Project:
 
     @classmethod
     def open(cls, path: str | Path = ".") -> Project:
-        root = Path(path).resolve()
-        target = root / CONFIG
-        if not target.exists():
-            raise AltocueError(f"No {CONFIG} in {root}.", fix="Run `altocue new <folder> --input <video>` first.")
-        return cls(root=root, config=tomllib.loads(target.read_text()))
+        """The project at `path`, or the one `path` sits inside: a command run from `work/` finds its project, as git finds a repository."""
+        asked = Path(path).resolve()
+        root = find_root(asked)
+        if root is None:
+            raise not_a_project(asked)
+        return cls(root=root, config=tomllib.loads((root / CONFIG).read_text()))
 
     @classmethod
-    def create(cls, path: str | Path, *, aspect: str = "9:16") -> Project:
+    def create(cls, path: str | Path, *, aspect: str = "9:16", platform: str = "") -> Project:
+        """`platform`, when given, is written under `[output]` in place of the commented example."""
         size_for(aspect)
         root = Path(path).resolve()
         if (root / CONFIG).exists():
             raise AltocueError(f"{root} is already an Altocue project.")
         root.mkdir(parents=True, exist_ok=True)
-        (root / CONFIG).write_text(DEFAULT_CONFIG.format(aspect=aspect))
+        text = DEFAULT_CONFIG.format(aspect=aspect)
+        if platform:
+            text = text.replace(PLATFORM_EXAMPLE, f"{f'platform = {json.dumps(platform)}':<{len(PLATFORM_EXAMPLE)}}", 1)
+        (root / CONFIG).write_text(text)
         project = cls.open(root)
         for folder in (project.sources, project.words_dir, project.audio_dir, project.lut_dir, project.layers_dir, project.out, project.review_dir):
             folder.mkdir(parents=True, exist_ok=True)

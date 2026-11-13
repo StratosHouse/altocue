@@ -16,14 +16,15 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .. import ffmpeg
+from .. import ffmpeg, pace
 from ..errors import AltocueError
 from ..models import Clip, Edl, Removed, Segment, Word
 from ..project import Project
 from ..transcribe import MIN_WORD, RATE, Envelope
-from .detect import VOICED_PAUSE, candidates, certain
+from .detect import VOICED_PAUSE, candidates, certain, filler_mode, spare_short_shots
 from .hand import carry, hand_set
-from .review import apply_rulings, covering, load_rulings, removal_id, write_report, write_review
+from .joins import TIME_SLACK, Pads, Shot, lead_in, limits, plan, stamp, tail_out
+from .review import SHORT_SHOT, apply_rulings, covering, load_rulings, removal_id, write_report, write_review
 from .script import NO_SPEECH, Key, from_script, in_source_order, play_order, write_script
 from .snap import FRAME_SLACK, OVERLAP, POST, PRE, frame_count, guard_in, guard_out, last_full_frame, overlap, plays, snap, to_grid
 
@@ -43,12 +44,12 @@ __all__ = [
     "write_script",
 ]
 
-TIME_SLACK = 0.02  # ffprobe durations can sit a hair under the last sample
 LABEL_WORDS = 5
 
 
 @lru_cache(maxsize=64)
-def _envelope(path: str, modified: float) -> Envelope:
+def _envelope(path: str, modified: int, size: int) -> Envelope:
+    """Keyed on nanoseconds and size. Whole seconds of mtime would serve the old sound to a re-clean inside the same second."""
     with tempfile.TemporaryDirectory() as folder:
         return Envelope.from_wav(ffmpeg.extract_wav(path, Path(folder) / "audio.wav", rate=RATE))
 
@@ -57,30 +58,34 @@ def envelope_of(clip: Clip) -> Envelope | None:
     if not clip.has_audio:
         return None
     path = Path(clip.path)
-    return _envelope(str(path), path.stat().st_mtime) if path.exists() else None
+    if not path.exists():
+        return None
+    info = path.stat()
+    return _envelope(str(path), info.st_mtime_ns, info.st_size)
 
 
-def bounds(run: list[int], words: list[Word], clip: Clip, envelope: Envelope | None, fps: int, walls: tuple[Removed, ...] = ()) -> tuple[float, float]:
+def bounds(
+    run: list[int], words: list[Word], clip: Clip, envelope: Envelope | None, fps: int, walls: tuple[Removed, ...] = (), pads: Pads | None = None
+) -> tuple[float, float]:
     """Where a run of kept words starts and ends: snapped, kept clear of its neighbours, on the grid.
 
     `walls` are cut pauses that hold an unheard sound, such as an "um". Snapping follows sound, so
-    without them an edge would slide back into what was just removed.
+    without them an edge would slide back into what was just removed. `pads` say how much quiet the
+    run keeps at each end. The edges are found first, with the pads the snap was proven at, and only then moved.
     """
+    pads = pads or Pads()
     first, last = words[run[0]], words[run[-1]]
-    floor = words[run[0] - 1].end if run[0] else 0.0
-    ceiling = min(words[run[-1] + 1].start if run[-1] + 1 < len(words) else clip.duration, last_full_frame(clip.duration, fps))
-    for wall in walls:
-        if wall.start >= last.end - TIME_SLACK:
-            ceiling = min(ceiling, wall.start + POST)
-        if wall.end <= first.start + TIME_SLACK:
-            floor = max(floor, wall.end - PRE)
+    floor, ceiling = limits(run, words, clip, fps, walls)
     start, end = max(first.start - PRE, floor), min(last.end + POST, ceiling)
-    if envelope is not None and envelope.reliable:
-        start, end = snap(envelope, start, end, first_word_start=first.start, last_word_end=last.end)
+    heard = envelope if envelope is not None and envelope.reliable else None
+    if heard is not None:
+        start, end = snap(heard, start, end, first_word_start=first.start, last_word_end=last.end)
         start = min(start, max(first.start, first.end - OVERLAP))
         end = max(end, min(last.end, last.start + OVERLAP))
-        start = guard_in(envelope, start, floor)  # never open a shot inside the first sound of its first word
-        end = guard_out(envelope, end, ceiling)  # nor close it inside the last sound of its last word
+        start = guard_in(heard, start, floor)  # never open a shot inside the first sound of its first word
+        end = guard_out(heard, end, ceiling)  # nor close it inside the last sound of its last word
+    start, opens = lead_in(heard, start, floor, pads.lead, first, fps)
+    end = tail_out(heard, end, ceiling, pads.tail, last, ends_film=pads.ends_film)
     frame = 1 / fps
     before = words[run[0] - 1] if run[0] else None
     after = words[run[-1] + 1] if run[-1] + 1 < len(words) else None
@@ -89,7 +94,7 @@ def bounds(run: list[int], words: list[Word], clip: Clip, envelope: Envelope | N
         max(start, floor),
         min(end, ceiling),
         fps,
-        floor=floor - frame if no_frame_between(before, first, frame) else floor,
+        floor=max(opens, floor - frame if no_frame_between(before, first, frame) else floor),
         ceiling=min(ceiling + frame, final) if no_frame_between(last, after, frame) else ceiling,
     )
 
@@ -111,7 +116,7 @@ def assemble(project: Project, removed: list[Removed], fps: int, order: list[Key
     """
     cuts = [item for item in removed if item.decision == "auto"]
     found: list[tuple[str, list[int]]] = []
-    context: dict[str, tuple[Clip, list[Word], tuple[Removed, ...], Envelope | None]] = {}
+    context: dict[str, Shot] = {}
     for clip in project.clips():
         here = [item for item in cuts if item.clip == clip.id]
         words = project.words(clip.id)
@@ -123,20 +128,34 @@ def assemble(project: Project, removed: list[Removed], fps: int, order: list[Key
         walls = tuple(item for item in here if item.kind == "silence" and item.evidence.startswith(VOICED_PAUSE))
         context[clip.id] = (clip, words, walls, envelope_of(clip))
         found += [(clip.id, run) for run in runs(words, here)]
+    ordered = arrange(found, order) if order else found
+    pads, joins = plan(
+        ordered,
+        context,
+        cuts,
+        fps,
+        speed=pace.pace_of(project.config),
+        max_pause=pace.max_pause_of(project.config),
+        end_hold=pace.end_hold_of(project.config),
+        language=str(project.setting("transcribe", "language", "en") or "en"),
+    )
     segments: list[Segment] = []
-    for name, run in arrange(found, order) if order else found:
+    home: dict[int, Segment] = {}
+    for place, (name, run) in enumerate(ordered):
         clip, words, walls, envelope = context[name]
         if not run:
             segments.append(Segment(id="", clip=name, start=0.0, end=round(last_full_frame(clip.duration, fps), 6), label="no speech"))
             continue
-        start, end = bounds(run, words, clip, envelope, fps, walls)
+        start, end = bounds(run, words, clip, envelope, fps, walls, pads[place])
         latest = segments[-1] if segments and segments[-1].clip == name else None
         if latest and latest.start <= start <= latest.end:
             latest.end = end  # speech filled the pause, so there was nothing to take out
         else:
             segments.append(Segment(id="", clip=name, start=start, end=end, label=" ".join(words[i].text for i in run[:LABEL_WORDS])))
+        home[place] = segments[-1]
     for number, segment in enumerate(segments, start=1):
         segment.id = f"s{number:03d}"
+    stamp(removed, joins, ordered, context, home)
     return Edl(fps=fps, segments=segments, removed=removed)
 
 
@@ -196,10 +215,18 @@ def removals(project: Project, within: tuple[int, int] | None = None) -> list[Re
     """Layers 1 and 2, in recording order. `within` looks at one stretch of words, for a clip taken from a longer talk."""
     clips = project.clips()
     words = {clip.id: project.words(clip.id)[slice(*within) if within else slice(None)] for clip in clips}
-    max_pause = float(project.setting("cut", "max_pause", 0.4))
-    remove_fillers = bool(project.setting("cut", "remove_fillers", True))
-    found = [item for clip in clips for item in certain(clip, words[clip.id], max_pause=max_pause, remove_fillers=remove_fillers, envelope=envelope_of(clip))]
+    fillers = filler_mode(project.config.get("cut", {}))
+    settings = {
+        "max_pause": pace.max_pause_of(project.config),
+        "pace": pace.pace_of(project.config),
+        "fillers": fillers,
+        "language": str(project.setting("transcribe", "language", "en") or "en"),
+    }
+    found = [item for clip in clips for item in certain(clip, words[clip.id], envelope=envelope_of(clip), **settings)]
     found += candidates(clips, words, {clip.id: envelope_of(clip) for clip in clips})
+    if fillers == "clean":
+        for clip in clips:
+            spare_short_shots(words[clip.id], [item for item in found if item.clip == clip.id])
     return [item.removed() for item in sorted(found, key=lambda c: (c.clip, c.start, c.end))]
 
 
@@ -270,6 +297,10 @@ def validate(project: Project, edl: Edl) -> list[str]:
             continue
         if segment.end > clip.duration + TIME_SLACK:
             problems.append(f"{segment.id}: ends at {segment.end:.3f} s, past the end of {clip.id} at {clip.duration:.3f} s.")
+        if frame_count(segment.start, segment.end, edl.fps) < 1:  # every stage counts frames one way, and none may invent a frame for this
+            length, frame = segment.end - segment.start, 1 / edl.fps
+            problems.append(f"{segment.id}: {length:.6f} s is shorter than one frame at {edl.fps} fps. Lengthen it to {frame:.6f} s or more, or delete the segment.")
+            continue
         if abs((segment.end - segment.start) * edl.fps - frame_count(segment.start, segment.end, edl.fps)) > 0.01:
             problems.append(f"{segment.id}: {segment.end - segment.start:.6f} s is not a whole number of frames at {edl.fps} fps.")
         for other in spans.setdefault(clip.id, []):
@@ -470,6 +501,10 @@ def run(args: argparse.Namespace) -> int:
         print(f"Script: {write_script(project, edl)}. Keep, delete or move its lines, then run `altocue cut --from-script`.")
     if waiting:
         print(f"{waiting} items wait for a ruling and stay in the video: {review}")
+    short = [segment for segment in edl.segments if segment.end - segment.start < SHORT_SHOT - 1e-6]
+    if short:
+        many = len(short) > 1
+        print(f"{len(short)} kept segment{'s run' if many else ' runs'} under {SHORT_SHOT:g} s, too brief to read. The report lists {'them' if many else 'it'}.")
     held = sum(len(segment.held) for segment in edl.segments)
     if held:
         print(f"Kept {held} hand edit{'' if held == 1 else 's'}.")

@@ -13,6 +13,9 @@ from .errors import AltocueError
 from .project import Project
 
 BT1848 = "https://www.itu.int/rec/R-REC-BT.1848"
+VERTICAL = "vertical"
+VERTICAL_APPS = ("reels", "tiktok", "shorts")
+TALLER_THAN = 5 / 4  # height over width. Past 4:5 a film plays full screen, under an app's buttons and its own caption
 PLAIN_MARGIN = {"left": 0.05, "right": 0.95, "top": 0.05, "bottom": 0.95}
 
 
@@ -91,6 +94,29 @@ PLATFORMS = {
 }
 
 
+def overlap(names: tuple[str, ...]) -> dict[str, float]:
+    """The part of the screen every one of these apps leaves alone."""
+    zones = [PLATFORMS[name].zone for name in names]
+    return {
+        "left": max(zone["left"] for zone in zones),
+        "right": min(zone["right"] for zone in zones),
+        "top": max(zone["top"] for zone in zones),
+        "bottom": min(zone["bottom"] for zone in zones),
+    }
+
+
+# One tall file that is safe in every vertical app. It is worked out from the table above, so it moves when they do.
+PLATFORMS[VERTICAL] = Platform(
+    VERTICAL,
+    "9:16",
+    overlap(VERTICAL_APPS),
+    f"Estimate. The overlap of the {', '.join(VERTICAL_APPS)} zones in this table, so text clears all of them. Each of those is an estimate with its own source.",
+    min(limit for limit in (PLATFORMS[name].longest for name in VERTICAL_APPS) if limit),
+    None,
+    f"The shortest of the {', '.join(VERTICAL_APPS)} limits in this table, so one file can go to each of them.",
+)
+
+
 def find(name: str) -> Platform:
     if name not in PLATFORMS:
         raise AltocueError(f"Unknown platform {name}.", fix=f"Use {', '.join(PLATFORMS)}.")
@@ -102,7 +128,36 @@ def parse(text: str) -> list[Platform]:
     return [find(name) for name in dict.fromkeys(part.strip() for part in text.split(",") if part.strip())]
 
 
+def default_for(size: tuple[int, int]) -> str:
+    """The platform a new project of this size starts on: `vertical` for a canvas taller than 4:5, none for any other."""
+    width, height = size
+    return VERTICAL if height > width * TALLER_THAN else ""
+
+
+def built_in(project: Project) -> bool:
+    """True when a tall project names no platform, so its text keeps to the `vertical` zone.
+
+    A film from a storyboard lays its text out in zones of its own, which no platform moves, so it stays as it was.
+    """
+    if project.setting("output", "platform"):
+        return False
+    return bool(default_for(project.size)) and not (project.root / "storyboard.json").is_file()
+
+
 def zone_of(project: Project) -> dict[str, float] | None:
-    """The safe zone of the platform this project is cut for, if it names one under `[output]`."""
+    """The safe zone of the platform this project is cut for. A tall project that names none gets the `vertical` zone."""
     name = project.setting("output", "platform")
-    return find(str(name)).zone if name else None
+    if name:
+        return find(str(name)).zone
+    return PLATFORMS[VERTICAL].zone if built_in(project) else None
+
+
+def note(project: Project) -> str:
+    """One line for the user when the built-in zone is used without being asked for. Empty otherwise."""
+    if not built_in(project):
+        return ""
+    bottom = PLATFORMS[VERTICAL].zone["bottom"]
+    return (
+        f"No platform is set, so text keeps to the built-in vertical safe zone: the overlap of {', '.join(VERTICAL_APPS)}, "
+        f"which ends {bottom:.0%} of the way down. Set [output] platform in altocue.toml to choose another."
+    )

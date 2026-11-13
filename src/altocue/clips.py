@@ -412,11 +412,13 @@ def run_find(args: argparse.Namespace) -> int:
     rows = find_candidates(project, count=args.count, length=length, speaker=args.speaker)
     path = write_candidates(project, rows, length)
     short = f", asked for {args.count}" if len(rows) < args.count else ""
-    print(f"{len(rows)} clips of {length[0]:g} to {length[1]:g} s{short}. Nothing here forecasts how a clip will do.")
+    print(f"{len(rows)} clip{'' if len(rows) == 1 else 's'} of {length[0]:g} to {length[1]:g} s{short}. Nothing here forecasts how a clip will do.")
     for row in rows:
         print(f'{row["number"]:>3}. {row["clip"]} {stamp(row["start"])}, {row["seconds"]:g} s, {5 - len(row["watch_for"])} of 5 checks: "{row["first_line"]}"')
     print(f"Why each one, and what to watch for: {path}")
-    print(f"Next: `altocue clips cut -p {args.project} --pick 1,3,5`")
+    if rows:  # the example picks numbers that are in the list: one candidate used to be told `--pick 1,3,5`
+        example = ",".join(str(row["number"]) for row in rows[:5:2])
+        print(f"Next: `altocue clips cut -p {args.project} --pick {example}`")
     print(RIGHTS_NOTE)
     return 0
 
@@ -536,7 +538,8 @@ def run_cut(args: argparse.Namespace) -> int:
         child = make_child(project, row, root, args.aspect)
         seconds = child.edl().duration
         note = f" That is outside {low:g} to {high:g} s, because the cut took more out." if not low <= seconds <= high else ""
-        print(f"Clip {number}: {seconds:.1f} s in {len(child.edl().segments)} segments at {root}.{note}")
+        pieces = len(child.edl().segments)
+        print(f"Clip {number}: {seconds:.1f} s in {pieces} segment{'' if pieces == 1 else 's'} at {root}.{note}")
         made.append(root)
     print(f"Next: write the hook into motion.json, then `altocue run -p {made[0]} --draft`.")
     return 0

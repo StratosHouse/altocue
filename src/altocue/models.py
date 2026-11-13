@@ -42,6 +42,13 @@ class Clip(Model):
     has_audio: bool = True
     sample_rate: int = 0
     variable_frame_rate: bool = False
+    input: str = ""  # A log curve from `[grade] input`, set by the grade while it works. ffprobe cannot see one, so it is never probed.
+    video_duration: float = 0.0  # where the picture ends, counted from the file's start. 0 when the file does not say, or media.json is older
+
+    @property
+    def picture_duration(self) -> float:
+        """How long there is picture. Sound often outlasts it on a phone, so the file's own length proves nothing."""
+        return min(self.video_duration, self.duration) if self.video_duration > 0 else self.duration
 
     @property
     def is_hdr(self) -> bool:
@@ -79,6 +86,8 @@ class Segment(Model):
     label: str = ""
     crop: list[float] | None = None
     path: list[list[float]] | None = None  # [seconds into the segment, x, y] keyframes when the crop moves. `crop` holds its size
+    origin: list[float] | None = None  # [x, y] in display pixels: the point a zoom holds still, the eyes when `frame` found them. None is mid crop, 42 percent down
+    ease: list[float] | None = None  # [seconds into a push at this segment's first frame, seconds the whole push lasts]. None moves at an even speed
     no_snap_in: bool = False
     no_snap_out: bool = False
     held: list[str] = field(default_factory=list)  # gain, crop or zoom set by hand: `frame` leaves these, and a re-cut carries them
@@ -95,6 +104,8 @@ class Removed(Model):
     evidence: str
     decision: Decision = "auto"
     score: float = 1.0
+    pause: str = ""  # the join this left behind: clause, comma, sentence or topic, or `end` at the end of the film
+    kept: float | None = None  # seconds of quiet still in the film at that join. None when the cut did not place it
 
 
 @dataclass

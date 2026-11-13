@@ -15,7 +15,8 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw
 
-from .. import claims, ffmpeg, master, platforms
+from .. import broll, claims, ffmpeg, master, platforms
+from ..cut.snap import frame_count
 from ..errors import AltocueError
 from ..models import Clip, Edl, GateResult, Word
 from ..motion import formats
@@ -50,9 +51,12 @@ TEXT_MATCH = 0.6
 FACE_OVERLAP = 0.2
 GRAPHIC_OPAQUE = 170  # text and panels. The soft scrim behind a hook stays under this
 GRAPHIC_FACE_SHARE = 0.06
+DURATION_FRAMES = 1  # in total, however many cuts. One frame forgives a container's rounding and nothing else
+DURATION_BLENDED = 2  # with a transition or a baked insert, which are encoded apart and joined in
+SYNC_FRAMES = 1.5  # the most sound and picture may differ in length
 INSERT_MOST = 0.4
 NO_TIMELINE = "No timeline.json, so what should be on screen is unknown."
-INSERT_NOT_BEFORE = 2.0
+INSERT_NOT_BEFORE = broll.AFTER_HOOK  # one rule, one number. The placer keeps the hook clear, and this checks the same line
 EDGE_SLACK = 0.005
 GRAB_BACKOFF = (0.0, 0.1, 0.5, 1.0)
 HOOK_SECONDS = 3.0
@@ -74,7 +78,7 @@ BAKED_LETTERS_PER_EDIT = 5  # a misread of planned text may be one letter off in
 LIP_SHEET = 12
 LIP_WIDTH = 270
 
-TALL_ZONE = {"left": 0.05, "right": 0.92, "top": 0.09, "bottom": 0.82}
+TALL_ZONE = {"left": 0.05, "right": 0.92, "top": 0.09, "bottom": 0.82}  # 4:5, and a film from a storyboard. A taller project gets a platform's zone
 FLAT_ZONE = {"left": 0.04, "right": 0.96, "top": 0.05, "bottom": 0.95}
 
 
@@ -187,7 +191,7 @@ class Context:
             return []
         frames, shots = 0, []
         for segment in self.edl.segments:
-            length = max(1, round((segment.end - segment.start) * self.fps))
+            length = frame_count(segment.start, segment.end, self.fps)
             shots.append(Shot(frames / self.fps, (frames + length) / self.fps, segment.label))
             frames += length
         return shots
@@ -294,6 +298,9 @@ def transcribe(path: str | Path, language: str = "en", spans: list[tuple[float, 
         return (module.transcribe_file(path, language=language, spans=spans) if spans else module.transcribe_file(path, language=language)), ""
     except AltocueError as error:
         return None, str(error)
+    except Exception as error:  # a transcriber that breaks for any reason skips the word gates. It never ends the run, and never passes them
+        said = (str(error).strip().splitlines() or [""])[0][:200]
+        return None, f"The transcriber stopped on {type(error).__name__}{': ' + said if said else ''}, so nothing was re-transcribed."
 
 
 def transcript_record(digest: str, words: list[Word] | None, reason: str) -> dict[str, Any]:
@@ -461,20 +468,27 @@ def gate_film_length(c: Context) -> GateResult:
     return GateResult(id="duration", passed=abs(got - want) <= 1, value=got, threshold=f"{want} +/- 1 frames", detail=f"{got} frames, the storyboard implies {want}")
 
 
+def blended(c: Context) -> bool:
+    """A transition between shots, or an insert that arrives or leaves by one, is encoded apart and joined in."""
+    edits = c.timeline or {}
+    return bool(edits.get("transitions")) or any(insert.get("in") or insert.get("out") for insert in edits.get("inserts", []))
+
+
 def gate_duration(c: Context) -> GateResult:
+    """Segments sit on the frame grid, so the count the edit implies is exact and the allowance does not grow with the cuts."""
     if is_film(c) and not c.edl:
         return gate_film_length(c)
     if not c.edl:
         return skipped("duration", "No edl.json, so there is nothing to compare against.")
     fps = c.fps
-    want = sum(round((s.end - s.start) * fps) for s in c.edl.segments) + round(c.tail * fps)
-    allow = max(1, len(c.edl.segments))
+    want = sum(frame_count(s.start, s.end, fps) for s in c.edl.segments) + round(c.tail * fps)
+    allow = DURATION_BLENDED if blended(c) else DURATION_FRAMES
     got = count_frames(c.file)
     problems = [] if abs(got - want) <= allow else [f"{got} frames, the edit implies {want}"]
     if c.audio is not None and c.audio.get("duration"):
-        drift = abs(float(c.audio["duration"]) - c.clip.duration)
-        if drift > 0.25:
-            problems.append(f"sound and picture lengths differ by {drift:.2f}s")
+        drift = abs(float(c.audio["duration"]) - got / fps)  # the counted picture, because a container reports the longer of the two
+        if drift > SYNC_FRAMES / fps:
+            problems.append(f"sound and picture lengths differ by {drift:.3f}s, which is {drift * fps:.1f} frames")
     return GateResult(
         id="duration",
         passed=not problems,
@@ -792,7 +806,7 @@ def gate_brief_coverage(c: Context) -> GateResult:
 def zone_for(c: Context) -> dict[str, float]:
     if c.rules and c.rules.safe_zone:
         return c.rules.safe_zone
-    named = platforms.zone_of(c.project)
+    named = platforms.zone_of(c.project)  # a tall project that names no platform gets the built-in vertical zone
     if named:
         return named
     width, height = c.project.size

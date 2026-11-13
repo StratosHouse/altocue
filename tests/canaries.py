@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from altocue import ffmpeg
+from altocue import ffmpeg, platforms
 from altocue import frame as _frame  # noqa: F401  QA reaches the face model through frame, which imports cut.hand. Load it before `fakes` stands in for cut.
 from altocue.generate import import_asset
 from altocue.models import Clip, Edl, GateResult, Segment, Word
@@ -30,7 +30,12 @@ FPS = 30
 WIDTH, HEIGHT = 1080, 1920
 SECONDS = 6.0
 RATE = 48000
-SAFE_Y = 0.68
+# A tall project that names no platform is held to the vertical zone, so a clean canary keeps its text inside it.
+ZONE = platforms.PLATFORMS["vertical"].zone
+SAFE_Y = 0.61  # above the foot of the zone, and under the top 60% of the frame, which the text reader also reads on its own with the face in it
+HEAD_Y = round(ZONE["top"] + 0.005, 3)  # just inside the top of the zone
+TEXT_SIZE = 72
+TEXT_FITS = int(2 * min(0.5 - ZONE["left"], ZONE["right"] - 0.5) * WIDTH) - 8  # the widest text that stays in the zone when centred on the frame
 FACE_Y = 0.34
 SCRIPT = "the first thing you need is a plan and the second thing you need is a reason to keep going".split()
 RUSHED = SCRIPT + "when the plan stops working and nobody is watching you do it".split()  # 320 words a minute, past reading
@@ -40,7 +45,7 @@ CLAIMING = "i tried this serum for a month and it changed my life so i bought tw
 HOST_PROMPT = "A woman holds the bottle up to the window, handheld, ending on the label."
 LABEL = "AI-generated actor"
 LABEL_ITEM = {"type": "chip", "text": LABEL, "start": 0.0, "end": SECONDS}
-LABEL_BURN = (LABEL, 0.12, 0.0, SECONDS)
+LABEL_BURN = (LABEL, HEAD_Y, 0.0, SECONDS)
 MUST_SAY = "## Must say\n\n"
 
 
@@ -117,7 +122,7 @@ class Case:
         return not self.gate
 
 
-INSERT = {"file": "broll.mp4", "start": 2.0, "end": 4.0}  # frames 60 to 119 at 30 fps
+INSERT = {"file": "broll.mp4", "start": 3.0, "end": 5.0}  # frames 90 to 149 at 30 fps, clear of the hook
 
 CANARIES = [
     Case("black flash, two frames", "black_frames", Recipe(vf="drawbox=color=black:t=fill:enable='between(n,90,91)'")),
@@ -140,9 +145,9 @@ CANARIES = [
     Case("a line the brief requires is never said", "brief_coverage", Recipe(brief=f"# Brief\n\n{MUST_SAY}- the free plan never expires\n")),
     Case("five flashes a second across the picture", "flash_rate", Recipe(vf=strobe(6))),
     Case("five saturated red flashes a second", "flash_rate", Recipe(vf=strobe(6, "0xff0000"))),
-    Case("the next shot a frame early at the end of an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(60, 118))),
-    Case("the last shot a frame late into an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(61, 119))),
-    Case("a frame of something else at an insert edge", "stray_frames", Recipe(inserts=[INSERT], vf=f"{fill(60, 119)},{fill(59, 59, '0xff3322')}")),
+    Case("the next shot a frame early at the end of an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(90, 148))),
+    Case("the last shot a frame late into an insert", "stray_frames", Recipe(inserts=[INSERT], vf=fill(91, 149))),
+    Case("a frame of something else at an insert edge", "stray_frames", Recipe(inserts=[INSERT], vf=f"{fill(90, 149)},{fill(89, 89, '0xff3322')}")),
     Case("CC BY music with no credits file", "credits", Recipe(assets=[OWED])),
     Case(
         "banned word in a graphic",
@@ -192,7 +197,7 @@ CANARIES = [
     Case(
         "disclosure that flashes past",
         "disclosure",
-        Recipe(performer=HOST_PROMPT, items=[{**LABEL_ITEM, "end": 0.5}], burn_text=[(LABEL, 0.12, 0.0, 0.5)]),
+        Recipe(performer=HOST_PROMPT, items=[{**LABEL_ITEM, "end": 0.5}], burn_text=[(LABEL, HEAD_Y, 0.0, 0.5)]),
         also=("text_readable",),
     ),
     Case(
@@ -218,7 +223,7 @@ CONTROLS = [
                 "required": [{"id": "plan-card", "when_spoken": "plan", "on_screen": "free plan"}],
             },
             items=[{"type": "chip", "text": "Altocue free plan", "start": 0.0, "end": 6.0}],
-            burn_text=[("Altocue free plan", 0.12, 0.0, 6.0)],
+            burn_text=[("Altocue free plan", HEAD_Y, 0.0, 6.0)],
         ),
     ),
     Case("clean, labelled synthetic host", "", Recipe(performer=HOST_PROMPT, items=[LABEL_ITEM], burn_text=[LABEL_BURN])),
@@ -226,9 +231,9 @@ CONTROLS = [
     Case("clean, a real speaker may say what they tried", "", Recipe(expected=CLAIMING, heard=CLAIMING)),
     Case("clean, three flashes a second", "", Recipe(vf=strobe(10))),
     Case("clean, a small corner blinking fast", "", Recipe(vf=strobe(6, box="x=0:y=0:w=150:h=150:"))),
-    Case("clean, an insert with hard edges", "", Recipe(inserts=[INSERT], vf=fill(60, 119))),
+    Case("clean, an insert with hard edges", "", Recipe(inserts=[INSERT], vf=fill(90, 149))),
     Case("clean, an insert that matches its neighbours", "", Recipe(inserts=[INSERT])),
-    Case("clean, an insert that arrives by a dissolve", "", Recipe(inserts=[{**INSERT, "in": {"type": "dissolve", "duration": 0.2}}], vf=fill(61, 119))),
+    Case("clean, an insert that arrives by a dissolve", "", Recipe(inserts=[{**INSERT, "in": {"type": "dissolve", "duration": 0.2}}], vf=fill(91, 149))),
     Case("clean, the brief's lines are all said", "", Recipe(brief=f"# Brief\n\n{MUST_SAY}- you need a plan\n- a reason to keep going\n")),
     Case(
         "clean, graphic held long enough to read",
@@ -260,12 +265,17 @@ def draw_face(canvas: Image.Image) -> None:
 
 
 def text_plate(text: str, y: float) -> Image.Image:
-    """White text on a dark panel, centred at a height, as a full-size overlay."""
+    """White text on a dark panel, centred at a height, as a full-size overlay. A line too wide for the safe zone is set smaller."""
     plate = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     d = ImageDraw.Draw(plate)
-    face = font(72)
-    box = d.textbbox((0, 0), text, font=face)
-    w, h = box[2] - box[0], box[3] - box[1]
+    size = TEXT_SIZE
+    while True:
+        face = font(size)
+        box = d.textbbox((0, 0), text, font=face)
+        w, h = box[2] - box[0], box[3] - box[1]
+        if w <= TEXT_FITS or size <= 40:
+            break
+        size -= 2
     x, top = (WIDTH - w) // 2, int(y * HEIGHT)
     d.rectangle((x - 30, top - 26, x + w + 30, top + h + 34), fill=(8, 13, 19, 235))
     d.text((x - box[0], top - box[1]), text, font=face, fill=(255, 255, 255, 255))

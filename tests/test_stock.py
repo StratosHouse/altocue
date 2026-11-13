@@ -776,6 +776,22 @@ def test_a_photo_becomes_a_push_in_of_the_exact_length_and_size(tmp_path):
     assert not np.allclose(first, last, atol=2)
 
 
+def test_a_photo_takes_the_look_it_is_given(tmp_path):
+    """A still is an insert like any other, so it wears the project's look."""
+    from altocue import grade
+
+    source = tmp_path / "grey.png"
+    Image.new("RGB", (1200, 1600), "#808080").save(source)
+    look = grade.write_cube(tmp_path / "look.cube", grade.identity_grid(17) * np.array([1.0, 1.0, 0.5]), "half the blue")
+    plain = stills.push_in(source, tmp_path / "plain.mp4", (270, 480), 30, 3)
+    looked = stills.push_in(source, tmp_path / "looked.mp4", (270, 480), 30, 3, lut=look)
+    before = np.asarray(Image.open(frames_of(plain, tmp_path / "plain")[0]).convert("RGB"), float).mean(axis=(0, 1))
+    after = np.asarray(Image.open(frames_of(looked, tmp_path / "looked")[0]).convert("RGB"), float).mean(axis=(0, 1))
+    assert abs(before[2] - 128) < 3 and abs(after[2] - 64) < 4 and abs(after[0] - before[0]) < 3
+    video = next(s for s in ffmpeg.probe_json(looked)["streams"] if s["codec_type"] == "video")
+    assert int(video["nb_frames"]) == 3 and video["pix_fmt"] == "yuv420p" and video.get("color_space") == "bt709"
+
+
 @pytest.mark.parametrize("canvas", [(540, 960), (960, 540), (540, 540)])
 def test_a_photo_keeps_its_aspect(tmp_path, canvas):
     source = tmp_path / "ring.png"

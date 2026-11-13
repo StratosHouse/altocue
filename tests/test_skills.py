@@ -66,7 +66,7 @@ BARE_FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]*")
 TYPE_VALUE = re.compile(r'"type":\s*"([\w-]+)"')
 PATHISH = re.compile(r"^[\w./-]+\.(?:json|md|toml|txt|jpg|png|mp4|mov|csv|cube|srt|vtt|html|mp3|wav|ttf)$")
 NAMEISH = re.compile(r"^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+$")
-AMERICAN = re.compile(r"\b(?!(?:re)?sized?\b|prized?\b|seized?\b)\w+(?:ize|ized|izing|ization)\b")
+AMERICAN = re.compile(r"\b(?!(?i:(?:re)?sized?|prized?|seized?)\b)\w+(?:ize|ized|izing|ization)\b")
 SEGMENT_ID = re.compile(r"^s\d{3}$")
 CUTDOWN = re.compile(r"^final-\d+x\d+\.mp4$")  # `altocue film render --cutdowns` writes final-<W>x<H>.mp4 for each aspect, built in film.py
 
@@ -368,6 +368,7 @@ def test_a_wrong_segment_id_is_caught():
 
 def test_a_real_spelling_is_not_called_american():
     assert not AMERICAN.search("a human-sized reaction, resized once") and AMERICAN.search("it will normalize the level")
+    assert not AMERICAN.search("Size is distance. Prize the take.") and AMERICAN.search("Normalize it")
 
 
 def test_a_bad_choice_is_caught():

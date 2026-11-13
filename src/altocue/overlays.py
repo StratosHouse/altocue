@@ -1,8 +1,12 @@
 """Film grain, light leak, dust, vignette and paper, all made here. Nothing is bundled.
 
 Each goes on the picture after inserts and before the graphics, so captions stay clean. Grain,
-dust and paper are grey plates laid over luma with hardlight, which leaves mid grey alone and
-works hardest in the mids, as film does, so colour is untouched. A plate is built once and looped.
+dust and paper are grey plates laid over luma, so colour is untouched. A plate is built once
+and looped.
+
+Grain uses the overlay blend, which scales the plate by how far the picture is from black or
+white: strongest in the mids, gone in pure black and pure white, as film grain is. Dust and
+paper use hardlight, which follows the plate alone, so a speck shows wherever it lands.
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ LEAK_SCALE = 8
 DUST_SCALE = 2
 LEAK_FADE = 0.3
 GREY = 128
+GRAIN_BLEND = "overlay"  # ffmpeg's overlay switches on the picture, and its hardlight on the plate
 TO_RGB = "scale=in_color_matrix=bt709:in_range=tv:flags=bicubic+accurate_rnd+full_chroma_int+full_chroma_inp,format=gbrp"
 TO_YUV = "scale=out_color_matrix=bt709:out_range=tv:flags=bicubic+accurate_rnd+full_chroma_int,format=yuv420p"
 
@@ -175,7 +180,9 @@ def graph(items: list[dict[str, Any]], base: str, c: Any, next_input: int) -> tu
                 f"color=c=gray:s={c.width}x{c.height}:r={c.fps},format=yuv420p,lutyuv=y={GREY},noise=c0s=48:c0f=t+u:c0_seed={SEED},gblur=sigma={soft:.3f}[plate{index}]"
             )
             lines.append(f"[{base}]format=yuv420p[under{index}]")
-            lines.append(f"[under{index}][plate{index}]blend=c0_mode=hardlight:c0_opacity={amount:.4f}:shortest=1{_when(item)}[{after}]")
+            # Hardlight here put grain at full strength into pure black and pure white, which lifted blacks, dimmed whites
+            # and spent bitrate on both. At mid grey the two blends are the same, so `amount` keeps its meaning.
+            lines.append(f"[under{index}][plate{index}]blend=c0_mode={GRAIN_BLEND}:c0_opacity={amount:.4f}:shortest=1{_when(item)}[{after}]")
         elif kind == "light_leak":
             inputs += ["-stream_loop", "-1", "-i", item["plate"]]
             fade = ""

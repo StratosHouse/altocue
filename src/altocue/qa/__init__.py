@@ -76,18 +76,30 @@ def _cell(value: object) -> str:
     return "" if value is None else str(value)
 
 
-def print_table(results: list[GateResult]) -> None:
-    width = max([len(g.id) for g in results] + [4])
-    print(f"{'Gate':<{width}}  Result  Value      Detail")
-    for gate in results:
-        result = "n/a" if gate.value == gates.NOT_APPLICABLE else "SKIP" if gate.skipped else "PASS" if gate.passed else "FAIL"
-        value = "" if isinstance(gate.value, dict) else _cell(gate.value)
-        print(f"{gate.id:<{width}}  {result:<6}  {value[:9]:<9}  {gate.detail}")
-    if any(gates.quotes_the_film(g) for g in results):
-        print(f"\n{gates.DATA_NOTE}")
-    passed = sum(1 for g in results if g.passed)
+def print_table(results: list[GateResult], *, everything: bool = False) -> None:
+    """What somebody must act on, then one line that counts the rest. `everything` prints every gate, in the order they ran.
+
+    An ordinary edit ran 33 gates and printed 33 rows, half of them "not a film from a storyboard". The failures and the
+    skips were somewhere in the middle. `review/qa.json` always holds every gate, whatever is printed here.
+    """
     missing = not_run(results)
-    print(f"\n{passed} passed, {len(failed(results))} failed, {len(missing)} skipped, {sum(g.value == gates.NOT_APPLICABLE for g in results)} not applicable.")
+    shown = results if everything else [*failed(results), *missing]
+    if shown:
+        width = max([len(g.id) for g in shown] + [4])
+        print(f"{'Gate':<{width}}  Result  Value      Detail")
+        for gate in shown:
+            result = "n/a" if gate.value == gates.NOT_APPLICABLE else "SKIP" if gate.skipped else "PASS" if gate.passed else "FAIL"
+            value = "" if isinstance(gate.value, dict) else _cell(gate.value)
+            print(f"{gate.id:<{width}}  {result:<6}  {value[:9]:<9}  {gate.detail}")
+        if any(gates.quotes_the_film(g) for g in shown):
+            print(f"\n{gates.DATA_NOTE}")
+        print()
+    passed = sum(1 for g in results if g.passed)
+    apart = sum(g.value == gates.NOT_APPLICABLE for g in results)
+    counts = [f"{len(failed(results))} failed", f"{len(missing)} skipped"] if shown else []
+    counts += [f"{passed} passed", f"{apart} {'does' if apart == 1 else 'do'} not apply"]
+    more = "" if everything or not passed + apart else " `altocue qa --all` lists every gate."
+    print(f"{', '.join(counts)}.{more}")
     if missing:
         print(f"Not checked: {', '.join(g.id for g in missing)}. A skipped gate is not a pass.")
 
@@ -111,6 +123,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--stage", choices=["final", "draft"], default="final", help="Drafts skip the mastering gates")
     parser.add_argument("--rules", help="Rules file. Defaults to rules.json in the project")
     parser.add_argument("--ocr-fps", type=float, default=gates.OCR_FPS, help="Frames read per second when checking rules")
+    parser.add_argument("--all", action="store_true", help="Print every gate. Left out, only the failures and the skips are listed, with a count of the rest")
     parser.add_argument(
         "--check",
         choices=["ugc", "proof"],
@@ -130,6 +143,6 @@ def run(args: argparse.Namespace) -> int:
     else:
         results = run_gates(project, file, args.stage, rules_path=args.rules, ocr_fps=args.ocr_fps)
         saved = "qa.json"
-    print_table(results)
+    print_table(results, everything=getattr(args, "all", False))
     print(f"Saved {project.review_dir / saved}")
     return 1 if failed(results) else 0

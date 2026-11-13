@@ -136,7 +136,13 @@ Ask your agent:
 Edit take.mov into a 45 second reel for first-time founders.
 ```
 
-Or drive it yourself:
+Or drive it yourself. The first time, answer eight questions once, and every project after that starts the way you work:
+
+```bash
+altocue start
+```
+
+It asks what kind of video you make, where it goes, your brand kit, captions, sound, language, whether anything may go online and how often to stop for a check. `altocue start --show` prints your answers. Then:
 
 <div align="center"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/terminal.gif" alt="A terminal running every Altocue stage, ending in SHIP" width="100%"></div>
 
@@ -150,9 +156,13 @@ altocue run
 
 `altocue run` stops before review. Read `work/cut-review.md`, rule on anything it could not decide with `altocue cut --apply-review decisions.json`, then run `altocue run` again. When QA passes, run `altocue review`.
 
+- **Start from the kind of video.** `altocue new --kind` sets a project up for a short talking video, a long one, a tutorial, an interview, a clip, a product demo, an advert, a testimonial, an event or a story. `altocue start --kinds` lists them.
+- **An editor's judgement, written down.** The `altocue-craft` skill is what your agent reads before it decides anything: a playbook for each kind of video, where and why to cut, shots, colour, sound, motion, directing a shoot and the passes to run on a finished cut.
+- **It watches its own film.** `altocue watch` turns a render into sheets of stamped frames: every line, both sides of every cut, every graphic and the ending. Your agent checks them before you do.
 - **Edit by transcript.** `script.md` holds every sentence. Keep, remove or reorder them, then run `altocue cut --from-script`. Gain, crops, zooms and order you set by hand survive a re-cut, and anything lost is reported.
 - **See the edit on a timeline.** `altocue timeline -p .` shows the cut, captions, every graphic, the inserts and the voice, music and effects in the HyperFrames studio, at a local address it prints. Nothing else opens. The studio is a view: change `edl.json` or `motion.json`, then run it again. Stop it with `altocue timeline --stop`.
 - **Check it anywhere.** `altocue review --page` writes one file you open yourself, with no server: the film beside every gate, note and caption. A click on a note jumps there. It prints the path and opens nothing.
+- **Keep every version.** `altocue versions save` keeps the edit's files, a small copy of the film and what changed since the last one, worked out by code from the files, beside your own words. `altocue versions page` writes one file you open yourself: any two versions side by side under one scrubber, each change a button that jumps there, and timed notes you can draw on. `altocue versions notes` reads those notes back to your agent, and `altocue versions restore v001` goes back. It all stays in the project folder. Nothing is uploaded.
 - **Know where you are.** `altocue status` shows what is done, what is stale and what comes next.
 - **Follow the house process.** The [Studio recipe](docs/STUDIO-RECIPE.md) is how Stratos House films, cuts, sounds and reviews its own Reels with Altocue, written so you can run it on yours.
 
@@ -162,7 +172,7 @@ altocue run
   <tr>
     <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/cut-tile.svg" width="56" alt=""><br><strong>Cut</strong><br>Silence, fillers, stutters and retakes go. Edges snap to real speech. No cut lands inside a word. Or edit the script and get a frame-safe cut.</td>
     <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/clean-tile.svg" width="56" alt=""><br><strong>Clean</strong><br>Noise and hum out, each phrase levelled, room tone in the holes, mastered to a measured loudness and true peak.</td>
-    <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/grade-tile.svg" width="56" alt=""><br><strong>Grade</strong><br>iPhone HDR to SDR. White balance and exposure anchored on the face. 8 film looks written as code, or your own .cube, with skin protected.</td>
+    <td width="33%"><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/grade-tile.svg" width="56" alt=""><br><strong>Grade</strong><br>iPhone HDR to SDR. White balance and exposure anchored on the face. 19 film looks written as code, or your own .cube, with skin protected.</td>
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/StratosHouse/altocue/main/assets/logos/frame-tile.svg" width="56" alt=""><br><strong>Frame</strong><br>Any aspect ratio up to 4:1 either way. Face-aware crops per shot, with punch-ins that hide jump cuts.</td>

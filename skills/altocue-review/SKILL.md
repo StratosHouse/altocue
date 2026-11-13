@@ -63,14 +63,14 @@ Turn each note into one named fix: one sentence, one change, everything else lef
 
 | Say | For a note on | Change |
 |---|---|---|
-| Tighter cut | `pacing` | `altocue cut --remove s007 --reason "drags"` for one stretch. For the whole film, lower `[cut] max_pause`, then `altocue cut` and rule again |
+| Tighter cut | `pacing` | `altocue cut --remove s007 --reason "drags"` for one stretch. For the whole film, set `[cut] pace` to `tight`, then `altocue cut` and rule again |
 | Harder hook | `hook` | Move the strongest self-contained line to the top of `segments` in `edl.json`, then set the `hook` item's `text` in `motion.json` to its promise, with `start` at 0 |
 | Match pacing | `pacing` | Measure the reference in its own project: `altocue new ref --input reference.mp4`, then `altocue facts -p ref --file <that file>`. Compare `scene_changes_per_10s` and `longest_static_s` with this film's, then use the rows above and below. Never aim at the number |
 | Hide the jump | `pacing`, `picture` | `altocue broll --pick b1=c2`, or raise `[frame] punch_in` and run `altocue frame` |
 | Land the line | `clarity` | `edl.json` `zoom_from` and `zoom_to` on that segment, such as 1.0 to 1.06 |
 | Fix the level | `sound_as_speech` | `edl.json` `gain` on that segment |
 | Hold it longer | `captions`, `clarity` | `duration` on that item in `motion.json`, or fewer words |
-| Cleaner captions | `captions` | `style` to `boxed` and a lower `max_words`, under `caption` in the brand file |
+| Cleaner captions | `captions` | `style` to `boxed` under `caption` in the brand file, and a lower `[caption] max_words` in `altocue.toml` |
 | Fewer effects | `sound_as_speech` | `"sfx": false` in `motion.json`, or `under_db` on one cue |
 | Softer look | `picture` | `[grade] look_strength`, such as 0.6, then `altocue grade` |
 | Hard cut | `pacing` | Delete that row from `transitions` in `motion.json` |
@@ -78,6 +78,6 @@ Turn each note into one named fix: one sentence, one change, everything else lef
 
 The same vocabulary for a generated shot is in `altocue-direct`.
 
-## Directed presenter parity
+## A presenter demonstrating software
 
-For a presenter-led software or workflow reel, use the [directed Studio workflow](../../docs/DIRECTED-STUDIO.md). The standard render reads studio.json. Every reusable Studio improvement needs a portable implementation, example, render-PC proof and a versioned handoff. Keep private footage, brand marks and licensed sounds outside the product repo.
+For a presenter-led software or workflow reel, review against the [directed Studio workflow](../../docs/DIRECTED-STUDIO.md) as well: its last step lists what to verify in the delivered file.

@@ -23,6 +23,7 @@ import numpy as np
 from . import brand as brands
 from . import cut, ffmpeg, locks, master, mix, motion, plate, platforms, render, subtitles, thumbnails
 from . import timeline as timelines
+from .cli import RENDERER_HELP
 from .errors import AltocueError
 from .generate.store import generated_dir
 from .models import Edl, GateResult
@@ -66,7 +67,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--for", dest="platforms", help=f"Comma-separated versions to render: {', '.join(platforms.PLATFORMS)}")
     parser.add_argument("--loudness", type=master.loudness_arg, help=f"Integrated LUFS, or a named target: {', '.join(master.TARGETS)}")
-    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
+    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto", help=f"For the platform versions. {RENDERER_HELP}")
     parser.add_argument("--stems", action="store_true", help="Also write voice, music and effects as WAV files, for a finisher")
     parser.add_argument("--textless", action="store_true", help="Also write the cut picture with no captions or graphics, and its voice mastered")
     parser.add_argument("--no-music", action="store_true", help="Also write the film with voice and effects only, for a song from an app's own library")
@@ -468,6 +469,7 @@ def open_version(project: Project, platform: Platform, target: dict[str, Any], *
     else:
         for segment in edl.segments:
             segment.crop, segment.path, segment.zoom_from, segment.zoom_to = None, None, 1.0, 1.0
+            segment.origin, segment.ease = None, None  # both were solved against the old crop
             segment.held = [name for name in segment.held if name == "gain"]
     version.save_edl(edl)
     if reuse:

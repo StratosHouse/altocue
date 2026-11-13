@@ -10,15 +10,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import frame, grade
 from .errors import AltocueError
 from .project import Project
-from .qa import sha256
 
 DONE, STALE, NOT_RUN = "done", "stale", "not run"
 PAGE_FILM = re.compile(r'name="altocue-film" content="([0-9a-f]{64})"')
@@ -60,6 +59,21 @@ def _older_than(file: Path, inputs: list[Path]) -> Path | None:
 
 def _clip_sources(project: Project) -> list[Path]:
     return [Path(clip.path) for clip in project.clips()]
+
+
+def check_brand(project: Project) -> Look:
+    """The brand kit comes first, so it is the first row. Its command is never the house look: that is the owner's choice to make."""
+    from . import brand as brands
+
+    read = "altocue brand ingest <kit folder> -p {folder}"
+    chosen = brands.chosen_brand(project)
+    if not chosen:
+        return Look(NOT_RUN, "no brand chosen, so nothing is captioned or rendered. With none of your own: `altocue brand ingest --house`", command=read)
+    try:
+        brands.load(project)
+    except AltocueError as error:
+        return Look(STALE, str(error).splitlines()[0], command=read)
+    return Look(DONE, "the house look, chosen on purpose" if chosen == "default" else chosen)
 
 
 def check_ingest(project: Project) -> Look:
@@ -107,12 +121,22 @@ def check_clean(project: Project) -> Look:
     if missing:
         return Look(STALE, f"no clean sound yet for {', '.join(missing)}")
     changed = [clip.id for clip in voiced if _older_than(files[clip.id], [Path(clip.path)])]
-    return Look(STALE, f"{', '.join(changed)} changed after it was cleaned") if changed else Look(DONE)
+    if changed:
+        return Look(STALE, f"{', '.join(changed)} changed after it was cleaned")
+    from . import clean
+
+    report = project.audio_dir / "report.json"
+    entries = json.loads(report.read_text()).get("clips", {}) if report.exists() else {}
+    # the same test `altocue clean` makes before it reuses a file
+    reworded = [clip.id for clip in voiced if entries.get(clip.id, {}).get("words") != clean.words_mark(clean.word_times(project, clip))]
+    return Look(STALE, f"the word times of {', '.join(reworded)} are not the ones the sound was cleaned around") if reworded else Look(DONE)
 
 
 def check_grade(project: Project) -> Look:
     if not (project.lut_dir / "report.json").exists() or not project.media_path.exists():
         return Look(NOT_RUN)
+    from . import grade  # here and below: these load NumPy and OpenCV, which `altocue status --help` should never wait for
+
     return Look(DONE) if grade.up_to_date(project) else Look(STALE, "the cut, the look or a source changed")
 
 
@@ -121,7 +145,9 @@ def check_frame(project: Project) -> Look:
         return Look(DONE, "off in altocue.toml")
     if not project.edl_path.exists() or not (project.work / "frame.json").exists():
         return Look(NOT_RUN)
-    return Look(DONE) if frame.up_to_date(project) else Look(STALE, "the cut, the aspect or a frame setting changed")
+    from . import frame
+
+    return Look(DONE) if frame.up_to_date(project) else Look(STALE, "the cut, the aspect, a source, a frame setting or the inserts over a jump cut changed")
 
 
 def check_broll(project: Project) -> Look | None:
@@ -158,8 +184,8 @@ def render_inputs(project: Project) -> list[Path]:
         from .studio.plan import load
 
         inputs.extend(Path(v) for v in load(project.root)["_assets"].values())
-    brand = str(project.setting("brand", "name", "default"))
-    return [*inputs, project.root / brand] if brand != "default" else inputs
+    brand = str(project.setting("brand", "name", "default")).strip()
+    return [*inputs, project.root / brand] if brand not in ("default", "") else inputs  # no brand is no file, and never the folder itself
 
 
 def check_render(project: Project) -> Look:
@@ -188,7 +214,11 @@ def check_master(project: Project) -> Look:
 
 def _final_hash(project: Project) -> str:
     file = project.out / "final.mp4"
-    return sha256(file) if file.exists() else ""
+    if not file.exists():
+        return ""
+    from .qa import sha256
+
+    return sha256(file)
 
 
 def check_qa(project: Project) -> Look:
@@ -242,7 +272,11 @@ def check_page(project: Project) -> Look | None:
     return Look(DONE)
 
 
+BRAND = "brand"
+NEEDS_BRAND = "render"  # the first stage that makes an asset. Everything before it runs without a brand
+
 CHECKS: tuple[tuple[str, Callable[[Project], Look | None]], ...] = (
+    (BRAND, check_brand),
     ("ingest", check_ingest),
     ("transcribe", check_transcribe),
     ("cut", check_cut),
@@ -293,6 +327,7 @@ def collect(project: Project) -> list[Stage]:
         return collect_film(project)
     stages: list[Stage] = []
     behind = ""
+    no_brand = False
     for name, check in CHECKS:
         try:
             found = check(project)
@@ -300,27 +335,80 @@ def collect(project: Project) -> list[Stage]:
             found = Look(NOT_RUN, str(error).splitlines()[0])
         if found is None:
             continue
+        if name == NEEDS_BRAND and no_brand:
+            behind = behind or BRAND
         if behind and found.state == DONE:
             found = Look(STALE, f"waits on {behind}")
         stages.append(Stage(name, found.state, found.detail, found.command or f"altocue {name} -p {{folder}}" + (f" {found.flags}" if found.flags else "")))
-        behind = behind or (name if found.state != DONE else "")
+        if name == BRAND:
+            no_brand = found.state != DONE  # the stages before the render do not wait on it
+        else:
+            behind = behind or (name if found.state != DONE else "")
     return stages
 
 
+def route() -> tuple[str, ...]:
+    """The stages one plain `altocue run` covers, in its order."""
+    from .run import ORDER
+
+    return ORDER[: ORDER.index("qa") + 1]
+
+
 def next_command(stages: list[Stage], folder: str) -> str | None:
-    """The first stage that is not done, as a command to paste. None when everything is."""
-    return next((stage.command.format(folder=folder) for stage in stages if stage.state != DONE), None)
+    """The shortest route from here, as a command to paste. None when everything is done.
+
+    One `altocue run` where it covers what is left, so nobody is walked through the stages one at a time. A stage outside
+    the run, or one that needs its own flags, is named by itself.
+    """
+    first = next((stage for stage in stages if stage.state != DONE), None)
+    if first is None:
+        return None
+    own = first.command.format(folder=folder)
+    covered = route()
+    if any(stage.name == "film" for stage in stages) or first.name not in covered or own != f"altocue {first.name} -p {folder}":
+        return own
+    if first.name == "cut" and first.state == STALE:
+        return own  # a new proposal. `altocue cut` saves the old cut and its rulings first, and `run --from cut` does not
+    # A step the run does not cover, such as stale B-roll, may sit in its way. The run then stops just before it.
+    after = stages[stages.index(first) + 1 :]
+    held = next((index for index, stage in enumerate(after) if stage.name not in covered and stage.state != DONE), len(after))
+    last = ([first] + [stage for stage in after[:held] if stage.name in covered])[-1]
+    stop = f" --to {last.name}" if any(stage.name in covered for stage in after[held:]) else ""
+    if stop and last is first:
+        return own
+    if covered.index(first.name) <= covered.index("transcribe"):
+        return f"altocue run{stop} -p {folder}"  # probing the clips again takes no time, so the plain command is the short one
+    return f"altocue run --from {first.name}{stop} -p {folder}"
+
+
+def report(project: Project, stages: list[Stage], folder: str) -> dict[str, Any]:
+    """What `--json` prints: every row with the command that redoes that one stage, and the one command to run next."""
+    return {
+        "project": str(project.root),
+        "stages": [{"stage": stage.name, "state": stage.state, "reason": stage.detail, "command": stage.command.format(folder=folder)} for stage in stages],
+        "next": next_command(stages, folder),
+    }
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
+    parser.add_argument("--json", action="store_true", help="Machine-readable output: stage, state, reason and command for each row, and one next")
 
 
 def run(args: argparse.Namespace) -> int:
-    stages = collect(Project.open(args.project))
+    from . import versions
+
+    project = Project.open(args.project)
+    stages = collect(project)
+    folder = shlex.quote(args.project)
+    if args.json:
+        print(json.dumps(report(project, stages, folder), indent=2, ensure_ascii=False))
+        return 0
     width = max(len(stage.name) for stage in stages)
     for stage in stages:
         print(f"{stage.name:<{width}}  {stage.state:<7}  {stage.detail}".rstrip())
-    command = next_command(stages, args.project)
+    for line in versions.status_lines(project):  # only a project that keeps versions has these
+        print(line)
+    command = next_command(stages, folder)
     print(f"\nNext: {command}" if command else "\nNext: nothing. This film is done and delivered.")
     return 0

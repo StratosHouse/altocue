@@ -51,7 +51,8 @@ ALWAYS = "ships with Altocue"
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--json", action="store_true", help="Machine-readable output")
+    parser.add_argument("--json", action="store_true", help="Machine-readable output, with every check, the version and whether this machine is ready")
+    parser.add_argument("--all", action="store_true", help="Also list the hosted services that have no key or tool here. They are optional, so they are left out")
 
 
 @dataclass
@@ -61,6 +62,7 @@ class Check:
     required: bool
     detail: str
     fix: str = ""
+    hosted: bool = False  # a paid or keyed service somewhere else. Never needed to edit, so never part of the verdict
 
 
 @dataclass
@@ -69,6 +71,7 @@ class Capability:
     ok: bool
     how: str
     fix: str = ""  # one command, ready to paste
+    hosted: bool = False
 
 
 def _version(cmd: list[str]) -> str:
@@ -193,12 +196,12 @@ def check_keys() -> list[Check]:
         ("spyglass", "SPYGLASS_API_KEY", "benchmarks through Spyglass"),
         ("youtube", "YOUTUBE_API_KEY", "a raw YouTube list in benchmark"),
     )
-    return [Check(name, bool(os.environ.get(env)), False, f"{env} {'set' if os.environ.get(env) else 'not set'}: {use}") for name, env, use in keys]
+    return [Check(name, bool(os.environ.get(env)), False, f"{env} {'set' if os.environ.get(env) else 'not set'}: {use}", hosted=True) for name, env, use in keys]
 
 
 def check_clis() -> list[Check]:
     tools = (("codex", "Editor in Chief through Codex"), ("higgsfield", "generation through Higgsfield"))
-    return [Check(name, bool(shutil.which(name)), False, f"{name} CLI {'found' if shutil.which(name) else 'not found'}: {use}") for name, use in tools]
+    return [Check(name, bool(shutil.which(name)), False, f"{name} CLI {'found' if shutil.which(name) else 'not found'}: {use}", hosted=True) for name, use in tools]
 
 
 def core_checks() -> list[Check]:
@@ -260,6 +263,11 @@ def speakers_fix(check: Check) -> str:
     return "altocue setup --speakers" if "not fetched" in check.detail else 'uv tool install --force "altocue[speakers]"'
 
 
+def speakers_how(check: Check) -> str:
+    """The fix is one command, so the second step it needs is said here and not lost."""
+    return f"{check.detail}. After the fix, altocue setup --speakers fetches the models" if "not installed" in check.detail else check.detail
+
+
 def row(feature: str, ok: bool, how: str, fix: str) -> Capability:
     return Capability(feature, ok, how, "" if ok else fix)
 
@@ -271,11 +279,11 @@ def capabilities(core: list[Check] | None = None) -> list[Capability]:
 
     def key(name: str, use: str) -> Capability:
         have = bool(os.environ.get(name))
-        return row(use, have, f"{name} {'set' if have else 'not set'}", f"export {name}=your-key")
+        return Capability(use, have, f"{name} {'set' if have else 'not set'}", "" if have else f"export {name}=your-key", hosted=True)
 
     def tool(name: str, use: str, fix: str) -> Capability:
         have = bool(shutil.which(name))
-        return row(use, have, f"{name} CLI {'found' if have else 'not found'}", fix)
+        return Capability(use, have, f"{name} CLI {'found' if have else 'not found'}", "" if have else fix, hosted=True)
 
     faces_ready = face_model()
     return [
@@ -284,7 +292,7 @@ def capabilities(core: list[Check] | None = None) -> list[Capability]:
         Capability("Captions and cards, basic renderer", True, ALWAYS),
         motion_row(found),
         row("Stronger noise removal", found["denoiser"].ok, found["denoiser"].detail, "altocue setup --yes"),
-        row("Tell speakers apart", found["speakers"].ok, found["speakers"].detail, speakers_fix(found["speakers"])),
+        row("Tell speakers apart", found["speakers"].ok, speakers_how(found["speakers"]), speakers_fix(found["speakers"])),
         row("Text gates in QA", found["ocr"].ok, found["ocr"].detail, install("tesseract", "tesseract-ocr")),
         row("Face gates in QA", faces_ready, "YuNet, ships with Altocue" if faces_ready else "the face model is missing", "uv tool install --force altocue"),
         Capability("Review pack for a fresh agent", True, ALWAYS),
@@ -312,19 +320,63 @@ def print_capabilities(rows: list[Capability]) -> None:
             print(f"     fix: {row.fix}")
 
 
+def and_list(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+WARNINGS = ("memory", "disk")
+
+
+def verdict(results: list[Check], rows: list[Capability]) -> tuple[bool, str]:
+    """The answer first: whether this machine can edit, what for, and what is optional and still missing."""
+    missing = [check.id for check in results if check.required and not check.ok]
+    if missing:
+        verb = "is" if len(missing) == 1 else "are"
+        return False, f"Not ready: {and_list(missing)} {verb} missing, so nothing can be edited yet. The fix is on each line marked !! below."
+    gaps = [check.id for check in results if not check.ok and not check.hosted and check.id not in WARNINGS]
+    gaps += ["face gates" for row in rows if row.feature == "Face gates in QA" and not row.ok]
+    blind = [gap for gap in gaps if gap in ("ocr", "face gates")]
+    hosted = sum(1 for row in rows if row.hosted and not row.ok)
+    said = "Ready: this machine can transcribe, cut, clean, grade, frame, caption, render and master" + (", and run QA." if not blind else ".")
+    if blind:
+        said += f" QA runs, but without {and_list(blind)} some gates skip, and a skipped gate blocks SHIP."
+    if gaps:
+        said += f" Optional and not set up, with a fix below: {and_list(gaps)}."
+    warned = [check.id for check in results if not check.ok and check.id in WARNINGS]
+    if warned:
+        said += f" Low on {and_list(warned)}, see below."
+    if hosted:
+        said += f" {hosted} hosted service{' has' if hosted == 1 else 's have'} no key or tool, which is fine: `altocue doctor --all` lists them."
+    return True, said
+
+
 def run(args: argparse.Namespace) -> int:
+    from . import __version__
+
     core = core_checks()
     results, rows = checks(core), capabilities(core)
+    ready, said = verdict(results, rows)
     if args.json:
-        report = {"ok": all(c.ok for c in results if c.required), "checks": [asdict(c) for c in results], "capabilities": [asdict(row) for row in rows]}
+        report = {
+            "version": __version__,
+            "ready": ready,
+            "verdict": said,
+            "ok": ready,
+            "checks": [asdict(c) for c in results],
+            "capabilities": [asdict(row) for row in rows],
+        }
         print(json.dumps(report, indent=2))
     else:
+        everything = getattr(args, "all", False)
+        print(f"altocue {__version__}. {said}\n")
         for check in results:
+            if check.hosted and not check.ok and not everything:
+                continue
             mark = "ok " if check.ok else ("!! " if check.required else "-- ")
             print(f"{mark}{check.id:<12} {check.detail}")
             if check.fix:
                 print(f"    fix: {check.fix}")
-        print_capabilities(rows)
-    if not all(c.ok for c in results if c.required):
+        print_capabilities([row for row in rows if everything or row.ok or not row.hosted])
+    if not ready:
         raise AltocueError("Required tools are missing.", fix="See the lines marked !! above.")
     return 0

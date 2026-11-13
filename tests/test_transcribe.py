@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import io
 import json
 import math
@@ -726,6 +727,7 @@ def fake_whisper(monkeypatch, gpus: int, cuda_fails: bool = False) -> list[tuple
 
     monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=Model))
     monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: gpus))
+    monkeypatch.setattr(transcribe, "load_faster_whisper", functools.lru_cache(maxsize=2)(transcribe.load_faster_whisper.__wrapped__))  # no model kept from another test
     monkeypatch.setattr(ffmpeg, "read_wav", lambda *_: (np.zeros(16000, dtype=np.float32), 16000))
     monkeypatch.delenv("ALTOCUE_WHISPER_DEVICE", raising=False)
     return made
@@ -746,13 +748,69 @@ def test_faster_whisper_falls_back_to_the_cpu_when_cuda_libraries_are_missing(mo
     assert "libcublas" in capsys.readouterr().err
 
 
+def test_a_blocked_model_download_names_the_host_and_the_fix(monkeypatch, tmp_path):
+    """Seen on a network that reaches the web only through a proxy: 103 lines of traceback ending in a ProxyError."""
+    fake_whisper(monkeypatch, gpus=0)
+    refused = type("ProxyError", (Exception,), {"__module__": "httpx2"})
+
+    def blocked(name, device, compute_type):
+        try:
+            raise refused("403 Forbidden")
+        except refused as error:
+            raise ValueError("could not fetch the snapshot") from error
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=blocked))
+    with pytest.raises(AltocueError) as caught:
+        transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert "small.en" in str(caught.value) and "huggingface.co" in str(caught.value)
+    assert "proxy" in caught.value.fix and "[transcribe] engine" in caught.value.fix
+
+
+def test_a_model_that_fails_for_another_reason_is_not_called_a_download(monkeypatch, tmp_path):
+    fake_whisper(monkeypatch, gpus=0)
+
+    def broken(name, device, compute_type):
+        raise ValueError("unsupported compute type")
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=broken))
+    with pytest.raises(ValueError, match="unsupported compute type"):
+        transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert transcribe.download_failed(TimeoutError("timed out")) and not transcribe.download_failed(RuntimeError("libcublas"))
+
+
 def test_faster_whisper_stays_on_the_cpu_without_a_card_or_when_told(monkeypatch, tmp_path):
     made = fake_whisper(monkeypatch, gpus=0)
     transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
     monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: 1))
     monkeypatch.setenv("ALTOCUE_WHISPER_DEVICE", "cpu")
     transcribe.ENGINES["faster-whisper"].transcribe(tmp_path / "a.wav", language="en", prompt="")
-    assert made == [("small.en", "cpu", "int8"), ("small.en", "cpu", "int8")]
+    assert made == [("small.en", "cpu", "int8")] and len(seen) == 2  # both ran on the CPU, on the one model
+
+
+def test_the_whisper_model_is_built_once_for_every_piece_of_a_long_recording(monkeypatch, tmp_path):
+    """It was built again for each 60 second piece, so a half hour recording loaded it about thirty times."""
+    made = fake_whisper(monkeypatch, gpus=0)
+    monkeypatch.setattr(ffmpeg, "extract_wav", lambda source, dest, **_: dest)
+    envelope = Envelope.of_levels(np.full(int(200 / transcribe.HOP), -30.0))
+    marks = transcribe.quiet_marks(envelope, 200.0)
+    engine = transcribe.ENGINES["faster-whisper"]
+    words = transcribe.in_pieces(engine, tmp_path / "a.wav", envelope, 200.0, language="en", prompt="")
+    assert len(marks) >= 2 and len(seen) == len(marks) + 1
+    assert made == [("small.en", "cpu", "int8")]
+    assert [word.start for word in words] == [0.0, *marks]  # each piece's words still land at that piece's own start
+    engine.transcribe(tmp_path / "b.wav", language="en", prompt="")
+    assert made == [("small.en", "cpu", "int8")]  # the next clip in the run uses it too
+
+
+def test_a_whisper_model_is_kept_by_name_device_and_precision(monkeypatch, tmp_path):
+    made = fake_whisper(monkeypatch, gpus=1, cuda_fails=True)
+    engine = transcribe.ENGINES["faster-whisper"]
+    engine.transcribe(tmp_path / "a.wav", language="en", prompt="")
+    engine.transcribe(tmp_path / "a.wav", language="en", prompt="")
+    assert made == [("large-v3-turbo", "cuda", "float16"), ("small.en", "cpu", "int8")]  # the fallback does not rebuild either
+    assert transcribe.load_faster_whisper("small.en", "cpu", "int8") is transcribe.load_faster_whisper("small.en", "cpu", "int8")
+    transcribe.load_faster_whisper("small.en", "cpu", "float32")
+    assert made[-1] == ("small.en", "cpu", "float32")
 
 
 def test_a_finished_render_is_read_back_with_speech_detection(monkeypatch, tmp_path):

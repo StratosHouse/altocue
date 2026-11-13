@@ -242,6 +242,21 @@ def test_find_writes_a_readable_list_and_names_the_rule(tmp_path, capsys):
     assert "--pick" in capsys.readouterr().out
 
 
+def numbered(count: int) -> list[dict]:
+    return [{"number": n, "clip": "talk", "start": 10.0 * n, "seconds": 20.0, "watch_for": [], "first_line": f"Line {n}."} for n in range(1, count + 1)]
+
+
+@pytest.mark.parametrize(("count", "said", "example"), [(1, "1 clip of", "--pick 1`"), (3, "3 clips of", "--pick 1,3`"), (6, "6 clips of", "--pick 1,3,5`")])
+def test_the_hint_only_picks_numbers_that_are_in_the_list(tmp_path, capsys, monkeypatch, count, said, example):
+    """One candidate was followed by "Next: altocue clips cut --pick 1,3,5"."""
+    project = talk_project(tmp_path, THOUGHT)
+    monkeypatch.setattr(clips, "find_candidates", lambda *args, **kwargs: numbered(count))
+    monkeypatch.setattr(clips, "write_candidates", lambda *args: project.root / "clips" / "candidates.md")
+    assert main(["clips", "find", "-p", str(project.root), "--length", "10-40"]) == 0
+    out = capsys.readouterr().out
+    assert said in out and example in out
+
+
 def test_count_is_a_ceiling_and_a_short_list_says_so(tmp_path, capsys):
     project = talk_project(tmp_path, THOUGHT)
     assert main(["clips", "find", "-p", str(project.root), "--count", "9", "--length", "25-40"]) == 0

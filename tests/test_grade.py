@@ -547,12 +547,181 @@ def test_pq_clip_converts(tmp_path):
     assert first_frame_rgb(done, 160, 120).mean() == pytest.approx((60 / grade.PQ_WHITE_NITS) ** (1 / 2.4), abs=0.03)
 
 
-def test_samples_come_from_what_survives_the_cut():
+def test_a_cut_changes_what_each_frame_counts_for_and_never_which_frames_are_read():
+    """Samples used to step through what survived the cut, so trimming one word moved every frame the grade read."""
+    clip = Clip(id="x", path="x", duration=48, fps=30, width=10, height=10)
+    whole = grade.sample_grid(clip, None)
+    cut = grade.sample_grid(clip, [(10.0, 12.0), (40.0, 41.0)])
+    trimmed = grade.sample_grid(clip, [(10.0, 11.7), (40.0, 41.0)])
+    assert len(whole) == grade.GRID and [at for at, _ in whole] == [at for at, _ in cut] == [at for at, _ in trimmed]
+    assert whole[0][0] == 1.0 and all(0 < at < 48 for at, _ in whole)
+    assert all(weight == 1.0 for _, weight in whole)
+    weights = [weight for _, weight in cut]
+    assert weights[5] == 1.0  # 10 to 12 s is one whole step
+    assert weights[20] == pytest.approx(grade.REMOVED_WEIGHT + (1 - grade.REMOVED_WEIGHT) * 0.5)  # half of the step from 40 to 42 s
+    assert weights[0] == grade.REMOVED_WEIGHT  # cut time still counts for a little: it is the same room
+    moved = [index for index, (a, b) in enumerate(zip(cut, trimmed, strict=True)) if a != b]
+    assert moved == [5] and trimmed[5][1] == pytest.approx(grade.REMOVED_WEIGHT + (1 - grade.REMOVED_WEIGHT) * 0.85)
+
+
+def test_a_frame_from_cut_time_gives_a_fifth_of_its_pixels_and_of_its_vote():
+    frames = [scene().astype(np.float32) / 255, np.full((480, 640, 3), 0.5, np.float32)]  # a face, then a bare wall
+    even = grade.measure_frames("x", frames)
+    faint = grade.measure_frames("x", frames, weights=[1.0, 0.2])
+    assert even.face_rate == pytest.approx(0.5) and faint.face_rate == pytest.approx(1 / 1.2)
+    assert len(even.rest) == 12000 and len(faint.rest) == 6000 + 1200
+    assert np.array_equal(faint.skin, even.skin)
+    smaller = grade.measure_frames("x", frames, weights=[1.0, 0.1])
+    wall = lambda stats: {tuple(row) for row in np.round(stats.rest[6000:], 6).tolist()}  # noqa: E731
+    assert len(smaller.rest) == 6600 and wall(smaller) <= wall(faint)  # a lower weight keeps part of what a higher one kept
+
+
+def test_the_kept_share_says_when_a_clip_must_be_measured_again():
     clip = Clip(id="x", path="x", duration=60, fps=30, width=10, height=10)
-    times = grade.sample_times(clip, [(10.0, 12.0), (40.0, 41.0)])
-    assert len(times) == grade.SAMPLES
-    assert all(10 <= t <= 12 or 40 <= t <= 41 for t in times)
-    assert all(0 <= t <= 60 for t in grade.sample_times(clip, None))
+    assert grade.kept_share(clip, None) is None and grade.kept_share(clip, [(0.0, 30.0)]) == 0.5
+    assert not grade.share_moved(0.5, 0.45) and not grade.share_moved(0.5, 0.66)
+    assert grade.share_moved(0.5, 0.3) and grade.share_moved(0.05, 0.3)
+    assert grade.share_moved(None, 0.5) and grade.share_moved(0.5, None) and not grade.share_moved(None, None)
+
+
+def drifting(tmp_path: Path, name: str = "a.mp4") -> Path:
+    """Two seconds in which the light warms a little, so a different cut reads a slightly different colour."""
+    frames = [scene(gains=(1.0, 1.0, 0.80 + 0.04 * index / 59)) for index in range(60)]
+    return write_clip(tmp_path / name, frames)
+
+
+def recut(project: Project, *spans: tuple[float, float]) -> None:
+    project.save_edl(Edl(fps=30, segments=[Segment(id=f"s{index}", clip="a", start=start, end=end) for index, (start, end) in enumerate(spans, 1)]))
+
+
+def test_a_one_word_recut_leaves_every_cube_byte_identical_and_the_plate_keeps_its_shots(tmp_path):
+    """Ruling on one stutter used to move the samples, change every cube a little, and re-encode every shot of the plate."""
+    from altocue import plate
+
+    project = make_project(tmp_path, [drifting(tmp_path)])
+    recut(project, (0.0, 0.6), (1.0, 1.8))
+    first = grade.grade_project(project)
+    cube = project.lut_dir / "a.cube"
+    before, stamp = cube.read_bytes(), cube.stat().st_mtime_ns
+    folder = tmp_path / "parts"
+    folder.mkdir()
+    canvas = plate.Canvas(180, 320, 30, 30, "ultrafast")
+    shot = plate.build_segment(project, project.clip("a"), Segment(id="s1", clip="a", start=0.0, end=0.6), canvas, folder)
+    encoded = shot.stat().st_mtime_ns
+
+    recut(project, (0.0, 0.6), (1.0, 1.7))  # one word trimmed
+    assert grade.up_to_date(project)
+    assert grade.grade_project(project) == first  # the cut is not part of the stamp, so nothing is measured
+    again = grade.grade_project(project, resample=True)
+    assert again["held"] == ["a"] and again["clips"]["a"]["kept_share"] == pytest.approx(0.65, abs=0.01)
+    assert again["clips"]["a"]["changes"] == first["clips"]["a"]["changes"]
+    assert cube.read_bytes() == before and cube.stat().st_mtime_ns == stamp
+    same = plate.build_segment(project, project.clip("a"), Segment(id="s1", clip="a", start=0.0, end=0.6), canvas, folder)
+    assert same == shot and same.stat().st_mtime_ns == encoded
+
+    forced = grade.grade_project(project, force=True)  # asked to solve afresh, so nothing is held
+    assert forced["held"] == [] and cube.stat().st_mtime_ns != stamp
+
+
+def test_a_very_different_cut_is_measured_again_without_being_asked(tmp_path):
+    project = make_project(tmp_path, [drifting(tmp_path)])
+    recut(project, (0.0, 1.8))
+    first = grade.grade_project(project)
+    assert first["clips"]["a"]["kept_share"] == pytest.approx(0.9, abs=0.01)
+    recut(project, (1.4, 1.9))
+    assert not grade.up_to_date(project)
+    again = grade.grade_project(project)
+    assert again["clips"]["a"]["kept_share"] == pytest.approx(0.25, abs=0.01)
+    assert grade.up_to_date(project)
+
+
+def test_a_solve_is_held_only_when_it_barely_moved():
+    then = {"hdr": None, "gains": [1.02, 1.0, 1.05], "lift": 0.1, "skin_match": None, "rest_match": None, "strength": 1.0, "look_strength": 1.0}
+    assert grade._near(then, {**then, "gains": [1.023, 1.0, 1.052], "lift": 0.105})
+    assert not grade._near(then, {**then, "gains": [1.026, 1.0, 1.05]})
+    assert not grade._near(then, {**then, "lift": 0.111})
+    assert not grade._near(then, {**then, "strength": 0.85})  # the skin guard backed off, and a guard is never overruled
+    assert not grade._near(then, {**then, "look_strength": 0.9})
+    match = {"shift": [1.0, 0.5, 0.5], "scale": [1.0, 1.02, 1.0]}
+    assert not grade._near(then, {**then, "rest_match": match})
+    assert grade._near({**then, "rest_match": match}, {**then, "rest_match": {"shift": [1.2, 0.5, 0.6], "scale": [1.0, 1.022, 1.0]}})
+    assert not grade._near({**then, "rest_match": match}, {**then, "rest_match": {"shift": [1.6, 0.5, 0.5], "scale": [1.0, 1.02, 1.0]}})
+    assert not grade._near({}, then)  # a report from before these were recorded
+
+
+def dark_face(luma: float, rate: float = 1.0) -> grade.ClipStats:
+    rest = np.full((4000, 3), 0.5)
+    return grade.ClipStats(clip="c02", skin=np.full((500, 3), luma), rest=rest, neutral=rest, face_rate=rate, face_score=0.9, neutral_share=0.5)
+
+
+def test_a_face_left_dark_after_the_cap_is_said_in_plain_words():
+    """A face a stop under was lifted by the 8 percent the cap allows, and the summary read as if that were the end of it."""
+    stats = dark_face(0.30)
+    solved = grade.solve_clip(stats)
+    assert solved.lift > 0 and grade.median_luma(solved.apply(stats.skin)) < 0.34  # the cap held
+    (note,) = grade._still_off("c02", stats, solved)
+    assert note.startswith("c02: the face sits at 0.3") and "still under the 0.45 to 0.75 band after the 8% limit" in note
+    assert "Add light" in note and "--" not in note  # light is the fix, and there is no flag to raise the limit
+    assert grade._still_off("c02", dark_face(0.42), grade.solve_clip(dark_face(0.42))) == []  # within 0.06 of the band once lifted
+    assert grade._still_off("c02", dark_face(0.60), grade.Correction()) == []
+    assert "still over" in grade._still_off("c02", dark_face(0.95), grade.solve_clip(dark_face(0.95)))[0]
+    assert grade._still_off("c02", dark_face(0.30, rate=0.2), grade.Correction()) == []  # too few faces to say anything
+
+
+def test_the_exposure_warning_reaches_the_report_and_the_summary(tmp_path, capsys):
+    dark = write_clip(tmp_path / "dark.mp4", [scene(level=0.2)] * 30)
+    good = write_clip(tmp_path / "good.mp4", [scene()] * 30)
+    project = make_project(tmp_path, [dark, good])
+    report = grade.grade_project(project)
+    entry = report["clips"]["dark"]
+    assert entry["faces"]["rate"] > 0.5, "the fixture's face must be found for this test to mean anything"
+    assert len(entry["warnings"]) == 1 and report["warnings"] == entry["warnings"] and report["clips"]["good"]["warnings"] == []
+    assert json.loads((project.lut_dir / "report.json").read_text())["warnings"] == report["warnings"]
+    assert "still outside the band" in grade._summary("dark", entry) and "still outside" not in grade._summary("good", report["clips"]["good"])
+    assert main(["grade", "--project", str(project.root)]) == 0
+    assert f"Warning: {entry['warnings'][0]}" in capsys.readouterr().out
+
+
+def test_the_look_alone_is_baked_for_pictures_that_are_not_the_speaker(tmp_path):
+    from altocue import looks
+
+    project = make_project(tmp_path, [write_clip(tmp_path / "a.mp4", [scene(gains=(1.0, 1.0, 0.8))] * 30)])
+    plain = grade.grade_project(project)
+    assert plain["look_cube"] is None and grade.look_cube(project) is None and grade.look_mark(project) == ""  # natural changes nothing
+    warm = grade.grade_project(project, look="warm", strength=0.5)
+    cube = grade.look_cube(project)
+    assert warm["look_cube"] == "look.cube" and cube == project.lut_dir / "look.cube"
+    colours = np.random.default_rng(3).uniform(0.1, 0.9, (200, 3))
+    finish = looks.choose("warm", strength=0.5)
+    assert np.allclose(grade.apply_lut(grade.read_cube(cube), colours), finish.apply(colours), atol=0.01)  # the look and nothing else
+    assert not np.allclose(grade.read_cube(cube), grade.read_cube(project.lut_dir / "a.cube"), atol=0.01)  # no correction in it
+    mark, written = grade.look_mark(project), cube.stat().st_mtime_ns
+    grade.grade_project(project, look="warm", strength=0.5, force=True)
+    assert cube.stat().st_mtime_ns == written  # the same look leaves the file alone, so nothing made with it goes stale
+    grade.grade_project(project, look="cool")
+    assert grade.look_mark(project) not in ("", mark)
+    grade.grade_project(project)
+    assert grade.look_cube(project) is None
+
+
+def test_an_hdr_insert_comes_down_to_sdr_and_then_takes_the_look(tmp_path):
+    from altocue import looks
+
+    project = make_project(tmp_path, [write_clip(tmp_path / "a.mp4", [scene()] * 30)])
+    hdr = Clip(id="sky", path="sky.mov", duration=3, fps=30, width=64, height=64, transfer="arib-std-b67")
+    sdr = Clip(id="desk", path="desk.mov", duration=3, fps=30, width=64, height=64)
+    assert grade.insert_lut(project, sdr, tmp_path / "desk.cube") is None  # no look, and nothing to convert
+    assert np.allclose(grade.read_cube(grade.insert_lut(project, hdr, tmp_path / "sky.cube")), grade.hdr_lut("arib-std-b67"), atol=1e-6)
+    grade.grade_project(project, look="filmic")
+    assert grade.insert_lut(project, sdr, tmp_path / "desk.cube") == grade.look_cube(project)
+    assert grade.insert_lut(project, sdr, tmp_path / "desk.cube", look=False) is None
+    colours = np.random.default_rng(5).uniform(0.05, 0.7, (200, 3))
+    both = grade.read_cube(grade.insert_lut(project, hdr, tmp_path / "sky.cube"))
+    plain = grade.apply_lut(grade.hdr_lut("arib-std-b67"), colours)  # the conversion as any HDR clip gets it
+    assert np.allclose(grade.apply_lut(both, colours), looks.choose("filmic").apply(plain), atol=0.01)  # and the look on top of that, in that order
+    assert not np.allclose(grade.apply_lut(both, colours), plain, atol=0.01)
+    only = grade.read_cube(grade.insert_lut(project, hdr, tmp_path / "sky.cube", look=False))
+    assert np.allclose(only, grade.hdr_lut("arib-std-b67"), atol=1e-6)
 
 
 def test_missing_source_is_explained(tmp_path):

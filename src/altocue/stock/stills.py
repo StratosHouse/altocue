@@ -36,8 +36,8 @@ def subject_of(image: Image.Image, crop: tuple[int, int]) -> frame.Subject | Non
     return frame.choose_subject(tracks, *crop)
 
 
-def push_in(source: str | Path, dest: str | Path, size: tuple[int, int], fps: int, frames: int) -> Path:
-    """Crop the photo to the canvas around its faces, then zoom it slowly in place."""
+def push_in(source: str | Path, dest: str | Path, size: tuple[int, int], fps: int, frames: int, *, lut: str | Path | None = None) -> Path:
+    """Crop the photo to the canvas around its faces, then zoom it slowly in place. `lut` is the project's look, when it has one."""
     image = upright(Path(source))
     width, height = size
     crop_size = frame.crop_size(image.size, size)
@@ -48,7 +48,8 @@ def push_in(source: str | Path, dest: str | Path, size: tuple[int, int], fps: in
     zoom = max(frame.safe_zoom(crop, subject, PUSH), 1.0 + 1e-3)
     canvas = plate.Canvas(width, height, fps, 17, "medium")
     move = plate.push_filter(canvas, frames, 1.0, round(zoom, 4))
-    chain = f"scale=out_color_matrix=bt709:out_range=tv,format=yuv444p,{move},format=yuv420p,{grade.TAGS},setsar=1"
+    look = f"format=gbrp16le,{grade.lut_filter(lut)}," if lut else ""  # on deep RGB, as the speaker's clips take theirs
+    chain = f"{look}scale=out_color_matrix=bt709:out_range=tv,format=yuv444p,{move},format=yuv420p,{grade.TAGS},setsar=1"
     with tempfile.TemporaryDirectory(prefix="altocue-still-") as folder:
         still = Path(folder) / "still.png"
         framed.save(still)

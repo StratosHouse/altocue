@@ -19,6 +19,8 @@ from ..errors import AltocueError
 from .base import SubmitUnknown
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+PRIVATE_NAMES = (".localhost", ".local", ".internal", ".lan", ".home.arpa")  # names no public site has
+PUBLIC_ONLY = "Only files on the public web are fetched. Download this one yourself and pass the file."
 RETRY_STATUS = {429, 500, 502, 503, 504}
 MAX_DOWNLOAD = 4_000_000_000
 AGENT = "Altocue (+https://github.com/StratosHouse/altocue)"
@@ -68,18 +70,67 @@ def check_web_url(url: str) -> None:
     raise AltocueError(f"Refusing to fetch {url}: not an https address.")
 
 
+def proxy_for(url: str) -> str:
+    """The host of the proxy a fetch of `url` goes through, read the way urllib reads it. Empty when the fetch goes direct."""
+    parts = urlsplit(url)
+    proxy = urllib.request.getproxies().get(parts.scheme, "")
+    if not proxy or urllib.request.proxy_bypass(parts.hostname or ""):
+        return ""
+    return urlsplit(proxy if "//" in proxy else f"//{proxy}").hostname or "proxy"  # never its user name or password
+
+
+def literal_address(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """`host` as an address when it is one, in any spelling a resolver takes without a lookup, such as 2130706433 or 0x7f.1."""
+    try:
+        return ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    try:
+        return ipaddress.ip_address(socket.inet_aton(host))
+    except (OSError, ValueError, UnicodeError):
+        return None
+
+
 def check_download_url(url: str) -> None:
-    """Project files and provider replies name these URLs, so none may reach into a private network."""
+    """Project files and provider replies name these URLs, so none may reach into a private network.
+
+    Behind a proxy this machine may have no name lookup of its own, and the proxy does the lookup anyway. So the lookup is
+    the one check left out there. The scheme, the credentials, a written address and a name that is private by its
+    spelling are all still checked.
+    """
     check_web_url(url)
-    host = urlsplit(url).hostname or ""
+    parts = urlsplit(url)
+    host = (parts.hostname or "").rstrip(".")
+    if parts.username or parts.password:
+        raise AltocueError(f"Refusing to fetch from {host}: the address carries a user name or a password.", fix="Use the plain https address of the file.")
+    private = AltocueError(f"Refusing to fetch {url}: it points at a private address.", fix=PUBLIC_ONLY)
     if host in LOOPBACK:
+        return
+    written = literal_address(host)
+    if written is not None:
+        if not written.is_global:
+            raise private
+        return
+    if proxy_for(url):
+        if "." not in host or host.endswith(PRIVATE_NAMES):
+            raise private
         return
     try:
         addresses = {info[4][0] for info in socket.getaddrinfo(host, None)}
     except OSError as error:
         raise Unreachable(f"Could not reach {host}: {error}") from error
     if not all(ipaddress.ip_address(address).is_global for address in addresses):
-        raise AltocueError(f"Refusing to fetch {url}: it points at a private address.")
+        raise private
+
+
+def not_reached(url: str, error: Exception, verb: str) -> Unreachable:
+    """A fetch the proxy refused says so, because "check the web" is the wrong advice on a machine that only has a proxy."""
+    parts = urlsplit(url)
+    proxy = "" if isinstance(error, urllib.error.HTTPError) else proxy_for(url)  # an HTTP status over https came from the site itself
+    what = url if verb == "download" else parts.netloc
+    if proxy:
+        return Unreachable(f"Could not {verb} {what} through the proxy at {proxy}: {error}. Ask whoever runs the proxy to allow {parts.hostname}.")
+    return Unreachable(f"Could not {verb} {what}: {error}")
 
 
 def open_keyed(request: urllib.request.Request, *, timeout: float) -> Any:
@@ -95,7 +146,7 @@ def _once(method: str, url: str, headers: dict[str, str], data: bytes | None, ti
     except urllib.error.HTTPError as error:
         return Response(error.code, error.read(), error.headers)
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as error:
-        raise Unreachable(f"Could not reach {urlsplit(url).netloc}: {error}") from error
+        raise not_reached(url, error, "reach") from error
 
 
 def call(
@@ -156,7 +207,7 @@ def download(url: str, dest: Path, timeout: float = 300, limit: int = MAX_DOWNLO
         raise
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         part.unlink(missing_ok=True)
-        raise Unreachable(f"Could not download {url}: {error}") from error
+        raise not_reached(url, error, "download") from error
     if part.stat().st_size == 0:
         part.unlink()
         raise AltocueError(f"The file at {url} is empty.")

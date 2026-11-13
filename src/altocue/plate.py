@@ -11,11 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from . import ffmpeg, grade, locks, mix, transitions
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .models import Clip, Edl, Segment
 from .project import Project
 
 ZOOM_ORIGIN_Y = 0.42
+ZOOM_ORIGIN = (0.5, ZOOM_ORIGIN_Y)  # the point a zoom holds still, as shares of the crop, when a segment names none
+PUSH_EASE = 0.3  # seconds a push takes to reach its speed, and to stop
 
 
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
@@ -72,26 +75,84 @@ def fits_path(clip: Clip, segment: Segment, c: Canvas) -> bool:
     return abs(crop[0] - path[0][1]) < 0.5 and abs(crop[1] - path[0][2]) < 0.5
 
 
-def zoomed(crop: tuple[float, float, float, float], zoom: float) -> tuple[float, float, float, float]:
+def origin_of(segment: Segment, crop: tuple[float, float, float, float]) -> tuple[float, float]:
+    """The point a zoom holds still, as shares of `crop`: the subject's eyes when `frame` found them.
+
+    The segment keeps the point in display pixels, so a crop moved by hand still zooms about the eyes.
+    A point outside the crop is pulled to its edge, which keeps every zoomed window inside the crop.
+    A cut from before that field keeps the old fixed point.
+    """
+    point = segment.origin
+    if not point or len(point) != 2:
+        return ZOOM_ORIGIN
+    x, y, width, height = crop
+    return (min(max((float(point[0]) - x) / width, 0.0), 1.0), min(max((float(point[1]) - y) / height, 0.0), 1.0))
+
+
+def zoomed(crop: tuple[float, float, float, float], zoom: float, origin: tuple[float, float] = ZOOM_ORIGIN) -> tuple[float, float, float, float]:
+    """The window a zoom shows. `origin` sits at the same share of the window as of the crop, so that point does not move."""
     x, y, width, height = crop
     new_w, new_h = width / zoom, height / zoom
-    return (x + (width - new_w) / 2, y + (height - new_h) * ZOOM_ORIGIN_Y, new_w, new_h)
+    return (x + (width - new_w) * origin[0], y + (height - new_h) * origin[1], new_w, new_h)
+
+
+def push_travel(at: float, over: float) -> float:
+    """How far a push has gone `at` seconds in, in seconds at full speed, when it lasts `over` seconds.
+
+    It speeds up for `PUSH_EASE`, runs, and slows for as long, so the whole way is `over` less one ease. Past the end it stays put.
+    """
+    ease = min(PUSH_EASE, over / 2)
+    if ease <= 0:
+        return 0.0
+
+    def ramp(u: float) -> float:
+        early = min(max(u, 0.0), ease)
+        return early * early / (2 * ease) + max(u - ease, 0.0)
+
+    return ramp(at) - ramp(at - (over - ease))
+
+
+def eased_place(c: Canvas, frames: int, first: int, ease: list[float]) -> str | None:
+    """The share of a segment's zoom reached by each frame, as an expression, when the segment is part of an eased push.
+
+    None when the push does not move inside this segment, and the caller draws a straight line.
+    """
+    try:
+        at, over = float(ease[0]), float(ease[1])
+    except (IndexError, TypeError, ValueError):
+        return None
+    length = frames / c.fps
+    begin, whole = push_travel(at, over), push_travel(at + length, over) - push_travel(at, over)
+    if at < 0 or over <= 0 or whole <= 1e-9:
+        return None
+    soft = min(PUSH_EASE, over / 2)
+    u = f"({at:.4f}+clip((in{first - 1:+d})/{c.fps}\\,0\\,{length:.4f}))"  # perspective counts `in` from 1, and a segment's first frame is its start
+
+    def ramp(value: str) -> str:
+        return f"(pow(clip({value}\\,0\\,{soft:.4f})\\,2)/{2 * soft:.4f}+max({value}-{soft:.4f}\\,0))"
+
+    return f"(({ramp(u)}-{ramp(f'({u}-{over - soft:.4f})')}-{begin:.6f})/{whole:.6f})"
 
 
 def _even(value: float) -> int:
     return max(2, int(value / 2) * 2)  # down, because an odd source has no pixel to round up to
 
 
-def push_filter(c: Canvas, frames: int, start: float, end: float, first: int = 0) -> str:
+def push_filter(
+    c: Canvas, frames: int, start: float, end: float, first: int = 0, *, origin: tuple[float, float] = ZOOM_ORIGIN, ease: list[float] | None = None
+) -> str:
     """A slow zoom with sub-pixel motion. `crop` alone steps by whole pixels and jitters.
 
     A piece that starts `first` frames in carries on from there, and past either end the zoom stays put.
+    `origin` is the point that holds still. `ease` places the segment inside a longer push, which speeds up and slows down once.
     """
     span = max(frames - 1, 1)
     place = f"in/{span}" if not first else f"clip((in+{first})/{span}\\,0\\,1)"  # perspective names its frame counter `in`, not `n`
+    place = (eased_place(c, frames, first, ease) if ease else None) or place
     z = f"({start}+({end}-{start})*{place})"
     w, h = f"(W/{z})", f"(H/{z})"
-    x0, y0 = f"((W-{w})/2)", f"((H-{h})*{ZOOM_ORIGIN_Y})"
+    across = "/2" if origin[0] == 0.5 else f"*{origin[0]:.4f}"
+    x0, y0 = f"((W-{w}){across})", f"((H-{h})*{origin[1]:g})"
     x1, y1 = f"({x0}+{w})", f"({y0}+{h})"
     return f"perspective={x0}:{y0}:{x1}:{y0}:{x0}:{y1}:{x1}:{y1}:interpolation=cubic:eval=frame:sense=source"
 
@@ -116,7 +177,8 @@ def follow_geometry(clip: Clip, segment: Segment, c: Canvas, steady: float, firs
     """
     width, height = segment.crop[2], segment.crop[3]  # type: ignore[index]
     src_w, src_h = clip.display_size
-    windows = [(t, zoomed((x, y, width, height), steady)) for t, x, y in segment.path or []]
+    origin = origin_of(segment, (segment.path[0][1], segment.path[0][2], width, height))  # type: ignore[index]
+    windows = [(t, zoomed((x, y, width, height), steady, origin)) for t, x, y in segment.path or []]
     left = max(0, int(min(w[0] for _, w in windows)) // 2 * 2)
     top = max(0, int(min(w[1] for _, w in windows)) // 2 * 2)
     right = min(src_w, math.ceil(max(w[0] + w[2] for _, w in windows)))
@@ -143,15 +205,18 @@ def segment_filter(clip: Clip, segment: Segment, c: Canvas, lut: Path | None, *,
     slide = ""
     if segment.path and fits_path(clip, segment, c):
         geometry, slide = follow_geometry(clip, segment, c, steady, first)
+        origin = origin_of(segment, (segment.path[0][1], segment.path[0][2], segment.crop[2], segment.crop[3]))  # type: ignore[index]
     else:
-        x, y, width, height = zoomed(fit_crop(clip.display_size, (c.width, c.height), segment.crop), steady)
+        crop = fit_crop(clip.display_size, (c.width, c.height), segment.crop)
+        origin = origin_of(segment, crop)
+        x, y, width, height = zoomed(crop, steady, origin)
         geometry = f"crop={_even(width)}:{_even(height)}:{int(x)}:{int(y)},scale={c.width}:{c.height}:flags=lanczos"
     parts = [grade.video_filter(clip, lut, geometry=geometry), f"fps={c.fps}"]
     if slide:
         parts.append(slide)
     if segment.zoom_from != segment.zoom_to:
-        frames = max(1, round((segment.end - segment.start) * c.fps))
-        parts.append(push_filter(c, frames, segment.zoom_from / steady, segment.zoom_to / steady, first))
+        frames = segment_frames(segment, c.fps)
+        parts.append(push_filter(c, frames, segment.zoom_from / steady, segment.zoom_to / steady, first, origin=origin, ease=segment.ease))
     if finish:
         parts.append(finish)
     parts.append("setsar=1")
@@ -164,7 +229,11 @@ def encode_args(c: Canvas) -> list[str]:
 
 
 def segment_frames(segment: Segment, fps: int) -> int:
-    return max(1, round((segment.end - segment.start) * fps))
+    """The cut's own count. A shot of no frames is refused, never padded to one, so no stage counts it differently."""
+    frames = frame_count(segment.start, segment.end, fps)
+    if frames < 1:
+        raise AltocueError(f"Segment {segment.id} is shorter than one frame at {fps} fps.", fix="Lengthen or delete it in edl.json, or run `altocue cut`.")
+    return frames
 
 
 def _pad(seek: float, frames: int, clip: Clip, fps: int) -> tuple[float, int, str]:
@@ -172,7 +241,7 @@ def _pad(seek: float, frames: int, clip: Clip, fps: int) -> tuple[float, int, st
     lead = max(0, math.ceil(-seek * fps - 1e-6))
     begin = max(seek, 0.0)
     pads = [f"tpad=start_mode=clone:start={lead}"] if lead else []
-    if begin + (frames - lead) / fps > clip.duration - 1 / fps:
+    if begin + (frames - lead) / fps > clip.picture_duration - 1 / fps:  # the picture's own end: sound can outlast it, and then no frame comes
         pads.append("tpad=stop_mode=clone:stop=-1")
     return begin, lead, ",".join(pads)
 

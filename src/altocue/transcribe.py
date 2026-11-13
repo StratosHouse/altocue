@@ -57,7 +57,9 @@ WAV_BYTES_PER_SECOND = 2 * RATE
 QUIET_WINDOW = 25  # envelope frames that must be quiet together, so a split lands in a pause and not between syllables
 ENVELOPE_BLOCK = 5000  # envelope frames read from disk at once
 
-FILLERS = frozenset("um umm uh uhh uhm er erm hm hmm mm mmm mhm ah ahh eh".split())
+HESITATIONS = frozenset("um umm uh uhh uhm er erm".split())  # a stall, and nothing else
+REACTIONS = frozenset("hm hmm mm mmm mhm ah ahh eh".split())  # can be an answer or the moment itself, so the cut asks before it takes one that stands alone
+FILLERS = HESITATIONS | REACTIONS
 FILLER_PROMPT = "Um, uh, so, like, you know, okay, hmm, I mean, right."
 
 NUMBERS = "one two three four five six seven eight nine ten 1 2 3 4 5 6 7 8 9 10".split()
@@ -244,9 +246,53 @@ class MlxWhisper(LocalEngine):
         ]
 
 
+MODEL_HOST = "huggingface.co"
+NETWORK_MODULES = frozenset({"httpx", "httpcore", "requests", "urllib", "http", "socket", "ssl", "huggingface_hub"})
+
+
+def download_failed(error: BaseException | None) -> bool:
+    """True when an error, or anything it was raised from, came from the network or from the model hub."""
+    for _ in range(12):
+        if error is None:
+            return False
+        if isinstance(error, ConnectionError | TimeoutError) or type(error).__module__.split(".")[0].rstrip("0123456789") in NETWORK_MODULES:
+            return True
+        error = error.__cause__ or error.__context__
+    return False
+
+
+@contextmanager
+def loading_model(name: str) -> Iterator[None]:
+    """The one step that may reach the network. A blocked download names the host and the way out. Any other failure passes through."""
+    try:
+        yield
+    except AltocueError:
+        raise
+    except Exception as error:
+        if not download_failed(error):
+            raise
+        said = (str(error).strip().splitlines() or [type(error).__name__])[0][:200]
+        fix = (
+            f"Check that this machine's network or proxy lets it reach {MODEL_HOST}, then run this again. The model is fetched once and kept. "
+            "Or set `[transcribe] engine` in altocue.toml to another engine `altocue doctor` shows as installed."
+        )
+        raise AltocueError(f"Could not download the speech model {name} from {MODEL_HOST}: {said}", fix=fix) from error
+
+
 class FasterWhisper(LocalEngine):
     english = "small.en"
     multilingual = "large-v3-turbo"
+    host = "huggingface.co"
+
+    def first_model(self, language: str = "en") -> str:
+        """The model a first transcription loads on this machine."""
+        return self.model or (self.multilingual if self.device() == "cuda" or language != "en" else self.english)
+
+    def fetch(self, name: str, *, offline: bool = False) -> None:
+        """The engine's own downloader, with no model loaded. `offline` only looks on disk, and raises when the model is not there."""
+        from faster_whisper import download_model  # pyright: ignore[reportMissingImports]
+
+        download_model(name, local_files_only=offline)
 
     def device(self) -> str:
         """An Nvidia card when there is one, unless ALTOCUE_WHISPER_DEVICE=cpu says otherwise."""
@@ -270,9 +316,7 @@ class FasterWhisper(LocalEngine):
         return self._run(samples, self.model or (self.english if language == "en" else self.multilingual), "cpu", "int8", language=language, prompt=prompt)
 
     def _run(self, samples: Any, name: str, device: str, compute: str, *, language: str, prompt: str) -> list[Word]:
-        from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
-
-        segments, _ = WhisperModel(name, device=device, compute_type=compute).transcribe(
+        segments, _ = load_faster_whisper(name, device, compute).transcribe(
             samples,
             vad_filter=READING_BACK.get(),  # music alone read as speech: "We'll be right back." in a film with no voice
             word_timestamps=True,
@@ -282,6 +326,18 @@ class FasterWhisper(LocalEngine):
             temperature=0.0,
         )
         return [Word(text=w.word.strip(), start=float(w.start), end=float(w.end), confidence=float(w.probability)) for segment in segments for w in segment.words or []]
+
+
+@functools.lru_cache(maxsize=2)
+def load_faster_whisper(name: str, device: str, compute: str) -> Any:
+    """One load serves every piece of a recording and every clip in a run. It was built again for each 60 second piece.
+
+    Two are kept, so a card whose libraries are missing does not push out the CPU model it falls back to.
+    """
+    from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
+
+    with loading_model(name):
+        return WhisperModel(name, device=device, compute_type=compute)
 
 
 class Parakeet(LocalEngine):

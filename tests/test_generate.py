@@ -1173,6 +1173,98 @@ def test_downloads_cannot_reach_a_private_network():
         http._CheckedRedirect().redirect_request(None, None, 302, "", {}, "file:///etc/passwd")
 
 
+@pytest.fixture
+def behind_a_proxy(monkeypatch):
+    """A network that reaches the web only through a proxy: no name lookup of its own, and a proxy named in the environment."""
+    import socket
+
+    def no_lookup(*args, **kwargs):
+        raise OSError(-2, "Name or service not known")
+
+    for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("https_proxy", "http://user:secret@proxy.test:3128")
+    monkeypatch.setattr(socket, "getaddrinfo", no_lookup)
+
+
+def test_with_no_proxy_a_name_that_does_not_resolve_is_still_refused(behind_a_proxy, monkeypatch):
+    from altocue.generate import http
+
+    monkeypatch.delenv("https_proxy")
+    with pytest.raises(http.Unreachable, match="Could not reach films.example"):
+        http.check_download_url("https://films.example/a.mp4")
+
+
+def test_behind_a_proxy_a_download_does_not_fail_on_its_own_name_lookup(behind_a_proxy):
+    from altocue.generate import http
+
+    assert http.proxy_for("https://films.example/a.mp4") == "proxy.test"
+    http.check_download_url("https://films.example/a.mp4")  # the proxy looks the name up. This machine cannot
+
+
+def test_behind_a_proxy_every_other_check_is_still_made(behind_a_proxy, monkeypatch):
+    from altocue.generate import http
+
+    refused = {
+        "http://films.example/a.mp4": "not an https address",
+        "file:///etc/passwd": "not an https address",
+        "https://user:pass@films.example/a.mp4": "user name or a password",
+        "https://169.254.169.254/latest/meta-data": "private",
+        "https://10.0.0.8/a.mp4": "private",
+        "https://127.0.0.2/a.mp4": "private",
+        "https://[fd00::1]/a.mp4": "private",
+        "https://2130706433/a.mp4": "private",  # 127.0.0.1 written as one number
+        "https://0x7f.1/a.mp4": "private",
+        "https://intranet/a.mp4": "private",
+        "https://printer.local/a.mp4": "private",
+        "https://metadata.google.internal/a.mp4": "private",
+    }
+    for url, why in refused.items():
+        with pytest.raises(AltocueError, match=why):
+            http.check_download_url(url)
+    http.check_download_url("https://93.184.216.34/a.mp4")  # a public address, written out
+    monkeypatch.setenv("no_proxy", "films.example")  # named as reached directly, so the lookup is made again
+    assert http.proxy_for("https://films.example/a.mp4") == ""
+    with pytest.raises(http.Unreachable):
+        http.check_download_url("https://films.example/a.mp4")
+
+
+def test_a_fetch_the_proxy_refuses_says_proxy(behind_a_proxy, monkeypatch, tmp_path):
+    import urllib.error
+
+    from altocue.generate import http
+
+    class Refusing:
+        def open(self, request, timeout):
+            raise urllib.error.URLError(OSError("Tunnel connection failed: 403 Forbidden"))
+
+    monkeypatch.setattr(http, "_fetcher", Refusing())
+    with pytest.raises(http.Unreachable) as caught:
+        http.download("https://films.example/a.mp4", tmp_path / "a.mp4")
+    said = str(caught.value)
+    assert "through the proxy at proxy.test" in said and "403 Forbidden" in said and "allow films.example" in said
+    assert "secret" not in said and not list(tmp_path.iterdir())
+    monkeypatch.setattr(http, "_opener", Refusing())
+    with pytest.raises(http.Unreachable, match="Could not reach api.example through the proxy at proxy.test"):
+        http.call("GET", "https://api.example/v1", attempts=1)
+
+
+def test_a_status_from_the_site_itself_is_not_blamed_on_the_proxy(behind_a_proxy, monkeypatch, tmp_path):
+    import urllib.error
+    from email.message import Message
+
+    from altocue.generate import http
+
+    class Missing:
+        def open(self, request, timeout):
+            raise urllib.error.HTTPError(request.full_url, 404, "Not Found", Message(), None)
+
+    monkeypatch.setattr(http, "_fetcher", Missing())
+    with pytest.raises(http.Unreachable) as caught:
+        http.download("https://films.example/a.mp4", tmp_path / "a.mp4")
+    assert "proxy" not in str(caught.value) and "404" in str(caught.value)
+
+
 def test_redirects_do_not_carry_the_key(fal):
     from altocue.generate import http
 

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from conftest import make_clip
 
-from altocue import frame, grade, qa, render, status
+from altocue import clean, frame, grade, qa, render, status
 from altocue.cli import main
 from altocue.ingest import ingest
 from altocue.models import Edl, Removed, Segment, Word
@@ -34,6 +34,7 @@ def complete(tmp_path: Path) -> Project:
     ingest(project)
     project.save_words("take", [Word("hello", 0.1, 0.4)], "test")
     (project.audio_dir / "take.wav").write_bytes(b"sound")
+    write_json(project.audio_dir / "report.json", {"clips": {"take": {"words": clean.words_mark([(0.1, 0.4)])}}})
     project.save_edl(Edl(fps=30, segments=[Segment(id="s001", clip="take", start=0.0, end=0.9)]))
     grade.grade_project(project)
     frame.frame_project(project, force=True)
@@ -53,8 +54,21 @@ def complete(tmp_path: Path) -> Project:
 
 def test_a_new_project_starts_at_ingest(tmp_path, capsys):
     project = Project.create(tmp_path / "video")
-    assert set(states(project).values()) == {"not run"}
-    assert status.next_command(status.collect(project), ".") == "altocue ingest -p ."
+    found = states(project)
+    assert found.pop("brand") == "done"  # tests start on the house look, chosen. test_brand_kit tests the row without one
+    assert set(found.values()) == {"not run"}
+    assert status.next_command(status.collect(project), ".") == "altocue run -p ."
+
+
+def test_a_missing_brand_holds_the_render_and_nothing_before_it(complete):
+    from altocue import brand as brands
+
+    brands.set_brand(complete, "")
+    found = {stage.name: stage for stage in status.collect(Project.open(complete.root))}
+    assert found["brand"].state == "not run"
+    assert all(found[name].state == "done" for name in ("ingest", "transcribe", "cut", "clean", "grade", "frame"))
+    assert found["render"].state == "stale" and found["render"].detail == "waits on brand"
+    assert status.next_command(list(found.values()), ".") == "altocue brand ingest <kit folder> -p ."
 
 
 def test_a_finished_project_is_all_done(complete):
@@ -77,6 +91,20 @@ def test_a_missing_transcript_is_not_run(complete):
     assert states(complete)["transcribe"] == "not run"
 
 
+def test_new_word_times_make_the_clean_sound_stale(complete):
+    """`altocue clean` redoes sound whose words moved, so status must not call it done."""
+    assert status.check_clean(complete).state == status.DONE
+    complete.save_words("take", [Word("hello", 0.3, 0.6)], "test")
+    look = status.check_clean(complete)
+    assert look.state == status.STALE and "word times of take" in look.detail
+    assert states(complete)["clean"] == "stale"
+
+
+def test_sound_with_no_record_of_its_words_is_stale(complete):
+    (complete.audio_dir / "report.json").unlink()
+    assert status.check_clean(complete).state == status.STALE
+
+
 def test_a_new_cut_makes_the_framing_and_render_stale_by_the_cut_mark(complete):
     edl = complete.edl()
     edl.segments[0].end = 0.8
@@ -84,7 +112,16 @@ def test_a_new_cut_makes_the_framing_and_render_stale_by_the_cut_mark(complete):
     found = states(complete)
     assert found["frame"] == "stale" and found["render"] == "stale"
     assert "cut changed" in next(s.detail for s in status.collect(complete) if s.name == "render")
-    assert status.next_command(status.collect(complete), "video") == "altocue grade -p video"
+    assert found["grade"] == "done"  # a trim does not ask for new colour, which would re-encode every shot of the plate
+    assert status.next_command(status.collect(complete), "video") == "altocue run --from frame -p video"
+
+
+def test_a_cut_that_keeps_a_very_different_part_of_a_clip_makes_the_grade_stale(complete):
+    edl = complete.edl()
+    edl.segments[0].end = 0.3  # a third of what the grade was measured on
+    complete.save_edl(edl)
+    assert states(complete)["grade"] == "stale"
+    assert status.next_command(status.collect(complete), "video") == "altocue run --from grade -p video"
 
 
 def test_a_zoom_edit_does_not_count_as_a_new_cut_but_still_needs_a_render(complete):
@@ -100,7 +137,7 @@ def test_a_changed_motion_file_makes_the_render_stale(complete):
     (complete.root / "motion.json").write_text("{}")
     os.utime(complete.root / "motion.json", (LATER, LATER))
     assert states(complete)["render"] == "stale"
-    assert status.next_command(status.collect(complete), ".") == "altocue render -p ."
+    assert status.next_command(status.collect(complete), ".") == "altocue run --from render -p ."
 
 
 def test_a_newer_render_makes_the_master_stale(complete):
@@ -174,7 +211,68 @@ def test_the_command_lists_every_stage_and_one_next_line(complete, capsys):
     lines = [line for line in out.splitlines() if line.strip()]
     assert any(line.startswith("master") and "stale" in line for line in lines)
     assert sum(line.startswith("Next:") for line in lines) == 1
-    assert f"Next: altocue master -p {complete.root}" in out
+    assert f"Next: altocue run --from master -p {complete.root}" in out
+
+
+def test_next_is_the_shortest_route_not_one_stage_at_a_time(complete):
+    """It said transcribe, then cut, then render, where one `altocue run` does them all."""
+    (complete.words_dir / "take.json").unlink()
+    assert status.next_command(status.collect(complete), ".") == "altocue run -p ."
+    complete.save_words("take", [Word("hello", 0.1, 0.4)], "test")
+    complete.edl_path.unlink()
+    assert status.next_command(status.collect(complete), ".") == "altocue run --from cut -p ."
+
+
+def test_a_stale_cut_is_proposed_again_by_cut_itself_which_saves_the_rulings(complete):
+    os.utime(complete.words_dir / "take.json", (LATER, LATER))
+    found = {stage.name: stage for stage in status.collect(complete)}
+    assert found["cut"].state == "stale"
+    assert status.next_command(list(found.values()), ".") == "altocue cut -p ."
+
+
+def test_a_stage_the_run_does_not_cover_is_named_by_itself(complete):
+    (complete.root / "deliver" / "deliver.json").unlink()
+    assert status.next_command(status.collect(complete), ".") == "altocue deliver -p ."
+    (complete.review_dir / "report.json").unlink()
+    assert status.next_command(status.collect(complete), ".") == "altocue review -p ."
+
+
+def test_the_run_stops_before_a_step_it_does_not_cover(complete):
+    """Stale B-roll sits between the framing and the render. Running through it would render the old inserts on the new cut."""
+    write_json(complete.root / "broll.json", {"cut": "older", "inserts": [{"id": "b1"}]})
+    edl = complete.edl()
+    edl.segments[0].end = 0.8
+    complete.save_edl(edl)
+    found = {stage.name: stage.state for stage in status.collect(complete)}
+    assert found["grade"] == "done" and found["frame"] == "stale" and found["broll"] == "stale"  # a trim keeps the grade
+    assert status.next_command(status.collect(complete), ".") == "altocue frame -p ."
+    frame.frame_project(complete, force=True)
+    assert status.next_command(status.collect(complete), ".") == "altocue broll -p ."
+
+
+def test_json_gives_every_row_a_command_and_one_next(complete, capsys):
+    os.utime(complete.out / "render.mp4", (LATER, LATER))
+    assert main(["status", "-p", str(complete.root), "--json"]) == 0
+    found = json.loads(capsys.readouterr().out)
+    assert set(found) == {"project", "stages", "next"} and found["project"] == str(complete.root)
+    assert all(set(row) == {"stage", "state", "reason", "command"} for row in found["stages"])
+    rows = {row["stage"]: row for row in found["stages"]}
+    assert list(rows)[:3] == ["brand", "ingest", "transcribe"]
+    assert rows["master"] == {"stage": "master", "state": "stale", "reason": "the render is newer", "command": f"altocue master -p {complete.root}"}
+    assert rows["qa"]["state"] == "stale" and rows["qa"]["reason"] == "waits on master"
+    assert found["next"] == f"altocue run --from master -p {complete.root}"
+
+
+def test_json_says_null_when_nothing_is_left(complete, capsys):
+    assert main(["status", "-p", str(complete.root), "--json"]) == 0
+    found = json.loads(capsys.readouterr().out)
+    assert found["next"] is None and {row["state"] for row in found["stages"]} == {"done"}
+
+
+def test_a_folder_with_a_space_is_quoted_in_the_command(tmp_path, capsys):
+    project = Project.create(tmp_path / "my video")
+    assert main(["status", "-p", str(project.root)]) == 0
+    assert f"Next: altocue run -p '{project.root}'" in capsys.readouterr().out
 
 
 def test_render_records_the_cut_it_was_made_from(tmp_path, monkeypatch):
@@ -186,7 +284,7 @@ def test_render_records_the_cut_it_was_made_from(tmp_path, monkeypatch):
     monkeypatch.setattr(render.plate, "build", lambda project, draft: (tmp_path / "p.mp4", tmp_path / "v.wav"))
     monkeypatch.setattr(render.caption, "build", lambda project: [])
     monkeypatch.setattr(render.timelines, "build", lambda project, **_: {"tail": 0, "items": [], "inserts": [], "total": 1.0, "sfx": False})
-    monkeypatch.setattr(render.motion, "render_layers", lambda project, renderer, draft: None)
+    monkeypatch.setattr(render.motion, "render_layers", lambda project, renderer, draft, timeline: None)
     monkeypatch.setattr(render.mix, "mix_bed", lambda *args, **kwargs: None)
     monkeypatch.setattr(render, "compose_args", lambda *args: [])
     monkeypatch.setattr(render.ffmpeg, "run", lambda args: None)

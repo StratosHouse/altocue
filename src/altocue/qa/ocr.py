@@ -124,11 +124,16 @@ def read_images(images: list[Path]) -> list[dict[str, Any]]:
 
 
 def sample(file: Path, fps: float, cuts: list[float], folder: Path) -> dict[str, float]:
-    """Write whole frames, tiles and every cut's first frame. Returns image name to time."""
-    ffmpeg.run(["-i", str(file), "-vf", f"fps={fps}", "-q:v", "2", str(folder / "full_%05d.jpg")])
-    for name, crop in TILES.items():
-        ffmpeg.run(["-i", str(file), "-vf", f"fps={fps},crop={crop},scale=iw*2:ih*2:flags=lanczos", "-q:v", "2", str(folder / f"{name}_%05d.jpg")])
-    times = {p.name: (int(re.search(r"_(\d+)\.jpg$", p.name).group(1)) - 1) / fps for p in folder.glob("*.jpg")}  # type: ignore[union-attr]
+    """Write whole frames, tiles and every cut's first frame. Returns image name to time.
+
+    One decode feeds the whole frames and all four tiles, where it was one pass over the film for each.
+    Each cut is still its own seek, which decodes only from the keyframe before it.
+    """
+    graph = [f"[0:v]fps={fps},split={len(TILES) + 1}[full]" + "".join(f"[{name}_in]" for name in TILES)]
+    graph += [f"[{name}_in]crop={crop},scale=iw*2:ih*2:flags=lanczos[{name}]" for name, crop in TILES.items()]
+    outputs = [arg for name in ("full", *TILES) for arg in ("-map", f"[{name}]", "-q:v", "2", str(folder / f"{name}_%05d.jpg"))]
+    ffmpeg.run(["-i", str(file), "-filter_complex", ";".join(graph), *outputs])
+    times ={p.name: (int(re.search(r"_(\d+)\.jpg$", p.name).group(1)) - 1) / fps for p in folder.glob("*.jpg")}  # type: ignore[union-attr]
     for index, at in enumerate(cuts):
         name = f"cut_{index:05d}.jpg"
         ffmpeg.frame(file, max(at, 0.0), folder / name)

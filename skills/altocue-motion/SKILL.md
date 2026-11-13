@@ -137,6 +137,6 @@ Point `[brand] name` at a JSON file. It only needs what differs:
 
 `hyperframes` (default, Apache-2.0) gives full motion. `basic` needs only Pillow and ffmpeg: it draws the same content with simple panels and no entrance motion. Use `--renderer basic` when Node is not available.
 
-## Directed presenter parity
+## A presenter demonstrating software
 
-For a presenter-led software or workflow reel, use the [directed Studio workflow](../../docs/DIRECTED-STUDIO.md). The standard render reads studio.json. Every reusable Studio improvement needs a portable implementation, example, render-PC proof and a versioned handoff. Keep private footage, brand marks and licensed sounds outside the product repo.
+For a presenter-led software or workflow reel, use the [directed Studio workflow](../../docs/DIRECTED-STUDIO.md). The standard render reads studio.json.

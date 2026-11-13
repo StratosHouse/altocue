@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from . import brand as brands
-from . import caption, ffmpeg, frame, locks, mix, motion, overlays, plate, track, transitions
+from . import broll, caption, ffmpeg, frame, locks, mix, motion, overlays, plate, platforms, track, transitions
 from . import timeline as timelines
+from .cli import RENDERER_HELP
+from .cut.snap import frame_count
 from .errors import AltocueError
 from .motion import formats
 from .project import Project, write_json
@@ -21,7 +23,7 @@ from .stock import credits
 def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--draft", action="store_true", help="Half size, quick encode, no mastering")
-    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto")
+    parser.add_argument("--renderer", choices=[*motion.RENDERERS, "auto"], default="auto", help=RENDERER_HELP)
 
 
 def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
@@ -59,7 +61,11 @@ def mix_film(project: Project, timeline: dict[str, Any], voice: Path, dest: Path
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
     room = voice.with_name(f"{voice.stem}-room.wav")
     music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
-    return mix.mix_bed(voice, dest, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end, stems=stems)
+    under = project.setting("audio", "music_under", mix.DUCK_UNDER_VOICE_DB)
+    fade = float(timeline.get("end_fade", 0.0))
+    return mix.mix_bed(
+        voice, dest, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end, stems=stems, music_under=under, end_fade=fade
+    )
 
 
 def write_stems(project: Project, timeline: dict[str, Any], voice: Path, folder: Path) -> list[Path]:
@@ -76,7 +82,7 @@ def insert_frames(insert: dict[str, Any], fps: int) -> tuple[int, int]:
         start, end = float(insert["start"]), float(insert["end"])
     except (KeyError, TypeError, ValueError) as error:
         raise AltocueError(f"The insert {name} has no usable start and end.", fix="Give it a start and an end in seconds.") from error
-    first, frames = round(start * fps), round((end - start) * fps)
+    first, frames = round(start * fps), frame_count(start, end, fps)
     if first < 0 or frames < 1:
         fix = "Start it at 0 seconds or later, and end it after it starts."
         raise AltocueError(f"The insert {name} runs from {start:g}s to {end:g}s, which is not a span of the film.", fix=fix)
@@ -203,13 +209,17 @@ def bake_edges(project: Project, timeline: dict[str, Any], picture: Path, c: pla
 
 
 def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> Path:
+    brands.load(project)  # the brand kit comes first: stop here, before the framing and the plate spend any time
     with locks.heavy("rendering"):
         frame.frame_project(project)  # a re-cut starts with no crops or punch-ins, and jump cuts would ship plain
-        picture, voice = plate.build(project, draft=draft)
+        said = project.work / "progress.json"  # the same numbers the lines carry, for an agent that polls
+        with ffmpeg.progress("Building the picture", project.edl().duration if project.edl_path.exists() else 0.0, said):
+            picture, voice = plate.build(project, draft=draft)
         caption.build(project)
+        broll.match_look(project)  # an insert prepared under another look is made again before it is laid in
         timeline = timelines.build(project, draft=draft)
         credits.write_txt(project)
-        layer = motion.render_layers(project, renderer=renderer, draft=draft)
+        layer = motion.render_layers(project, renderer=renderer, draft=draft, timeline=timeline)  # built once: placing graphics reads the plate
         c = plate.canvas(project, draft=draft)
         if (project.root / "studio.json").is_file():
             from .studio import attach
@@ -219,13 +229,20 @@ def build(project: Project, *, draft: bool = False, renderer: str = "auto") -> P
         dest = project.out / ("draft.mp4" if draft else "render.mp4")
         dest.parent.mkdir(parents=True, exist_ok=True)
         timeline = bake_edges(project, timeline, picture, c, draft=draft)
-        ffmpeg.run(compose_args(project, picture, audio, layer, timeline, c, dest))
+        with ffmpeg.progress("Compositing", timeline["total"], said):
+            ffmpeg.run(compose_args(project, picture, audio, layer, timeline, c, dest))
     if not draft:
         write_json(project.work / "render.json", {"cut": project.cut_mark(), "studio": (project.root / "studio.json").is_file()})
     return dest
 
 
 def run(args: argparse.Namespace) -> int:
-    dest = build(Project.open(args.project), draft=args.draft, renderer=args.renderer)
+    project = Project.open(args.project)
+    dest = build(project, draft=args.draft, renderer=args.renderer)
     print(f"Rendered {dest}")
+    if not args.draft:
+        print("That is the film before mastering. `altocue master` makes out/final.mp4, and that is the file to share.")
+    note = platforms.note(project)
+    if note:
+        print(note)
     return 0
