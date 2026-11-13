@@ -30,14 +30,15 @@ An effect is a promise that something happened. Music is a promise about how to 
 | A section opens, no voice | Swell in the music | A bar or two | The music's own lift | The track itself |
 | A plain cut, a punch-in, a quote being read | Nothing | | | |
 
-`altocue sfx list` gives each bundled sound's length and use; `altocue sfx search` finds more in the indexed open packs. Where nothing fits, use nothing. A wrong sound is worse than none.
+`altocue sfx for <purpose> --json` gives the same families from the bundled and catalogued sounds, each with its alignment. Where nothing fits, use nothing. A wrong sound is worse than none.
 
 ## Place it to the frame
 
 - **Find the frame the viewer feels.** A pop lands on the frame an element stops moving or first becomes readable, not the frame its entrance starts. A whoosh peaks at the fastest point of the move. A riser ends on the reveal. A faller starts as something leaves.
-- **The house sounds land on a graphic's first frame.** `sfx_cues` puts the sound at the start of the item's entrance, and a wipe's at its middle. When the settle is a few frames later, or the start sits on speech, turn the house sounds off and place each cue yourself.
-- **Late is safer than early.** [source] ITU-R BT.1359, as summarised by Fora Soft (June 2026): viewers notice sound 45 ms early but only 125 ms late, and accept up to 90 ms early and 185 ms late. At 30 fps an effect may land up to three frames after its event and still read as in sync, but no more than one before.
-- **Put the transient on the frame.** `"align": "peak"` lays the loudest moment on the time, for hits and whooshes. `"align": "start"` suits a pop or click whose attack is its first sample.
+- **The house sounds keep their frame.** `sfx_cues` puts each at its item's entrance, and a wipe's at its middle. The mix snaps it to that frame, and ducks it 6 dB or shortens it where it would cover a word's first sound or a line's tail. When the settle is a few frames later, turn the house sounds off and place each cue yourself.
+- **`align` names the point that meets the time:** `start` is the sound's onset, `peak` its loudest point, `end` where it finishes. Hits start on the event, whooshes peak on it, risers end on it. A cue that is not tied to the picture may slide up to 0.2 s into clear air; `"sync": "picture"` pins it.
+- **Repeats vary.** A sound used again steps a little in level and pitch. `"vary": false` keeps it identical.
+- **Late is safer than early.** [source] ITU-R BT.1359, as summarised by Fora Soft (June 2026): viewers notice sound 45 ms early but only 125 ms late. At 30 fps an effect may land up to three frames after its event and still read as in sync, but no more than one before.
 - **Effects belong on a graphic's arrival, never on a line's tail.** A sound that starts in the last half second of a spoken line, or in the breath after it, is heard as a strange noise in the voice, not as a sound effect.
 - **Never land on a consonant.** [source] MetricGate's masking notes (June 2026): a loud sound hides quieter sound for roughly 100 to 200 ms after it, and for only 5 to 20 ms before it. A pop just before a word takes its first consonant; one just after a word takes its decay. Keep 0.2 s clear before a word starts.
 - **When the event sits on speech:** move the sound up to three frames later into a gap, take it down to `"under_db": 12`, or leave it out. Leaving it out is usually right.
@@ -64,6 +65,7 @@ An effect is a promise that something happened. Music is a promise about how to 
 ## Music cut to picture
 
 - **Choose a track longer than the film, with an ending of its own.** `"end": "land"` backtimes it so its own ending falls on the last frame. That is the best ending Altocue makes today.
+- **A fade lands on a bar.** With `"end": "fade"` and a tempo that reads clearly, the mix moves the track up to a second so a bar line meets the last frame. `music.grid` and `music.ending` in the mix report give the tempo, how sure it is, and where it landed or why not; `music.downbeats` are in film seconds for placing cuts by hand.
 - **A loop is a compromise.** A track shorter than the film loops with a blend that does not know the bar. Pick a longer track first.
 - **Cut music by whole phrases.** Remove or repeat whole four or eight bar phrases. [thumb] Cut on the backbeat, mid-measure to mid-measure, just before a transient, so a fill or a reverb tail is not chopped.
 - **End on purpose, never on an arbitrary fade.** [thumb] Join the track's real final hit to where the picture ends, matching the waveform, rather than slapping a crossfade on. In order: the track's own ending on the last frame; the last downbeat on the last cut with its tail left to ring; a hard stop into silence, once, for emphasis.
