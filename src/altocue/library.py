@@ -754,6 +754,146 @@ def _add(args: argparse.Namespace) -> int:
     return 0
 
 
+# Sound effects by what they are for. Every bundled sound names its purposes in sounds.json, and an indexed pack
+# sound takes them from its category. `altocue sfx for <words>` reads this.
+SOUND_PURPOSES = {
+    "transition": "A scene, chapter or shot change, or a wipe",
+    "text on": "A title, label, card or chip arrives",
+    "text off": "A title, label or card leaves",
+    "emphasis": "A word, number or element is stressed",
+    "reveal": "Something big is shown after a build",
+    "riser": "A build that ends on the reveal",
+    "impact": "A heavy landing or a slam",
+    "click": "A button press or a cursor click",
+    "step": "A counter or a list step",
+    "typing": "A key for each character",
+    "notification": "A message or an alert arrives",
+    "success": "Done, saved or correct",
+    "error": "Wrong, denied or failed",
+    "ambience": "A quiet bed of a place",
+}
+PURPOSE_WORDS = {
+    "transition": {"transition", "cut", "wipe", "scene", "chapter", "change", "swap", "shot", "between", "section"},
+    "text on": {"title", "label", "card", "text", "caption", "chip", "badge", "lower", "third", "arrive", "appear", "enter", "in", "on", "show", "slide", "sliding"},
+    "text off": {"leave", "exit", "out", "off", "disappear", "hide", "dismiss", "close", "away", "leaving"},
+    "emphasis": {"emphasis", "stress", "important", "highlight", "number", "stat", "accent", "point"},
+    "reveal": {"reveal", "big", "logo", "product", "unveil", "launch", "hero"},
+    "riser": {"riser", "rise", "build", "tension", "swell", "rising"},
+    "impact": {"impact", "hit", "slam", "land", "heavy", "thud", "boom", "punch", "drop"},
+    "click": {"click", "press", "button", "tap", "cursor", "mouse", "select"},
+    "step": {"step", "count", "counter", "list", "tick", "item", "bullet"},
+    "typing": {"typing", "type", "typed", "key", "keyboard", "keystroke", "typewriter"},
+    "notification": {"notification", "notify", "alert", "message", "ping", "bell", "ding", "comment", "chat"},
+    "success": {"success", "done", "saved", "correct", "check", "complete", "win", "level", "unlock"},
+    "error": {"error", "wrong", "denied", "fail", "failed", "invalid", "warning", "mistake"},
+    "ambience": {"ambience", "ambient", "room", "place", "background", "atmosphere", "city", "nature", "outdoor"},
+}
+SOUND_FAMILIES = {  # each family's natural alignment, and the words that ask for it
+    "pop": ("start", {"pop", "bubble", "small", "chip", "appear"}),
+    "click": ("start", {"click", "tick", "tap", "press", "key"}),
+    "whoosh": ("peak", {"whoosh", "swoosh", "swipe", "slide", "sliding", "move", "fly", "fast", "sweep", "pass"}),
+    "riser": ("end", {"riser", "rise", "build", "swell", "up", "rising"}),
+    "faller": ("start", {"fall", "down", "falling", "leave", "drop"}),
+    "hit": ("start", {"hit", "impact", "thud", "punch", "boom", "slam", "heavy", "land"}),
+    "tone": ("start", {"ding", "bell", "chime", "tone", "note"}),
+    "foley": ("start", {"page", "paper", "book", "flip", "turn", "door", "cup"}),
+    "glitch": ("start", {"glitch", "digital", "static", "data"}),
+    "zap": ("start", {"laser", "zap", "shot"}),
+    "ambience": ("start", {"ambience", "room", "bed", "loop"}),
+    "voice": ("start", {"voice"}),
+    "other": ("start", set()),
+}
+CATEGORY_SOUNDS = {  # a pack sound's category, as `stock.sfxpacks` sorts it, read as a family and purposes
+    "jingle": ("tone", ["success", "reveal"]),
+    "voice": ("voice", []),
+    "typing": ("click", ["typing"]),
+    "notification": ("tone", ["notification"]),
+    "camera": ("click", ["click"]),
+    "glitch": ("glitch", ["transition", "emphasis"]),
+    "riser": ("riser", ["riser", "reveal"]),
+    "whoosh": ("whoosh", ["transition", "text on", "text off"]),
+    "swipe": ("whoosh", ["transition", "text on", "text off"]),
+    "pop": ("pop", ["text on", "emphasis"]),
+    "click": ("click", ["click", "step"]),
+    "impact": ("hit", ["impact", "emphasis"]),
+    "laser": ("zap", ["emphasis"]),
+    "foley": ("foley", []),
+    "ambience": ("ambience", ["ambience"]),
+    "other": ("other", []),
+}
+TAG_PURPOSES = {  # a word in a pack sound's own name that narrows what it is for
+    "success": {"success", "confirm", "confirmation", "correct", "win", "victory", "levelup"},
+    "error": {"error", "wrong", "denied", "fail", "failure", "gameover"},
+    "text on": {"open", "maximize", "in"},
+    "text off": {"close", "minimize", "out"},
+}
+SOUND_NOTE = "Purposes and placing come from names and measured shape. Nobody has listened to these, so hear each one before it ships."
+
+
+def bundled_sounds() -> list[dict[str, Any]]:
+    """Each bundled sound with its family, purposes, natural alignment, and length, onset, peak and end measured from the file."""
+    from . import mix
+
+    rows = json.loads((mix.SFX_DIR / "sounds.json").read_text())
+    keys = ("name", "use", "family", "purposes", "align", "offset_ms", "seconds", "onset_ms", "peak_ms", "end_ms", "tuned", "licence", "pack")
+    return [{**{key: row.get(key) for key in keys}, "source": "bundled", "natural": SOUND_FAMILIES[row["family"]][0]} for row in rows]
+
+
+def pack_sound(row: dict[str, Any]) -> dict[str, Any]:
+    """An indexed pack sound in the same shape. Its peak is not measured until it is fetched."""
+    family, purposes = CATEGORY_SOUNDS.get(row.get("category") or "other", CATEGORY_SOUNDS["other"])
+    tags = set(row.get("tags", ()))
+    named = {purpose for purpose, words in TAG_PURPOSES.items() if tags & words}
+    purposes = [*purposes, *(purpose for purpose in TAG_PURPOSES if purpose in named and purpose not in purposes)]
+    if len(named & {"text on", "text off"}) == 1:  # a "close" sound leaves, an "open" one arrives
+        purposes = [purpose for purpose in purposes if purpose not in {"text on", "text off"} - named]
+    return {
+        "name": row["id"], "use": row.get("summary", ""), "family": family, "purposes": purposes, "align": SOUND_FAMILIES[family][0],
+        "natural": SOUND_FAMILIES[family][0], "seconds": row.get("seconds"), "onset_ms": None, "peak_ms": None, "end_ms": None,
+        "licence": row.get("licence"), "pack": row.get("pack_title", row.get("pack")), "source": "open pack",
+    }  # fmt: skip
+
+
+def sound_index(catalog: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Every bundled and indexed sound, filed under each purpose it serves."""
+    rows = bundled_sounds() + [pack_sound(row) for row in (catalog or current())["entries"] if row.get("source") == SOUND_SOURCE]
+    return {
+        "purposes": {purpose: {"means": means, "sounds": [row["name"] for row in rows if purpose in row["purposes"]]} for purpose, means in SOUND_PURPOSES.items()},
+        "sounds": rows,
+        "note": SOUND_NOTE,
+    }
+
+
+def sounds_for(query: str, catalog: dict[str, Any] | None = None) -> dict[str, Any]:
+    """What to use for a moment described in words, such as "a card sliding in": the purposes it reads as, then sounds, best first."""
+    wanted = _words(query) | set(re.findall(r"[a-z]+", query.lower()))
+    weights = {purpose: len(wanted & words) for purpose, words in PURPOSE_WORDS.items()}
+    weights.update({purpose: weights[purpose] + 2 for purpose in SOUND_PURPOSES if purpose in query.lower()})  # the purpose named outright
+    best = max(weights.values(), default=0)
+    chosen = [purpose for purpose, weight in weights.items() if weight and weight == best]
+    index = sound_index(catalog)
+
+    def rank(row: dict[str, Any]) -> tuple[int, str]:
+        """A sound made mainly for this purpose first, then one whose kind the words name, such as a whoosh for sliding."""
+        main = sum(2 if row["purposes"][0] == purpose else 1 for purpose in chosen if purpose in row["purposes"])
+        return (-(main + 2 * len(wanted & SOUND_FAMILIES[row["family"]][1])), row["name"])
+
+    found = sorted((row for row in index["sounds"] if set(chosen) & set(row["purposes"])), key=rank)
+    bundled = [row for row in found if row["source"] == "bundled"]
+    packs = [row for row in found if row["source"] != "bundled"]
+    first = bundled[0] if bundled else None
+    cue = {"name": first["name"], "at": "<the frame it meets>", "sync": "picture"} if first else None
+    return {
+        "query": query,
+        "purposes": [{"purpose": purpose, "means": SOUND_PURPOSES[purpose]} for purpose in chosen],
+        "bundled": bundled,
+        "open_packs": packs,
+        "cue": cue,
+        "known_purposes": list(SOUND_PURPOSES),
+        "note": SOUND_NOTE,
+    }
+
+
 def _update(args: argparse.Namespace) -> int:
     from .generate import http
 

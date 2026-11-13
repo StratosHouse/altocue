@@ -24,6 +24,10 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     find = actions.add_parser("search", help="Search the bundled set, then Freesound if you have a key")
     find.add_argument("words", nargs="+", help="What you want, such as transition")
     find.add_argument("--limit", type=int, default=6, help="Most results from Freesound")
+    purpose = actions.add_parser("for", help="What to use for a moment, such as a card sliding in. With no words, every sound by purpose")
+    purpose.add_argument("words", nargs="*", help="The moment, such as card sliding in, or a purpose such as riser")
+    purpose.add_argument("--limit", type=int, default=8, help="Most sounds from the open packs")
+    purpose.add_argument("--json", action="store_true", help="The answer as JSON")
     get = actions.add_parser("get", help="Copy one sound into this project")
     get.add_argument("id", help="A name from `altocue sfx list` or `altocue sfx search`, a pack sound such as vector:keyboard-01, or freesound:1234")
     get.add_argument("--project", "-p", default=".", help="Project folder")
@@ -128,9 +132,54 @@ def pack_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _placing(row: dict[str, Any]) -> str:
+    peak = f"peak {row['peak_ms']:g} ms" if row.get("peak_ms") is not None else "peak not measured"
+    seconds = f"{row['seconds']:.2f} s" if row.get("seconds") else "? s"
+    return f"{row['name']:<10} {row['family']:<8} {row['align']:<6} {seconds:>7}  {peak:<18} {', '.join(row['purposes'])}"
+
+
+def purpose_run(args: argparse.Namespace) -> int:
+    """`altocue sfx for`: the purpose index, whole or for one moment."""
+    from .. import library
+
+    query = " ".join(args.words)
+    if not query:
+        index = library.sound_index()
+        if args.json:
+            print(json.dumps(index, indent=2, ensure_ascii=False))
+            return 0
+        bundled = {row["name"]: row for row in index["sounds"] if row["source"] == "bundled"}
+        for purpose, filed in index["purposes"].items():
+            names = [name for name in filed["sounds"] if name in bundled]
+            print(f"{purpose:<13} {filed['means']}. Bundled: {', '.join(names) or 'none'}. Open packs: {len(filed['sounds']) - len(names)}.")
+        print(index["note"])
+        return 0
+    found = library.sounds_for(query, None)
+    if args.json:
+        print(json.dumps({**found, "open_packs": found["open_packs"][: args.limit], "open_packs_total": len(found["open_packs"])}, indent=2, ensure_ascii=False))
+        return 0
+    if not found["purposes"]:
+        print(f"No purpose matched. Say what happens on screen, or name one of: {', '.join(found['known_purposes'])}.")
+        return 0
+    print("Reads as: " + "; ".join(f"{row['purpose']} ({row['means']})" for row in found["purposes"]) + ".")
+    print("Name       family   align   length  peak               purposes")
+    for row in found["bundled"]:
+        print(_placing(row))
+    if found["cue"]:
+        print(f'Add to "sfx" in motion.json, on the frame the change lands: {json.dumps(found["cue"])}')
+    if found["open_packs"]:
+        print(f"{len(found['open_packs'])} in the open packs, fetched with `altocue sfx get <id>`:")
+        for row in found["open_packs"][: args.limit]:
+            print(_placing(row))
+    print(found["note"])
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     if args.action in {"pack", "packs", "forget"}:
         return pack_run(args)
+    if args.action == "for":
+        return purpose_run(args)
     if args.action == "list":
         print("Bundled sounds. Nobody has listened to these: they were chosen by name and measured length, so hear them before you ship.")
         for row in bundled():
