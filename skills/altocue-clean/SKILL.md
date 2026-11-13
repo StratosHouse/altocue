@@ -11,37 +11,45 @@ compatibility: Requires the altocue CLI. On macOS 13 or later with the Xcode com
 
 1. `altocue doctor` names the denoiser this machine will use.
 2. `altocue clean` writes one cleaned file per clip and `work/audio/report.json`.
-3. Read the report: noise floor before and after, hum found, engine used, phrases, loudness range before and after, any warning.
+3. Read the report: noise floor, hum, engine, phrases, loudness range, S sounds, any warning.
 4. After the render, `altocue master` applies two-pass loudness and a true-peak limit, and reports what it measured.
 
 ## Which denoiser
 
 - **`apple`, the default on a Mac that has it.** Apple's voice isolation, built into macOS. No download.
 - **`deep-filter`, the default elsewhere.** `altocue setup` installs it. On a Mac, `altocue setup --deep-filter` fetches it too.
-- **`afftdn`, when neither exists.** Stock ffmpeg, and the plainest of the three.
-- **Why Apple leads.** On the demo speech mixed with synthetic noise and hum, it left more of the voice against the original in five cases of six, and took the noise further in all six. deep-filter moved the colour of the voice a little less. Synthetic noise is not a real room, and nobody has listened. If a voice sounds wrong, try `altocue clean --force --denoiser deep-filter`, and let a person choose.
+- **`afftdn`, when neither exists.** Stock ffmpeg, the plainest.
+- **Why Apple leads.** On demo speech with synthetic noise it kept more of the voice in five cases of six and took more noise in all six. Nobody has listened. If a voice sounds wrong, try `altocue clean --force --denoiser deep-filter`, and let a person choose.
 
 ## Reading the report
 
 - **A warning that denoising removed too much speech** means the original was kept. Trust it. Tell the user the source needs a better recording.
-- **Apple's unit removes what it does not hear as a voice.** A synthetic voice can vanish. The guard catches that and hands over to the next engine, and the warning says so.
-- **No hum found** is normal. Notches are only applied when hum is measured.
-- **`range_before` and `range_after`** are the loudness range in LU. Long pauses count, so an uncut take can read wider after levelling. Judge it on the cut film.
+- **Apple's unit removes what it does not hear as a voice.** A synthetic voice can vanish. The guard then hands over to the next engine, and warns.
+- **No hum found** is normal. Notches go in only where hum is measured.
+- **`range_before` and `range_after`** are the loudness range in LU. Pauses count, so judge it on the cut film.
 
-## Phrases, breaths and sibilance
+## Phrases, breaths and clicks
 
 - **Phrase levelling is on.** Each phrase is brought toward the clip's level, by at most 9 dB up and 6 dB down. A noisy room gets less boost, because the room rises with the voice.
-- **Pauses are left exactly alone,** so room tone and breaths are not pumped.
+- **Pauses are left alone,** so room tone and breaths do not pump.
 - **Only one part of a clip wrong, or a quiet speaker beside a loud one:** set `gain` on those segments in `edl.json`, after the cut is final.
 - **Breaths stay unless asked.** `altocue clean --breaths 9` turns them down 9 dB. They are never cut. The finder has not been checked against labelled breaths, so listen.
-- **De-essing has four settings:** `off`, `light`, `normal`, `strong`, through `--deess`. They take at most 4, 7 or 11 dB off sharp S sounds. Light is the default. A voice whose S sounds are harsh on a phone speaker wants `strong`. Too much makes a lisp, so go up one step at a time.
 - **Mouth clicks and lip smacks** are turned down by default, never cut. `--no-declick` or `declick = false` leaves them in.
 
 Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess`, `declick`, `breaths`, `room_tone`.
 
+## S sounds
+
+- **De-essing is the smallest softening.** Each S is measured against the body of the same voice, its S-to-voice. Only an S over the strength's ceiling comes down, toward it: at most 2 dB on `light`, the default, 3.5 on `normal`, 5 on `strong`. No S is ever taken under 10 dB below the voice.
+- **A good microphone needs little or none.** A good wireless lavalier with natural S sounds comes through `light` untouched, and the clean line says so.
+- **Go up one step at a time from the default.** Use `strong` only after someone has heard `normal` and still found it harsh. `--deess off` is for a voice where any softening shows.
+- **Read `mouth` in the report.** `s_to_voice_db` is before and after: about 10 dB under the voice is natural, level is harsh. [thumb] `sibilants_softened` counts S sounds touched, `deess_held` those the guard held, `deess_lowest_db` the softest left, `s_to_voice_final_db` the finished clip.
+- **A lisp in numbers:** S-to-voice well under -10 dB, or more than 5 dB taken. The `sibilance` gate fails on either, as on an old report that took 7 or 11 dB. Fix it with `altocue clean --deess light`.
+- **Never raise the strength for harshness from a too-bright EQ or a too-hot limiter.** If `s_to_voice_final_db` sits well above the de-essed figure, the brightness came later. Fix it there.
+
 ## Room tone
 
-- **On by default.** Anywhere the voice falls under the clip's own room, its room fills the hole. A clip with no sound, such as a screen recording, borrows from its neighbour, and the room runs on under an end card.
+- **On by default.** Where the voice falls under the clip's own room, its room fills the hole. A clip with no sound, such as a screen recording, borrows its neighbour's, and the room runs on under an end card.
 - **Speech is untouched.** Nothing is added where the voice holds up.
 - **A clip with no quiet stretch has no room to give.** The report's `room` lists what was found.
 
@@ -62,8 +70,8 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 
 ## Music
 
-- **Ducking is automatic.** The music is down before the first word lands and stays down through any pause under 1.2 s. In a pause up to 2.5 s it rises 4 dB at most. In a longer one it comes all the way back, slowly. Under speech it also gives up a little of the band where consonants sit.
-- **`[audio] music_under` is how far under the voice the music sits while someone speaks:** 18 dB by default, from 6 to 30. About 12 suits a montage with a line over it. The mix report beside `work/mix.wav` gives the measured figure as `under_voice_db`.
+- **Ducking is automatic.** The music is down before the first word lands and stays down through any pause under 1.2 s. In a pause up to 2.5 s it rises 4 dB at most. In a longer one it comes back slowly. Under speech it also cedes a little of the consonant band.
+- **`[audio] music_under` is how far under the voice the music sits while someone speaks:** 18 dB by default, from 6 to 30. About 12 suits a montage with a line over it. The mix report beside `work/mix.wav` gives the measured figure as `under_voice_db`, and the `music_under_voice` gate fails when it sits more than 3 dB short of the target.
 - **`"music": { "path": "...", "end": "land" }` is the default.** The track is backtimed so its own end falls on the last frame. Silence at the end of the file does not count.
 - **`"end": "fade"`** starts at the top of the track and fades out.
 - **`"end": "own"`** is for a score that ends itself: no loop, no backtiming, no fade.
@@ -72,11 +80,11 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 
 ## No voice
 
-- **A film with no voice has nothing to level against,** so the music leads. A silent voice track is enough to trigger this.
+- **A film with no voice has nothing to level against,** so the music leads. A silent voice track counts.
 - **Effects sit over the music.** A cue's `over_db` sets how far, 0 to 14. `under_db` is refused here, because it means nothing without a voice.
 - **A big hit gets a dip.** `dip_db` draws the music down 6 to 12 dB in the 0.4 s before it. boom, punch, sub and clang have one in the table.
 - **Fades are tight:** 0.03 s in and 0.27 s out.
-- **These numbers are starting points,** taken from one project's measurements of its own films. Nobody has listened to them here.
+- **These are starting points** from one project's measurements of its own films. Nobody has listened here.
 
 ## Targets
 
@@ -88,4 +96,4 @@ Set these in `altocue.toml` under `[audio]`: `denoiser`, `level_phrases`, `deess
 - **Music under the voice** is measured on every clean. With Demucs installed (`altocue doctor` says), `[audio] music = "auto"` takes the vocal stem first, and undoes it if the words lose more than 6 dB.
 - **Echo** is measured too, and a room that rings is named. `[audio] echo = "light"` takes a little off. On a Mac the apple denoiser removes more.
 
-Clean-up cannot rescue clipped audio, and it only softens a bare room. Say so instead of pushing the denoiser harder. Numbers show what changed, not whether it sounds better. A person has to listen.
+Short clipped peaks are redrawn before denoising, and `declip` in the report counts them. Heavy clipping cannot be rescued, and a bare room is only softened. Say so instead of pushing the denoiser harder. Numbers show what changed, not whether it sounds better. A person has to listen.
