@@ -47,8 +47,23 @@ def sfx_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def all_cues(timeline: dict[str, Any]) -> list[dict[str, Any]]:
-    """The house sounds, unless `sfx` turned them off, and every cue the project asked for."""
-    return (sfx_cues(timeline) if timeline.get("sfx", True) else []) + timeline.get("cues", [])
+    """The house sounds, unless `sfx` turned them off, and every cue the project asked for.
+
+    A house sound belongs to a graphic arriving on screen, so it is a `picture` sound and keeps its frame.
+    A project cue is `free` to move off a word unless it says `"sync": "picture"`.
+    """
+    house = [{**cue, "sync": "picture"} for cue in sfx_cues(timeline)] if timeline.get("sfx", True) else []
+    return house + timeline.get("cues", [])
+
+
+def spoken(project: Project) -> list[dict[str, Any]] | None:
+    """Kept words in film seconds, for keeping effects off them. None when the cut has no words to read."""
+    from . import cut
+
+    try:
+        return [{"start": word["start"], "end": word["end"], "text": word["text"]} for word in cut.map_words(project, project.edl())]
+    except (AltocueError, FileNotFoundError):
+        return None
 
 
 def mix_film(project: Project, timeline: dict[str, Any], voice: Path, dest: Path, stems: Path | None = None) -> Path:
@@ -57,15 +72,18 @@ def mix_film(project: Project, timeline: dict[str, Any], voice: Path, dest: Path
         from .studio import key_audio, load
 
         plan = load(project.root, total=round(timeline["total"] * project.fps), fps=project.fps)
-        timeline = {**timeline, "cues": [*timeline.get("cues", []), *key_audio(plan, project.work / "studio" / "keys")]}
+        keys = [{**cue, "sync": "picture"} for cue in key_audio(plan, project.work / "studio" / "keys")]  # one tap per glyph, on its frame
+        timeline = {**timeline, "cues": [*timeline.get("cues", []), *keys]}
     music = (project.root / timeline["music"]["path"]).resolve() if timeline.get("music") else None
     room = voice.with_name(f"{voice.stem}-room.wav")
     music_end = timeline["music"].get("end", "land") if timeline.get("music") else "land"
     under = project.setting("audio", "music_under", mix.DUCK_UNDER_VOICE_DB)
     fade = float(timeline.get("end_fade", 0.0))
+    cues = all_cues(timeline)
     return mix.mix_bed(
-        voice, dest, music=music, sfx=all_cues(timeline), tail=timeline["tail"], room=room, music_end=music_end, stems=stems, music_under=under, end_fade=fade
-    )
+        voice, dest, music=music, sfx=cues, tail=timeline["tail"], room=room, music_end=music_end, stems=stems, music_under=under, end_fade=fade,
+        fps=timeline.get("fps") or project.fps, words=spoken(project) if cues else None,
+    )  # fmt: skip
 
 
 def write_stems(project: Project, timeline: dict[str, Any], voice: Path, folder: Path) -> list[Path]:

@@ -41,7 +41,7 @@ sources
   -> transcribe  word times, fillers kept, speakers on request
   -> clips       optional: complete thoughts in a long recording, each cut into its own project
   -> cut         remove silence, fillers, stutters, retakes, or build from an edited script (EDL)
-  -> clean       denoise, hum, level each phrase, mouth clicks, de-ess, tone, room tone in the holes
+  -> clean       declip, denoise, hum, level each phrase, mouth clicks, de-ess, tone, room tone in the holes
   -> grade       HDR to SDR, white balance, exposure, shot match, looks and LUTs
   -> frame       any aspect up to 4:1, face-aware crop, punch-ins
   -> broll       spots that want a cutaway, filled from your clips, stock or generation
@@ -158,7 +158,7 @@ Edges snap to real speech with a 20 ms RMS envelope. Code refuses an edit that c
 - **Denoise:** Apple voice isolation where the Mac has it, otherwise `deep-filter`, otherwise `afftdn`. `audio.denoiser` overrides. A guard rejects any engine that takes speech.
 - **Hum:** measured by FFT, notched only when found.
 - **Phrases:** gain moves only under speech, up to +9 and -6 dB. Pauses stay at unity, so room tone and breaths are not pumped.
-- **Mouth:** clicks and lip smacks that stand alone in quiet are turned down 34 dB under short fades; a burst just before a word stays, as it may be the word's plosive. Then a split-band de-esser turns the 3.4 to 14 kHz band down only while it is louder than usual, at most 4, 7 or 11 dB.
+- **Mouth:** clicks and lip smacks that stand alone in quiet are turned down 34 dB under short fades; a burst just before a word stays, as it may be the word's plosive. Then a de-esser measures each S against the voiced speech around it and softens only one that stands above the strength's ceiling, in a bell around the speaker's S centre, by at most 2, 3.5 or 5 dB, and never under 10 dB below the voice. A good microphone's natural S sounds come through untouched.
 - **Tone:** high-pass, gentle EQ, compressor.
 - **Cuts:** short fades at every join so no clicks, and the clip's own room tone in any hole the voice leaves.
 - **Music:** sits `[audio] music_under` dB under speech (18 by default) on a smooth ramp that starts before the word, stays down across pauses under 1.2 s, and gives up 4 dB near 2.5 kHz where consonants live. Its own end lands on the last frame.

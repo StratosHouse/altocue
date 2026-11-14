@@ -265,6 +265,26 @@ def test_too_many_changes_or_sounds_at_once_fail():
     assert any("3 sound effects" in p for p in shorts.check_pacing(busy, house))
 
 
+def test_a_sound_on_the_tail_of_a_line_fails_unless_the_picture_changes_there():
+    house = dict(shorts.HOUSE_DEFAULTS)
+    said = {"fps": 30, "caption_words": [{"start": 0.2, "end": 0.6}, {"start": 0.7, "end": 1.4}, {"start": 2.4, "end": 2.9}, {"start": 3.0, "end": 3.6}]}
+
+    def sound(at: float) -> str:
+        return f'<audio id="sfx-1" src="media/sfx/thud.wav" data-start="{at}"></audio>'
+
+    assert shorts.line_ends([(0.2, 0.6), (0.7, 1.4), (2.4, 2.9), (3.0, 3.6)]) == [1.4, 3.6]
+    under = shorts.check_sound_tails(sound(1.1), said, house)
+    assert len(under) == 1 and "thud.wav starts at 1.10 s, 0.30 s before the line ends at 1.40 s" in under[0]
+    assert any("0.10 s after the line ends" in p for p in shorts.check_sound_tails(sound(1.5), said, house))
+    assert shorts.check_sound_tails(sound(0.3), said, house) == []  # early in the line, on the word a graphic lands on
+    assert shorts.check_sound_tails(sound(1.8), said, house) == []  # in the pause, clear of the voice
+    assert shorts.check_sound_tails(scene("hidden", 1.5, 2) + sound(1.5), said, house) == []  # it arrives with the graphic
+    assert shorts.check_sound_tails('<audio id="music" src="m.wav" data-start="1.2"></audio>', said, house) == []
+    off = {**house, "sound_line_tail": 0, "sound_after_line": 0}
+    assert shorts.check_sound_tails(sound(1.1), said, off) == []
+    assert "stray noise on the voice" in shorts.house_notes([], False, [], None, None)
+
+
 def test_a_subtitle_cue_too_short_to_read_fails(tmp_path):
     (tmp_path / "renders").mkdir()
     (tmp_path / "renders" / "subtitles.srt").write_text("1\n00:00:01,000 --> 00:00:02,000\nFine\n\n2\n00:00:02,000 --> 00:00:02,001\nGone\n")

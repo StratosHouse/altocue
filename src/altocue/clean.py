@@ -1,4 +1,4 @@
-"""Clean each clip's voice: denoise, hum, mouth clicks, de-ess, tone, level. Timecodes never move."""
+"""Clean each clip's voice: declip, denoise, hum, mouth clicks, de-ess, tone, level. Timecodes never move."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ffmpeg, level, mouth, stems, swift
+from . import declip, ffmpeg, level, mouth, stems, swift
 from .errors import AltocueError
 from .master import limiter_latency
 from .models import Clip
@@ -38,9 +38,13 @@ VERSION_TIMEOUT = 10.0
 PRINT_SECONDS = 0.25
 TAIL = 4800  # `deep-filter -D` drops the last 1440 samples, so it gets spare ones
 ENGINES = ("auto", "apple", "deep-filter", "afftdn")
-# The most each strength takes off the S band. ffmpeg's `deesser` raised its intensity to the fifth power,
-# so it did nothing gently and too much a step up; `mouth.deess` is a measured split-band compressor instead.
+# The most each strength takes off one S: 2, 3.5 or 5 dB, and never an S under the lisp floor. ffmpeg's `deesser`
+# raised its intensity to the fifth power, so it did nothing gently and too much a step up; `mouth.deess` judges each S
+# against the voice around it instead, and leaves natural S sounds alone.
 DEESS = mouth.DEESS_DB
+# Raised when cleaning changes what it does to a voice, so sound cleaned the old way is made again, never reused.
+# 2: the lisp guard on the de-esser, and declipping ahead of the denoiser.
+METHOD = 2
 ISOLATOR = Path(__file__).with_name("isolate.swift")
 
 # Runs on Apple Silicon as downloaded. It is ad-hoc signed and embeds DeepFilterNet3.
@@ -82,7 +86,7 @@ def add_arguments(name: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project", "-p", default=".", help="Project folder")
     parser.add_argument("--force", action="store_true", help="Clean clips that are already done")
     parser.add_argument("--denoiser", choices=ENGINES, help="Override the engine set in altocue.toml")
-    parser.add_argument("--deess", choices=list(DEESS), help="Override the de-essing set in altocue.toml")
+    parser.add_argument("--deess", choices=list(DEESS), help="Override the de-essing set in altocue.toml. light is the smallest softening")
     parser.add_argument("--breaths", type=float, help="Turn breaths down this many dB. 0 leaves them")
     parser.add_argument("--no-declick", action="store_true", help="Leave mouth clicks and lip smacks in")
 
@@ -381,6 +385,15 @@ def _level(voice: Path, folder: Path, words: list[tuple[float, float]] | None, p
     return (voice if levelled is samples else ffmpeg.write_wav(folder / "levelled.wav", levelled, RATE)), report
 
 
+def _declip(raw: Path, samples: np.ndarray, folder: Path) -> tuple[Path, np.ndarray, dict[str, Any]]:
+    """Redraw flat tops before the denoiser hears them. A clip with none goes on exactly as it was."""
+    repaired, report = declip.declip(samples, RATE)
+    if repaired is samples:
+        return raw, samples, report
+    path = ffmpeg.write_wav(folder / "declipped.wav", repaired, RATE)
+    return path, ffmpeg.read_wav(path)[0], report
+
+
 def _mouth(voice: Path, folder: Path, words: list[tuple[float, float]] | None, declick: bool, deess: str) -> tuple[Path, dict[str, Any]]:
     samples, _ = ffmpeg.read_wav(voice)
     cleaned, report = mouth.clean_mouth(samples, RATE, words, declick, deess)
@@ -436,6 +449,7 @@ def clean_clip(
             return report
 
         floor, speech = noise_floor(before, RATE), speech_level(before, RATE)
+        clipped = int(np.sum(np.abs(before) >= 0.999))
         report.update(
             engine="none",
             strength="none",
@@ -450,6 +464,8 @@ def clean_clip(
             report["warnings"].append("The transcript has no words, so this clip keeps its own sound and level.")
             return report
 
+        original = raw
+        raw, before, report["declip"] = _declip(raw, before, folder)  # a flat top is noise to a denoiser, so it goes first
         raw, before, stem = stems.prepare_voice(raw, before, RATE, words, music, echo, report["warnings"])
         report["stems"] = stem
         if raw.name != "raw.wav":  # the denoiser plans from what it will be given
@@ -468,7 +484,7 @@ def clean_clip(
             report["warnings"].append(f"{engine} took too much speech ({_taken(change)}), so we kept the original.")
             voice, engine, kept_original = raw, "none", True
             if change["retained_db"] <= NOTHING_KEPT_DB:
-                shutil.copy(raw, dest)
+                shutil.copy(original, dest)  # its own sound and level, as a clip with no words keeps
                 report.update(
                     status="no_speech",
                     kept_original=True,
@@ -497,6 +513,7 @@ def clean_clip(
             raise AltocueError(f"Clip {clip.id}: cleaning changed the length from {count} to {len(after)} samples.")
         final = ffmpeg.loudness(dest)
         floor_after, speech_after = noise_floor(after, RATE), speech_level(after, RATE)
+        mouthed["s_to_voice_final_db"] = mouth.s_to_voice(after, RATE)  # after the EQ, compressor and limiter, as it will be heard
         report.update(
             engine=engine,
             strength=plan["strength"],
@@ -517,7 +534,7 @@ def clean_clip(
             range_after=final["range"],
             true_peak=final["true_peak"],
             peak_after=round(float(20 * np.log10(np.abs(after).max() + 1e-9)), 1),
-            clipped_before=int(np.sum(np.abs(before) >= 0.999)),
+            clipped_before=clipped,
             clipped_after=int(np.sum(np.abs(after) >= 0.999)),
         )
     return report
@@ -561,6 +578,7 @@ def clean_project(
     deep_filter = binary if denoiser == "deep-filter" else usable_deep_filter()[0] if isolate else None  # the spare, if isolation fails
     settings = {
         "source_clock": ffmpeg.SOURCE_CLOCK,
+        "method": METHOD,
         "denoiser": denoiser,
         "denoise": bool(project.setting("audio", "denoise", True)),
         "level_phrases": bool(project.setting("audio", "level_phrases", True)),
@@ -632,12 +650,32 @@ def describe(entry: dict[str, Any]) -> str:
         line += f", echo taken off ({stem['echo']}, RT60 {stem.get('rt60')} to {stem.get('rt60_after')} s)"
     if entry.get("phrases"):
         line += f", {entry['phrases']} phrases, range {entry['range_before']} to {entry['range_after']} LU"
+    fixed = (entry.get("declip") or {}).get("repaired")
+    if fixed:
+        line += f", {fixed} clipped peaks redrawn"
     said = entry.get("mouth") or {}
     if said.get("clicks"):
         line += f", {said['clicks']} mouth clicks taken out"
-    if said.get("deess_most_db"):
-        line += f", S sounds down up to {said['deess_most_db']} dB"
+    line += sibilance_note(said)
     return f"{line} (reused)" if entry["status"] == "reused" else line
+
+
+def sibilance_note(said: dict[str, Any]) -> str:
+    """What the de-esser did, in words. Saying it left the S sounds alone matters as much as saying it took some."""
+    if "sibilants" not in said:  # a report from before the lisp guard
+        return f", S sounds down up to {said['deess_most_db']} dB" if said.get("deess_most_db") else ""
+    if (said.get("deess_limits") or {}).get("ceiling_db") is None:
+        return ""
+    softened = said.get("sibilants_softened", 0)
+    level = said.get("s_to_voice_db") or [None, None]
+    if not softened:
+        return ", no S sound needed softening" + (f" (S to voice {level[0]} dB)" if level[0] is not None else "")
+    note = f", {softened} of {said['sibilants']} S sounds softened, at most {said['deess_most_db']} dB"
+    if level[0] is not None and level[1] is not None:
+        note += f" (S to voice {level[0]} to {level[1]} dB)"
+    if said.get("deess_held"):
+        note += f", the lisp guard held back {said['deess_held']}"
+    return note
 
 
 def run(args: argparse.Namespace) -> int:

@@ -61,6 +61,8 @@ HOUSE_DEFAULTS = {
     "max_changes": 2,  # scene changes allowed inside any `change_window` seconds
     "change_window": 4.0,
     "max_sounds": 2,  # sound effects allowed inside any one second
+    "sound_line_tail": 0.5,  # no sound effect may start in the last this many seconds of a spoken line
+    "sound_after_line": 0.25,  # nor in this long after the line's last word ends. 0 for both turns the check off
     "join_reach": 0.7,  # a full graphic edge this close to a join in the footage belongs on the join
     "max_scene": 10.0,  # a full graphic longer than this loses the viewer: split it on a spoken word
 }
@@ -363,6 +365,11 @@ def house_notes(
         if sfx_only:
             rule = "only from media/sfx/, as listed in sfx-pack.json. Do not place Shorts Studio's library sounds."
         notes.append(f"- Sound effects come {rule} Place each as an <audio> tag in the composition.")
+    if rules["sound_line_tail"] or rules["sound_after_line"]:
+        notes.append(
+            f"- A sound effect lands with a change in the picture. None starts in the last {rules['sound_line_tail']:.1f} s of a spoken line"
+            f" or in the {rules['sound_after_line']:.2f} s after it: there it is heard as a stray noise on the voice."
+        )
     notes.append("- Show the take with `<img data-video>`. A `<video>` tag fails the render.")
     if kit:
         notes.append(f"- House build helpers: {', '.join(kit)}. Build the composition with them, after measure and a first scaffold.")
@@ -715,6 +722,50 @@ def check_pacing(html: str, house: dict[str, Any]) -> list[str]:
     return problems
 
 
+LINE_GAP = 0.45  # a pause this long after a word ends the line
+
+
+def line_ends(words: list[tuple[float, float]]) -> list[float]:
+    """Where each spoken line ends: a word with a real pause after it, and the last word of all."""
+    words = sorted(words)
+    return [end for (_, end), after in zip(words, [*words[1:], None], strict=True) if after is None or after[0] - end >= LINE_GAP]
+
+
+def check_sound_tails(html: str, timeline: dict[str, Any], house: dict[str, Any]) -> list[str]:
+    """No sound effect on the tail of a spoken line, or in the breath right after it.
+
+    From six Reels: a thud or a tile sound that started as a line finished was heard as a stray noise on the voice, not as
+    part of a graphic. A sound belongs to a change in the picture, so one that starts with a scene is left alone.
+    """
+    before, after = float(house["sound_line_tail"]), float(house["sound_after_line"])
+    words = [(float(w["start"]), float(w["end"])) for w in timeline.get("caption_words") or timeline.get("words") or [] if "start" in w and "end" in w]
+    if not words or not (before or after):
+        return []
+    slack = FRAME_SLACK / float(timeline.get("fps", 30))
+    changes = [a for _, a, _ in scenes_in(html)]
+    ends = line_ends(words)
+    problems = []
+    for tag in AUDIO_TAG.findall(html):
+        values = attrs(tag)
+        if values.get("id") in ("voice", "music", "bed") or "data-start" not in values:
+            continue
+        try:
+            at = float(values["data-start"])
+        except ValueError:
+            continue
+        if any(abs(at - change) <= slack for change in changes):
+            continue
+        end = next((e for e in ends if e - before < at < e + after), None)
+        if end is not None:
+            name = values.get("src", "").rsplit("/", 1)[-1] or values.get("id", "a sound")
+            where = f"{end - at:.2f} s before the line ends" if at < end else f"{at - end:.2f} s after the line ends"
+            problems.append(
+                f"{name} starts at {at:.2f} s, {where} at {end:.2f} s, and is heard as a stray noise on the voice. "
+                f"Put it on a graphic's arrival, or at least {after:.2f} s after the last word."
+            )
+    return problems
+
+
 def check_grain(html: str, house: dict[str, Any]) -> list[str]:
     problems = []
     for selector, body in GRAIN_RULE.findall(html):
@@ -1044,7 +1095,8 @@ def check(run: Path, render: Path | None, gaze_lens: float | None = None) -> lis
         + check_plan_cues(run)
     )
     problems += check_joins(html, timeline, record, house)
-    problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_timing(html, timeline, house) + check_grain(html, house)
+    problems += check_face(html, timeline, house, voice_track(run, html)) + check_pacing(html, house) + check_sound_tails(html, timeline, house)
+    problems += check_timing(html, timeline, house) + check_grain(html, house)
     problems += check_house(html, reel, scenes, length, house)
     final = render or run / "renders" / "final.mp4"
     if gaze_lens is not None:

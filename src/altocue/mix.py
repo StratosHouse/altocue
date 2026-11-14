@@ -6,6 +6,7 @@ import json
 import re
 import tempfile
 import wave
+from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -13,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from . import clean, ffmpeg
+from . import beats, clean, ffmpeg
 from .cut.snap import frame_count
 from .errors import AltocueError
 from .models import Edl
@@ -66,7 +67,30 @@ TIGHT_TAIL = 0.27
 DIP_RANGE = (6.0, 12.0)
 DIP_SECONDS = 0.4
 DIP_BACK = 0.02
-ALIGNS = ("start", "peak")
+ALIGNS = ("start", "peak", "end")  # what meets the event: the onset, the loudest sample, or the end, all as `marks` finds them
+SYNCS = ("picture", "free")  # picture: a change on screen, and the sound keeps its frame. free: it may move into clear air
+ONSET_DB = 20.0  # a sound's onset is its first sample within this of its peak, and its end is its last
+TAIL_DB = 30.0  # past its last sample within this of its peak, a sound is not heard over a voice
+EVENT_SLACK = 0.02  # frames: a time this close to a frame is on it
+# Effects and words. All house values, and nobody has listened: a hit on the first sound of a word takes its
+# consonant, and one on the last half second of a line, or the breath after it, is heard as a stray noise on the voice.
+ONSET_BEFORE = 0.05
+ONSET_AFTER = 0.1
+LINE_GAP = 0.5  # a pause this long ends a spoken line, as `cut` counts one
+LINE_TAIL = 0.5
+LINE_BREATH = 0.35
+SENTENCE_END = (".", "?", "!")
+NUDGE_MOST = 0.2  # a free sound moves this far at most to find clear air
+NUDGE_STEP = 0.005
+UNDER_WORD_DB = 6.0  # a sound that keeps its frame on a word comes down this much further
+SHORTEN_FADE = 0.02
+SHORTEN_LEAST = 0.03  # a sound is cut short only if this much of it is left after its hit
+# A sound heard again is a little quieter, and an untuned one a little higher or lower, so a repeat is not a machine.
+VARY_GAIN_DB = (0.0, -1.0, -0.5, -1.5, -0.25, -0.75)
+VARY_CENTS = (0, 35, -25, 50, -40, 15)
+# Music that ends on a bar. House values.
+BAR_REACH = 1.0  # seconds the track may enter later under a voice, or open further in, so a bar line meets the last frame
+BAR_END_FADE = (0.25, 0.6)  # the last beat fades, within these seconds, ending on the bar line
 SILENT_VOICE = 1e-4
 ROOM_SECONDS = 8  # long enough that no ear catches the repeat
 ROOM_FRAME = 2048
@@ -444,12 +468,26 @@ def _looped(track: np.ndarray, total: int) -> tuple[np.ndarray, int]:
     return out, passes
 
 
-def _shaped(track: np.ndarray, total: int, end: str, tight: bool = False, start: int | None = None, enter: int = 0) -> tuple[np.ndarray, int, int]:
+def _shaped(
+    track: np.ndarray, total: int, end: str, tight: bool = False, start: int | None = None, enter: int = 0, *, shift: int | None = None, tail: int | None = None
+) -> tuple[np.ndarray, int, int]:
     """The bed for a film of `total` samples, with its head and tail, and where it started in the track.
 
     `start` is a sample of the track to begin on, such as a downbeat. The film then opens on it with no fade in, and the bed fades out at the end.
     `enter` holds the track silent until that sample of the film, still running from `start`, so it comes in on a beat of its own grid.
+    `shift`, for a "fade" ending, lays the top of the track that many samples into the film, or opens that far into the track when it is
+    negative, so a bar line meets the last sample. The bed then fades over `tail` samples, ending on that bar line.
     """
+    if shift is not None and start is None and end == "fade":
+        bed = np.zeros((total, 2))
+        begin, entry = max(-shift, 0), max(shift, 0)
+        count = max(min(total - entry, len(track) - begin), 0)
+        bed[entry : entry + count] = track[begin : begin + count]
+        head = min(round((TIGHT_HEAD if tight else MUSIC_FADE_IN) * RATE), count // 4)
+        fade = min(tail if tail is not None else round(MUSIC_FADE_OUT * RATE), count // 3)
+        bed[entry : entry + head] *= _curve(head, False)[:, None]
+        bed[total - fade :] *= _curve(fade, False)[::-1, None]
+        return bed, begin, 1
     if start is not None:
         if not 0 <= start < len(track):
             raise AltocueError(f"The music starts {start / RATE:.2f} s in, and the track runs {len(track) / RATE:.2f} s.", fix="Start it inside the track.")
@@ -481,10 +519,39 @@ def _shaped(track: np.ndarray, total: int, end: str, tight: bool = False, start:
     return bed, start, passes
 
 
+def _bar_ending(found: dict[str, Any], length: int, total: int, end: str, start: int | None, tight: bool) -> tuple[int | None, int | None, dict[str, Any]]:
+    """Where a "fade" ending can meet a bar line: the shift that puts one on the film's last sample, the fade, and the facts.
+
+    Only a "fade" from the top of a track that covers the film can move. "land" already ends on the track's own
+    ending, "own" ends itself, and `music_from` fixes where the track starts, so those keep their ending and say so.
+    """
+    if end != "fade" or start is not None:
+        why = {"land": "the track's own ending is on the last sample", "own": "a score that ends itself"}.get(end, "music_from fixes where the track starts")
+        return None, None, {"rule": end if start is None else "from", "moved": False, "why": why}
+    if length < total:
+        return None, None, {"rule": "fade", "moved": False, "why": "the track is shorter than the film, so it loops"}
+    if not found["confident"]:
+        return None, None, {"rule": "fade", "moved": False, "why": f"no beat grid to end on: {found.get('why', 'not confident')}"}
+    seconds, beat = total / RATE, 60 / found["bpm"]
+    choices = [("bar", found["downbeats"])] if found.get("bar_sure") else []
+    for kind, lines in [*choices, ("beat", found["beats"])]:
+        times = np.array(lines, dtype=np.float64)
+        shifts = seconds - times  # how far into the film the top of the track goes. Negative opens that far into the track
+        usable = (np.abs(shifts) <= BAR_REACH) & (times <= length / RATE)
+        if tight:  # with no voice the music leads, so it opens the film, and opens a little further in rather than late
+            usable &= shifts <= 0
+        if usable.any():
+            index = np.flatnonzero(usable)[np.argmin(np.abs(shifts[usable]))]
+            fade = min(TIGHT_TAIL, beat) if tight else float(np.clip(beat, *BAR_END_FADE))
+            facts = {"rule": kind, "moved": True, "shift": round(float(shifts[index]), 3), "track_at_end": round(float(times[index]), 3), "fade": round(fade, 3)}
+            return round(float(shifts[index]) * RATE), round(fade * RATE), facts
+    return None, None, {"rule": "fade", "moved": False, "why": f"no bar line or beat within {BAR_REACH:g} s of the end"}
+
+
 def _music_bed(
     music: Path, target: float, total: int, end: str, folder: Path, tight: bool = False, start: float | None = None, enter: float = 0.0
 ) -> tuple[np.ndarray, dict[str, Any]]:
-    """The track at `target` LUFS, fitted to the film."""
+    """The track at `target` LUFS, fitted to the film, with its beat grid in film seconds."""
     if not music.exists():
         raise AltocueError(f"No music at {music}.", fix="Check the path in motion.json.")
     if end not in MUSIC_ENDS:
@@ -492,8 +559,30 @@ def _music_bed(
     path = folder / "music.wav"
     ffmpeg.run(["-i", str(music), "-vn", "-ar", str(RATE), "-ac", "2", "-c:a", "pcm_s16le", str(path)])
     gain = target - ffmpeg.loudness(music)["integrated"]
-    bed, begin, passes = _shaped(_trimmed_music(path), total, end, tight, None if start is None else round(start * RATE), round(enter * RATE))
-    return bed * 10 ** (gain / 20), {"file": str(music), "gain_db": round(gain, 2), "end": end, "starts_at": round(begin / RATE, 3), "loops": passes}
+    track = _trimmed_music(path)
+    found = beats.grid(track, RATE)
+    first = None if start is None else round(start * RATE)
+    shift, tail, ending = _bar_ending(found, len(track), total, end, first, tight)
+    bed, begin, passes = _shaped(track, total, end, tight, first, round(enter * RATE), shift=shift, tail=tail)
+    seconds = total / RATE
+    # Track seconds plus this offset are film seconds. A looped track has no one grid, and a grid not believed is not given.
+    if passes > 1 or not found["confident"]:
+        offset = None
+    elif end == "land" and first is None:
+        offset = seconds - len(track) / RATE
+    else:
+        offset = ((shift or 0) - begin if first is None else -begin) / RATE
+    grid = {key: found[key] for key in ("bpm", "confidence", "confident", "beats_per_bar", "bar_strength", "bar_sure", "why") if found.get(key) is not None}
+    placed: dict[str, list[float]] = {"beats": [], "downbeats": []}
+    if offset is not None:
+        placed = {key: [round(t + offset, 4) for t in found[key] if 0 <= t + offset < seconds] for key in placed}
+        if found["downbeats"]:
+            lines = np.array(found["downbeats"]) + offset
+            ending["end_to_bar"] = round(float(seconds - lines[np.argmin(np.abs(lines - seconds))]), 3)  # 0 is a bar line on the last sample
+    info = {"file": str(music), "gain_db": round(gain, 2), "end": end, "starts_at": round(begin / RATE, 3), "loops": passes}
+    if shift and shift > 0:
+        info["enters_at"] = round(shift / RATE, 3)
+    return bed * 10 ** (gain / 20), {**info, "grid": grid, **placed, "ending": ending}
 
 
 @lru_cache(maxsize=1)
@@ -507,7 +596,14 @@ def _placing(cue: dict[str, Any]) -> dict[str, Any]:
     found = {key: cue.get(key, row.get(key, default)) for key, default in (("align", "start"), ("offset_ms", 0), ("min_gap_ms", 0), ("dip_db", 0.0))}
     if found["align"] not in ALIGNS:
         raise AltocueError(f"Unknown alignment {found['align']}.", fix=f"Use one of {', '.join(ALIGNS)}.")
-    return {**found, "over_db": float(cue.get("over_db", row.get("bed_db", BED_OVER_DB)))}
+    sync = cue.get("sync", "free")
+    if sync not in SYNCS:
+        raise AltocueError(f"Unknown sync {sync}.", fix='Use "picture" for a sound that belongs to a change on screen, or "free".')
+    return {**found, "sync": sync, "over_db": float(cue.get("over_db", row.get("bed_db", BED_OVER_DB)))}
+
+
+def _key(cue: dict[str, Any]) -> str:
+    return str(cue.get("name") or Path(str(cue.get("file"))).stem)
 
 
 def _spaced(cues: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -515,7 +611,7 @@ def _spaced(cues: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     kept, skipped = [], []
     last: dict[str, float] = {}
     for cue in sorted(cues, key=lambda row: float(row["at"])):
-        name, at = cue.get("name", Path(str(cue.get("file"))).stem), float(cue["at"])
+        name, at = _key(cue), float(cue["at"])
         if name in last and at - last[name] < float(_placing(cue)["min_gap_ms"]) / 1000:
             skipped.append({"name": name, "at": at, "why": "too soon after the last one"})
             continue
@@ -538,32 +634,205 @@ def _loaded(cue: dict[str, Any], index: int, total: int, folder: Path) -> tuple[
     return ffmpeg.read_wav(wav)[0].astype(np.float64), wav, path
 
 
-def _placed(samples: np.ndarray, cue: dict[str, Any], place: dict[str, Any]) -> tuple[np.ndarray, int, int]:
-    """The sound, where it starts, and where its loudest moment falls. A lead-in before the film is lost."""
-    loudest = int(np.argmax(np.abs(samples)))
-    start = round(float(cue["at"]) * RATE) + round(int(place["offset_ms"]) / 1000 * RATE) - (loudest if place["align"] == "peak" else 0)
-    return samples[max(-start, 0) :], max(start, 0), start + loudest
+def marks(samples: np.ndarray) -> dict[str, int]:
+    """Where a sound's onset, loudest sample, end and audible tail fall, as sample indices.
+
+    The onset is the first sample within `ONSET_DB` of the peak and the end the last. The tail is the last
+    sample within `TAIL_DB` of it. These are what `start`, `peak` and `end` alignment put on an event.
+    """
+    level = np.abs(np.asarray(samples, dtype=np.float64))
+    if not len(level) or level.max() <= 0:
+        return {"onset": 0, "peak": 0, "end": max(len(level) - 1, 0), "tail": max(len(level) - 1, 0)}
+    loud = np.flatnonzero(level >= level.max() * 10 ** (-ONSET_DB / 20))
+    heard = np.flatnonzero(level >= level.max() * 10 ** (-TAIL_DB / 20))
+    return {"onset": int(loud[0]), "peak": int(np.argmax(level)), "end": int(loud[-1]), "tail": int(heard[-1])}
 
 
-def _effect(cue: dict[str, Any], index: int, level: float, total: int, folder: Path) -> tuple[np.ndarray, int, dict[str, Any]]:
-    """A sound levelled against the voice."""
+def measure(samples: np.ndarray, rate: int = RATE) -> dict[str, float]:
+    """A sound's length and its marks in milliseconds, for the purpose index."""
+    found = marks(samples)
+    return {"seconds": round(len(samples) / rate, 3), **{f"{key}_ms": round(value / rate * 1000, 1) for key, value in found.items()}}
+
+
+@dataclass(frozen=True)
+class Speech:
+    """Where words begin and spoken lines end, in film seconds. `tails` holds each line's last half second and the breath after it."""
+
+    onsets: np.ndarray
+    line_ends: np.ndarray
+    tails: np.ndarray
+
+    def zone(self, at: np.ndarray | float) -> np.ndarray:
+        """For each time: 2 on a word's first sound, 1 in a line's tail, 0 in clear air."""
+        at = np.atleast_1d(np.asarray(at, dtype=np.float64))
+        onset = ((self.onsets[None, :] - ONSET_BEFORE <= at[:, None]) & (at[:, None] <= self.onsets[None, :] + ONSET_AFTER)).any(axis=1)
+        tail = ((self.tails[None, :, 0] <= at[:, None]) & (at[:, None] <= self.tails[None, :, 1])).any(axis=1) if len(self.tails) else np.zeros(len(at), dtype=bool)
+        return np.where(onset, 2, np.where(tail, 1, 0))
+
+
+ZONES = ("clear", "line tail", "word onset")
+
+
+def speech(words: Any) -> Speech | None:
+    """Spoken lines from word timings in film seconds. A line ends at a pause of `LINE_GAP`, or at the end of a sentence."""
+    rows = sorted((float(word["start"]), float(word["end"]), str(word.get("text", ""))) for word in words or () if float(word["end"]) > float(word["start"]))
+    if not rows:
+        return None
+    ends, tails = [], []
+    for index, (_, end, text) in enumerate(rows):
+        following = rows[index + 1][0] if index + 1 < len(rows) else np.inf
+        if following - end >= LINE_GAP or text.rstrip().endswith(SENTENCE_END):
+            ends.append(end)
+            tails.append((end - LINE_TAIL, min(end + LINE_BREATH, following - ONSET_BEFORE)))
+    return Speech(np.array([row[0] for row in rows]), np.array(ends), np.array(tails, dtype=np.float64).reshape(-1, 2))
+
+
+def _nearest(values: np.ndarray, at: float) -> float | None:
+    """Signed seconds from the nearest of these to `at`: positive when `at` is after it."""
+    return None if not len(values) else round(float(at - values[np.argmin(np.abs(values - at))]), 3)
+
+
+def _repitched(samples: np.ndarray, cents: float) -> np.ndarray:
+    """Played a little faster or slower, band-limited, so it is higher or lower and its peak moves with it."""
+    factor = 2 ** (cents / 1200)
+    padded = np.r_[samples, np.zeros(len(samples) // 8 + 64)]
+    count = round(len(padded) / factor)
+    return (np.fft.irfft(np.fft.rfft(padded), count) * count / len(padded))[: max(round(len(samples) / factor), 1)]
+
+
+def _variation(cue: dict[str, Any], occurrence: int) -> dict[str, float] | None:
+    """How the nth hearing of the same sound differs from the first. The same film always gets the same turns."""
+    if occurrence < 1 or cue.get("vary", True) is False:
+        return None
+    turn = occurrence % len(VARY_GAIN_DB)
+    tuned = _sound_table().get(cue.get("name", ""), {}).get("tuned", True)  # a file of unknown pitch keeps it
+    return {"gain_db": VARY_GAIN_DB[turn], "cents": 0 if tuned else VARY_CENTS[turn]}
+
+
+@dataclass
+class Placed:
+    """A sound ready to lay: its samples, where its first sample falls in the film, and what was done to it."""
+
+    samples: np.ndarray
+    start: int
+    peak: int
+    loudest_db: float  # of the whole sound, before any lead-in was lost
+    trim_db: float
+    facts: dict[str, Any]
+
+    @property
+    def hit(self) -> int:
+        return self.start + self.peak
+
+
+def _frame_of(seconds: float, fps: float) -> int:
+    return int(np.floor(seconds * fps + EVENT_SLACK))
+
+
+def _clear_nearby(said: Speech, hit: float, total: float) -> float | None:
+    """The smallest move, earlier first on a tie, that puts a hit in clear air inside the film. None if there is none."""
+    steps = np.arange(-NUDGE_MOST, NUDGE_MOST + NUDGE_STEP / 2, NUDGE_STEP)
+    steps = steps[np.lexsort((steps > 0, np.abs(steps)))]
+    times = hit + steps
+    usable = (said.zone(times) == 0) & (times >= 0) & (times < total)
+    return float(steps[np.argmax(usable)]) if usable.any() else None
+
+
+def _shortened(samples: np.ndarray, start: int, hit: int, said: Speech) -> np.ndarray | None:
+    """The sound cut off before the next word it would run over, with a short fade. None if it never reaches one."""
+    tail = start + marks(samples)["tail"]
+    for onset in said.onsets:
+        stop = round((onset - ONSET_BEFORE) * RATE)
+        if stop - hit >= round(SHORTEN_LEAST * RATE) and stop < tail:
+            keep = stop - start
+            out = samples[:keep].copy()
+            fade = min(round(SHORTEN_FADE * RATE), keep)
+            out[keep - fade :] *= _curve(fade, False)[::-1]
+            return out
+    return None
+
+
+def _place(
+    samples: np.ndarray, cue: dict[str, Any], place: dict[str, Any], total: int, *, fps: float | None = None, said: Speech | None = None, occurrence: int = 0
+) -> Placed:
+    """Put a sound on its event, then keep it off the words.
+
+    A `picture` sound belongs to a change on screen. With `fps` its event moves to the frame the picture shows
+    it on, never more than a frame, and on a word it keeps that frame: it comes down `UNDER_WORD_DB`, and is
+    cut short before the next word it would run over. A `free` sound moves up to `NUDGE_MOST` into clear air,
+    and only comes down when there is none that close.
+    """
+    varied = _variation(cue, occurrence)
+    if varied and varied["cents"]:
+        samples = _repitched(samples, varied["cents"])
+    found = marks(samples)
+    align, sync = place["align"], place["sync"]
+    at, offset = float(cue["at"]), int(place["offset_ms"]) / 1000
+    event_frame = int(np.ceil(at * fps - EVENT_SLACK)) if fps else None
+    event = event_frame / fps if fps and event_frame is not None and sync == "picture" else at
+    anchor = {"start": found["onset"], "peak": found["peak"], "end": found["end"]}[align]
+    start = round((event + offset) * RATE) - anchor
+    trim_db = varied["gain_db"] if varied else 0.0
+    zone, action, cut = None, "unchecked", None
+    if said is not None:
+        asked_hit = (start + found["peak"]) / RATE
+        zone = ZONES[int(said.zone(asked_hit)[0])]
+        action = "kept"
+        if zone != "clear" and sync == "free":
+            move = _clear_nearby(said, asked_hit, total / RATE)
+            if move is not None:
+                start += round(move * RATE)
+                action = "nudged"
+        if zone != "clear" and action != "nudged":
+            trim_db -= UNDER_WORD_DB
+            cut = _shortened(samples, start, start + found["peak"], said)
+            action = "ducked and shortened" if cut is not None else "ducked"
+            samples = samples if cut is None else cut
+    hit = (start + found["peak"]) / RATE
+    landed = (start + anchor) / RATE
+    facts: dict[str, Any] = {
+        "align": align,
+        "sync": sync,
+        "asked_at": round(at + offset, 4),
+        "landed_at": round(landed, 4),
+        "moved_ms": round((landed - at - offset) * 1000, 1),
+        "peak_at": round(hit, 4),
+        "event_frame": event_frame,
+        "landed_frame": _frame_of(landed, fps) if fps else None,
+        "zone": zone,
+        "action": action,
+        "to_word_onset": _nearest(said.onsets, hit) if said else None,
+        "to_line_end": _nearest(said.line_ends, hit) if said else None,
+        "under_word_db": UNDER_WORD_DB if action.startswith("ducked") else 0.0,
+        "shortened_to": round(len(cut) / RATE, 3) if cut is not None else None,
+        "variation": varied,
+    }
+    loudest = float(20 * np.log10(np.abs(samples).max(initial=0.0) + 1e-9))
+    return Placed(samples[max(-start, 0) :], max(start, 0), found["peak"] - max(-start, 0), loudest, trim_db, facts)
+
+
+def _effect(
+    cue: dict[str, Any], index: int, level: float, total: int, folder: Path, *, fps: float | None = None, said: Speech | None = None, occurrence: int = 0
+) -> tuple[np.ndarray, int, dict[str, Any]]:
+    """A sound levelled against the voice, then kept off the words."""
     under = float(cue.get("under_db", SFX_UNDER_DB))
     if not SFX_UNDER_RANGE[0] <= under <= SFX_UNDER_RANGE[1]:
         raise AltocueError(f"Effect level {under:g} dB under the voice is out of range.", fix="Use 8 to 12 dB under the voice.")
     samples, wav, path = _loaded(cue, index, total, folder)
-    peak = float(20 * np.log10(np.abs(samples).max() + 1e-9))
+    placed = _place(samples, cue, _placing(cue), total, fps=fps, said=said, occurrence=occurrence)
     gain = level - under - max_momentary(wav)
-    ceiling = level + SFX_PEAK_OVER_VOICE_DB - peak
-    placed, start, _ = _placed(samples * 10 ** (min(gain, ceiling) / 20), cue, _placing(cue))
+    ceiling = level + SFX_PEAK_OVER_VOICE_DB - placed.loudest_db
+    used = min(gain, ceiling)
     return (
-        placed,
-        start,
+        placed.samples * 10 ** ((used + placed.trim_db) / 20),
+        placed.start,
         {
             "name": cue.get("name", path.stem),
             "at": float(cue["at"]),
             "under_db": under,
-            "gain_db": round(min(gain, ceiling), 2),
+            "gain_db": round(used + placed.trim_db, 2),
             "capped": ceiling < gain,
+            **placed.facts,
         },
     )
 
@@ -582,7 +851,9 @@ def _level_at(bed: np.ndarray, hit: int) -> float | None:
     return level if level > -90 else None
 
 
-def _hit(cue: dict[str, Any], index: int, bed: np.ndarray, overall: float, total: int, folder: Path) -> tuple[np.ndarray, int, int, float, dict[str, Any]]:
+def _hit(
+    cue: dict[str, Any], index: int, bed: np.ndarray, overall: float, total: int, folder: Path, *, fps: float | None = None, occurrence: int = 0
+) -> tuple[np.ndarray, int, int, float, dict[str, Any]]:
     """A sound levelled against the music in the moment it lands. Returns it, its start and hit, and any dip."""
     place = _placing(cue)
     if "under_db" in cue:
@@ -594,10 +865,10 @@ def _hit(cue: dict[str, Any], index: int, bed: np.ndarray, overall: float, total
     if dip and not DIP_RANGE[0] <= dip <= DIP_RANGE[1]:
         raise AltocueError(f"A dip of {dip:g} dB is out of range.", fix=f"Use {DIP_RANGE[0]:g} to {DIP_RANGE[1]:g} dB, or 0 for no dip.")
     samples, _, path = _loaded(cue, index, total, folder)
-    placed, start, hit = _placed(samples, cue, place)
-    local = _level_at(bed, min(hit, total))
+    placed = _place(samples, cue, place, total, fps=fps, occurrence=occurrence)
+    local = _level_at(bed, min(placed.hit, total))
     against = overall if local is None else max(local, overall - BED_QUIET_DB)
-    peak = float(20 * np.log10(np.abs(samples).max() + 1e-9))
+    peak = placed.loudest_db
     gain = against + place["over_db"] - peak
     ceiling = HIT_PEAK_DB - peak
     used = min(gain, ceiling)
@@ -605,11 +876,12 @@ def _hit(cue: dict[str, Any], index: int, bed: np.ndarray, overall: float, total
         "name": cue.get("name", path.stem),
         "at": float(cue["at"]),
         "over_bed_db": round(peak + used - against, 1),
-        "gain_db": round(used, 2),
+        "gain_db": round(used + placed.trim_db, 2),
         "capped": ceiling < gain,
         "dip_db": dip,
+        **placed.facts,
     }
-    return placed * 10 ** (used / 20), start, hit, dip, entry
+    return placed.samples * 10 ** ((used + placed.trim_db) / 20), placed.start, placed.hit, dip, entry
 
 
 def _dipped(bed: np.ndarray, dips: list[tuple[int, float]]) -> np.ndarray:
@@ -636,11 +908,15 @@ def _no_voice(
     layers: dict[str, np.ndarray] | None = None,
     music_from: float | None = None,
     music_enter: float = 0.0,
+    *,
+    fps: float | None = None,
+    turns: list[int] | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """The music leads. Effects are levelled against it, and a big hit gets a dip in front of it."""
     bed, info = _music_bed(music, BED_LUFS, total, end, folder, tight=True, start=music_from, enter=music_enter) if music else (np.zeros((total, 2)), None)
     overall = _lufs_like(bed) if music else BED_LUFS
-    hits = [_hit(cue, index, bed, overall, total, folder) for index, cue in enumerate(cues)]
+    turns = turns or [0] * len(cues)
+    hits = [_hit(cue, index, bed, overall, total, folder, fps=fps, occurrence=turns[index]) for index, cue in enumerate(cues)]
     out = _dipped(bed, [(hit, dip) for _, _, hit, dip, _ in hits if dip])
     if layers is not None:
         layers["music"] = out.copy()
@@ -685,6 +961,8 @@ def mix_bed(
     music_enter: float = 0.0,
     music_under: float = DUCK_UNDER_VOICE_DB,
     end_fade: float = 0.0,
+    fps: float | None = None,
+    words: Any = None,
 ) -> Path:
     """Mix voice, music and effects to stereo 48 kHz, running `tail` seconds past the picture.
 
@@ -693,8 +971,12 @@ def mix_bed(
     the music leads at `BED_LUFS`, fades are tight, and effects are levelled against the music.
 
     Each entry in `sfx` is `{"name": "pop", "at": 1.2}` or `{"file": path, "at": 1.2}`, plus
-    `align` ("start" or "peak"), `offset_ms` and `min_gap_ms`, which default to the sound's row in
+    `align` ("start", "peak" or "end"), `offset_ms` and `min_gap_ms`, which default to the sound's row in
     `sounds.json`. With a voice a cue can set `under_db`. With none it can set `over_db` and `dip_db`.
+    `sync` is "picture" for a sound that belongs to a change on screen, which with `fps` lands on that
+    frame and keeps it, or "free", the default, for one that may move into clear air. `words`, each with a
+    `start` and `end` in film seconds, keeps effects off the first sound of a word and the tail of a line.
+    `vary: false` keeps a repeated sound the same every time.
     `room` is the loop from `mix_voice`, which fills the tail. `music_end` is "land", which
     backtimes the track so its own end falls on the film's last sample, "fade", which starts at the
     top of the track and fades out, or "own", for a score that ends itself. The numbers land in a
@@ -722,17 +1004,26 @@ def mix_bed(
         samples, length = loaded.astype(np.float64), len(loaded)
     total = length + round(tail * RATE)
     cues, skipped = _spaced(sfx)
+    heard: Counter[str] = Counter()
+    turns = []
+    for cue in cues:  # how many times each sound has been heard before this one
+        turns.append(heard[_key(cue)])
+        heard[_key(cue)] += 1
     layers: dict[str, np.ndarray] | None = {} if stems else None
+    silent = voice is None or np.abs(samples).max(initial=0.0) < SILENT_VOICE
+    said = None if silent else speech(words)
     with tempfile.TemporaryDirectory(prefix="altocue-") as scratch:
         folder = Path(scratch)
-        if voice is None or np.abs(samples).max(initial=0.0) < SILENT_VOICE:
-            out, report = _no_voice(Path(music) if music else None, cues, total, music_end, folder, layers, music_from, music_enter)
+        if voice is None or silent:
+            out, report = _no_voice(Path(music) if music else None, cues, total, music_end, folder, layers, music_from, music_enter, fps=fps, turns=turns)
         else:
             room_path = Path(room) if room else None
             out, report = _with_voice(
                 Path(voice), samples, Path(music) if music else None, cues, total, tail, room_path, music_end, folder, layers, music_from, music_enter,
-                under=float(music_under), end_fade=end_fade,
+                under=float(music_under), end_fade=end_fade, fps=fps, said=said, turns=turns,
             )
+    if cues:
+        report["placing"] = _placing_report(fps, said, silent)
     peak = float(np.abs(out).max())
     if stems:
         _write_stems(Path(stems), out, layers or {}, PEAK_LIMIT / peak if peak > PEAK_LIMIT else 1.0)
@@ -743,6 +1034,26 @@ def mix_bed(
     _write_stereo(dest, out)
     write_json(dest.with_suffix(".json"), report)
     return dest
+
+
+def _placing_report(fps: float | None, said: Speech | None, silent: bool) -> dict[str, Any]:
+    """The rule every effect in the report was placed by, so a gate or an editor can read the facts against it."""
+    if silent:
+        words = "no voice"
+    elif said is None:
+        words = "not given, so effects were not checked against speech"
+    else:
+        words = {"onsets": len(said.onsets), "lines": len(said.line_ends)}
+    return {
+        "fps": fps,
+        "words": words,
+        "onset_window": [-ONSET_BEFORE, ONSET_AFTER],
+        "line_tail": LINE_TAIL,
+        "line_breath": LINE_BREATH,
+        "nudge_most": NUDGE_MOST,
+        "under_word_db": UNDER_WORD_DB,
+        "listen": "Placed by measurement. Nobody has listened to these.",
+    }
 
 
 def _write_stems(folder: Path, mixed: np.ndarray, layers: dict[str, np.ndarray], trim: float) -> None:
@@ -769,8 +1080,11 @@ def _with_voice(
     *,
     under: float = DUCK_UNDER_VOICE_DB,
     end_fade: float = 0.0,
+    fps: float | None = None,
+    said: Speech | None = None,
+    turns: list[int] | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
-    """The voice leads. Music ducks under it, and effects are levelled against it."""
+    """The voice leads. Music ducks under it, and effects are levelled against it and kept off its words."""
     level = _voice_level(voice)
     out = np.zeros((total, 2))
     out[: len(samples)] = samples[:, None]
@@ -793,7 +1107,8 @@ def _with_voice(
         out += ridden
         if layers is not None:
             layers["music"] = ridden
+    turns = turns or [0] * len(cues)
     for index, cue in enumerate(cues):
-        placed, start, entry = _effect(cue, index, level, total, folder)
+        placed, start, entry = _effect(cue, index, level, total, folder, fps=fps, said=said, occurrence=turns[index])
         report["sfx"].append({**entry, "cut_at_end": _lay(out, placed, start, total)})
     return out, report
