@@ -71,6 +71,9 @@ HOLD_ITEMS = {"title", "endcard"}
 DISCLOSURE_SECONDS = 2.0  # a house floor. New York sets no format, and a flash is not conspicuous
 SPEECH_CEILING = 2.9  # words a second. About 2.5 reads as a person, and past this it reads as rushed AI
 COLD_OPEN = 0.4
+JUMPS_SHOWN = 6  # bare jumps or soft shots named in a detail, the rest counted
+JUMP_FIX = "Cover each with an insert (`altocue broll`), or keep what was cut there, then render again. They are listed in work/frame.json"
+SOFT_FIX = "Use a sharper source, a wider aspect, or a smaller punch-in (`[frame] punch_in`), then render again"
 STATIC_OPEN = 0.3  # mean luma change between frames. A frozen start measures near zero. Not yet calibrated on real clips
 BAKED_FPS = 2.0
 BAKED_MATCH = 0.6
@@ -687,6 +690,54 @@ def gate_music_under_voice(c: Context) -> GateResult:
     if under < least:
         detail += ". It will bury the consonants. Raise `[audio] music_under` or choose a calmer track, then render again"
     return GateResult(id="music_under_voice", passed=under >= least, value=under, threshold=least, detail=detail)
+
+
+def _frame_report(c: Context, gate: str) -> tuple[dict[str, Any] | None, GateResult | None]:
+    """What `altocue frame` found for this cut, or the result that says why there is nothing to read."""
+    if is_film(c):
+        return None, not_applicable(gate, "A film made in code has no camera shots to frame.")
+    path = c.project.work / "frame.json"
+    if not path.is_file():
+        return None, not_applicable(gate, "No frame report at work/frame.json, so no shot was framed for this cut.")
+    return json.loads(path.read_text()), None
+
+
+def gate_jump_cuts(c: Context) -> GateResult:
+    """A join that keeps the same size while the face moves reads as a jump. Frame names each one; this fails while any is left."""
+    report, missing = _frame_report(c, "jump_cuts")
+    if report is None:
+        return missing  # type: ignore[return-value]
+    if "bare_jumps" not in report:
+        return skipped("jump_cuts", "The frame report predates the list of bare jump cuts. Render again.", 0)
+    bare = report["bare_jumps"]
+    if not bare:
+        joins = len(report.get("joins", []))
+        return GateResult(id="jump_cuts", passed=True, value=0, threshold=0, detail=f"none of {joins} join{'' if joins == 1 else 's'} is a bare jump")
+    shown = "; ".join(f"{jump['stamp']} ({jump['before']} to {jump['after']}, {jump['why']})" for jump in bare[:JUMPS_SHOWN])
+    more = f"; and {len(bare) - JUMPS_SHOWN} more" if len(bare) > JUMPS_SHOWN else ""
+    detail = f"{len(bare)} jump cut{'' if len(bare) == 1 else 's'} left bare, the same size on both sides: {shown}{more}. {JUMP_FIX}"
+    return GateResult(id="jump_cuts", passed=False, value=len(bare), threshold=0, detail=detail)
+
+
+def gate_soft_picture(c: Context) -> GateResult:
+    """A source enlarged past twice its pixels looks soft on any phone. Past one and a half, a person should look."""
+    from .. import frame
+
+    report, missing = _frame_report(c, "soft_picture")
+    if report is None:
+        return missing  # type: ignore[return-value]
+    upscale = report.get("upscale")
+    if not isinstance(upscale, dict) or "worst" not in upscale:
+        return skipped("soft_picture", "The frame report predates the measure of enlargement. Render again.", frame.TOO_SOFT)
+    worst = float(upscale["worst"])
+    soft = [str(name) for name in upscale.get("soft", [])]
+    detail = f"the most any shot is enlarged is {worst:.2f} times"
+    if worst > frame.TOO_SOFT:
+        detail += f", past {frame.TOO_SOFT:g}, so it will look soft: {', '.join(soft[:JUMPS_SHOWN])}. {SOFT_FIX}"
+        return GateResult(id="soft_picture", passed=False, value=round(worst, 2), threshold=frame.TOO_SOFT, detail=detail)
+    if worst > frame.SOFT:
+        detail += f". Needs a human look: past {frame.SOFT:g} in {', '.join(soft[:JUMPS_SHOWN])}, check those shots on a phone at full size"
+    return GateResult(id="soft_picture", passed=True, value=round(worst, 2), threshold=frame.TOO_SOFT, detail=detail)
 
 
 def norm(words: list[str]) -> list[str]:
@@ -1616,6 +1667,8 @@ def plan() -> list[tuple[tuple[str, ...], Callable[[Context], GateResult | list[
         (("silence",), gate_silence),
         (("sibilance",), gate_sibilance),
         (("music_under_voice",), gate_music_under_voice),
+        (("jump_cuts",), gate_jump_cuts),
+        (("soft_picture",), gate_soft_picture),
         (("words", "doubled_phrase", "captions_match"), word_gates),
         (("caption_speed",), gate_caption_speed),
         (("brief_coverage",), gate_brief_coverage),

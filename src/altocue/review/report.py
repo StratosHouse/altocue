@@ -20,6 +20,8 @@ ALWAYS = [
 GATE_ACTIONS = {
     "sibilance": 'Set `[audio] deess = "light"`, or run `altocue clean --deess light`, then render again.',
     "music_under_voice": "Raise `[audio] music_under` or choose a calmer track, then render again.",
+    "jump_cuts": "Cover each bare jump with an insert (`altocue broll`), or keep what was cut there, then render again.",
+    "soft_picture": "Use a sharper source, a wider aspect, or a smaller `[frame] punch_in`, then render again.",
     "loudness": "Re-run `altocue master`.",
     "true_peak": "Re-run `altocue master`, and check the limiter ceiling.",
     "black_frames": "Find the black frames in the render and correct the cut or the layer.",
