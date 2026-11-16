@@ -116,22 +116,24 @@ For a person: <what must be heard or watched before merging>
 Ordered by how much each would improve a finished film. A sweep takes from the top, and re-orders when something changes.
 
 <!-- backlog:start -->
-1. **Gates that read the new facts.** The cut, frame, caption and mix stages now write what they found, and no gate reads it yet: shots under half a second, bare jump cuts in `work/frame.json`, a source enlarged past 1.5 times, an ending that stops cold (`ends_cold_s`), a face left dark after the limit. Add them as gates with canaries, and a `music_and_mix` line in the reviewer's rubric.
-2. **Captions with an active word.** A highlight that follows the spoken word, entrances that differ by caption style, and the hook on the first frame, using the motion numbers in the craft skill.
-3. **Sound, the next layer.** House sounds on the frame a graphic settles rather than where it starts; at most two effects a second counted across different sounds; a typing sound on every format that types; loops joined on phrases; a mono fold-down check and a warning for a low hit with nothing above 300 Hz. Then check the de-esser's ceilings and the effect ducking by ear on real voices.
-4. **Raise the renderer.** HyperFrames is pinned well behind its newest release, and the shader collection has a new major version. Each needs a proof render on a real machine, one at a time, each in its own commit.
-5. **Log everywhere.** The follow crop, B-roll inserts and QA still read log clips as they are. Each needs `grade.to_sdr`. Then more curves: S-Gamut3, Apple Log 2 and D-Log M.
-6. **Split edits.** Let the voice lead or trail the picture at a join between two different expressions, so the cut does not jar, as a field in `edl.json` so a word can finish under the next picture.
-7. **Faster drafts.** The basic renderer for a draft that has only captions, hardware encoders where the machine has them, and plate pieces in parallel.
-8. **A changed `[cut]` setting makes the cut stale.** Today it is ignored until the cut is run again.
-9. **Exposure that knows the skin.** The face band is one range for every skin tone. Read the tone first, then place it.
-10. **Speed ramps.** A shot that speeds up into a cut and settles after it, with sound that follows.
-11. **Language packs.** Fillers, sentence ends and titles for languages beyond English.
-12. **Fractional frame rates.** 23.976 and 29.97 as exact fractions end to end.
-13. **A timeline to take elsewhere.** Export the cut as OpenTimelineIO.
-14. **Hand-placed inserts take the look.** An insert written straight into `motion.json` bypasses the B-roll step and its look.
-15. **3D inserts.** A skill that writes a scene for a 3D tool the user has installed, renders it, and looks at the result with `altocue watch`.
-16. **From the studio's own Reels, not yet in Altocue.** A refine pass for a green screen matte (temporal smoothing, outline smoothing, a guided edge); a warning when a still or object was used in a recent film; delivery of a batch to one folder with numbered files; cover frames scored for a closed mouth and eyes on the lens as well as open eyes.
+1. **Gates that read the new facts, the rest.** `jump_cuts` and `soft_picture` now read `work/frame.json`. Still unread: shots under half a second, an ending that stops cold (`ends_cold_s`), a face left dark after the limit. Add them as gates with canaries, and a `music_and_mix` line in the reviewer's rubric.
+2. **Names heard right.** Parakeet 0.7 (read this week, held under 0.6) can boost chosen words in its beam search. Feed it the project's name fixes and brand names so a product name is heard right the first time, instead of fixed after. Raise the pin only with a word time comparison on a Mac.
+3. **Captions with an active word.** A highlight that follows the spoken word, entrances that differ by caption style, and the hook on the first frame, using the motion numbers in the craft skill.
+4. **Sound, the next layer.** House sounds on the frame a graphic settles rather than where it starts; at most two effects a second counted across different sounds; a typing sound on every format that types; loops joined on phrases; a mono fold-down check and a warning for a low hit with nothing above 300 Hz. Then check the de-esser's ceilings and the effect ducking by ear on real voices.
+5. **Raise the renderer.** HyperFrames is pinned well behind its newest release, and the shader collection has a new major version. Each needs a proof render on a real machine, one at a time, each in its own commit.
+6. **Log everywhere.** The follow crop, B-roll inserts and QA still read log clips as they are. Each needs `grade.to_sdr`. Then more curves: S-Gamut3, Apple Log 2 and D-Log M.
+7. **Split edits.** Let the voice lead or trail the picture at a join between two different expressions, so the cut does not jar, as a field in `edl.json` so a word can finish under the next picture.
+8. **Faster drafts.** The basic renderer for a draft that has only captions, hardware encoders where the machine has them, and plate pieces in parallel.
+9. **A changed `[cut]` setting makes the cut stale.** Today it is ignored until the cut is run again.
+10. **Exposure that knows the skin.** The face band is one range for every skin tone. Read the tone first, then place it.
+11. **Speed ramps.** A shot that speeds up into a cut and settles after it, with sound that follows.
+12. **Language packs.** Fillers, sentence ends and titles for languages beyond English.
+13. **Fractional frame rates.** 23.976 and 29.97 as exact fractions end to end.
+14. **A timeline to take elsewhere.** Export the cut as OpenTimelineIO.
+15. **Hand-placed inserts take the look.** An insert written straight into `motion.json` bypasses the B-roll step and its look.
+16. **3D inserts.** A skill that writes a scene for a 3D tool the user has installed, renders it, and looks at the result with `altocue watch`.
+17. **From the studio's own Reels, not yet in Altocue.** A refine pass for a green screen matte (temporal smoothing, outline smoothing, a guided edge); a warning when a still or object was used in a recent film; delivery of a batch to one folder with numbered files; cover frames scored for a closed mouth and eyes on the lens as well as open eyes.
+18. **Film layouts that keep their margins.** A `pan` camera move pushed right-zone cards onto the edge of a 16:9 film, and the corner stamp collided with headlines in 9:16 and 1:1. Nothing measures margins on a film made in code: add the safe-margin check to `altocue film qa`, and keep the stamp out of a headline's zone.
 
 For a person, until someone has done it: the versions page in Safari and Firefox, a note round trip by a real reviewer, every new look on real faces from light to deep, each log curve on real camera files, and timings of the speed work on a real machine.
 <!-- backlog:end -->
