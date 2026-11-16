@@ -16,6 +16,7 @@ where = "pypi"
 id = "parakeet-mlx"
 role = "used"
 licence = "Apache-2.0"
+seen = "0.7.0"
 why = "Default speech engine on Apple Silicon"
 
 [[watch]]
@@ -113,6 +114,7 @@ where = "pypi"
 id = "mediapipe"
 role = "used"
 licence = "Apache-2.0"
+seen = "1.2.3"
 why = "Optional: gaze and blink"
 
 [[watch]]
@@ -167,4 +169,5 @@ where = "pypi"
 id = "opentimelineio"
 role = "candidate"
 licence = "Apache-2.0"
+seen = "0.18.1"
 why = "Would let a cut be handed to a desktop editor"

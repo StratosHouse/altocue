@@ -28,6 +28,8 @@ MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/fac
 MODEL_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
 MODEL_PATH = Path.home() / ".altocue" / "models" / "face_landmarker.task"
 INSTALL = "uv tool install --force altocue --with mediapipe"
+# MediaPipe 1.x loads EGL and GLES even on the CPU. A server or container image often lacks them.
+GRAPHICS_FIX = "Install the EGL and GLES libraries (on Debian or Ubuntu: `sudo apt install libegl1 libgles2`), then run this again."
 SAMPLE_FPS = 15.0
 PER_DEGREE = 0.048  # eye blendshape points per degree of head turn when the eyes hold the lens
 LENS = 2.5  # degrees: the eyeline when looking down the lens, measured on five takes
@@ -72,6 +74,8 @@ def scan(video: Path, fps: float = SAMPLE_FPS) -> list[dict[str, Any]]:
         from mediapipe.tasks.python import vision
     except ImportError as error:
         raise AltocueError("Reading the eyeline needs MediaPipe, which is not installed.", fix=f"Run `{INSTALL}`.") from error
+    except OSError as error:
+        raise AltocueError(f"MediaPipe could not load a system library: {error}", fix=GRAPHICS_FIX) from error
     options = vision.FaceLandmarkerOptions(
         base_options=tasks.BaseOptions(model_asset_path=str(model())),
         running_mode=vision.RunningMode.VIDEO,
@@ -79,13 +83,18 @@ def scan(video: Path, fps: float = SAMPLE_FPS) -> list[dict[str, Any]]:
         output_facial_transformation_matrixes=True,
         num_faces=1,
     )
+    try:
+        made = vision.FaceLandmarker.create_from_options(options)
+    except OSError as error:
+        raise AltocueError(f"MediaPipe could not load a system library: {error}", fix=GRAPHICS_FIX) from error
     capture = cv2.VideoCapture(str(video))
     if not capture.isOpened():
+        made.close()
         raise AltocueError(f"Could not open {video}.")
     source_fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
     every = max(1, round(source_fps / fps))
     rows: list[dict[str, Any]] = []
-    with vision.FaceLandmarker.create_from_options(options) as landmarker:
+    with made as landmarker:
         index = 0
         while True:
             ok, frame = capture.read()
