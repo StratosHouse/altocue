@@ -629,3 +629,48 @@ def test_a_new_aspect_works_for_a_project_and_centres_a_crop(tmp_path):
     project = Project.create(tmp_path / "video", aspect="21:9")
     assert project.size == (1920, 822)
     assert 'aspect = "21:9"' in (project.root / "altocue.toml").read_text()
+
+
+def framed(project: Project):
+    """Only what the frame gates read: the project's work folder, and no film timeline."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(project=project, timeline=None, edl=project.edl())
+
+
+def test_the_jump_cuts_gate_fails_on_what_frame_left_bare_and_passes_a_clean_join(tmp_path, landscape, walkabout):
+    from altocue.qa import gates
+
+    clean = make_project(tmp_path / "clean", [landscape], [Segment(id="s1", clip="wide", start=0, end=1), Segment(id="s2", clip="wide", start=1.5, end=2.5)])
+    frame_project(clean)
+    passed = gates.gate_jump_cuts(framed(clean))
+    assert passed.passed and passed.value == 0 and "none of 1 join is a bare jump" in passed.detail
+    bare = walked(tmp_path / "bare", walkabout, "1:1")
+    frame_project(bare)
+    failed = gates.gate_jump_cuts(framed(bare))
+    assert not failed.passed and failed.value == 1 and "00:01.5 (s1 to s2, inside a beat)" in failed.detail and "altocue broll" in failed.detail
+
+
+def test_the_soft_picture_gate_looks_past_one_and_a_half_and_fails_past_two(tmp_path, walkabout):
+    from altocue.qa import gates
+
+    square = walked(tmp_path / "square", walkabout, "1:1")
+    frame_project(square)
+    look = gates.gate_soft_picture(framed(square))
+    assert look.passed and look.value == pytest.approx(1.89, abs=0.01) and "Needs a human look" in look.detail and "s3" in look.detail
+    tall = walked(tmp_path / "tall", walkabout, "9:16")
+    frame_project(tall)
+    soft = gates.gate_soft_picture(framed(tall))
+    assert not soft.passed and soft.value == pytest.approx(3.0) and soft.threshold == 2.0 and "punch_in" in soft.detail
+
+
+def test_the_frame_gates_have_nothing_to_read_without_a_frame_report(tmp_path, landscape):
+    from altocue.qa import gates
+
+    project = make_project(tmp_path, [landscape], [Segment(id="s1", clip="wide", start=0, end=1)])
+    for gate in (gates.gate_jump_cuts, gates.gate_soft_picture):
+        assert gate(framed(project)).value == gates.NOT_APPLICABLE
+    from types import SimpleNamespace
+
+    film = SimpleNamespace(project=project, timeline={"scenes": [{"id": "a"}]}, edl=None)
+    assert gates.gate_jump_cuts(film).value == gates.NOT_APPLICABLE and "film made in code" in gates.gate_jump_cuts(film).detail

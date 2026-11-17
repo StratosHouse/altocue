@@ -28,6 +28,7 @@ SOFT_DRIFT = 0.018
 LAST_HOLD = 0.5
 WORLD_DRIFT = 0.012  # scale added each scene, so the backdrop never settles
 WORLD_KICK = 0.05  # and a little more when the camera goes through a cut
+WORLD_COVER = 0.02  # spare scale beyond what a sideways shift needs, so the curve between poses never shows an edge
 SHUTTER = 180
 CAPTION_WORDS = 3  # a phone frame is narrow
 CAPTION_SHARE = 0.1  # font size as a share of the picture's width
@@ -332,6 +333,14 @@ def camera_css(scene: dict[str, Any], spans: dict[str, Any]) -> str:
     return _keyframes(f"cam-{scene['id']}", poses, span)
 
 
+def _covering(scale: float, x: float) -> float:
+    """A backdrop shifted sideways by `x` of its width covers the frame only when scaled past 1 + 2|x|.
+
+    A pan link shifted it 6 percent at a scale near 1.04, and the last 50 pixels of a 1920 frame showed no backdrop.
+    """
+    return max(scale, 1 + 2 * abs(x) + WORLD_COVER)
+
+
 def world_css(scenes: list[dict[str, Any]], total: float) -> str:
     """The backdrop keeps travelling for the whole film, and leans into every camera link."""
     poses: list[tuple[float, dict[str, float]]] = [(0.0, {"scale": 1.03, "x": 0.0})]
@@ -342,11 +351,13 @@ def world_css(scenes: list[dict[str, Any]], total: float) -> str:
         scale += WORLD_DRIFT
         ends = _ends(scene)
         x -= (ends["last"]["x"] - ends["first"]["x"]) * 0.25
+        scale = _covering(scale, x)
         poses.append((cut - reach, {"scale": scale, "x": x}))
         if link["type"] in ("through", "dive"):
             scale += WORLD_KICK
         elif link["type"] == "pan":
             x += float(link.get("direction", -1)) * 0.06
+        scale = _covering(scale, x)
         poses.append((cut + reach, {"scale": scale, "x": x}))
     poses.append((total, {"scale": scale + WORLD_DRIFT, "x": x}))
     kept = [poses[0]]

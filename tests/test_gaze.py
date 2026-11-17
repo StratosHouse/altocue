@@ -86,3 +86,33 @@ def test_without_mediapipe_the_fix_names_the_install(monkeypatch, tmp_path):
     with pytest.raises(AltocueError) as caught:
         gaze.scan(tmp_path / "take.mp4")
     assert "--with mediapipe" in caught.value.fix
+
+
+def test_a_missing_graphics_library_is_an_error_with_a_fix(tmp_path, monkeypatch):
+    """MediaPipe 1.x loads EGL even on the CPU, and a server image often has none. That should read as a fix, not a traceback."""
+    import sys
+    import types
+
+    def broken(options):
+        raise OSError("libEGL.so.1: cannot open shared object file")
+
+    vision = types.SimpleNamespace(
+        FaceLandmarkerOptions=lambda **kw: kw,
+        RunningMode=types.SimpleNamespace(VIDEO="video"),
+        FaceLandmarker=types.SimpleNamespace(create_from_options=broken),
+    )
+    python = types.ModuleType("mediapipe.tasks.python")
+    python.BaseOptions = lambda **kw: kw
+    python.vision = vision
+    tasks = types.ModuleType("mediapipe.tasks")
+    tasks.python = python
+    mediapipe = types.ModuleType("mediapipe")
+    mediapipe.tasks = tasks
+    for name, module in {"mediapipe": mediapipe, "mediapipe.tasks": tasks, "mediapipe.tasks.python": python, "mediapipe.tasks.python.vision": vision}.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setattr(gaze, "model", lambda: tmp_path / "face.task")
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"")
+    with pytest.raises(AltocueError) as caught:
+        gaze.scan(clip)
+    assert "system library" in str(caught.value) and "libegl1" in caught.value.fix

@@ -1621,4 +1621,4 @@ def test_music_under_voice_reads_what_the_mix_writes(tmp_path):
 
 
 def test_the_sound_gates_run_in_every_normal_qa():
-    assert {"sibilance", "music_under_voice"} <= set(gates.gate_ids())
+    assert {"sibilance", "music_under_voice", "jump_cuts", "soft_picture"} <= set(gates.gate_ids())

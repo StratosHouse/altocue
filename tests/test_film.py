@@ -2187,3 +2187,19 @@ def test_a_still_laid_on_a_carried_full_frame_take_is_drawn_over_it():
     made["scenes"][0]["items"][0]["over"] = True
     page = scenes.compose(timeline_for(made), default_brand())
     assert page.index('<img id="footage-') < page.index('<div class="over">') < page.index('<video id="footage-')
+
+
+def test_the_backdrop_still_covers_the_frame_after_a_sideways_link():
+    """A pan link shifts the backdrop sideways. It shifted 6 percent at a scale near 1.04, and the right edge of a 16:9 film showed a dark strip."""
+    pan = {"type": "pan", "seconds": 0.7}
+    shown = [
+        {"id": "a", "start": 0.0, "end": 4.0, "camera": {"move": "pan", "x": -0.022}, "link": pan},
+        {"id": "b", "start": 4.0, "end": 8.0, "camera": {"move": "pan", "x": -0.05}, "link": pan},
+        {"id": "c", "start": 8.0, "end": 12.0, "link": pan},
+        {"id": "d", "start": 12.0, "end": 16.0},
+    ]
+    css = scenes.world_css(shown, 16.0)
+    steps = re.findall(r"translate\((-?[\d.]+)%,(-?[\d.]+)%\).*?scale\(([\d.]+)\)", css)
+    assert len(steps) > 10
+    for x, _, scale in steps:
+        assert float(scale) / 2 - abs(float(x)) / 100 >= 0.5, f"the backdrop leaves an edge at x {x}% and scale {scale}"
